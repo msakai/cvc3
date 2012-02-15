@@ -1,10 +1,10 @@
 dnl Process with autoconf to generate configure script   -*- sh -*-
 
 dnl Init with sanity check for source directory
-AC_INIT()
+AC_INIT
 
 dnl Set C++ as the default language for all tests
-AC_LANG_CPLUSPLUS
+AC_LANG([C++])
 
 AC_SUBST(EXTRA_SAT_HEADERS)
 AC_SUBST(EXTRA_SAT_CPP)
@@ -308,30 +308,24 @@ dnl and defines HAVE_LIBfoo, unless 3rd and 4th args are specified.
 if test "$RATIONAL_IMPL" = "-DRATIONAL_GMP"; then
   AC_MSG_CHECKING(for gmp)
   LIBS="-lgmp $LIBS"
-  AC_TRY_LINK([
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include <gmp.h>
 #include <iostream>
-],
-[  mpq_t x;
+]], [[  mpq_t x;
    mpq_init(x);
-],
-cvc_gmp_works="yes",
-cvc_gmp_works="no")
+]])],[cvc_gmp_works="yes"],[cvc_gmp_works="no"])
 if test "$cvc_gmp_works" = "no"; then
 if test -n "$MAC_OSX"; then
   AC_MSG_RESULT(no)
   AC_MSG_CHECKING(for gmp in /opt/local)
   CPPFLAGS="-I/opt/local/include $CPPFLAGS"
   LDFLAGS="-L/opt/local/lib $LDFLAGS"
-  AC_TRY_LINK([
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include <gmp.h>
 #include <iostream>
-],
-[  mpq_t x;
+]], [[  mpq_t x;
    mpq_init(x);
-],
-cvc_gmp_works="yes",
-cvc_gmp_works="no")
+]])],[cvc_gmp_works="yes"],[cvc_gmp_works="no"])
 fi
 fi
 if test "$cvc_gmp_works" = "no"; then
@@ -361,14 +355,12 @@ if test "$RATIONAL_IMPL" = "-DRATIONAL_GMPXX"; then
 # a wrong compiler.
 AC_CACHE_CHECK(whether gmpxx library works, cvc_cv_gmpxx_works,
   cvc_cv_gmpxx_works="no"
-  AC_TRY_LINK([
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include <gmpxx.h>
 #include <iostream>
-],
-[  mpz_class x;
+]], [[  mpz_class x;
    std::cout << x;
-], 
-  cvc_cv_gmpxx_works="yes"))
+]])],[cvc_cv_gmpxx_works="yes"],[]))
 
 if test "$cvc_cv_gmpxx_works" = "no"; then
   AC_MSG_ERROR([libgmpxx.a did not link.
@@ -422,10 +414,10 @@ doc/Doxyfile \
 doc/Makefile"
 
 
-AC_OUTPUT(
-$CVC_OUTPUT_FILES \
+AC_CONFIG_FILES([$CVC_OUTPUT_FILES \
 $OTHER_OUTPUT_FILES
-)
+])
+AC_OUTPUT
 
 chmod a+x bin/run_tests
 chmod a+x bin/cvc2smt

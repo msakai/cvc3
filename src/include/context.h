@@ -169,7 +169,7 @@ public:
 
   void operator delete(void*) { }
 
-  IF_DEBUG(std::string name() const;);
+  IF_DEBUG(std::string name() const;)
 };
 
 ///////////////////////////////////////////////////////////////////////////////

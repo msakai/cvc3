@@ -276,8 +276,6 @@ private:
   /*! \param thm is a Theorem(phi) or Theorem(NOT phi), where phi is
    * an atomic formula to get a find pointer to TRUE or FALSE,
    * respectively.
-   * \param notifySAT indicates whether to notify the Search Engine of
-   * this literal.
    */
   void setFindLiteral(const Theorem& thm);
   //! Derived rule for rewriting ITE

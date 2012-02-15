@@ -2,7 +2,7 @@
 /*!
  * \file quant_theorem_producer.cpp
  * 
- * Author: Daniel Wichs
+ * Author: Daniel Wichs, Yeting Ge
  * 
  * Created: Jul 07 22:22:38 GMT 2003
  *
@@ -96,14 +96,10 @@ QuantTheoremProducer::rewriteNotExists(const Expr& e) {
  * \param terms are the terms to instantiate.
  */
 Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Expr>& terms, int quantLevel){
-
+  
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
   if(CHECK_PROOFS) {
-    if(boundVars.size() != terms.size()){
-      char * a;
-      a[100000]='a';
-    }
     CHECK_SOUND(boundVars.size() == terms.size(), 
 		"Universal instantiation: size of terms array does "
 		"not match quanitfied variables array size");
@@ -119,7 +115,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
   //build up a conjunction of type predicates for expression
   Expr tr = e.getEM()->trueExpr();
   Expr typePred = tr;
-  unsigned qlevel, qlevelMax = 0;
+  //  unsigned qlevel, qlevelMax = 0;
   for(unsigned int i=0; i<terms.size(); i++) {
     Expr p = d_theoryQuant->getTypePred(boundVars[i].getType(),terms[i]);
     if(p!=tr) {
@@ -128,8 +124,8 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
       else
 	typePred = typePred.andExpr(p);
     }
-    qlevel = d_theoryQuant->theoryCore()->getQuantLevelForTerm(terms[i]);
-    if (qlevel > qlevelMax) qlevel = qlevelMax;
+    //    qlevel = d_theoryQuant->theoryCore()->getQuantLevelForTerm(terms[i]);
+    //    if (qlevel > qlevelMax) qlevel = qlevelMax;
   }
   Proof pf;
   if(withProof()) {
@@ -172,7 +168,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
   //build up a conjunction of type predicates for expression
   Expr tr = e.getEM()->trueExpr();
   Expr typePred = tr;
-  unsigned qlevel, qlevelMax = 0;
+  unsigned qlevel=0, qlevelMax = 0;
   for(unsigned int i=0; i<terms.size(); i++) {
     Expr p = d_theoryQuant->getTypePred(boundVars[i].getType(),terms[i]);
     if(p!=tr) {
@@ -205,9 +201,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
 }
 
 
-//! Instantiate a  universally quantified formula
-Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const
-						   vector<Expr>& terms){
+Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vector<Expr>& terms, int quantLevel){
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
   if(CHECK_PROOFS) {
@@ -218,8 +212,6 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const
 		"universal instantiation: expr must be FORALL:\n"
 		+e.toString());
     for(unsigned int i=0; i<terms.size(); i++){
-      //      cout<<"bounVar:"<<boundVars[i].toString()<<":"<<d_theoryQuant->getBaseType(boundVars[i]).toString()<<endl;
-      //      cout<<"term:"<<terms[i].toString()<<":"<<d_theoryQuant->getBaseType(terms[i]).toString()<<endl;
       CHECK_SOUND(d_theoryQuant->getBaseType(boundVars[i]) ==
                   d_theoryQuant->getBaseType(terms[i]),
 	      "partial Universal instantiation: type mismatch");
@@ -276,8 +268,11 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const
     if(typePred == tr)
       imp = inst;
     else
-      imp = typePred.impExpr(inst); 
-    return(newTheorem(imp, t1.getAssumptionsRef(), pf));
+      imp = typePred.impExpr(inst);
+    
+    Theorem res = (newTheorem(imp, t1.getAssumptionsRef(), pf));
+    res.setQuantLevel(quantLevel+1);
+    return res;
     
   }
 }
@@ -359,39 +354,42 @@ Theorem QuantTheoremProducer::adjustVarUniv(const Theorem& t1, const std::vector
 
 //!pack (forall (x) forall (y)) into (forall (x y))
 Theorem QuantTheoremProducer::packVar(const Theorem& t1){
-  const Expr e=t1.getExpr();
+  Expr out_forall =t1.getExpr();
 
   if(CHECK_PROOFS) {
-      CHECK_SOUND(e.isForall(),
+      CHECK_SOUND(out_forall.isForall(),
 		"packVar: "
-		+e.toString());
+		+out_forall.toString());
   }
 
-  vector<Expr> bVars = e.getVars();
+  vector<Expr> bVars = out_forall.getVars();
   
-  if(!e.getBody().isForall()){
+  if(!out_forall.getBody().isForall()){
     return t1;
   } 
   
-  const Expr body=e.getBody().getBody();
-  
-  vector<Expr> bVarsLeft = e.getBody().getVars();
-  for(vector<Expr>::iterator i=bVarsLeft.begin(), iend=bVarsLeft.end(); i!=iend; i++){
-    bVars.push_back(*i);
+  Expr cur_body = out_forall.getBody();
+
+  while(cur_body.isForall()){
+    vector<Expr> bVarsLeft = cur_body.getVars();
+    for(vector<Expr>::iterator i=bVarsLeft.begin(), iend=bVarsLeft.end(); i!=iend; i++){
+      bVars.push_back(*i);
+    }
+    cur_body=cur_body.getBody();
   }
-  
+
   Proof pf;
   if(withProof()) {
     vector<Expr> es;
     vector<Proof> pfs;
-    es.push_back(e);
+    es.push_back(out_forall);
     es.insert(es.end(), bVars.begin(), bVars.end());
     pfs.push_back(t1.getProof());
     pf= newPf("packVar", es, pfs);
   }
   
   Expr newQuantExpr;
-  newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVars, body);
+  newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVars, cur_body);
 
   return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
 }
@@ -444,8 +442,6 @@ Theorem QuantTheoremProducer::pullVarOut(const Theorem& t1){
     Expr newQuantExpr;
     newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVarsOut, newbody);
 
-    //    cout<<"org thm|"<<t1.toString()<<endl;
-    //    cout<<"new thm|"<<newQuantExpr.toString()<<endl;
     return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
   }
   else if ((outBody.isAnd() && outBody[1].isForall()) || 

@@ -195,14 +195,14 @@ Theorem TheoryBitvector::bitBlastDisEqn(const Theorem& notE)
   return result;
 }
 
-/*! \param e1 pred e2, where pred is < or <=.  
+/*! \param e has the form e1 pred e2, where pred is < or <=.  
  *
  *  if e1,e2 are constants, determine bv2int(e1) pred bv2int(e2). 
  *
  *  most significant bit of ei is denoted by msb(ei) 
  * 
- *  \return (msb(e1) pred msb(e2)) \vee 
- *          (msb(e1)=msb(e2) \wedge e1[n-2:0] pred e2[n-2:0])
+ *  \return \f$(msb(e1)\ pred\ msb(e2)) \vee 
+ *          (msb(e1)=msb(e2) \wedge e1[n-2:0]\ pred\ e2[n-2:0])\f$
  */
 Theorem TheoryBitvector::bitBlastIneqn(const Expr& e) {
   TRACE("bitvector", "bitBlastIneqn(", e.toString(), ") {"); 

@@ -1,4 +1,5 @@
-/*! @brief The following code declares classes to read from and write to
+/*! \file fdstream.h
+ * @brief The following code declares classes to read from and write to
  * file descriptore or file handles.
  *
  * See

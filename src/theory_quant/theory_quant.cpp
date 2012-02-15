@@ -2,7 +2,7 @@
 /*! 
  * \file theory_quant.cpp
  * 
- * Author: Daniel Wichs
+ * Author: Daniel Wichs, Yeting Ge
  * 
  * Created: Wednesday July 2, 2003
  * 
@@ -30,26 +30,24 @@
 #include<string>
 #include<string.h>
 
-              
 using namespace std;
 using namespace CVC3;
-
-//extern VCL* CVC3::myvcl;
 
 ///////////////////////////////////////////////////////////////////////////////
 // TheoryQuant Public Methods                                                 //
 ///////////////////////////////////////////////////////////////////////////////
 
-static Expr null_expr;
+static const Expr null_expr;
+const int FOUND_FALSE = 1;
 
 Trigger::Trigger(TheoryCore* core, Expr e, Polarity pol, int pri){
   trig=e ;
   polarity=pol;
-  priority= new(true) CDO<int>(core->getCM()->getCurrentContext(), pri, 0);
   head=null_expr;
   hasRWOp=false;
   hasTrans=false;
   hasT2=false;
+  isSimple=false;
 }
 
 bool Trigger::isPos(){
@@ -104,6 +102,14 @@ bool Trigger::hasTr2(){
   return hasT2;
 }
 
+void Trigger::setSimp(){
+  isSimple =true ; 
+}
+
+bool Trigger::isSimp(){
+  return isSimple;
+}
+
 
 TheoryQuant::TheoryQuant(TheoryCore* core) //!< Constructor
   : Theory(core, "Quantified Expressions"),
@@ -129,7 +135,6 @@ TheoryQuant::TheoryQuant(TheoryCore* core) //!< Constructor
     d_useSemMatch(&(core->getFlags()["quant-sem-match"].getBool())),
     d_useAtomSem(&(core->getFlags()["quant-const-match"].getBool())),
     d_translate(&(core->getFlags()["translate"].getBool())),
-    d_useMatchOld(&(core->getFlags()["quant-match-old"].getBool())),
     d_useTrigNew(&(core->getFlags()["quant-trig-new"].getBool())),
     d_usePart(&(core->getFlags()["quant-inst-part"].getBool())),
     d_useMult(&(core->getFlags()["quant-inst-mult"].getBool())),
@@ -149,20 +154,12 @@ TheoryQuant::TheoryQuant(TheoryCore* core) //!< Constructor
     d_maxNaiveCall(&(core->getFlags()["quant-naive-num"].getInt())),
     d_curMaxExprScore(core->getCM()->getCurrentContext(), (core->getFlags()["quant-max-score"].getInt()),0),
     d_arrayIndic(core->getCM()->getCurrentContext()),
-    d_instsOnCurPath(core->getCM()->getCurrentContext()),
-    d_instsOnCurPathSimp(core->getCM()->getCurrentContext()),
-    d_exprScore(core->getCM()->getCurrentContext()),
-    d_exprUpdate(core->getCM()->getCurrentContext()),
     d_exprLastUpdatedPos(core->getCM()->getCurrentContext(),0 ,0),
     d_trans_found(core->getCM()->getCurrentContext()),
     d_trans2_found(core->getCM()->getCurrentContext()),
     null_cdlist(core->getCM()->getCurrentContext()),
     d_allInstCount(core->getStatistics().counter("quantifier instantiations")),
-    d_instRound(core->getCM()->getCurrentContext(), 0,0),
     d_partCalled(core->getCM()->getCurrentContext(),false,0),
-    d_fullendCalled(core->getCM()->getCurrentContext(),false,0),
-    d_thmTimes(core->getCM()->getCurrentContext()),
-    d_instExprReasons(core->getCM()->getCurrentContext()),
     d_instHistory(core->getCM()->getCurrentContext())
 {
   IF_DEBUG(d_univs.setName("CDList[TheoryQuant::d_univs]"));
@@ -178,12 +175,10 @@ TheoryQuant::TheoryQuant(TheoryCore* core) //!< Constructor
   d_partCalled=false;
   d_offset_multi_trig=1;
   d_initMaxScore=(theoryCore()->getFlags()["quant-max-score"].getInt());
-  //  usedup=false;
 }
 
 //! Destructor
 TheoryQuant::~TheoryQuant() {
-
   if(d_rules != NULL) delete d_rules;
   for(std::map<Type, CDList<size_t>* ,TypeComp>::iterator 
 	it = d_contextMap.begin(), iend = d_contextMap.end(); 
@@ -194,56 +189,26 @@ TheoryQuant::~TheoryQuant() {
 }
 
 int TheoryQuant::getExprScore(const Expr& e){
-  
   return theoryCore()->getQuantLevelForTerm(e);
-  DebugAssert((*d_useExprScore), "getExprScore called in the wrong place");;
-
-  CDMap<Expr, int>::iterator iter = d_exprScore.find(e);
-  if(d_exprScore.end() == iter ){
-    //    theoryCore()->getQuantLevelForTerm(e);
-    if(e.inUserAssumption()){
-      d_exprScore[e]=0;
-      addNotify(e);
-      return 0;
-    }
-    else{
-      addNotify(e);
-      if(!isPlus(e) && !isMult(e)){//since mult and plus are not used in matching, we do not care about them
-	const std::vector<Expr> subs = getSubTerms(e);
-	bool hasSkolem=false;
-	for(size_t i = 0; i < subs.size(); i++){
-	  if(subs[i].isSkolem()){
-	    hasSkolem=true;
-	    break;
-	  }
-	}
-	if(!hasSkolem){
-	  TRACE("exprscore", "not in user assumption: ", e.getIndex(), " # "+e.toString()) ;
-	  return (-1 + 1); //it seems -1 will cause some problem. fix asap
-	}
-	else{
-	  int score = theoryCore()->getQuantLevelForTerm(e); //as a temp solution
-	  d_exprScore[e] = score;
-	  return score;
-	}
-      }
-      else{
-	return (-1 + 1);
-      }
-    }
-  }
-  else{
-    return (*iter).second;
-  }
 }
-
 
 bool isSysPred(const Expr& e){
   return ( isLE(e) || isLT(e) || isGE(e) || isGT(e) || e.isEq());
 }
 
+bool isSimpleTrig(const Expr& t){
+  for(int i = 0; i < t.arity(); i++){
+    if (t[i].arity()>0) return false;
+    if (BOUND_VAR == t[i].getKind()){
+      for(int j = 0; j < i; j++){
+	if(t[i] == t[j]) return false;
+      }
+    } 
+  }
+  return true;
+}
+
 bool canGetHead(const Expr& e){ 
-  //  return (e.getKind() == UFUNC || e.getKind() == APPLY || e.getKind() == READ || e.getKind() == WRITE); 
   return (e.getKind() == APPLY || e.getKind() == READ || e.getKind() == WRITE); 
 } 
 
@@ -252,56 +217,13 @@ bool usefulInMatch(const Expr& e){
     TRACE("usefulInMatch", e.toString()+": ",e.arity(), "");
     TRACE("usefulInMatch", e.isRational(), "", "");
   }
-//    return ( (0==e.arity() && !e.isClosure() && !e.isRational()) || 
-//  	   canGetHead(e) || 
-//  	   (isSysPred(e) && (!e.isEq()) ) );
   return ( canGetHead(e) || (isSysPred(e) && (!e.isEq()) ) );
 } 
-
-
-int TheoryQuant::setExprScore(const Expr& e, int max){//return the actual score assigned
-  TRACE("exprscore","set score ", e, " in the beginning");
-  CDMap<Expr, int>::iterator iter = d_exprScore.find(e);
-  if(d_exprScore.end() != iter ){
-    int score = (*iter).second;
-    if(score > max){
-      d_exprScore[e]=max;
-      TRACE("exprscore","score lowered: ", score,e);
-      return max;
-    }
-    else{
-      TRACE("exprscore", "expr has lower score ", score,e );
-      return score;
-    }
-  }
-  else{
-    if(e.inUserAssumption()){
-      d_exprScore[e]=0;
-      addNotify(e);
-      TRACE("exprscore", "in user assumption ", e, "");
-      return 0;
-    }
-    else{
-      d_exprScore[e]=max;
-      addNotify(e);
-      TRACE("exprscore", theoryCore()->getCM()->scopeLevel(), " expr get score: ", max);
-      return max;
-    }
-  }
-}
-
 
 void TheoryQuant::setup(const Expr& e) {}
 
 void TheoryQuant::update(const Theorem& t, const Expr& e) {
-  //  TRACE("quant update", "update expr: ",e,"");
-  //  TRACE("quant update", "update thm: ", t.getExpr(), "");
-  //  int score = d_exprScore[e];
-  //TRACE("quant update", "expr score ", score, "");
-  
-  //  d_exprUpdate.push_back(Expr(RAW_LIST, e, (theoryCore()->getEM()->newRatExpr(score))));
 }
-
 
 std::string vectorExpr2string(const std::vector<Expr> & vec){
   std::string buf;
@@ -312,9 +234,7 @@ std::string vectorExpr2string(const std::vector<Expr> & vec){
   return buf;
 }
 
-
 static void recursiveGetSubTrig(const Expr& e, std::vector<Expr> & res) {
- 
   if(e.getFlag())
    return;
 
@@ -325,22 +245,17 @@ static void recursiveGetSubTrig(const Expr& e, std::vector<Expr> & res) {
     res.push_back(e);
   }
   else
-  //  if (e.isApply() || ( e.isTerm() && (!e.isVar())  )
-    if  ( e.isTerm() && (!e.isVar()) && (e.getKind()!=RATIONAL_EXPR) )
-      // if  ( (!e.isVar()) && (e.getKind()!=RATIONAL_EXPR) )
-      {
+    if ( e.isTerm() && (!e.isVar()) && (e.getKind()!=RATIONAL_EXPR) ) {
 	res.push_back(e);
       }
 
-  for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)
-    {	
+  for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)    {	
       recursiveGetSubTrig(*i,res);
     }
   
   e.setFlag();
   return ;
 }
-
 
 std::vector<Expr> getSubTrig(const Expr& e){
   e.clearFlags();
@@ -353,7 +268,6 @@ std::vector<Expr> getSubTrig(const Expr& e){
 }
 
 static void recGetSubTerms(const Expr& e, std::vector<Expr> & res) {
- 
   if(e.getFlag())
    return;
 
@@ -370,7 +284,6 @@ static void recGetSubTerms(const Expr& e, std::vector<Expr> & res) {
   return ;
 }
 
-
 const std::vector<Expr>& TheoryQuant::getSubTerms(const Expr& e){
   //the last item in res is e itself
   ExprMap<std::vector<Expr> >::iterator iter= d_subTermsMap.find(e);
@@ -383,10 +296,6 @@ const std::vector<Expr>& TheoryQuant::getSubTerms(const Expr& e){
     TRACE("getsubs", "getsubs, e is: ", e, "");
     TRACE("getsubs", "e has ", res.size(), " subterms");
 
-    // for(size_t i = 0; i<res.size(); i++){
-    //	cout<<i<<" # "<<res[i]<<endl;
-    //       }
-
     d_subTermsMap[e] = res;
     return d_subTermsMap[e];
   }
@@ -395,231 +304,137 @@ const std::vector<Expr>& TheoryQuant::getSubTerms(const Expr& e){
   }
 }
 
+void TheoryQuant::enqueueInst(const Theorem& univ, const vector<Expr>& bind, const Expr& gterm){
+  static int max_score =-1;
 
-void TheoryQuant::enqueueInst(const Theorem univ, const vector<Expr> bind, const Expr gterm){
-  if(bind.size() != univ.getExpr().getVars().size()){
-    char * a;
-    a[1000001]='a';
-    cout<<a<<"1"<<endl;
-  }  
-  if ( (*d_useNew && !d_usePartTrig && !d_inEnd)) {
-    const Expr& univExpr =univ.getExpr();
-      
-      //      if(d_thmTimes.count(univ.getExpr())>0){
-      //	d_thmTimes[univ.getExpr()] = d_thmTimes[univ.getExpr()]+1;
-      //      }
-      //      else{
-      //	d_thmTimes[univ.getExpr()] = 1;
-      //      }
-      
-      //      if(d_thmTimes.count(univExpr) <= 0){
-      //	d_thmTimes[univExpr] = 0;
-      //      }
+  ExprMap<std::set<std::vector<Expr> > >& buf = d_tempBinds;
 
-        if(true || d_thmTimes[univExpr] <= *d_maxInst || *d_useExprScore)   {
-	  //  if(d_thmTimes[univExpr] <= *d_maxInst)   {
-      TRACE("quant enqueue", "enqueue instert:|", univExpr.toString(), " | with bind:"+vectorExpr2string(bind) );
-      d_univsQueue.push(univ);
-      d_bindQueue.push(bind);
-      d_gtermQueue.push(gterm);
+  bool partInst=false;
+  if(bind.size() < univ.getExpr().getVars().size()){
+    partInst=true;
+    TRACE("sendinst","partinst",partInst,"");
+  }
+  
+  if (*d_useInstLCache){
+    const Expr& e = univ.getExpr();
+    CDMap<Expr, std::set<std::vector<Expr> > >::iterator iterCache = d_instHistory.find(e);
+    if (iterCache != d_instHistory.end()){
+      const std::set<std::vector<Expr> >& cache = (*iterCache).second; 
+      if(cache.find(bind) !=cache.end()){
+	return ;
+      }
+    }
+    
+    ExprMap<std::set<std::vector<Expr> > >::iterator iterTemp = buf.find(e);
+    if(iterTemp != buf.end()){
+      const std::set<std::vector<Expr> >& cache = (*iterTemp).second; 
+      if(cache.find(bind) !=cache.end()){
+	return;
+      }
+    }
+    buf[e].insert(bind);
+  }
+  
+  if (*d_useInstGCache){
+    const Expr& e = univ.getExpr(); 
+    ExprMap<std::set<std::vector<Expr> > >::iterator iterCache = d_instHistoryGlobal.find(e);
+    if(iterCache != d_instHistoryGlobal.end()){
+      const std::set<std::vector<Expr> >& cache = (*iterCache).second; 
+      if(cache.find(bind) !=cache.end()){
+	return;
+      }
+    }
+    d_instHistoryGlobal[e].insert(bind);
+  }
+  
+  Theorem thm ;
+  if(null_expr == gterm ){//it is from naive instantiation or multi-inst
+    TRACE("sendinst","gterm",gterm,"");
+    if(partInst) {
+      thm = d_rules->partialUniversalInst(univ, bind, 0);
     }
     else{
-      TRACE("quant enqueue", " max reached ", univExpr ,d_thmTimes[univExpr]);
-      //	cout<<"max reached: "<<univ.getExpr()<<endl;
-      //      cout<<"cur size:"<<d_instsOnCurPath.size()<<endl;;
-      //      for(size_t i =0; i< d_instsOnCurPath.size(); i++)
-      //	cout<<"::"<<d_instsOnCurPath[i]<<endl;
+      thm = d_rules->universalInst(univ, bind, 0);
     }
   }
-  else  {
-    d_univsQueue.push(univ);
-    d_bindQueue.push(bind);
-    d_gtermQueue.push(gterm);
+  else{
+    int gscore = theoryCore()->getQuantLevelForTerm(gterm);    
+    if(gscore > max_score){
+      max_score = gscore;
+    }
+    if(partInst) {
+      thm = d_rules->partialUniversalInst(univ, bind, gscore);
+    }
+    else{
+      thm = d_rules->universalInst(univ, bind, gscore);
+    }
   }
+
+  Theorem simpThm = simplify(thm.getExpr());  
+  
+  if(*d_useInstTrue){
+    Expr res = simpThm.getRHS();
+    if(res.isTrue()){
+      return;
+    }
+    if(res.isFalse() ){
+      enqueueFact(thm);
+      d_allInstCount++;
+      d_instThisRound++;
+      throw FOUND_FALSE;
+    }
+  }
+
+  d_simplifiedThmQueue.push(thm);
+
+  TRACE("quant sendinst", "=gterm: ",gterm, "");
+  TRACE("quant sendinst", "==add fact simp =", simplifyExpr(thm.getExpr()), "");
+  TRACE("quant sendinst", "==add fact org =", thm.getExpr(), "");
+  TRACE("quant sendinst", "==add fact from= ", univ.getExpr(), "\n===: "+vectorExpr2string(bind)); 
 }
 
-
-void TheoryQuant::addNotify(const Expr& e){
-  std::vector<Expr> subs=getSubTerms(e);
-  for(size_t i=0; i<subs.size()-1; i++){
-    subs[i].addToNotify(this, e); //maybe we do not need all the sub-terms here, the first generation children should be enough. fix asap
-  }
+void TheoryQuant::enqueueInst(const Theorem& univ, 
+			      Trigger& trig, 
+			      const std::vector<Expr>& binds,  
+			      const Expr& gterm
+			      ) {
+  return enqueueInst(univ,binds,gterm);
 }
 
 int TheoryQuant::sendInstNew(){
-  int resNum = 0;
-  static int max_score =-1;
-  static int max_score2 =-1;
-
-  ExprMap<std::set<std::vector<Expr> > > buf;
-  buf.clear();
-  //  cout<<"----------sendinst-----------"<<endl;
-  while(!d_univsQueue.empty()){
-
-    //    cout<<"===------------"<<endl;
-    const Theorem univ = d_univsQueue.front();
-    d_univsQueue.pop();
-
-    std::vector<Expr> bind = d_bindQueue.front();
-    d_bindQueue.pop();
-
-    Expr gterm = d_gtermQueue.front();
-    d_gtermQueue.pop();
-
-    //    cout<<"gterm in sendinst " << gterm.getIndex() << endl;
-
-    if(null_expr == gterm){//it is from naive instantiation
-      Theorem thm = d_rules->universalInst(univ, bind, 0);
-      d_allInstCount++;
-      d_instThisRound++;
-      enqueueFact(thm);
-      resNum++;
-      continue;
-    }
-
-    //    cout<<"======= = = = = = = = = ="<<endl;
-    //    cout<<univ<<endl;
-    //    cout<<"bind: "<<vectorExpr2string(bind)<<endl;
-    //    cout<<"gterm "<<gterm<<endl;
-
-    if (*d_useInstLCache){
-      const Expr& e = univ.getExpr(); 
-      if(d_instHistory.count(e)>0){
-	const std::set<std::vector<Expr> >& cache = d_instHistory[e]; 
-	if(cache.find(bind) !=cache.end()){
-	  //	  cout<<"found 1" <<vectorExpr2string(bind) << endl;
-	  continue;
-	}
-      }
-      if(buf.count(e)>0){
-	const std::set<std::vector<Expr> >& cache = buf[e]; 
-	if(cache.find(bind) !=cache.end()){
-	  //	  cout<<"found 2" <<vectorExpr2string(bind) << endl;
-	  continue;
-	}
-      }
-      buf[e].insert(bind);
-    }
+  int resNum = 0 ;
+  
+  while(!d_simplifiedThmQueue.empty()){
+    const Theorem thm = d_simplifiedThmQueue.front();
+    d_simplifiedThmQueue.pop();
     
-    if (*d_useInstGCache){
-      const Expr& e = univ.getExpr(); 
-      if(d_instHistoryGlobal.count(e)>0){
-	const std::set<std::vector<Expr> >& cache = d_instHistoryGlobal[e]; 
-	if(cache.find(bind) !=cache.end()){
-	  continue;
-	}
-      }
-      d_instHistoryGlobal[e].insert(bind);
-    }
-    
-    
-    d_thmTimes[univ.getExpr()] = d_thmTimes[univ.getExpr()]+1;
-    
-    int gscore = theoryCore()->getQuantLevelForTerm(gterm);    
-
-    if(gscore > max_score){
-      max_score = gscore;
-      //      cout<<"max_score now " << max_score << endl;;
-    }
-    
-    Theorem thm = d_rules->universalInst(univ, bind, gscore);
-
-    if(*d_useInstTrue){
-      Expr simpThm = simplifyExpr(thm.getExpr());
-      if(simpThm.isTrue()){
-	//	cout<<"found true, ignored"<<endl;
-	//	cout<<"univ:" <<univ<<endl;
-	continue;
-      }
-    }
-       
-    if(*d_useExprScore && false ){
-       int gScore;
-       CDMap<Expr, int>::iterator iter = d_exprScore.find(gterm);
-
-       if(iter != d_exprScore.end()){
-	 gScore=(*iter).second;
- 	if(gScore > max_score2){
- 	  max_score2 = gScore;
-	  // 	  cout<<"max_score2 now " << max_score2 <<endl;;
- 	}
-       }
-       else{
-	 gScore=getExprScore(gterm);
-	 if(-1 == gScore){
-	   //	   cout<<"cannot find score for gterm: "<<gterm<<endl;
-	   //	   cout<<univ<<endl;
-	   //	   cout<< vectorExpr2string(bind) <<endl;
-	 //	exit(10);
-	   gScore=0;
-	 }
-       }
-       
-       gScore++;
-
-      {
-	//	Expr simpThm = simplifyExpr(thm.getExpr());
-	Expr simpThm = thm.getExpr();
-	const std::vector<Expr>& subTerms  = getSubTerms(simpThm);
-	for(size_t i = 0; i<subTerms.size(); i++){
-	  const Expr& cur = subTerms[i];
-	  if(cur.isAnd() || cur.isOr() || cur.isIff() || cur.isNot() || cur.isImpl() || cur.isXor() || cur.isEq()){
-	    continue;
-	  }
-
-	  Expr simpExpr = simplifyExpr(cur);
-	  //	  if(usefulInMatch(cur)){
-	  if(usefulInMatch(simpExpr)){
-	    TRACE("exprscore","cur simp", simpExpr,"");
-	    setExprScore(simpExpr, gScore);
-
-	  }
-	}
-      }
-    }
-    
-    //    d_allInsts.push_back(thm.getExpr());
-    //    d_instsOnCurPath.push_back(thm.getExpr());
-    //    d_instsOnCurPathSimp.push_back(simplifyExpr(thm.getExpr()));
-
-    TRACE("quant sendinst", "=thm scope: ", thm.getScope(), "");
-    TRACE("quant sendinst", "=cur score: ", theoryCore()->getCM()->scopeLevel(), "");
-    TRACE("quant sendinst", "=gterm: ",gterm, "");
-    TRACE("quant sendinst", "=gterm index: ", gterm.getIndex(), "");
-    TRACE("quant sendinst", "=gterm quant level: ", theoryCore()->getQuantLevelForTerm(gterm), "");
-    TRACE("quant sendinst", "==add fact simp =", simplifyExpr(thm.getExpr()), "");
-    TRACE("quant sendinst", "==add fact org =", thm.getExpr(), "");
-    TRACE("quant sendinst", "==add fact quant level: ", thm.getQuantLevel(), "");
-    TRACE("quant sendinst", "==add fact from= ", univ.getExpr(), "\n===: "+vectorExpr2string(bind)); 
-
-
     d_allInstCount++;
     d_instThisRound++;
-    enqueueFact(thm);
     resNum++;
-  }//end of while
-  
+    enqueueFact(thm);
+  }
+
   if (*d_useInstLCache){
+    ExprMap<std::set<std::vector<Expr> > >& buf = d_tempBinds;
     for(ExprMap<std::set<std::vector<Expr> > >::iterator i=buf.begin(), iend=buf.end(); i!=iend; i++){
       std::set<std::vector<Expr> > newbuf = d_instHistory[i->first].get();
-      //      cout<<"newbuf " << newbuf.size() <<endl;
-      //      cout<<"new bind " << i->second.size() << endl;
       for(std::set<std::vector<Expr> >::const_iterator j=i->second.begin(), jend=i->second.end(); j!=jend; j++){
 	newbuf.insert(*j);
       }
-      //      cout<<"after buf "<< newbuf.size() << endl;;
       d_instHistory[i->first].set(newbuf);
     }
   }
-  //  cout<<"----------end of sendinst-----------"<<endl;
+  
+  d_tempBinds.clear();
   return resNum;
 }
 
+void TheoryQuant::addNotify(const Expr& e){}
+
 int recursiveExprScore(const Expr& e) {
-  
   int res=0;
   DebugAssert(!(e.isClosure()), "exprScore called on closure");
-
+  
   if(e.arity()== 0){
     res = 0;
   }
@@ -632,193 +447,11 @@ int recursiveExprScore(const Expr& e) {
   return res;
 }
 
-
 int exprScore(const Expr& e){
   return recursiveExprScore(e);
 }
 
-
-// bool TheoryQuant::goodBind(const Theorem& univ, 
-// 			   const Expr& trig,
-// 			   const int trig_index,
-// 			   const std::vector<Expr>& binds,
-// 			   const Expr& gterm){
-
-bool TheoryQuant::goodBind(const Theorem& univ, 
- 			   const Expr& trig,
- 			   const std::vector<Expr>& binds,
- 			   const Expr& gterm){
-
-  if(*d_useTrigLoop <= 1) return true;//static loop prevention, 
-
-  bool res = true;
-  Expr cur_gterm = gterm;
-  
-  TRACE("quant goodbind","-------in bind -----","","");
-  TRACE("quant goodbind","gterm: ", gterm, ""); 
-  TRACE("quant goodbind","univ: ", univ.getExpr(), ""); 
-  TRACE("quant goodbind","trig: ", trig , ""); 
-  TRACE("quant exprscore", "gterm:", gterm.toString(),"");;
-
-  while(cur_gterm != null_expr && d_instExprReasons.count(cur_gterm) > 0) {
-    TRACE("quant exprscore", "cur_gterm:", cur_gterm.toString(),"");
-    TRACE("quant goodbind","cur_term: ", cur_gterm, ""); 
-
-    const  std::vector<Expr>& reasons = d_instExprReasons[cur_gterm];
-
-    TRACE("quant goodbind","reasons: ",vectorExpr2string(reasons), "");
-
-    if ((reasons[0] == univ.getExpr()) && reasons[1]==trig){
-      if(exprScore(gterm) > exprScore(reasons[2])){
-	res = false;
-	TRACE("quant goodbind","return false score ", gterm, ""); 
-	return res;
-      }
-      else{
-	TRACE("quant goodbind","return true score ", gterm, ""); 
-	return true;
-      }
-    }
-    cur_gterm = reasons[2];
-  }
-  TRACE("quant goodbind","return true end ", gterm, ""); 
-  return res;
-}
-
-inline bool TheoryQuant::grounded(const Expr& e){
-  if (d_instExprReasons.count(e) > 0) return true;
-  return false;
-}
-    
-inline void TheoryQuant::ground(const Expr& e){
-  if (d_instExprReasons.count(e) > 0) return ;
-  std::vector<Expr> buf;;  
-  buf.push_back(null_expr);
-  buf.push_back(null_expr);
-  buf.push_back(null_expr);
-  d_instExprReasons[e]=buf;
-  TRACE("quant ground", "expr grounded:", e.toString(), "");
-}
-
-void TheoryQuant::setGround(const Expr& gterm, 
-			    const Expr& trig, 
-			    const Theorem& univ, 
-			    const std::vector<Expr>& subTerms) {    
-   
-  if(!grounded(gterm)) {
-    ground(gterm);
-    // we need ground all subterms of gterm.
-    const std::vector<Expr>& gsubs = getSubTerms(gterm);
-    for(std::vector<Expr>::const_iterator i=gsubs.begin(), iend = gsubs.end(); i!=iend; i++){
-      if (!grounded(*i)) {
-	ground(*i);
-      }
-    }
-  }
-  
-  DebugAssert(grounded(gterm), "none grounded gterm founded:"+gterm.toString());
-  
-  for(std::vector<Expr>::const_iterator i=subTerms.begin(), iend = subTerms.end(); i!=iend; i++){
-    if(grounded(*i)) continue;
-    
-    std::vector<Expr> buf;;
-    buf.clear();
-    buf.push_back(univ.getExpr());
-    buf.push_back(trig);
-    buf.push_back(gterm);
-    d_instExprReasons[*i]=buf;
-    
-    TRACE("quant ground", "ground reasons for expr: ",*i, "");
-    TRACE("quant ground", "univ : ", univ.getExpr(), "");
-    TRACE("quant ground", "trig : ", trig, "");
-    TRACE("quant ground", "gterm : ", gterm, "");
-  }
-}
-
-
-// void TheoryQuant::enqueueInst(const Theorem univ, 
-// 			      const Expr trig, 
-// 			      const int trig_index, //to be deleted
-// 			      const std::vector<Expr> binds,  
-// 			      const Expr gterm
-// 			      ) {
-
- void TheoryQuant::enqueueInst(const Theorem& univ, 
-			       Trigger& trig, 
-			       const std::vector<Expr>& binds,  
-			       const Expr& gterm
-			       ) {
-   if(binds.size() != univ.getExpr().getVars().size()){
-     char * a;
-     a[100000]='a';
-     cout<<"a2"<<endl;
-  }  
-   
-  if ( (*d_useNew && !d_usePartTrig && !d_inEnd))  {
-
-    const Expr& univExpr = univ.getExpr();
-    //    DebugAssert((trig ==  d_fullTriggers[univExpr][trig_index]), "unknown trigger in enqueue inst");
-    //    if(0 != *d_fullTrigScore[univExpr][trig_index]) {
-    if(0 != trig.getPri()) {
-      //      cout<<" return because trigger score"<<endl;
-      return;
-    }
-
-    if(!goodBind(univ, trig.getEx(), binds, gterm)) {
-      //      d_fullTrigScore[univExpr][trig_index]->set(1);
-      trig.setPri(1);
-	//      TRACE("quant triggerscore","score up:", d_fullTriggers[univExpr][trig_index].toString(),"");
-	//      TRACE("quant triggerscore","in univ",univExpr, "");
-      TRACE("quant triggerscore","score up:", trig.getEx().toString(),"");
-      TRACE("quant triggerscore","in univ",univExpr, "");
-      //  
-      //      cout << "trigger score up for "<< univExpr << endl;
-      //	return;
-    }
-
-    if(true || d_thmTimes[univExpr] <= *d_maxInst || *d_useExprScore)   {
-      //      if(d_thmTimes[univExpr] <= *d_maxInst )   {
-
-      TRACE("quant enqueue", "enqueue instert:|", univExpr, " |with bind: "+vectorExpr2string(binds));
-
-      if(*d_useTrigLoop >= 1){
-	Theorem thm = d_rules->universalInst(univ, binds);
-	if(2 == *d_useTrigLoop){
-	  Expr simpThm = simplifyExpr(thm.getExpr());
-	  const std::vector<Expr>& subTerms  = getSubTerms(simpThm);
-	  setGround(gterm, trig.getEx(), univ, subTerms);
-	}
-// 	else if(1 == *d_useTrigLoop){
-// 	  const std::vector<Expr>& subTerms  = getSubTerms(thm.getExpr());
-// 	  setGround(gterm, trig.getEx(), univ, subTerms);
-// 	}
-      }
-      
-      d_univsQueue.push(univ);
-      d_bindQueue.push(binds);
-      d_gtermQueue.push(gterm);
-    }
-    else{
-      TRACE("quant enqueue", " max reached", "","");
-      //      cout<<"max reached for: "<<univ.getExpr()<<endl;
-      //      cout<<"cur size:"<<d_instsOnCurPath.size()<<endl;;
-      //      for(size_t i =0; i< d_instsOnCurPath.size(); i++)
-      //	cout<<"::"<<d_instsOnCurPath[i]<<endl;
-    }
-  }
-  else  {
-    d_univsQueue.push(univ);
-    d_bindQueue.push(binds);
-    d_gtermQueue.push(gterm);
-  }
-}
-    
-
 Expr getHeadExpr(const Expr& e){
-
-//   if (e.getKind() == UFUNC)
-//     return e.getOp().getExpr();
-
   if (e.getKind() == APPLY){
     return e.getOp().getExpr();
   }
@@ -837,41 +470,42 @@ Expr getHeadExpr(const Expr& e){
   }
 
   return null_expr;
-  DebugAssert(false, "Error in gethead for "+e.toString());
-  
-//   cout<<"kind = "<<e.getKind()<<endl;
-//   cout<<"ERROR gethead expr:"<<e<<endl;
-//   cout<<"kind string = "<<e.getEM()->getKindName(e.getKind())<<endl;
-//   cout<<"e[0] kind  = "<<e[0].getEM()->getKindName(e[0].getKind())<<endl;
-
-
 }
-
 
 Expr  getHead(const Expr& e) {
   return getHeadExpr(e);
 }
 
-
 //! get the bound vars in term e,
-static void recursiveGetBoundVars(const Expr& e, std::set<Expr>& result) {
- 
-  if(e.getFlag())
-   return ;
-  
-  if(e.isClosure())
-    return recursiveGetBoundVars(e.getBody(),result); 
-  
-  if  (BOUND_VAR == e.getKind() ){
-    result.insert(e);
+static bool recursiveGetBoundVars(const Expr& e, std::set<Expr>& result) {
+  bool res(false);
+  if(e.getFlag()){
+    return e.containsBoundVar();
   }
-  else 
+  else if(e.isClosure()){
+    res = recursiveGetBoundVars(e.getBody(),result); 
+  }
+  else if (BOUND_VAR == e.getKind() ){
+    result.insert(e);
+    e.setContainsBoundVar();
+    res = true;
+  }
+  else {
+    res = false;
     for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i){	
-      recursiveGetBoundVars(*i,result);
+      if(recursiveGetBoundVars(*i,result)){
+	res = true;
+      }
     }
-  
+  }
+
   e.setFlag();
-  return ;
+  
+  if(res) {
+    e.setContainsBoundVar();
+  }
+
+  return res;
 }
 
 //! get bound vars in term e, 
@@ -885,10 +519,7 @@ std::set<Expr>  getBoundVars(const Expr& e){
 
 bool isGoodSysPredTrigger(const Expr& e){
   if(!isSysPred(e)) return false;
-  //  return true;//temporary 
-  //  if(usefulInMatch(e[0]) && usefulInMatch(e[1])) return true;
   if(usefulInMatch(e[0]) || usefulInMatch(e[1])) return true;
-  //will not match with A<B, where A and B both are not useful 
   return false;
 }
 
@@ -1062,7 +693,7 @@ void findPolarity(const Expr& e, ExprMap<Polarity>& res, Polarity  pol){
     }
   }
   else{
-    Polarity neg_pol;
+    Polarity neg_pol=Ukn;
     if(Pos == pol) {
       neg_pol = Neg;
     }
@@ -1107,7 +738,6 @@ void findPolarity(const Expr& e, ExprMap<Polarity>& res, Polarity  pol){
   }
 }
 
-
 void TheoryQuant::arrayIndexName(const Expr& e){
   std::vector<Expr> res;
   
@@ -1122,20 +752,15 @@ void TheoryQuant::arrayIndexName(const Expr& e){
 	std::vector<Expr> tp = d_arrayIndic[name];
 	tp.push_back(index);
 	d_arrayIndic[name]=tp;
-	//	cout<<"array: "<<name<< " # " <<index<<endl;
       }
       else {
-	//	cout<<"arrayno: "<<name<< " # " <<index<<endl;
       }
     }
   }
 }
 
-
 //this function is used to check if two triggers can match with eath other
 bool TheoryQuant::canMatch(const Expr& t1, const Expr& t2, ExprMap<Expr>& env){
-
-  //  cout<<"can match: "<<t1<<" | "<<t2<<endl;
   if(getBaseType(t1) != getBaseType(t2)) return false;
 
   if (BOUND_VAR == t1.getKind() || BOUND_VAR == t2.getKind()) {
@@ -1159,7 +784,6 @@ bool TheoryQuant::canMatch(const Expr& t1, const Expr& t2, ExprMap<Expr>& env){
     return false;
   }
 }
-
 
 bool TheoryQuant::isTransLike (const vector<Expr>& cur_trig){
   if(!(*d_useTrans)){
@@ -1195,8 +819,6 @@ bool TheoryQuant::isTransLike (const vector<Expr>& cur_trig){
 	    }
 	  }
 	  if(res) {
-	    //	    cout<<"found trans like pred"<<endl;
-	    //	    cout<<vectorExpr2string(cur_trig)<<endl;
 	  }
 	  return res;
 	}
@@ -1207,13 +829,11 @@ bool TheoryQuant::isTransLike (const vector<Expr>& cur_trig){
 }
 
 bool goodMultiTriggers(const std::vector<Expr>& exprs, const std::vector<Expr> bVars){
- 
   ExprMap<bool> bvar_found;
   
   for( std::vector<Expr>::const_iterator i = bVars.begin(),  iend= bVars.end();  i!=iend; i++) {
     bvar_found[*i]=false;
   }
-  
 
   for (size_t  i=0; i< exprs.size();i++){
     const std::set<Expr> & bv_in_trig = getBoundVars(exprs[i]);
@@ -1226,16 +846,9 @@ bool goodMultiTriggers(const std::vector<Expr>& exprs, const std::vector<Expr> b
   
   for( std::vector<Expr>::const_iterator i = bVars.begin(), iend= bVars.end();  i!=iend;  i++) {
     if(false == bvar_found[*i]){
-      //	cur_trig.clear();
-      //     TRACE("multi-triggers", "bad set of multi triggers","","");
       return false ;
     }
   }
-  
-//   TRACE("multi-triggers", "good set of multi triggers","","");
-//   for (size_t  i=0; i< d_multTriggers[e].size();i++){
-//     TRACE("muli-triggers", "multi-triggers:", d_multTriggers[e][i].toString(),"");
-//   }
   return true;
 }
 
@@ -1260,21 +873,9 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
   }
 #endif
 
-  /*  for (size_t i=0; i<subterms.size(); i++){
-    Expr sub = subterms[i];
-    if(READ == sub.getKind() || WRITE ==sub.getKind()){
-      cout <<"trig term "<<sub<<":";
-      cout <<arrayName(sub)<<endl;
-      cout<<arrayIndex(sub)<<endl<<"-----"<<endl;
-    }
-  }
-  */
-
   ExprMap<Polarity> exprPol;
   findPolarity(e, exprPol, Pos);
 
-  //old way has been removed as of Feb-3-2006
-  //new way to set up full triggers
   {
     std::vector<Expr> trig_cadt;
     for(std::vector<Expr>::const_iterator i = subterms.begin(),iend=subterms.end(); i!=iend; i++){
@@ -1287,34 +888,35 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
     std::vector<Expr> trig_extra;
     
 
-    for(std::vector<Expr>::const_iterator i = subterms.begin(),iend=subterms.end(); i!=iend; i++){
-      if(isGoodFullTrigger(*i, bVarsThm)) {
-	bool notfound = true;
-
-	if(1 == *d_useTrigLoop){
-	  for(size_t j=0; j< trig_cadt.size(); j++){
-	    if (*i == trig_cadt[j]) continue;
-	    ExprMap<Expr> null;
-	    if (canMatch(*i, trig_cadt[j], null)){
-	      //	  cout<<"can match|| "<<endl<<trig_list[i]<<endl;
-	      //	  cout<<trig_cadt[j]<<endl;
-	      
-	      if(exprScore(*i) < exprScore(trig_cadt[j])){
-		continue;
-	      }	    
-	    }
+    for(size_t iter =0; iter < trig_cadt.size(); iter++) {
+      Expr* i = &(trig_cadt[iter]);
+      bool notfound = true;
+      
+      if(1 == *d_useTrigLoop){
+	for(size_t j=0; j< trig_cadt.size(); j++){
+	  if (*i == trig_cadt[j]) continue;
+	  ExprMap<Expr> null;
+	  if (canMatch(*i, trig_cadt[j], null)){
+	    if(exprScore(*i) < exprScore(trig_cadt[j])){
+	      continue;
+	    }	    
 	  }
 	}
-
-	for(size_t index=0; index< trig_list.size(); index++){ 
-	  if (i->subExprOf(trig_list[index])) {
-	    trig_list[index]=*i;
-	    notfound=false;
-	  }
+      }
+      
+      for(size_t index=0; index< trig_list.size(); index++){ 
+	if (i->subExprOf(trig_list[index])) {
+	  trig_list[index]=*i;
+	  notfound=false;
+	  break;
 	}
-	if (notfound) {
-	  trig_list.push_back(*i);
+	if (trig_list[index].subExprOf(*i)) {
+	  notfound=false;
+	  break;
 	}
+	}
+      if (notfound) {
+	trig_list.push_back(*i);
       }
     }
     
@@ -1326,18 +928,6 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
       int score = trigInitScore(cur);
       if(score > 0) continue;
 
-//       if(bVarsThm.size() == 1){
-// 	if(bVarsThm[0].toString().find("broken") !=  std::string::npos){
-// 	  Expr head = getHead(cur);
-// 	  if(getHead(cur).toString()=="is"){
-// 	    if(((cur.arity()==2) && cur[0].getKind()==BOUND_VAR)){
-// 	      //	      cout<<"cur term ignored" << cur << endl;
-// 	      //	      continue;
-// 	    } 
-// 	  }
-// 	}
-//       }
-
       //1. test trans2 
       //2. test whether a trigger can trig a bigger instance of itself, now we have no actions for such case because we use expr score and dynamic loop prevention. 
       
@@ -1345,17 +935,8 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
 	if (trig_list[i] == trig_cadt[j]) continue;
 	ExprMap<Expr> null;
 	if (canMatch(trig_list[i], trig_cadt[j], null)){
-	  //	cout<<"can match|| "<< e << endl;;
-	  //	cout<<trig_list[i]<<endl;
-	  //	cout<<trig_cadt[j]<<endl;
 	  if(exprScore(trig_list[i]) < exprScore(trig_cadt[j])){
-	    //	  cout<<"bigger"<<endl;
-	    //	  cout<<"replaced "<<trig_list[i] << " # " << trig_cadt[j] << endl;;
-	    //	  trig_list[i]= trig_cadt[j];
-	    //	  d_fullTriggers[e][i] = trig_cadt[j];
 	  } 
-	  //else if(getHead(trig_list[i]).toString() == "PO_LT"){
-	  //	  cout<<"trig_list[i]" << trig_list[i] << endl;
 	  else if(*d_useTrans2 &&
 		  trig_list.size() == 2 &&
 		  trig_list[i].arity() == 2 && 
@@ -1370,13 +951,14 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
 	    DebugAssert(d_trans2_num<=1, "more than 2 trans2 found");
 	    TRACE("triggers",  "trans2 found ", trig_list[i], "");
 	    
-	    Trigger t(theoryCore(), cur, Ukn, 0);
+	    Trigger t(theoryCore(), cur, Neg, 0);
 	    t.setTrans2(true);
+	    t.setHead(getHeadExpr(cur));
+	    if(isSimpleTrig(cur)){
+	      t.setSimp();
+	    }
 	    d_fullTrigs[e].push_back(t);
 	    return;
-	    //1. a trans2 trigger will have two copy in the trig list//this is not true since we return immediately.
-	    //2. now we do not test the polarity of the two exprs in a trans2 trig
-	    //fix this asap
 	  }
 	  else{
 	    score =0;
@@ -1384,28 +966,6 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
 	}
       }
       
-      //code for static loop prevection
-      //currently we do not take any actions, because expr score is used
-      if(0 == *d_useTrigLoop && false){
-	for(size_t j=0; j< trig_cadt.size(); j++){
-	  if (trig_list[i] == trig_cadt[j]) continue;
-	  ExprMap<Expr> null;
-	  if (canMatch(trig_list[i], trig_cadt[j], null)){
-	    //	  cout<<"can match|| "<<endl<<trig_list[i]<<endl;
-	    //	  cout<<trig_cadt[j]<<endl;
-	    
-	    if(exprScore(trig_list[i]) < exprScore(trig_cadt[j])){
-	      //	    score=1;
-	      score=0;
-	      //	    cout<<"bigger"<<endl;
-	      //	    cout<<"replaced "<<trig_list[i] << " # " << trig_cadt[j] << endl;;
-	      //	    cout<<d_fullTriggers[e][i]<<endl;
-	      //trig_list[i]= trig_cadt[j];
-	      //	    d_fullTriggers[e][i] = trig_cadt[j];
-	    }	    
-	  }
-	}
-      }
       
       Polarity pol= Ukn;
       
@@ -1420,36 +980,42 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
       if(PosNeg == pol && *d_usePolarity){
 	t = new Trigger(theoryCore(), cur, Pos, score);
 	t_ex = new Trigger(theoryCore(), cur, Neg, score);
-	//      cout<<"posneg: "<<cur<<endl;
+	if(isSimpleTrig(cur)){
+	  t->setSimp();
+	  t_ex->setSimp();
+	}
+
       }
       else{
 	t = new Trigger(theoryCore(), cur, pol, score);
+	if(isSimpleTrig(cur)){
+	  t->setSimp();
+	}
 	t_ex = NULL;
       }
       
       if(canGetHead(cur)) {
 	t->setHead(getHeadExpr(cur));
+	if(NULL != t_ex){
+	  t_ex->setHead(getHeadExpr(cur));
+	}
       }
       else{
 	if(!isSysPred(cur)){
 	  cout<<"cur " << cur <<endl;
 	  DebugAssert(false, "why this is a trigger");
 	}
-      }
-      
+      } 
+     
       t->setRWOp(false);
       
       if(READ == cur.getKind() || WRITE == cur.getKind()){
-	//collect some info here
 	arrayIndexName(cur);
       }
 
-      //jst a way to disable this heuristics
       if(*d_useTrans2 && READ == cur.getKind() && WRITE== cur[0].getKind() && 1 == bVarsThm.size() ){
-
 	t->setRWOp(true);
 	if(t_ex != NULL) t_ex->setRWOp(true);
-	//      cout<<"array has RWOP:"<<cur<<endl;
       }
       
       if(t_ex != NULL)  trig_ex.push_back(*t_ex);
@@ -1465,25 +1031,14 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
       d_fullTrigs[e].push_back(trig_ex[i]);
       TRACE("triggers", "new extra :full triggers:", trig_ex[i].getEx().toString(),"");
       TRACE("triggers", "new extra :full trigger score:", trig_ex[i].getPri(),"");
-      //    TRACE("triggers", "new extra :full trigger pol:", trig_ex[i].getPol(),"");
-      
-      //     {//special for old ways, just a temp fix here    
-      //       d_fullTriggers[e].push_back(trig_ex[i].getEx());
-      //       CDO<int>* bu ;
-      //       bu= new(true) CDO<int>(theoryCore()->getCM()->getCurrentContext(), trigInitScore(trig_ex[i].getEx()), 0) ;
-      //       bu->set(trigInitScore(trig_ex[i].getEx()));
-      //       d_fullTrigScore[e].push_back(bu);
-      //     }
     }
     
     if(d_fullTrigs[e].size() == 0){
       TRACE("triggers warning", "no full trig: ", e , ""); 
     }
-
   }
   
   if(d_fullTrigs[e].size() == 0)
-    //if no full trigger, we will setup multi-triggers
     {  //setup multriggers
       for( std::vector<Expr>::const_iterator i = subterms.begin(),  iend=subterms.end();  i!=iend;  i++) {
 	if(isGoodMultiTrigger(*i, bVarsThm, d_offset_multi_trig))  {
@@ -1504,7 +1059,7 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
       if (goodMultiTriggers(cur_trig, bVarsThm)){
 	TRACE("multi-triggers", "good set of multi triggers","","");
 	for (size_t  i=0; i< d_multTriggers[e].size();i++){
-	  TRACE("muli-triggers", "multi-triggers:", d_multTriggers[e][i].toString(),"");
+	  TRACE("multi-triggers", "multi-triggers:", d_multTriggers[e][i].toString(),"");
 	}
       }
       else{
@@ -1516,30 +1071,26 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
       {
 	if(isTransLike(cur_trig)){
 	  d_trans_num++;
-	  
 	  DebugAssert(d_trans_num <= 1, "more than one trans found");
 	  
 	  Expr ex = cur_trig[0];
-	  Trigger* trans_trig = new Trigger(theoryCore(), ex, Ukn, 0);
+
+	  Trigger* trans_trig = new Trigger(theoryCore(), ex, Neg, 0);
+	  trans_trig->setHead(getHeadExpr(ex));
+	  if(isSimpleTrig(ex)){
+	    trans_trig->setSimp();
+	  }
 	  trans_trig->setTrans(true);
 	  
 	  d_fullTrigs[e].push_back(*trans_trig);
-	  //       {//special for old ways of setting up full triggers, just a temp fix here    
-	  // 	d_fullTriggers[e].push_back(ex);
-	  // 	CDO<int>* bu ;
-	  // 	bu= new(true) CDO<int>(theoryCore()->getCM()->getCurrentContext(), 0, 0) ;
-	  // 	bu->set(0);
-	  // 	d_fullTrigScore[e].push_back(bu);
-	  //       }
 	  cur_trig.clear();
 	}
       }
-      //
       
       //enhanced multi-triggers 
-      //      if(cur_trig.size() >0 && false){
-      if(cur_trig.size() >0 ){
-      std::vector<Expr> posList, negList;
+      if(cur_trig.size() >0 && false){
+	//  if(cur_trig.size() >0 ){
+	std::vector<Expr> posList, negList;
 	for(size_t k=0; k<cur_trig.size(); k++){
 	  const Expr& cur_item = cur_trig[k];
 	  if (cur_item.getType().isBool()){
@@ -1553,65 +1104,101 @@ void TheoryQuant::setupTriggers(const Theorem& thm){
 	  }
 	}
 	if (goodMultiTriggers(posList, bVarsThm)){
+	  TRACE("multi-triggers", "good set of multi triggers pos","","");
+	  for (size_t  i=0; i< posList.size();i++){
+	    TRACE("multi-triggers", "multi-triggers:", posList[i].toString(),"");
+	  }
 	  cur_trig.clear();
 	  for(size_t m=0; m<posList.size(); m++){
 	    cur_trig.push_back(posList[m]);
-	    //	    cout<<"pos "<<posList[m] <<endl;
 	  }
 	}
 	else if (goodMultiTriggers(negList, bVarsThm)){
+	  TRACE("multi-triggers", "good set of multi triggers neg","","");
+	  for (size_t  i=0; i< negList.size();i++){
+	    TRACE("multi-triggers", "multi-triggers:", negList[i].toString(),"");
+	  }
 	  cur_trig.clear();
 	  for(size_t m=0; m<negList.size(); m++){
 	    cur_trig.push_back(negList[m]);
-	    //	    cout<<"neg "<<negList[m] <<endl;
 	  }
 	}
       }      
     }
   
   //setup partial triggers
-  //not used now
-  for( std::vector<Expr>::const_iterator i = subterms.begin(),  iend=subterms.end();  i!=iend;  i++) {
-    if(isGoodPartTrigger(*i, bVarsThm))  {
-      bool notfound = true;
-      for(size_t index=0; index<d_partTriggers[e].size(); index++){ 
-	if (i->subExprOf(d_partTriggers[e][index]))    {
-	  (d_partTriggers[e][index])=*i; 
-	  notfound=false;
+  if(*d_usePart)
+  {
+    std::vector<Trigger> trig_ex;
+    
+    trig_ex.clear();
+    for( std::vector<Expr>::const_iterator i = subterms.begin(),  iend=subterms.end();  i!=iend;  i++) {
+      if(isGoodPartTrigger(*i, bVarsThm))  {
+	bool notfound = true;
+	for(size_t index=0; index<d_partTriggers[e].size(); index++){ 
+	  if (i->subExprOf(d_partTriggers[e][index]))    {
+	    (d_partTriggers[e][index])=*i; 
+	    notfound=false;
+	  }
 	}
+	if (notfound)		    
+	  d_partTriggers[e].push_back(*i); 
       }
-      if (notfound)		    
-	d_partTriggers[e].push_back(*i); 
     }
-    //    else {cout<<"not good partial"<<i->toString()<<endl;};
-  }
-
-  for (size_t  i=0; i< d_partTriggers[e].size();i++){
-    TRACE("triggers", "partial triggers:", d_partTriggers[e][i].toString(),"");
-  }
-
-  /*  d_partTriggers[e]=getPartTriggers(e);
-  for (size_t  i=0; i< d_partTriggers[e].size();i++){
-    TRACE("triggers", "partial triggers:", d_partTriggers[e][i].toString(),"");
-  }
-  */
-}  
+    
+    for (size_t  i=0; i< d_partTriggers[e].size();i++){
+      TRACE("triggers", "partial triggers:", d_partTriggers[e][i].toString(),"");
+    }
+    
+    for (size_t  i=0; i< d_partTriggers[e].size();i++){
+      Polarity pol= Ukn;
+      const Expr& cur = d_partTriggers[e][i]; 
+      if(cur.getType().isBool()){
+	DebugAssert(exprPol.count(e)>0,"unknown polarity:"+cur.toString());
+	pol = exprPol[cur];
+      }
+      
+      Trigger* t;
+      Trigger* t_ex; //so, if a pred is PosNeg, we actually put two triggers into the list, one pos and the other neg
+      
+      if(PosNeg == pol && *d_usePolarity){
+	t = new Trigger(theoryCore(), cur, Pos, 0);
+	t_ex = new Trigger(theoryCore(), cur, Neg, 0);
+      }
+      else{
+	t = new Trigger(theoryCore(), cur, pol, 0);
+	t_ex = NULL;
+      }
+      
+      if(canGetHead(cur)) {
+	t->setHead(getHeadExpr(cur));
+      }
+      
+      if(t_ex != NULL)  trig_ex.push_back(*t_ex);
+      
+      d_partTrigs[e].push_back(*t);
+      
+      TRACE("triggers", "new:part trigger pol:", pol,cur.toString());
+    }
+    
+    for(size_t i=0; i<trig_ex.size(); i++){
+      d_partTrigs[e].push_back(trig_ex[i]);
+      TRACE("triggers", "new extra :part triggers:", trig_ex[i].getEx().toString(),"");
+      TRACE("triggers", "new extra :part trigger score:", trig_ex[i].getPri(),"");
+    }
+  }  
+}
 
 //! test if a sub-term contains more bounded vars than quantified by out-most quantifier.
 int hasMoreBVs(const Expr& thm){
   DebugAssert(thm.isForall(), "hasMoreBVS called by non-forall exprs");
   
   const std::vector<Expr>& bvsOutmost = thm.getVars();
-
   const std::set<Expr>& bvs = getBoundVars(thm); 
-  //well, getboundvars will return all bounded vars, not only quantified by the outmost quantifier
-  //say, getboundvars(forall x. forall y g(x,y)) will return {x,y}, not {x}
-  
-  //must called after elimination of quantifiers
+
   return int(bvs.size()-bvsOutmost.size()); 
 
 }
-
 
 /*! \brief Theory interface function to assert quantified formulas
  *
@@ -1619,7 +1206,6 @@ int hasMoreBVs(const Expr& thm){
  * quantified theorems. Universals are stored in a database while 
  * existentials are enqueued to be handled by the search engine.
  */
-
 void TheoryQuant::assertFact(const Theorem& thm){
 
   if(*d_translate) return;
@@ -1636,27 +1222,6 @@ void TheoryQuant::assertFact(const Theorem& thm){
   DebugAssert(expr.isForall() || (expr.isNot() && (expr[0].isExists() || expr[0].isForall())),
 	      "Theory of quantifiers cannot handle expression "
 	      + expr.toString());
-
-  /*
-    we could transform each univ into a canonical form, 
-    so (forall x. f(x)) and (forall y. f(y)) will be in the same canonical form.
-    i am not implementing this now, cause i think this will not improve the performance a lot
-    if i have time, i will try to do it.
-  */
-  
-  /*if(d_simpUnivs.count(expr) > 0) {
-    Theorem t = d_simpUnivs[expr];
-    if(t.getExpr().isForall()){
-      d_univs.push_back(t);
-      TRACE("quant assertfact","push result in cache ", expr.toString()+" ==> ", d_simpUnivs[expr].toString()); 
-    }
-    else{
-      enqueueFact(t);
-      TRACE("quant assertfact","return result in cache ", expr.toString()+" ==> ", d_simpUnivs[expr].toString()); 
-    }
-    return;
-  }
-  */
 
   if(expr.isNot()) {//find the right rule to eliminate negation
     if(expr[0].isForall()) {
@@ -1676,63 +1241,56 @@ void TheoryQuant::assertFact(const Theorem& thm){
   if(result.getExpr().isForall()){
 
     if(*d_useNew){
-      /*
+
       if(result.getExpr().getBody().isForall()){ // if it is of the form forall x. forall. y
 	result=d_rules->packVar(result);
       }
-     
-      if(result.getExpr().getBody().isForall()){//if more forall there, we need to do more.
-	cout<<"debug:double forall"<<endl;
-	return;
-      }
-      */
+      result = d_rules->boundVarElim(result); //eliminate useless bound variables
+
       int nBVs = hasMoreBVs(result.getExpr());
-      //      cout<<"nvbs:"<<nBVs<<endl;;
+
       if(0 == nBVs){//good 
-	d_simpUnivs[expr]=result;
 	TRACE("quant assertfact", "assertFact => forall enqueueing: ", result.toString(), "}");
       	d_univs.push_back(result);
 	setupTriggers(result);
       }
       else if(1== nBVs){
-	//	cout<<" 1 nBvs" <<endl;
-	//	cout<<result.getExpr()<<endl;
+	d_hasMoreBVs[result.getExpr()]=true;
 	const Expr& body = result.getExpr().getBody();
-	//	if((body.isAnd() && body[1].isForall()) || (body.isImpl() && body[1].isForall()) ||
-	//	   (body.isNot() && body[0].isAnd() && body[0][1].isExists() )){
+
 	if(*d_usePullVar){
 	  if((body.isAnd() && body[1].isForall()) || (body.isImpl() && body[1].isForall()) ){
 	    result=d_rules->pullVarOut(result);
-	    d_simpUnivs[expr]=result;
+
 	    TRACE("quant assertfact", "assertFact => pull-var enqueueing: ", result.toString(), "}");
+
 	    d_univs.push_back(result);
 	    setupTriggers(result);
 	  }
 	}
 	else{
-	  
 	  TRACE("quant assertfact", "debug:not recognized case", result.toString(), thm.toString());
-	  //	  cout<<thm.toString()<<endl;
-	  d_simpUnivs[expr]=result;
+
 	  d_univs.push_back(result);
 	  setupTriggers(result);
 	  return;
 	}
       }
       else{
-	//	cout<<"nBVS: "<<nBVs<<endl;
-	//	cout<<result.getExpr()<<endl;
+	d_hasMoreBVs[result.getExpr()]=true;
+	d_univs.push_back(result);
+	setupTriggers(result);
 	return;
       }
     }
     else{
-      d_simpUnivs[expr]=result;
+
       TRACE("quant assertfact", "assertFact => old-fashoin enqueueing: ", result.toString(), "}");
       d_univs.push_back(result);
     }
   }
   else { //quantifier got eliminated or is an existantial formula 
-    d_simpUnivs[expr]=result;
+
     TRACE("quant assertfact", "assertFact => non-forall enqueueing: ", result.toString(), "}");
     enqueueFact(result);
   }
@@ -1756,7 +1314,6 @@ void TheoryQuant::recGoodSemMatch(const Expr& e,
     Type t = getBaseType(bVars[curPos]);
     std::vector<Expr> tyExprs= d_typeExprMap[t];
     if (0 == tyExprs.size())  {
-      //      cout <<"Cannot handle type of "<<t.toString()<<endl;;
       return;//has some problem
     }
     else{
@@ -1774,10 +1331,6 @@ bool isIntx(const Expr& e, int x){
     return true;
   else return false;
 }
-
-//e must be of the form c+x+y,
-//where c is a constant
-//x,y is of the form x or -1*x
 
 Expr getLeft(const Expr& e){
   if(e.getKind()!= PLUS) return null_expr;
@@ -1853,23 +1406,48 @@ Expr getRight(const Expr& e){
   return null_expr;//i do not know why we need this is supress the warning
 }
  
-
-
 bool TheoryQuant::synMatchTopPred(const Expr& gterm, Trigger trig, ExprMap<Expr>& env){
 
   const Expr vterm = trig.getEx();
 
   TRACE("quant toppred", "top pred: gterm:| "+gterm.toString()," vterm:| "+vterm.toString(),"");
 
+  
   DebugAssert ((BOUND_VAR != gterm.getKind()),"gound term "+gterm.toString()+" has bound var");
   DebugAssert ((BOUND_VAR != vterm.getKind()),"top pred match "+gterm.toString()+" has bound var");
-
-  if(getBaseType(gterm) != getBaseType(vterm)) return false;
 
   if(gterm.isEq() || vterm.isEq()){
     return false; // we do not match with equality
   }
-  
+
+  bool res2=false;
+
+  if(trig.isSimp()){
+    if(trig.getHead() == getHead(gterm) ){
+      for(int i = vterm.arity()-1; i>=0 ; i--){
+	if(BOUND_VAR != vterm[i].getKind()){
+	  if(simplifyExpr(gterm[i]) != simplifyExpr(vterm[i])) {
+	    return false;
+	  }
+	} 
+      }
+      for(int i = vterm.arity()-1; i>=0 ; i--){
+	if(BOUND_VAR == vterm[i].getKind()){
+	  if(d_allout){
+	    env[vterm[i]] = simplifyExpr(gterm[i]);
+	  }
+	  else {
+	    env[vterm[i]] = simplifyExpr(gterm[i]);
+	  }
+	} 
+      }
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+
   if(!(isSysPred(vterm) && isSysPred(gterm))){
     if(isSysPred(vterm) || isSysPred(gterm)) {
       return false;
@@ -1877,115 +1455,141 @@ bool TheoryQuant::synMatchTopPred(const Expr& gterm, Trigger trig, ExprMap<Expr>
     if(!usefulInMatch(gterm)){
       return false;
     }
-    return  recSynMatch(gterm, vterm, env);
-  }
-
-  DebugAssert((2==gterm.arity() && 2==vterm.arity()), "impossible situation in top pred");
-  DebugAssert(!((isLE(gterm) || isLT(gterm)) && !isIntx(gterm[0],0)), "canonical form changed");
-
-#ifdef DEBUG
-  if( CVC3::debugger.trace("quant toppred")  ){
-    cout << "toppred gterm, vterm" << gterm << "::" << vterm << endl;
-    cout << findExpr(gterm) << "::" << trig.isPos() << "|" << trig.isNeg() << endl;
-  }
-#endif
-
-  //here, both gterm and vterm are sys pred
-  
-  Expr gl = getLeft(gterm[1]);
-  Expr gr = getRight(gterm[1]);
-  //gterm[0] must be zero
-	
-  if(null_expr == gr || null_expr == gl){
-    gl = gterm[0];
-    gr = gterm[1];
-  }
-	
-  Expr vr, vl;
-  Expr tvr, tvl;
-
-  tvr=null_expr;
-  tvl=null_expr;
-
-  if(isGE(vterm) || isGT(vterm)){
-    vr = vterm[0];
-    vl = vterm[1];
-  }
-  else if(isLE(vterm) || isLT(vterm)){
-    vr = vterm[1];
-    vl = vterm[0];
+    if(trig.getHead() != getHead(gterm)){
+      return false;
+    }
+    
+    if(!gterm.getType().isBool()){
+      res2= recSynMatch(gterm, vterm, env);
+      return res2;
+    }
+    
+    if(!*d_usePolarity){
+      return recSynMatch(gterm, vterm, env);
+    }
+    
+    const bool gtrue = (trueExpr()==findExpr(gterm));
+    if(gtrue ){
+      if(trig.isNeg()) {
+	return recSynMatch(gterm, vterm, env);
+      }
+      else{
+	return false;
+      }
+    }
+    const bool gfalse = (falseExpr()==findExpr(gterm));
+    if(gfalse){
+      if (trig.isPos()){
+	return recSynMatch(gterm, vterm, env);
+      }
+      else{
+	return false;
+      }
+    }
+    else {
+      return false;
+    }
   }
   else{
-    DebugAssert(false, "impossilbe in toppred");
-  }
-
-  if(isIntx(vl,0)){
-    tvl = getLeft(vr);
-    tvr = getRight(vr);
-  }
-  else if(isIntx(vr,0)) {
-    tvl = getLeft(vl);
-    tvr = getRight(vl);
-  }
-  
-  if( (null_expr != tvl) && (null_expr != tvr)){
-    vl = tvl;
-    vr = tvr;
-  }
-
-
-  const bool gtrue = (trueExpr()==findExpr(gterm));
-  const bool gfalse = (falseExpr()==findExpr(gterm));
-
-  TRACE("quant toppred"," vl, gl, vr, gr:", vl.toString()+"::"+gl.toString()+"||", vr.toString()+"::"+gr.toString());
-  
-  bool res;
-
-  DebugAssert(!(trig.isNeg() && trig.isPos()), "expr in both pos and neg");
-
-  if(!*d_usePolarity){
-    return (recSynMatch(gl, vl, env) && recSynMatch(gr, vr, env));
-  }
-
-  if(trig.isNeg()){
-    if (( gtrue ) )  {
-      //      cout<<"case 1"<<endl;
-      res=(recSynMatch(gl, vl, env) && recSynMatch(gr, vr, env));
-    }
-    else {
-      //      cout<<"case 2"<<endl;
-      res=(recSynMatch(gl, vr, env) && recSynMatch(gr, vl, env));
-    }
-  }
-  else if(trig.isPos()){
-    if (( gfalse )) {
-      //      cout<<"case 3"<<endl;
-      res=(recSynMatch(gl, vl, env) && recSynMatch(gr, vr, env)); 
-    }
-    else {
-      //      cout<<"case 4"<<endl;
-      res=(recSynMatch(gl, vr, env) && recSynMatch(gr, vl, env));
-    }
-  }
-  else {
-    DebugAssert(false, "impossible polarity for trig");
-  }
-
+    DebugAssert((2==gterm.arity() && 2==vterm.arity()), "impossible situation in top pred");
+    DebugAssert(!((isLE(gterm) || isLT(gterm)) && !isIntx(gterm[0],0)), "canonical form changed");
+    
 #ifdef DEBUG
-  if( CVC3::debugger.trace("quant toppred")  ){
-    cout<<"res| "<< res << " | " << gtrue << " | " << gfalse << endl;
-  }
+    if( CVC3::debugger.trace("quant toppred")  ){
+      cout << "toppred gterm, vterm" << gterm << "::" << vterm << endl;
+      cout << findExpr(gterm) << "::" << trig.isPos() << "|" << trig.isNeg() << endl;
+    }
 #endif
-  return res;
+    
+    
+    Expr gl = getLeft(gterm[1]);
+    Expr gr = getRight(gterm[1]);
+    
+    if(null_expr == gr || null_expr == gl){
+      gl = gterm[0];
+      gr = gterm[1];
+    }
+    
+    Expr vr, vl;
+    Expr tvr, tvl;
+    
+    tvr=null_expr;
+    tvl=null_expr;
+    
+    if(isGE(vterm) || isGT(vterm)){
+      vr = vterm[0];
+      vl = vterm[1];
+    }
+    else if(isLE(vterm) || isLT(vterm)){
+      vr = vterm[1];
+      vl = vterm[0];
+    }
+    else{
+      DebugAssert(false, "impossilbe in toppred");
+    }
+    
+    if(isIntx(vl,0)){
+      tvl = getLeft(vr);
+      tvr = getRight(vr);
+    }
+    else if(isIntx(vr,0)) {
+      tvl = getLeft(vl);
+      tvr = getRight(vl);
+    }
+    
+    if( (null_expr != tvl) && (null_expr != tvr)){
+      vl = tvl;
+      vr = tvr;
+    }
+    
+    
+    const bool gtrue = (trueExpr()==findExpr(gterm));
+    const bool gfalse = (falseExpr()==findExpr(gterm));
+    
+    TRACE("quant toppred"," vl, gl, vr, gr:", vl.toString()+"::"+gl.toString()+"||", vr.toString()+"::"+gr.toString());
+    
+    bool res;
+    
+    DebugAssert(!(trig.isNeg() && trig.isPos()), "expr in both pos and neg");
+    
+    if(!*d_usePolarity){
+      return (recSynMatch(gl, vl, env) && recSynMatch(gr, vr, env));
+    }
+    
+    if(trig.isNeg()){
+      if (( gtrue ) )  {
+	res=(recSynMatch(gl, vl, env) && recSynMatch(gr, vr, env));
+      }
+      else {
+	res=(recSynMatch(gl, vr, env) && recSynMatch(gr, vl, env));
+      }
+    }
+    else if(trig.isPos()){
+      if (( gfalse )) {
+	res=(recSynMatch(gl, vl, env) && recSynMatch(gr, vr, env)); 
+      }
+      else {
+	res=(recSynMatch(gl, vr, env) && recSynMatch(gr, vl, env));
+      }
+    }
+    else {
+      DebugAssert(false, "impossible polarity for trig");
+      res = false;
+    }
+    
+#ifdef DEBUG
+    if( CVC3::debugger.trace("quant toppred")  ){
+      cout<<"res| "<< res << " | " << gtrue << " | " << gfalse << endl;
+    }
+#endif
+    return res;
+  }
 }
 
 bool TheoryQuant::recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env){
-
   TRACE("quant match", "gterm:| "+gterm.toString()," vterm:| "+vterm.toString(),"");
   DebugAssert ((BOUND_VAR != gterm.getKind()),"gound term "+gterm.toString()+" has bound var");
   
-  if(getBaseType(gterm) != getBaseType(vterm)) return false;
-
   if (BOUND_VAR == vterm.getKind())  {
     TRACE("quant match", "bound var found;", vterm.toString(),"");
     ExprMap<Expr>::iterator p = env.find(vterm);
@@ -2001,54 +1605,32 @@ bool TheoryQuant::recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr
       return true; 
     }
   }
-  else if(simplifyExpr(vterm) == simplifyExpr(gterm)) {
+  else if (!vterm.containsBoundVar()){
+    if(simplifyExpr(vterm) == simplifyExpr(gterm)) {
       return true;
+    }
+    else{
+      return false;
+    }
   }
-  //test whether is semantic match
-  else if(isSysPred(vterm) && isSysPred(gterm)){
 
+  else if(false && isSysPred(vterm) && isSysPred(gterm)){
+    
     TRACE("quant syspred"," vterm, gterm ", vterm.toString()+" :|: ", gterm.toString());
     TRACE("quant syspred"," simplified vterm, gterm ", simplifyExpr(vterm).toString()+" :|: ", simplifyExpr(gterm).toString());
-
-    //    cout<<"vterm , gterm|"<<vterm<<"||"<<gterm<<endl;
-    //    cout<<"simp gvterm , simp gterm|"<<(simplifyExpr(vterm))[1]<<"||"<<(gterm[1])<<endl;
     FatalAssert(false, "should not be here in synmatch");
     exit(3);
   }
-  //now it is syntax match
-  else{
-    if(*d_useMatchOld){
-      if ( (vterm.arity() != gterm.arity()) || (vterm.getKind() != gterm.getKind() )) {
-	return false;
-      }
-      else {
-	if (canGetHead(vterm) && canGetHead(gterm)) {
-	  if ( getHead(vterm) != getHead(gterm) ){
-	    return false;
-	  }
-	  for(int i=0; i<vterm.arity(); i++){
-	    if (false == recSynMatch(gterm[i], vterm[i] , env))
-	      return false;
-	  }
-	  return true;
-	}
-	else{
-	  return false;
-	}
-      }
-    }
-    else{ //use new match
-      
+  else{ 
       if(canGetHead(vterm)){
-	//	std::string head = getHead(vterm);
-	Expr head = getHead(vterm);
+	Expr vhead = getHead(vterm);
 	TRACE("quant match", "head vterm:", getHead(vterm), "");
 	if(vterm.isAtomicFormula()){
-	  if (canGetHead(vterm) && canGetHead(gterm)) {
-	    if ( getHead(vterm) != getHead(gterm) ){
+	  if (canGetHead(gterm)) {
+	    if ( vhead != getHead(gterm) ){
 	      return false;
 	    }
-	    for(int i=0; i<vterm.arity(); i++){
+	    for(int i=vterm.arity()-1; i >= 0; i--){
 	      if (false == recSynMatch(gterm[i], vterm[i] , env))
 		return false;
 	    }
@@ -2058,47 +1640,35 @@ bool TheoryQuant::recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr
 	    return false;
 	  }
 	}
-
-	bool submatched = false;
-	//let's first try match as is
-
-	ExprMap<Expr> old = env;
-
-	if ( (vterm.arity() == gterm.arity()) && 
-	     (canGetHead(vterm) && canGetHead(gterm)) && 
-	     (getHead(vterm) == getHead(gterm)) ){
-	  submatched = true;
-	  for(int i=0; i<vterm.arity(); i++){
+	if ( (canGetHead(gterm)) && vhead == getHead(gterm)){
+	  if(gterm.arity() != vterm.arity()){
+	    return false;
+	  }
+	  for(int i=vterm.arity()-1; i >= 0; i--){
 	    if (false == recSynMatch(gterm[i], vterm[i] , env)) {
-	      submatched = false;
-	      break;
+	      return false;
 	    }
 	  }
-	}
-	
-	if(submatched) {
 	  return true;
 	}
-
-	if(!*d_useEqu){
+	
+	if(false && !*d_useEqu){
 	  return false;
 	}
 
-	env=old;//restore the old value;
-
-	if(d_same_head_expr.count(head) > 0) {
-	  //	  Expr findGterm = gterm.hasFind()?findExpr(gterm):simplifyExpr(gterm);
-	  Expr findGterm = simplifyExpr(gterm);
-	  if(isIntx(findGterm,0) || isIntx(findGterm,1)) return false;//special for simplify benchmark
+	if( d_same_head_expr.count(vhead) > 0 ) {
+	  const Expr& findGterm = simplifyExpr(gterm);
+	  //if(isIntx(findGterm,0) || isIntx(findGterm,1)) return false;//special for simplify benchmark
 	  TRACE("quant match", "find gterm:", findGterm.toString(),"");
-	  CDList<Expr>* gls = d_same_head_expr[head];
+	  CDList<Expr>* gls = d_same_head_expr[vhead];
 	  for(size_t i = 0; i<gls->size(); i++){
-	    //	    if (findExpr((*gls)[i]) == findGterm){
 	    if (simplifyExpr((*gls)[i]) == findGterm){
 	      TRACE("quant match", "find matched gterm:", (*gls)[i].toString(),"");
 	      DebugAssert((*gls)[i].arity() == vterm.arity(), "gls has different arity");
-	      for(int child=0; child<vterm.arity(); child++){
-		if (false == recSynMatch((*gls)[i][child], vterm[child] , env)){
+
+	      for(int child=vterm.arity()-1; child >= 0 ; child--){
+		const Expr& newgterm = (*gls)[i];
+		if (false == recSynMatch(newgterm[child], vterm[child] , env)){
 		  TRACE("quant match", "match false", (*gls)[i][child].toString(), vterm[child].toString());
 		  return false;
 		}
@@ -2107,25 +1677,36 @@ bool TheoryQuant::recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr
 	      return true;
 	    }
 	  }//end of for
-	} else return false;//end of if
+	  return false;
+	} 
+	else  {
+	  return false;//end of if
+	}
       }
-      return false;
-    }
+      else{
+ 	TRACE("quant match more", "match more", gterm.toString()+" # ", vterm.toString());
+ 	if( (gterm.getKind() == vterm.getKind()) && 
+	    (gterm.arity() == vterm.arity()) &&
+	    gterm.arity()>0 ){
+ 	  for(int child=0; child < vterm.arity() ; child++){
+ 	    if (false == recSynMatch(gterm[child], vterm[child] , env)){
+ 	      TRACE("quant match", "match false", gterm[child].toString(), vterm[child].toString());
+ 	      return false;
+ 	    }
+ 	  }
+ 	  return true;
+ 	}
+	else  return false;
+      }
   }
 }
 
-
-//given e, and the bound vars in e, boundVard.  some time,  boundvars contains more than bound vars in the thm 
-//instSet are return value
-//instBinds return the bindings
-//instGterms return the matched gterms
 void TheoryQuant::goodSynMatch(const Expr& e,
 			       const std::vector<Expr> & boundVars,
 			       std::vector<std::vector<Expr> >& instBinds,
 			       std::vector<Expr>& instGterms,
 			       const CDList<Expr>& allterms,		       
 			       size_t tBegin){
-
   for (size_t i=tBegin; i<allterms.size(); i++)    {
     Expr gterm = allterms[i];
     if (0 == gterm.arity() )
@@ -2137,15 +1718,12 @@ void TheoryQuant::goodSynMatch(const Expr& e,
       env.clear();
       bool found = recSynMatch(gterm,e,env); 
       if(found){
+	
 	TRACE("quant matching found", " good:",gterm.toString()+" to " , e.toString());
 	TRACE("quant matching found", " simplified good:",simplifyExpr(gterm).toString()+" to " , simplifyExpr(e).toString());
 	std::vector<Expr> inst;
 	
 	DebugAssert((boundVars.size() == env.size()),"bound var size != env.size()");
-// 	cout<<"vterm:"<<e<<endl;
-// 	cout<<"gterm:"<<gterm<<endl;
-// 	cout<<"boudnvar size"<<boundVars.size()<<endl;
-// 	cout<<"env size"<<env.size()<<endl;
 	
 	for(size_t i=0; i<boundVars.size(); i++) {
 	  ExprMap<Expr>::iterator p = env.find(boundVars[i]);
@@ -2157,10 +1735,8 @@ void TheoryQuant::goodSynMatch(const Expr& e,
       }
       else{
 	TRACE("quant matching", "bad one",gterm.toString()+" to " , e.toString());
-	
       }
     }
-
   }
 }
 
@@ -2170,32 +1746,26 @@ void TheoryQuant::goodSynMatchNewTrig(Trigger& trig,
 				      std::vector<Expr>& instGterms,
 				      const CDList<Expr>& allterms,		       
 				      size_t tBegin){
-
   for (size_t i=tBegin; i<allterms.size(); i++)    {
-    Expr gterm = allterms[i];
-    //    if (0 == gterm.arity() )
-    //      continue;
+    Expr gterm (allterms[i]);
     TRACE("quant matching", gterm.toString(), "||", trig.getEx().toString()) ;
-    //    if( usefulInMatch(gterm) && possibleMatch(gterm,e))   {
     if(usefulInMatch(gterm)) {
       ExprMap<Expr> env;
       env.clear();
       bool found = synMatchTopPred(gterm,trig,env); 
       if(found){
+
 	TRACE("quant matching found", " top good:",gterm.toString()+" to " , trig.getEx().toString());
 	std::vector<Expr> inst;
 
 	DebugAssert((boundVars.size() == env.size()),"bound var size != env.size()");
-// 	cout<<"vterm:"<<trig.getEx()<<endl;
-// 	cout<<"gterm:"<<gterm<<endl;
-// 	cout<<"boudnvar size"<<boundVars.size()<<endl;
-// 	cout<<"env size"<<env.size()<<endl;
 
 	for(size_t i=0; i<boundVars.size(); i++) {
 	  ExprMap<Expr>::iterator p = env.find(boundVars[i]);
 	  DebugAssert((p!=env.end()),"bound var cannot be found");
 	  inst.push_back(p->second);
 	}
+	
 	instBinds.push_back(inst);
 	instGterms.push_back(gterm);
       }
@@ -2206,59 +1776,25 @@ void TheoryQuant::goodSynMatchNewTrig(Trigger& trig,
   }
 }
 
-
-bool TheoryQuant::hasGoodSynInst(const Expr& trig,
-				 std::vector<Expr> & boundVars,
-				 std::vector<std::vector<Expr> >& instBinds,
-				 std::vector<Expr>& instGterms,
-				 const CDList<Expr>& allterms,		       
-				 size_t tBegin)
-{
-  FatalAssert(false,"error in has good syninst");
-  exit(2);
-  const std::set<Expr>& bvs = getBoundVars(trig);
-  
-  boundVars.clear();
-  for(std::set<Expr>::const_iterator i=bvs.begin(),iend=bvs.end(); i!=iend; ++i)
-    boundVars.push_back(*i);
-  
-  instBinds.clear();
-  //trigger, bounded vars in the trigger, the instSet is the returned value
-  //it contains the mathed term for boundvars 
-  //e.g. if the boundvar is (x,y,z), then the elements in instSet are of the form
-  //(a,b,c), which means a is binded to x, b to y, etc
-  goodSynMatch(trig, boundVars, instBinds, instGterms, allterms, tBegin);
-  //  cout<<"inst size"<<instSet.size()<<endl; 
-  if (instBinds.size() > 0)
-    return true;
-  else
-    return false;    
-}
-
 bool TheoryQuant::hasGoodSynInstNewTrig(Trigger& trig,
-					std::vector<Expr> & boundVars,
-					std::vector<std::vector<Expr> >& instBinds,
-					std::vector<Expr>& instGterms,
-					const CDList<Expr>& allterms,		       
-					size_t tBegin)
-{
-  const std::set<Expr>& bvs = getBoundVars(trig.getEx());
+ 					std::vector<Expr> & boundVars,
+ 					std::vector<std::vector<Expr> >& instBinds,
+ 					std::vector<Expr>& instGterms,
+ 					const CDList<Expr>& allterms,		       
+ 					size_t tBegin){
+   const std::set<Expr>& bvs = getBoundVars(trig.getEx());
   
-  boundVars.clear();
-  for(std::set<Expr>::const_iterator i=bvs.begin(),iend=bvs.end(); i!=iend; ++i)
-    boundVars.push_back(*i);
-  
-  instBinds.clear();
-  //trigger, bounded vars in the trigger, the instSet is the returned value
-  //it contains the mathed term for boundvars 
-  //e.g. if the boundvar is (x,y,z), then the elements in instSet are of the form
-  //(a,b,c), which means a is binded to x, b to y, etc
-  goodSynMatchNewTrig(trig, boundVars, instBinds, instGterms, allterms, tBegin);
-  //  cout<<"inst size"<<instSet.size()<<endl; 
-  if (instBinds.size() > 0)
-    return true;
-  else
-    return false;    
+   boundVars.clear();
+   for(std::set<Expr>::const_iterator i=bvs.begin(),iend=bvs.end(); i!=iend; ++i)
+     boundVars.push_back(*i);
+   
+   instBinds.clear();
+   goodSynMatchNewTrig(trig, boundVars, instBinds, instGterms, allterms, tBegin);
+
+   if (instBinds.size() > 0)
+     return true;
+   else
+     return false;    
 }
 
 int TheoryQuant::loc_gterm(const std::vector<Expr>& border,
@@ -2274,8 +1810,6 @@ int TheoryQuant::loc_gterm(const std::vector<Expr>& border,
   return -1;
 }
 
-
-
 void  TheoryQuant::recSearchCover(const std::vector<Expr>& border,
 				  const std::vector<Expr>& mtrigs, 
 				  int cur_depth, 
@@ -2283,7 +1817,7 @@ void  TheoryQuant::recSearchCover(const std::vector<Expr>& border,
 				  std::vector<Expr>& cur_inst
 				  ){
   int max_dep = mtrigs.size();
-  //  if(cur_depth >= max_dep-1) return; 
+
   if(cur_depth >= max_dep) return; 
 
   Expr cur_vterm = mtrigs[cur_depth]; //get the current vterm
@@ -2344,65 +1878,19 @@ void  TheoryQuant::searchCover(const Expr& thm,
 			       const std::vector<Expr>& border,
 			       std::vector<std::vector<Expr> >& instSet
 			       ){
-  
   std::vector<Expr> dumy(border.size()) ; //use dynamic array here
   for(size_t j=0; j< border.size() ;j++){
     dumy[j]=null_expr;
   }
-
   const std::vector<Expr>& mtrigs = d_multTriggers[thm];
   recSearchCover(border, mtrigs, 0, instSet, dumy);
-  //  cout<<"size of intSet "<<instSet.size()<<endl;
-  
-  /*  
-  if(instSet.size()==0){
-    cout<<"size of mtrigs"<<mtrigs.size()<<endl;
-    if(3==mtrigs.size()){
-      cout<<"try one"<<endl;
-      Expr a1 = mtrigs[0];
-      Expr a2 = mtrigs[1];
-      Expr a3 = mtrigs[2];
-
-      std::vector<Expr> new_mtrig ;
-      new_mtrig.clear();
-      new_mtrig.push_back(a1); new_mtrig.push_back(a3); new_mtrig.push_back(a2);
-      recSearchCover(border, mtrigs, 0, instSet, dumy);
-      if(instSet.size()>0) return;
-      
-      new_mtrig.clear();
-      new_mtrig.push_back(a2); new_mtrig.push_back(a3); new_mtrig.push_back(a1);
-      recSearchCover(border, mtrigs, 0, instSet, dumy);
-      if(instSet.size()>0) return;
-
-      new_mtrig.clear();
-      new_mtrig.push_back(a2); new_mtrig.push_back(a1); new_mtrig.push_back(a2);
-      recSearchCover(border, mtrigs, 0, instSet, dumy);
-      if(instSet.size()>0) return;
-
-      new_mtrig.clear();
-      new_mtrig.push_back(a3); new_mtrig.push_back(a1); new_mtrig.push_back(a2);
-      recSearchCover(border, mtrigs, 0, instSet, dumy);
-      if(instSet.size()>0) return;
-
-      new_mtrig.clear();
-      new_mtrig.push_back(a3); new_mtrig.push_back(a2); new_mtrig.push_back(a1);
-      recSearchCover(border, mtrigs, 0, instSet, dumy);
-      if(instSet.size()>0) return;
-      
-      
-    }
-  }
-  */
 }
-
-
 
 bool TheoryQuant::hasGoodSynMultiInst(const Expr& thm,
 				      std::vector<Expr> & boundVars,
 				      std::vector<std::vector<Expr> >& instSet,
 				      const CDList<Expr>& allterms,		       
 				      size_t tBegin){
-    
   const std::set<Expr>& bvs = getBoundVars(thm);
   
   boundVars.clear();
@@ -2412,7 +1900,8 @@ bool TheoryQuant::hasGoodSynMultiInst(const Expr& thm,
   instSet.clear();
   
   bool new_match = false;
-  //assumption, every trig is different, this is not true later, must modify this
+  //assumption: every trig is different
+  //this is not true later, fix this asap
   const std::vector<Expr>& mtrigs = d_multTriggers[thm];
   
   for(std::vector<Expr>::const_iterator i= mtrigs.begin(), iend = mtrigs.end(); i != iend; i++){
@@ -2430,18 +1919,12 @@ bool TheoryQuant::hasGoodSynMultiInst(const Expr& thm,
     //    std::set<std::vector<Expr> > trig_insts;    
     std::vector<std::vector<Expr> > trig_insts;    
     trig_insts.clear();
-    //trigger, bounded vars in the trigger, the instSet is the returned value
-    //it contains the mathed term for boundvars 
-    //e.g. if the boundvar is (x,y,z), then the elements in instSet are of the form
-    //(a,b,c), which means a is binded to x, b to y, etc
 
     std::vector<Expr> gtms;
     goodSynMatch(*i, trig_bvorder, trig_insts, gtms, allterms, tBegin);
 
 
     if (trig_insts.size() > 0){
-      //      cout<<"more to do for "<<*i<<endl;
-      
       new_match=true;
       if(d_mtrigs_inst.count(*i) <= 0){
 	d_mtrigs_inst[*i] = new(true) CDList<std::vector<Expr> > (theoryCore()->getCM()->getCurrentContext());
@@ -2454,18 +1937,13 @@ bool TheoryQuant::hasGoodSynMultiInst(const Expr& thm,
 	for(std::vector<Expr>::const_iterator k = j->begin(), kend = j->end();
 	    k != kend;
 	    k++){
-	  //	  cout<<*k<<" | ";
 	}
-	//	cout<<endl;
       }
     }
-    //    cout<<"end of one"<<endl;
-  } // end of for
-  //  cout<<"end fo for"<<endl;
 
+  } // end of for
 
   for(std::vector<Expr>::const_iterator i= mtrigs.begin(), iend = mtrigs.end(); i != iend; i++){
-    //    cout<<"for mul_trig:" <<*i<<endl;
    
     if (d_mtrigs_inst.count(*i) <=0 ) continue;
     for(CDList<std::vector<Expr> >::const_iterator j = d_mtrigs_inst[*i]->begin(), 
@@ -2476,9 +1954,7 @@ bool TheoryQuant::hasGoodSynMultiInst(const Expr& thm,
       for(std::vector<Expr>::const_iterator k = j->begin(), kend = j->end();
 	  k != kend;
 	  k++){
-	//	cout<<*k<<" | ";
       }
-      //      cout<<endl;
     }
   }
   {//code for search a cover
@@ -2487,49 +1963,26 @@ bool TheoryQuant::hasGoodSynMultiInst(const Expr& thm,
     }
   }      
 
-  //  cout<<"size of intSet in called "<<instSet.size()<<endl;
-
-    
   if(instSet.size() > 0 ) {
-    //    cout<<"matched multi triggers"<<endl;
     return true;
   }
   else {
     return false;
   }
-
+  
 }
-
-
-
 
 bool inStrCache(std::set<std::string> cache, std::string str){
   return (cache.find(str) != cache.end());
 } 
 
 
- bool TheoryQuant::hasGoodSemInst(const Expr& e,
- 			      std::vector<Expr> & boundVars,
- 			      std::set<std::vector<Expr> >& instSet,
- 			      size_t tBegin)
- {
-   return false;
-//   const std::set<Expr> bvs = getBoundVars(e);
-  
-//   boundVars.clear();
-//   for(std::set<Expr>::iterator i=bvs.begin(),iend=bvs.end(); i!=iend; ++i)
-//     boundVars.push_back(*i);
-  
-//   std::vector<Expr> newInst;
-//   instSet.clear();
-//   if(inStrCache(cacheHead,getHead(e)))
-//      recGoodSemMatch(e,boundVars,newInst,instSet);
-   
-//   if (instSet.size() > 0)
-//     return true;
-//   else
-//     return false;    
- }
+bool TheoryQuant::hasGoodSemInst(const Expr& e,
+				 std::vector<Expr> & boundVars,
+				 std::set<std::vector<Expr> >& instSet,
+				 size_t tBegin){
+  return false;
+}
 
 void genPartInstSetThm(const std::vector<Expr>&  bVarsThm,
 		       std::vector<Expr>& bVarsTerm,
@@ -2576,8 +2029,8 @@ void genPartInstSetThm(const std::vector<Expr>&  bVarsThm,
 void genInstSetThm(const std::vector<Expr>& bVarsThm,
 		   const std::vector<Expr>& bVarsTerm,
 		   const std::vector<std::vector<Expr> >& termInst,
-		   std::vector<std::vector<Expr> >& instSetThm)
-{
+		   std::vector<std::vector<Expr> >& instSetThm){
+
   std::vector<int> bVmap;
 
   for(size_t i=0; i< bVarsThm.size(); ++i)    {
@@ -2592,7 +2045,6 @@ void genInstSetThm(const std::vector<Expr>& bVarsThm,
   
   for(size_t i=0; i< bVarsThm.size(); ++i)
     if( -1 == bVmap[i])  {
-      //	cout<<"well, -1 found"<<endl;;
       return;
     }
   
@@ -2602,9 +2054,7 @@ void genInstSetThm(const std::vector<Expr>& bVarsThm,
     buf.clear();
     for(size_t j=0; j< bVarsThm.size(); ++j){
       buf.push_back((*i)[bVmap[j]]);
-      // cout <<"j="<<j<<" "<< ((*i)[bVmap[j]]).toString()<<endl;
     }
-    //      cout <<"end of one"<<endl;;
     instSetThm.push_back(buf);
   }
 }
@@ -2669,7 +2119,6 @@ void  TheoryQuant::pushBackList(const Expr& node, Expr ex){
   } 
 } 
 
-
 void  TheoryQuant::pushForwList(const Expr& node, Expr ex){
   if(d_trans_forw.count(node)>0){
     d_trans_forw[node]->push_back(ex);
@@ -2680,13 +2129,10 @@ void  TheoryQuant::pushForwList(const Expr& node, Expr ex){
   } 
 } 
 
-
-
 void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms, size_t tBegin ){
 
   const Expr& quantExpr = univ.getExpr();  
   const std::vector<Expr>& bVarsThm = quantExpr.getVars();
-  //  const std::vector<Expr>& triggers = d_fullTriggers[quantExpr];
 
   TRACE("quant inst", "try full inst with:|", quantExpr.toString() , " ");
   
@@ -2695,12 +2141,11 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
   std::vector<Expr > instGterms; //instGterms are gterms matched, instBindsTerm and instGterms must have the same length
   std::vector<Expr> bVarsTrig; 
 
-  //math with full triggers
   if(*d_useTrigNew){
     std::vector<Trigger>& new_trigs=d_fullTrigs[quantExpr];
     for( size_t i= 0; i<new_trigs.size(); i++)  {
       Trigger& trig = new_trigs[i];
-      if( 0 != trig.getPri()) continue;
+      //      if( 0 != trig.getPri()) continue;
       TRACE("quant inst","try new full trigger:|", trig.getEx().toString(),"");
       
       instBindsTerm.clear();
@@ -2710,25 +2155,21 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
       
       {//code for trans2
 	if(trig.hasTr2()){
-	  //	  cout<<"has tr"<<trig.getEx()<<endl;
 	  if(hasGoodSynInstNewTrig(trig, bVarsTrig, instBindsTerm, instGterms, allterms, tBegin)) {
-	    //	    cout<<"tr has bind"<<endl;
 	    for(size_t j=0; j<instBindsTerm.size(); j++){
 	      DebugAssert(2 == instBindsTerm[j].size(), "internal error in trans2");
 
 	      Expr& gterm = instGterms[j];
 	      
 	      if(simplifyExpr(instBindsTerm[j][0]) != simplifyExpr(instBindsTerm[j][1])){
-		//	      if(instBindsTerm[j][0]) != (instBindsTerm[j][1])){
-		//cout<<vectorExpr2string(instBindsTerm[j])<<endl;
 		Expr comb = Expr(RAW_LIST,instBindsTerm[j][0],instBindsTerm[j][1]);
-		//		cout<<comb<<endl;
 		if(!trans2Found(comb)){
 		  setTrans2Found(comb);
+		  
 		  TRACE("quant trans","new trans2: ", vectorExpr2string(instBindsTerm[j]), "");		  
+		  
 		  Expr comb_rev = Expr(RAW_LIST,instBindsTerm[j][1],instBindsTerm[j][0]);
 		  if(trans2Found(comb_rev)){
-			//		  cout<<vectorExpr2string(instBindsTerm[j])<<endl;
 		    Expr sr(instBindsTerm[j][0]);
 		    Expr dt(instBindsTerm[j][1]);
 		    
@@ -2738,8 +2179,7 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
 		    bind.push_back(dt);
 		    
 		    enqueueInst(univ, bind, gterm);
-		    TRACE("quant inst", "trans pred rule2 ", univ.toString(), " | with bind: "+vectorExpr2string(bind));  
-		    TRACE("quant trans", "trans2 ", vectorExpr2string(bind), "");
+		    TRACE("quant inst", "trans pred rule2 ", univ.toString(), " | with bind: "+vectorExpr2string(bind));  		    TRACE("quant trans", "trans2 ", vectorExpr2string(bind), "");
 		  }
 		}
 	      } 
@@ -2751,29 +2191,26 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
             
       {//code for trans pred
 	if(trig.hasTr()){
-	  //	  cout<<"has tr"<<trig.getEx()<<endl;
 	  if(hasGoodSynInstNewTrig(trig, bVarsTrig, instBindsTerm, instGterms, allterms, tBegin)) {
-	    //	    cout<<"tr has bind"<<endl;
 	    for(size_t j=0; j<instBindsTerm.size(); j++){
 	      DebugAssert(2 == instBindsTerm[j].size(), "internal error in trans");
 
 	      Expr& gterm = instGterms[j];
 
 	      if(simplifyExpr(instBindsTerm[j][0]) != simplifyExpr(instBindsTerm[j][1])){
-		//	      if(instBindsTerm[j][0]) != (instBindsTerm[j][1])){
-		//cout<<vectorExpr2string(instBindsTerm[j])<<endl;
+
 		Expr comb = Expr(RAW_LIST,instBindsTerm[j][0],instBindsTerm[j][1]);
-		//		cout<<comb<<endl;
+
 		if(!transFound(comb)){
 		  setTransFound(comb);
+
 		  TRACE("quant trans","new: ", vectorExpr2string(instBindsTerm[j]), "");		  
-			//		  cout<<vectorExpr2string(instBindsTerm[j])<<endl;
+
 		  Expr sr(instBindsTerm[j][0]);
 		  Expr dt(instBindsTerm[j][1]);
-
+		  
 		  const CDList<Expr>& dtForw = forwList(dt);
 		  const CDList<Expr>& srBack = backList(sr);
-
 		  
 		  for(size_t k=0; k<dtForw.size(); k++){
 		    vector<Expr> bind;
@@ -2782,14 +2219,9 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
 		    bind.push_back(dt);
 		    bind.push_back(dtForw[k]);
 
-		    //		    if(insted(univ,bind)) continue;
-		    //Theorem t = d_rules->universalInst(univ,bind);
-		    //		    enqueueInst(univ, t);
-		    //		    enqueueInst(univ, bind, dtForw[k]);
-		    //		    cout<<"trans gterm: "<< gterm <<endl;
 		    enqueueInst(univ, bind, gterm);
+
 		    TRACE("quant inst", "trans pred rule", univ.toString(), " | with bind: "+vectorExpr2string(bind));  
-		    //		    cout<<"quant inst "<< "trans pred rule:"<<univ.toString()<< " | " <<(t.toString());  
 		    TRACE("quant trans", "trans res forw: ", vectorExpr2string(bind), "");
 		  }
 
@@ -2800,15 +2232,9 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
 		    bind.push_back(sr);
 		    bind.push_back(dt);
 
-		    //	    if(insted(univ,bind)) continue;
-		    //	    Theorem t = d_rules->universalInst(univ,bind);
-		    //	    enqueueInst(univ, t);
-		    //		    cout<<"trans gterm: "<< gterm <<endl;
-		    //		    enqueueInst(univ, bind, srBack[k]);
 		    enqueueInst(univ, bind, gterm);
-		    TRACE("quant inst", "trans pred rule ", univ.toString(), " | with bind: "+vectorExpr2string(bind));  
-		    //	    cout<<"quant inst "<< "trans pred rule:"<<univ.toString()<< " | " <<(t.toString());  
-		    TRACE("quant trans", "trans res back: ", vectorExpr2string(bind), "");
+		    TRACE("quant inst", "trans pred rule ", univ.toString(), " | with bind: "+vectorExpr2string(bind));
+  		    TRACE("quant trans", "trans res back: ", vectorExpr2string(bind), "");
 		  }
 
 		  pushForwList(sr,dt);
@@ -2820,145 +2246,52 @@ void TheoryQuant::synFullInst(const Theorem & univ, const CDList<Expr>& allterms
 	  return;
 	}
       }
-      
-      // bvarsTrig and instBindsTerm, instBindsThm are return values,
-      // bindings are in termInst.
-      if(hasGoodSynInstNewTrig(trig, bVarsTrig, instBindsTerm, instGterms, allterms, tBegin)) {
-	//      cout<<"has good "<<instBindsTerm.size()<<endl;
-	genInstSetThm(bVarsThm, bVarsTrig, instBindsTerm, instBindsThm);
-	//      cout<<"after good"<<instBindsThm.size()<<endl;
-	DebugAssert(instBindsThm.size() == instBindsTerm.size() && instBindsTerm.size() == instGterms.size(), "instBindsThm.size() != instBindsTerm.size()");
+            
+      bool univsHasMoreBVs ;
 
-// 	  cout<<"thm: "<<instBindsThm.size()<<endl;
-// 	  cout<<"term: "<<instBindsTerm.size()<<endl;
-// 	  cout<<"gterm: "<<instGterms.size()<<endl;
-// 	  cout<<"trig: "<<trig.getEx()<<endl;
-// 	  cout<<"univ: "<<univ.getExpr()<<endl;   
-// 	  cout<<"interal error in term inst"<<endl;
-      }
-      
-      {
-	for (size_t j = 0; j<instBindsTerm.size(); j++){
-	  const Expr& gterm = instGterms[j];
-	  const std::vector<Expr>& binds = instBindsThm[j];
+      univsHasMoreBVs = (d_hasMoreBVs.count(quantExpr) > 0);
+
+      if ( !d_allout || !trig.isSimp() || univsHasMoreBVs || *d_useLazyInst){
+	//      if ( !d_allout || !trig.isSimp() || univsHasMoreBVs || *d_useLazyInst || true){
+	if(hasGoodSynInstNewTrig(trig, bVarsTrig, instBindsTerm, instGterms, allterms, tBegin)) {
+
+	  genInstSetThm(bVarsThm, bVarsTrig, instBindsTerm, instBindsThm);
 	  
-	  //	  if(insted(univ,binds)) continue;
-	  //	  Theorem t = d_rules->universalInst(univ,binds);
-	  //	  enqueueInst(univ, trig.getEx(), i, binds, gterm, t);
-	  enqueueInst(univ, trig, binds, gterm);
-	  TRACE("quant inst", "insert full inst", univ.toString(), " | with bind: "+vectorExpr2string(binds));  
+	  DebugAssert(instBindsThm.size() == instBindsTerm.size() && instBindsTerm.size() == instGterms.size(), "instBindsThm.size() != instBindsTerm.size()");
+	  
 	}
-      }
-
-      if(trig.hasRW()){
-
-	if(1 == bVarsTrig.size()){
-	  //	  cout<<"size"<<d_arrayIndic[trig.getHead()].size()<<endl;
-	  std::vector<Expr> tp = d_arrayIndic[trig.getHead()];
-	  //	  for(size_t i=0; i<d_arrayIndic[trig.getHead()].size(); i++){
-	  for(size_t i=0; i<tp.size(); i++){
-	    std::vector<Expr> tp = d_arrayIndic[trig.getHead()];
-
-	    //	    Expr index = d_arrayIndic[trig.getHead()][i];
-	    Expr index = tp[i];
-	    std::vector<Expr> temp;
-	    temp.clear();
-	    temp.push_back(index);
+	
+	{
+	  for (size_t j = 0; j<instBindsTerm.size(); j++){
+	    const Expr& gterm = instGterms[j];
+	    const std::vector<Expr>& binds = instBindsThm[j];
 	    
-	    enqueueInst(univ, temp, index);
-	    TRACE("quant inst", "read write rule", univ.toString(), " | with bind: "+vectorExpr2string(temp));  
+	    enqueueInst(univ, trig, binds, gterm); 
+	    
+	    TRACE("quant inst", "insert full inst", univ.toString(), " | with bind: "+vectorExpr2string(binds));  
 	  }
 	}
-	else{
-// 	  for(size_t k = 0; k<bVarsTrig.size(); k++){
-// 	    cout<<"k" << k << " : " <<bVarsTrig[k]<<endl;
-// 	  }
-// 	  cout<<"trig is" << trig.getEx() << endl;
-// 	  DebugAssert(false, "unknown case in hasRW");
-	}
-      }
-    }//end for each trigger      
-  }
-}
-
-void TheoryQuant::synFullInstEnd(const Theorem & univ, const CDList<Expr>& allterms, size_t tBegin ){
-  return synFullInst(univ, allterms, tBegin);
-  const Expr& quantExpr = univ.getExpr();  
-  const std::vector<Expr>& bVarsThm = quantExpr.getVars();
-  //  const std::vector<Expr>& triggers = d_fullTriggers[quantExpr];
-
-  TRACE("quant inst", "try full inst end with:|", quantExpr.toString() , " ");
-  
-  std::vector<std::vector<Expr> > instBindsThm; //set of instantiations for the thm,
-  std::vector<std::vector<Expr> > instBindsTerm; //bindings, in the order of bVarsTrig
-  std::vector<Expr > instGterms; //instGterms are gterms matched, instBindsTerm and instGterms must have the same length
-  std::vector<Expr> bVarsTrig; 
-
-  //math with full triggers
-
-  if(*d_useTrigNew){
-    std::vector<Trigger>& new_trigs=d_fullTrigs[quantExpr];
-    for( size_t i= 0; i<new_trigs.size(); i++)  {
-      Trigger& trig = new_trigs[i];
-      if( 0 != trig.getPri()) continue;
-      TRACE("quant inst","try new full trigger end:|", trig.getEx().toString(),"");
-      
-      instBindsTerm.clear();
-      bVarsTrig.clear();
-      instBindsThm.clear();
-      instGterms.clear();
-      
-      if(trig.hasTr()){
-	return;
-      }
-      if(trig.hasTr2()){
-	return;
       }
       
-      // bvarsTrig and instBindsTerm, instBindsThm are return values,
-      // the bindings are in termInst.
-      if(hasGoodSynInstNewTrig(trig, bVarsTrig, instBindsTerm, instGterms, allterms, tBegin)) {
-	//      cout<<"has good "<<instBindsTerm.size()<<endl;
-	genInstSetThm(bVarsThm, bVarsTrig, instBindsTerm, instBindsThm);
-	//      cout<<"after good"<<instBindsThm.size()<<endl;
-	DebugAssert(instBindsThm.size() == instBindsTerm.size() && instBindsTerm.size() == instGterms.size(), "interal error in term inst, new end"); 
-	
-      }
-      
-      {
-	for (size_t j = 0; j<instBindsTerm.size(); j++){
-	  const Expr& gterm = instGterms[j];
-	  const std::vector<Expr>& binds = instBindsThm[j];
+      if(!d_allout || *d_useLazyInst){
+	if(trig.hasRW()){
+	  
+	  if(1 == bVarsTrig.size()){
+	    std::vector<Expr> tp = d_arrayIndic[trig.getHead()];
+	    for(size_t i=0; i<tp.size(); i++){
+	      std::vector<Expr> tp = d_arrayIndic[trig.getHead()];
 
-	  //	  enqueueInst(univ, trig.getEx(), i, binds, gterm);
-	  enqueueInst(univ, trig, binds, gterm);
-
-	  TRACE("quant inst", "insert full inst", univ.toString()," | with bind: "+vectorExpr2string(binds));  
-	}
-      }
-
-      if(trig.hasRW()){
-	
-	if(1 == bVarsTrig.size()){
-	  //	  cout<<"size"<<d_arrayIndic[trig.getHead()].size()<<endl;
-	  std::vector<Expr> tp = d_arrayIndic[trig.getHead()];
-	  //	  for(size_t i=0; i<d_arrayIndic[trig.getHead()].size(); i++){
-	  //	  for(size_t i=0; i<(d_arrayIndic[trig.getHead()]).size(); i++){
-	  for(size_t i=0; i<tp.size(); i++){
-	    std::vector<Expr> tp1= d_arrayIndic[trig.getHead()];
-	    //	    Expr index = d_arrayIndic[trig.getHead()][i];
-	    Expr index = tp1[i];
-	    //	    cout<<index<<"|";
-	    std::vector<Expr> temp;
-	    temp.clear();
-	    temp.push_back(index);
-	    enqueueInst(univ, temp, index);
-	    TRACE("quant inst", "read write rule", univ.toString(), "| with bind: "+ vectorExpr2string(temp));  
+	      Expr index = tp[i];
+	      std::vector<Expr> temp;
+	      temp.clear();
+	      temp.push_back(index);
+	      
+	      enqueueInst(univ, temp, index);
+	      TRACE("quant inst", "read write rule", univ.toString(), " | with bind: "+vectorExpr2string(temp));  
+	    }
 	  }
-	  //	  cout<<endl;
-	}
-	else{
-	  //	  DebugAssert(false, "unknown case in hasRW()");
+	  else{
+	  }
 	}
       }
     }//end for each trigger      
@@ -2971,7 +2304,6 @@ void TheoryQuant::synMultInst(const Theorem & univ, const CDList<Expr>& allterms
   const Expr& quantExpr = univ.getExpr();
   TRACE("quant inst", "try muli with:|", quantExpr.toString() , " ");
   const std::vector<Expr>& bVarsThm = quantExpr.getVars();
-  //  const std::vector<Expr>& triggers = d_multTriggers[quantExpr];
 
   std::vector<std::vector<Expr> > instSetThm; //set of instantiations for the thm
   std::vector<std::vector<Expr> > termInst; //terminst are bindings, in the order of bVarsTrig
@@ -2980,17 +2312,10 @@ void TheoryQuant::synMultInst(const Theorem & univ, const CDList<Expr>& allterms
 
   if(hasGoodSynMultiInst(quantExpr, bVarsTrig, termInst, allterms, tBegin)) {
     genInstSetThm(bVarsThm, bVarsTrig, termInst, instSetThm);
-    //here, bVarsThm and bVarsTerm are not the same, most of the time, I think,
-    //even they contain the same elements, the order of the elements maybe different.
   }  
   {
     for(std::vector<std::vector<Expr> >::iterator i=instSetThm.begin(), iend=instSetThm.end(); i!=iend; ++i) {
-
-//       Theorem t = d_rules->universalInst(univ,*i);
-//       enqueueInst(univ, t);
-      
       enqueueInst(univ, *i, null_expr);//fix the null_expr here asap
-
       TRACE("quant inst", "insert mult inst", univ.toString(), " | with bind: "+vectorExpr2string(*i));  
     }
   }
@@ -2998,145 +2323,66 @@ void TheoryQuant::synMultInst(const Theorem & univ, const CDList<Expr>& allterms
 }
 
 void TheoryQuant::synPartInst(const Theorem & univ, const CDList<Expr>& allterms,  size_t tBegin ){
-  return;
+  
   const Expr& quantExpr = univ.getExpr();
   TRACE("quant inst", "try part with ", quantExpr.toString() , " ");
-
-  const std::vector<Expr>& bVarsThm = quantExpr.getVars();
-  const std::vector<Expr>& triggers = d_partTriggers[quantExpr];
+  
+  const std::vector<Trigger>& triggers = d_partTrigs[quantExpr];
 
   std::vector<std::vector<Expr> > instSetThm; //set of instantiations for the thm
   std::vector<std::vector<Expr> > termInst; //terminst are bindings, in the order of bVarsTrig
   std::vector<Expr> bVarsTrig; 
   std::vector<Expr> instGterms;
 
-  for( std::vector<Expr>::const_iterator i= triggers.begin(), iend=triggers.end();i!=iend;++i)  {
+  for( std::vector<Trigger>::const_iterator i= triggers.begin(), iend=triggers.end();i!=iend;++i)  {
   
-    const Expr& trig = *i;
-    TRACE("quant inst","handle part trigger", trig.toString(),"");
+    Trigger trig = *i;
+    TRACE("quant inst","handle part trigger", trig.getEx().toString(),"");
     termInst.clear();
     bVarsTrig.clear();
     instSetThm.clear();
-    //trigger, 
-    // bvarsTrig and termInst are return values,
-    // the bindings are in termInst.
 
-    if(hasGoodSynInst(trig, bVarsTrig, termInst, instGterms,allterms, tBegin)) {
+    if(hasGoodSynInstNewTrig(trig, bVarsTrig, termInst, instGterms,allterms, tBegin)) {
       TRACE("quant syninst", "has good ", termInst.size(),"");
-      genPartInstSetThm(bVarsThm, bVarsTrig, termInst,instSetThm);
       TRACE("quant syninst", "after good ",instSetThm.size(), "");
 
-      //here, bVarsThm and bVarsTerm are not the same, most of the time, I think,
-      //even they contain the same elements, the order of the elements maybe different.
-  //  cout<<"after iteration" <<instSetThm.size()<<endl;
       Theorem newUniv = d_rules->adjustVarUniv(univ, bVarsTrig);
       
       TRACE("quant syninst", " new univ:" ,newUniv.toString(),"");
-      
       {
-	for(std::vector<std::vector<Expr> >::iterator i=instSetThm.begin(), iend=instSetThm.end(); i!=iend;  ++i) {
-	  if(d_thmTimes[univ.getExpr()]<=30 || true ){
-	    //	    Theorem t = d_rules->partialUniversalInst(newUniv,*i);
-	    //	    enqueueInst(univ, t);
-	    enqueueInst(univ, *i, null_expr);
-	    TRACE("quant yeting inst", "instantiating", newUniv.toString(), " | with bind: "+vectorExpr2string(*i));  
-	  }
+	for(size_t i = 0; i< termInst.size(); i++){
+	  const std::vector<Expr>& binds = termInst[i];
+	  const Expr& gterm = instGterms[i];
+	  enqueueInst(newUniv, binds, gterm);
+	  TRACE("quant yeting inst", "instantiating =========", "" , "");  
+	  TRACE("quant yeting inst", "instantiating", newUniv.getExpr().toString(), " | with bind: "+vectorExpr2string(binds));  
+	  TRACE("quant yeting inst", "instantiating org ", univ.getExpr().toString(), " | with gterm "+gterm.toString());  
 	}
       }
-      
     }
   }
 }
-
 
 void TheoryQuant::semInst(const Theorem & univ, size_t tBegin){
-  /*
-  const Expr& quantExpr = univ.getExpr();
-  TRACE("quant inst", "now dealing with ", quantExpr.toString() , " ");
-  const std::vector<Expr>& bVarsThm = quantExpr.getVars();
-  const std::vector<Expr>& triggers = d_fullTriggers[quantExpr];
-  std::set<std::vector<Expr> > instSetThm;
-
-  for( std::vector<Expr>::const_iterator i= triggers.begin(), iend=triggers.end();i!=iend;++i) {
-    std::set<std::vector<Expr> > termInst;
-    std::vector<Expr> bVarsTrig;
-    const Expr& trig = *i;
-    //later, we can add some conditions to handle
-    //terms like (+ a b)
-    TRACE("quant inst","handle trigger", trig.toString(),"");
-    termInst.clear();
-    bVarsTrig.clear();
-    //
-    if(hasGoodSemInst(trig,bVarsTrig,termInst,tBegin)){
-      genInstSetThm(bVarsThm,bVarsTrig,termInst,instSetThm);
-      //here, bVarsThm and bVarsTerm are not the same, most of the time, I think,
-      //even they contain the same elements, the order of the elements maybe different.
-    }
-  }
-   
-  if(0 == instSetThm.size())  {
-    TRACE("quant yeting","sorry, no instantiation found","","");
-  }
-  else   {
-    for(std::set<std::vector<Expr> >::iterator i=instSetThm.begin(), iend=instSetThm.end(); i!=iend; ++i) {
-      Theorem t = d_rules->universalInst(univ,*i);
-      enqueueInst(univ, t);
-      // enqueueFact(t);
-      TRACE("quant yeting inst", "instantiating", univ.toString(), "|"+(t.toString()));  
-    }
-  }
-  */ 
-}
-
-int TheoryQuant::exprInitScore(const Expr& e){
-  FatalAssert(false,  "should not be called any more exprinitscore");
-//  cout<<"should not be called exprinitscore"<<endl;
-  exit(11);
-  if(e.inUserAssumption()){
-    TRACE("exprscore", "init expr in user assumption: ", e, "");;
-    return 0;
-  }
-
-  const std::vector<Expr>& subTerms = getSubTerms(e);
-  int score(0);
-  int score2(0);
-  for(size_t i=0 ;i<subTerms.size()-1; i++){
-    CDMap<Expr, int>::iterator iter = d_exprScore.find(subTerms[i]);
-    if(iter != d_exprScore.end()){
-      int subScore = (*iter).second;
-      //      if(subScore >= score){
-      //	score++;
-      if(subScore > score){
-	score = subScore;
-      } 
-      if(subScore >= score2){
-      	score2++;
-      }
-    }
-  }
-  //can we ignore the term not in user assumption?
-  TRACE("exprscore", "init expr not in user assumption: ", score, " # "+e.toString());
-  //  cout<<"init expr not in user assumption: "<<score<< " # "<<score2<<" | "+e.toString()<<endl;;
-  return score;
 }
 
 void TheoryQuant::checkSat(bool fullEffort){
-
   if(*d_translate) return;
   if(d_univs.size() <=0 ) return;
 
   DebugAssert(d_univsQueue.size() == 0, "something left in d_univsQueue");
+  DebugAssert(d_simplifiedThmQueue.size() == 0, "something left in d_univsQueue");
 
 #ifdef DEBUG  
   if(fullEffort){
     if( CVC3::debugger.trace("quant assertfact")  ){
       cout<<"===========all cached univs =========="<<endl;
-      for (ExprMap<Theorem>::iterator i=d_simpUnivs.begin(), iend=d_simpUnivs.end(); i!=iend;  i++){
-	cout<<"------------------------------------"<<endl;
-	cout<<(i->first).toString()<<endl;
-	cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
-	cout<<(i->second).getExpr().toString()<<endl;
-      }
+      //      for (ExprMap<Theorem>::iterator i=d_simpUnivs.begin(), iend=d_simpUnivs.end(); i!=iend;  i++){
+      //	cout<<"------------------------------------"<<endl;
+      //	cout<<(i->first).toString()<<endl;
+      //	cout<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
+      //	cout<<(i->second).getExpr().toString()<<endl;
+      //}
     }
     if( CVC3::debugger.trace("quant samehead")  ){
       cout<<"===========all cached  =========="<<endl;
@@ -3160,25 +2406,16 @@ void TheoryQuant::checkSat(bool fullEffort){
     
     for (size_t i=d_lastPredsPos; i<allpreds.size(); i++){
       cout<<"i="<<allpreds[i].getIndex()<<" :"<<findExpr(allpreds[i])<<"|"<<allpreds[i]<<endl;
-      //<<" and type is "<<allpreds[i].getType() 
-      //<< " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
     }
-    //    cout<<"-----------end----------pred"<<endl;
     
     const CDList<Expr>&  allterms = theoryCore()->getTerms();
-    //    cout<<"=========== cur terms=========="<<endl;
     
     for (size_t i=d_lastTermsPos; i<allterms.size(); i++){
       cout<<"i="<<allterms[i].getIndex()<<" :"<<findExpr(allterms[i])<<"|"<<allterms[i]<<endl;
-      //<<" and type is "<<allpreds[i].getType() 
-      //<< " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
     }
-    //    cout<<"-----------end----------"<<endl;
     cout<<"=========== cur quant =========="<<endl;
     for (size_t i=0; i<d_univs.size(); i++){
       cout<<"i="<<d_univs[i].getExpr().getIndex()<<" :"<<findExpr(d_univs[i].getExpr())<<"|"<<d_univs[i]<<endl;
-      //<<" and type is "<<allpreds[i].getType() 
-      //<< " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
     }
   }
   
@@ -3191,39 +2428,13 @@ void TheoryQuant::checkSat(bool fullEffort){
       if(allpreds[i].isEq()){
 	cout<<"i="<<allpreds[i].getIndex()<<" :"<<findExpr(allpreds[i])<<"|"<<allpreds[i]<<endl;
       }
-      //<<" and type is "<<allpreds[i].getType() 
-      //<< " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
     }
     cout<<"=========== cur pred equ end  =========="<<endl;
   }
   
 #endif
   
-  /*  {//setup array and indics for array read-write rule
-      const CDList<Expr>&  allterms = theoryCore()->getTerms();
-      for(size_t i=d_lastTermsPos; i<allterms.size(); i++){
-      Expr t = allterms[i];
-      cout <<"new term "<<t<<":";
-      cout <<arrayName(t)<<endl;
-      cout<<arrayIndex(t)<<endl<<"-----"<<endl;
-      }
-      }
-  */
-  /*
-    { //print out array index
-    cout<<"cur arrar index"<<endl;
-    for(ExprMap<std::vector<Expr> >::iterator i = d_arrayIndic.begin(), iend = d_arrayIndic.end(); i != iend; i++){
-    cout<<"array: "<<i->first<<endl;
-    for(std::vector<Expr>::const_iterator j = (i->second).begin(), jend = (i->second).end(); j != jend; j++){
-    cout<<*j<<" | ";
-    }
-    cout<<endl;
-    } 
-    }
-  */
   if((*d_useLazyInst && !fullEffort) ) return;
-  //  if((*d_useLazyInst && !fullEffort) && usedup ) return;
-
 
   {//for the same head list
    const CDList<Expr>&  allterms = theoryCore()->getTerms();
@@ -3240,6 +2451,7 @@ void TheoryQuant::checkSat(bool fullEffort){
        }
      }
    }
+
    const CDList<Expr>&  allpreds = theoryCore()->getPredicates();
    for(size_t i=d_lastPredsPos; i<allpreds.size(); i++){
      Expr t = allpreds[i];
@@ -3262,199 +2474,108 @@ void TheoryQuant::checkSat(bool fullEffort){
    for(size_t i=d_lastTermsPos; i<allterms.size(); i++){
      const Expr& cur=allterms[i];
      if(READ == cur.getKind() || WRITE == cur.getKind()){
-       //       cout<<"cur: "<<cur<<endl;
        arrayIndexName(cur);
      }
    }
   }
  
-  if(*d_useExprScore && false ){
-    const CDList<Expr>&  allterms = theoryCore()->getTerms();
-    for(size_t i=d_lastTermsPos; i<allterms.size(); i++){
-      const Expr& cur=allterms[i];
-      if(cur.inUserAssumption()){
-	CDMap<Expr, int>::iterator iter = d_exprScore.find(cur) ;
-	if(iter == d_exprScore.end()){
-	  setExprScore(cur,0);
-	}
-      }
-    }
-    {//for system preds' score
-      const CDList<Expr>&  allpreds = theoryCore()->getPredicates();
-      for(size_t i=d_lastPredsPos; i<allpreds.size(); i++){
-	const Expr& cur=allpreds[i];
-	if(cur.inUserAssumption() && isSysPred(cur) && (!cur.isEq() ) ){
-	  Expr canon = simplifyExpr(cur);
-	  if(!(canon.isTrue()||canon.isFalse())){
-	  //  cout<<"syspred "<<cur<<endl;
-	    setExprScore(canon,0);
-	  }
-	}
-	else{
-	  //	  cout<<"syspred ignored " << cur <<endl;
-	}
-      }
-    }
-  }
-  
-  DebugAssert( (*d_useExprScore) || d_exprUpdate.size() <= 0, "exprUpdate error");
-
-  {//update simplified expr
-    if(d_exprUpdate.size() > d_exprLastUpdatedPos){
-      
-      for(size_t i=d_exprLastUpdatedPos; i<d_exprUpdate.size(); i++){ 
-	
- 	Expr simp = simplifyExpr(d_exprUpdate[i][0]);
- 	int score = d_exprUpdate[i][1].getRational().getInt();
- 	if(d_exprUpdate[i] == simp){
- 	  TRACE("quant update", "warning, expr not simplified " ,simp, "");
- 	}
- 	else{
- 	  TRACE("quant update", "simpexpr ", simp, "");
- 	  if(usefulInMatch(simp)){
- 	    TRACE("quant update", "useful in match ", "", "");
- 	    setExprScore(simp, score);
- 	  }
- 	}
-      }
-    }
-    d_exprLastUpdatedPos.set(d_exprUpdate.size());
-  }
-  
-  
-
-     //  if(*d_useLazyInst && !fullEffort) return;
-  
-  //  cout<<"d_curmaxExprscore" << d_curMaxExprScore<<endl;
   d_instThisRound = 0;
   d_useMultTrig=*d_useMult;
-  d_usePartTrig=false;
+  d_usePartTrig=*d_usePart;
   d_useFullTrig=true;
 
   if(fullEffort) {
     d_inEnd=true;
   }
   else{
-    //    d_curMaxExprScore.set(d_initMaxScore);
     d_inEnd=false;
-    
   }
 
-  if (!(*d_useNew)){
-    naiveCheckSat(fullEffort);
-  }
-  else if (*d_useSemMatch){
-    semCheckSat(fullEffort);
-  }
-  else {
-     synCheckSat(fullEffort);
-  }
-
-  
-
-  sendInstNew();   
-
-  if(*d_usePart){
-    if( (*d_useNew) && (0 == d_instThisRound) && fullEffort && (!d_usePartTrig) && (!d_partCalled)) {
-      TRACE("quant syninst", "let's try partial inst", "","");
-      //    cout<<"partial inst called"<<endl;
-      //    resetContext();
-      //      cout<<"part called"<<endl;
-      d_useMultTrig=false;
-      d_usePartTrig=true;
-      d_useFullTrig=false;
-      d_partCalled=true;
+  try {
+    if (!(*d_useNew)){
+      naiveCheckSat(fullEffort);
+    }
+    else if (*d_useSemMatch){
+      semCheckSat(fullEffort);
+    }
+    else {
       synCheckSat(fullEffort);
     }
   }
-
-//   if( (*d_useNew) && (0 == d_instThisRound) && fullEffort && *d_useExprScore ) {
-//     d_curMaxExprScore = d_curMaxExprScore + 1;
-    
-//     cout<<"max incr: " << d_curMaxExprScore << endl;
-//     synCheckSat(fullEffort);
-//   }
   
+  catch (int x){
+    while(!d_simplifiedThmQueue.empty()){
+      d_simplifiedThmQueue.pop();
+    }
+    d_tempBinds.clear();
+    saveContext();
+    return;
+  }
+  
+  sendInstNew();   
+
   saveContext();
 
-  if((*d_useNew) && (0 == d_instThisRound) && fullEffort && 
-     (*d_maxNaiveCall > 0 &&
-     theoryCore()->getTerms().size()< (unsigned)(*d_maxNaiveCall)) ) {
-    //        cout<<"naive called"<<endl;
-	if (0== theoryCore()->getTerms().size()){
-	  static int counter =0;
-// 	  {
-// 	    const CDList<Expr>& allpreds = theoryCore()->getPredicates();
-// 	    cout<<"=========== cur pred mid =========="<<endl;
-// 	    for (size_t i=0; i<allpreds.size(); i++){
-// 	      {
-// 		cout<<"i="<<allpreds[i].getIndex()<<" :"<<findExpr(allpreds[i])<<"|"<<allpreds[i]<<endl;
-// 	      }
-// 	      //<<" and type is "<<allpreds[i].getType() 
-// 	      //<< " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
-// 	    }
-// 	    cout<<"=========== cur pred equ end  =========="<<endl;
-// 	  }
-	  //	  if(counter >0) goto out_lable;
-	  std::set<Expr> types;
-	  for(size_t i = 0; i<d_univs.size(); i++){
-	    const Expr& cur_quant = d_univs[i].getExpr();
-	    const std::vector<Expr> cur_vars = cur_quant.getVars();
-	    for(size_t j =0; j<cur_vars.size(); j++){
-	      types.insert(cur_vars[j].getType().getExpr());
-	    }
+  try{
+    if( (*d_useNew) && (0 == d_instThisRound) && fullEffort && theoryCore()->getTerms().size()< (size_t)(*d_maxNaiveCall) ) {
+      //    cout<<"naive called"<<endl;
+      if (0== theoryCore()->getTerms().size()){
+	static int counter =0;
+
+	std::set<Expr> types;
+	for(size_t i = 0; i<d_univs.size(); i++){
+	  const Expr& cur_quant = d_univs[i].getExpr();
+	  const std::vector<Expr> cur_vars = cur_quant.getVars();
+	  for(size_t j =0; j<cur_vars.size(); j++){
+	    types.insert(cur_vars[j].getType().getExpr());
 	  }
-	  //	  cout<<"types has " << types.size() << endl;
-	
-	  std::string base("_naiveInst");
-	  for(std::set<Expr>::iterator i=types.begin(), iend = types.end(); i != iend; i++){
-	    counter++;
-	    std::stringstream tempout;
-	    tempout << counter;
-	    std::string out_str = base + tempout.str();
-	    Expr newExpr = theoryCore()->getEM()->newVarExpr(out_str);
-	    //	    cout<<"out_str: " << out_str << endl;
-	    newExpr.setType(Type(*i));
-	    //	    cout<<"outExpr: " << newExpr << endl;
-
-	    Proof pf;
-	    
-	    //so far, we only consider int type, should fix this asap
-	    //	    DebugAssert(Type(*i) == (theoryCore()->getEM()->newRatExpr(0)).getType(),"sorry, type other than int found");
-	    Expr newExpr2 = theoryCore()->getEM()->newVarExpr(out_str+"extra");
-	    newExpr2.setType(Type(*i));
-
-	    Expr newConstThm;
-	    //	    Theorem newThm  = d_rules->addNewConst(newExpr.eqExpr(theoryCore()->getEM()->newRatExpr(0)));
-
-	    if(Type(*i) == theoryCore()->getEM()->newRatExpr(0).getType()){
-	      //somehow theory_arith will complain if we use expr2 to form the eq here
-	      newConstThm = newExpr.eqExpr(theoryCore()->getEM()->newRatExpr(0));
-	    }
-	    else{
-	      newConstThm = newExpr.eqExpr(newExpr2);
-	    }
-	    Theorem newThm  = d_rules->addNewConst(newConstThm);
-
-	    enqueueFact(newThm);
-	    return;
-	  }
-	  
 	}
-	naiveCheckSat(fullEffort);
-  }
+      
+	std::string base("_naiveInst");
+	for(std::set<Expr>::iterator i=types.begin(), iend = types.end(); i != iend; i++){
+	  counter++;
+	  std::stringstream tempout;
+	  tempout << counter;
+	  std::string out_str = base + tempout.str();
+	  Expr newExpr = theoryCore()->getEM()->newVarExpr(out_str);
 
+	  newExpr.setType(Type(*i));
+	  
+	  Proof pf;
+	  
+	  Expr newExpr2 = theoryCore()->getEM()->newVarExpr(out_str+"extra");
+	  newExpr2.setType(Type(*i));
+	  
+	  Expr newConstThm;
 
-  /*
-        
-  if( (*d_useNew) && (0 == d_instThisRound) && fullEffort ) {
-        cout<<"naive called"<<endl;
-	if (0== theoryCore()->getTerms().size())
-	  cout <<"no terms"<<endl;;
-        naiveCheckSat(fullEffort);
+	  if(Type(*i) == theoryCore()->getEM()->newRatExpr(0).getType()){
+	    //somehow theory_arith will complain if we use expr2 to form the eq here
+	    newConstThm = newExpr.eqExpr(theoryCore()->getEM()->newRatExpr(0));
+	  }
+	  else{
+	    newConstThm = newExpr.eqExpr(newExpr2);
+	  }
+	  Theorem newThm  = d_rules->addNewConst(newConstThm);
+	  
+	  enqueueFact(newThm);
+	  d_tempBinds.clear();
+	  return;
+	}
+	
+      }
+    naiveCheckSat(fullEffort);
+    }
+  }//end of try
+  
+  catch (int x){
+    while(!d_simplifiedThmQueue.empty()){
+      d_simplifiedThmQueue.pop();
+    }
+    d_tempBinds.clear();
+    saveContext();
+    return;
   }
-  */
- 
+  
   if(fullEffort) {
     sendInstNew();
   }
@@ -3466,168 +2587,14 @@ void TheoryQuant::saveContext(){
   d_lastPredsPos.set(theoryCore()->getPredicates().size());
   d_lastUsefulGtermsPos.set(d_usefulGterms.size());
 }
- 
-void TheoryQuant::resetContext(){
-  d_univsSavedPos.set(0);
-  d_lastTermsPos.set(0);
-  d_lastPredsPos.set(0);
-}
-
-
-void TheoryQuant::synCheckSatOld(bool fullEffort){
-  //instead of inst and check every thm with all ground terms, 
-  //next time, get all triggers, and make them in a list
-  //make all the terms in a list
-  //find a quick way to match the two list
-  //save the result of the match, and later if found a pair of vterm and gterm matched before, just get the result, no need to call again
-  //modiy the data flow, make it suitable for multi-triggers 
-  //another thing is to add some information in each expr to indicate whether it can be a good ground term or not. 
-
-  //but now, i have only time to do a quick fix
-
-  size_t uSize = d_univs.size() ;
-
-  if (0 == uSize )  return;
-  if((*d_useLazyInst) && (!fullEffort) ) return;
-
-  if(fullEffort)   {
-    setIncomplete("Quantifier instantiation");
-  }
-
-  //  if (d_callThisRound > 30)
-
-  const CDList<Expr>& allterms = theoryCore()->getTerms();
-  const CDList<Expr>& allpreds = theoryCore()->getPredicates();
-  
-  
-  size_t tSize = allterms.size();
-  size_t pSize = allpreds.size();
-  
-  TRACE("quant",uSize, " uSize and univsSavedPOS ", d_univsSavedPos);
-  TRACE("quant",tSize, " tSize and termsLastPos ", d_lastTermsPos);
-  TRACE("quant",pSize, " pSize and predsLastPos ", d_lastPredsPos);
-  TRACE("quant", fullEffort, " fulleffort:scope ",theoryCore()->getCM()->scopeLevel() );
-  
-  if(d_usePartTrig && d_inEnd){
-      for(size_t id=0; id<uSize; id++) {
-	synPartInst(d_univs[id], allterms, 0);
-      }
-      for(size_t id=0; id<uSize; id++) {
- 	synPartInst(d_univs[id], allpreds, 0);
-      }
-      if(d_instRound==theoryCore()->getCM()->scopeLevel())
-	d_callThisRound++;
-      else  {
-	d_callThisRound=0;
-	d_instRound.set(theoryCore()->getCM()->scopeLevel());
-      }
-      
-      TRACE("quant","this round; ",d_callThisRound,"");
-      return;
-  }
-
-  //  if(d_useFullTrig && d_inEnd && !d_fullendCalled){
-  if(d_useFullTrig && d_inEnd && *d_useInstEnd){
-    d_fullendCalled=true;
-    for(size_t id=0; id<uSize; id++) {
-      synFullInstEnd(d_univs[id], allterms, 0);
-    }
-    for(size_t id=0; id<uSize; id++) {
-      synFullInstEnd(d_univs[id], allpreds, 0);
-    }
-    if(d_instRound==theoryCore()->getCM()->scopeLevel())
-      d_callThisRound++;
-    else  {
-      d_callThisRound=0;
-      d_instRound.set(theoryCore()->getCM()->scopeLevel());
-    }
-    
-    TRACE("quant","this round; ",d_callThisRound,"");
-  }
-  
-
-  if ((uSize == d_univsSavedPos) && 
-     (tSize == d_lastTermsPos) && 
-     (pSize == d_lastPredsPos) ) return;
-  
-  /*
-    if ( (uSize > d_univsSavedPos) && (tSize > d_lastTermsPos) ){
-    for(size_t id=d_univsSavedPos; id<uSize; id++) {
-      synInst(d_univs[id],allterms, 0);
-    }
-    for(size_t id=0; id<d_univsSavedPos; id++) {
-      synInst(d_univs[id], allterms, d_lastTermsPos);
-    }
-  }
-  else if ( (uSize == d_univsSavedPos) && (tSize > d_lastTermsPos) ) {
-    for(size_t id=0 ; id<uSize; id++) {
-      synInst(d_univs[id],allterms, d_lastTermsPos);
-    }
-  }
-  else if ( (uSize > d_univsSavedPos) && (tSize == d_lastTermsPos) ) {
-    for(size_t id=d_univsSavedPos ; id<uSize; id++)    {
-      synInst(d_univs[id],allterms, 0);
-    }
-  }
-
-  if ( (uSize > d_univsSavedPos) && (pSize > d_lastPredsPos) ){
-    for(size_t id=d_univsSavedPos; id<uSize; id++) {
-      synInst(d_univs[id],allpreds, 0);
-    }
-    for(size_t id=0; id<d_univsSavedPos; id++) {
-      synInst(d_univs[id], allpreds, d_lastPredsPos);
-    }
-  }
-  else if ( (uSize == d_univsSavedPos) && (pSize > d_lastPredsPos) ) {
-    for(size_t id=0 ; id<uSize; id++) {
-      synInst(d_univs[id],allpreds, d_lastPredsPos);
-    }
-  }
-  else if ( (uSize > d_univsSavedPos) && (pSize == d_lastPredsPos) ) {
-    for(size_t id=d_univsSavedPos ; id<uSize; id++)    {
-      synInst(d_univs[id],allpreds, 0);
-    }
-  }
-  */
-
-  for(size_t id=d_univsSavedPos; id<uSize; id++) {
-    synInst(d_univs[id],allterms, 0);
-  }
-  for(size_t id=0; id<d_univsSavedPos; id++) {
-    synInst(d_univs[id], allterms, d_lastTermsPos);
-  }
-  
-  for(size_t id=d_univsSavedPos; id<uSize; id++) {
-    synInst(d_univs[id],allpreds, 0);
-  }
-  for(size_t id=0; id<d_univsSavedPos; id++) {
-    synInst(d_univs[id], allpreds, d_lastPredsPos);
-  }
-
-  
-
-   
-  if(d_instRound==theoryCore()->getCM()->scopeLevel())
-    d_callThisRound++;
-  else  {
-    d_callThisRound=0;
-    d_instRound.set(theoryCore()->getCM()->scopeLevel());
-  }
-  
-  TRACE("quant","this round; ",d_callThisRound,"");
-  return;
- 
-}
 
 void TheoryQuant::synCheckSat(bool fullEffort){
 
-  //  if((*d_useLazyInst) && (!fullEffort) ) return;
+  d_allout=false;
 
   if(fullEffort)   {
     setIncomplete("Quantifier instantiation");
   }
-
-  //if (d_callThisRound > 30)
 
   size_t uSize = d_univs.size() ;
   const CDList<Expr>& allterms = theoryCore()->getTerms();
@@ -3674,31 +2641,10 @@ void TheoryQuant::synCheckSat(bool fullEffort){
     }
   }
   
-  /*  if(d_usePartTrig && d_inEnd){
-      for(size_t id=0; id<uSize; id++) {
-	synPartInst(d_univs[id], allterms, 0);
-      }
-      for(size_t id=0; id<uSize; id++) {
- 	synPartInst(d_univs[id], allpreds, 0);
-      }
-      if(d_instRound==theoryCore()->getCM()->scopeLevel())
-	d_callThisRound++;
-      else  {
-	d_callThisRound=0;
-	d_instRound.set(theoryCore()->getCM()->scopeLevel());
-      }
-      
-      TRACE("quant","this round; ",d_callThisRound,"");
-      return;
-  }
-  */
-  
-
 
   if(d_useFullTrig && d_inEnd && *d_useInstEnd ){
 
     if(*d_useExprScore){
-      //      int oldPos = d_gtermQueue.size();
 
       for(size_t id = d_univsSavedPos; id<uSize; id++) {
 	synInst(d_univs[id], d_usefulGterms , 0);
@@ -3714,21 +2660,23 @@ void TheoryQuant::synCheckSat(bool fullEffort){
 	return;
       } 
       
+      
+      d_allout = true;
+      for(size_t id=0; id<d_univsSavedPos; id++) {
+       	synInst(d_univs[id], d_usefulGterms, 0);
+      }
 
-      for(size_t id=0; id<uSize; id++) {
-      	synFullInstEnd(d_univs[id], d_usefulGterms, 0);
+      int n;
+      if( ( n = sendInstNew()) > 0){
+ 	TRACE("inend",  "debug 2", " # ",n );
+ 	return;
       }
       
-      if(sendInstNew() > 0){
-	TRACE("inend",  "debug 2", "", "");
+      d_allout = false;
 
-	return;
-      }
-
-      //      usedup=true;
       int numNewTerm=0;
       int oldNum=d_usefulGterms.size();
-      //well, nothing new, first let's collect more gterms;
+
       for(size_t i=0; i<tSize; i++){
 	const Expr& cur(allterms[i]);
 	if(!(usefulInMatch(cur)|| cur.arity() == 0 )) continue;
@@ -3764,21 +2712,20 @@ void TheoryQuant::synCheckSat(bool fullEffort){
       }
 
       
-      //      if(numNewTerm >0 && d_curMaxExprScore < 30){
       if(numNewTerm >0 ){
-	//	if(d_curMaxExprScore >=1){
-	if(d_curMaxExprScore >=0){
 
-	  //	  d_curMaxExprScore =  d_curMaxExprScore+5;
-	  //	  d_curMaxExprScore =  d_curMaxExprScore+2;;
+	if(d_curMaxExprScore >=0 ){
+
 	  d_curMaxExprScore =  d_curMaxExprScore+1;;
 	}
 	else {
 	  d_curMaxExprScore =  d_curMaxExprScore+1;
 	}
-	//	cout<<"max incr, old number: "<<oldNum<< " new num: "<< numNewTerm << endl;
-	//	cout<<"mac incred to " << d_curMaxExprScore << endl;
 
+	for(size_t i = oldNum ; i<d_usefulGterms.size(); i++) {
+	}
+
+	
 	for(size_t id = 0 ; id<uSize; id++) {
 	  synInst(d_univs[id], d_usefulGterms , oldNum);
 	}
@@ -3791,12 +2738,13 @@ void TheoryQuant::synCheckSat(bool fullEffort){
 	}
 
 
-	//well, let's try the last
+	d_allout=true;
  	for(size_t id=0; id<uSize; id++) {
- 	  synFullInstEnd(d_univs[id], d_usefulGterms, 0);
- 	}
-	
-	
+	  synInst(d_univs[id], d_usefulGterms, 0);
+	}
+
+	d_allout=false;
+
 	if(sendInstNew() > 0){
 	  TRACE("inend", "debug 5 0", "" , "");
 
@@ -3809,35 +2757,29 @@ void TheoryQuant::synCheckSat(bool fullEffort){
 	}
       }
 
-      //well, let's try the last
+      d_allout=true;
+
       for(size_t id=0; id<uSize; id++) {
-	synFullInstEnd(d_univs[id], d_usefulGterms, 0);
+	synInst(d_univs[id], d_usefulGterms, 0);
       }
       
+      d_allout=false;
       if(sendInstNew() > 0){
 	TRACE("inend", "debug 5 1", "", "");
 
 	return;
       }
-      {
-	TRACE("inend", " debug 4", "" ,"" );
-	//	cout<<"last pred" <<allpreds[allpreds.size()-1]<<endl;
-      }
+
+      TRACE("inend", " debug 4", "" ,"" );
 
       return ;
     }
     else{
       for(size_t id=0; id<uSize; id++) {
-	synFullInstEnd(d_univs[id], d_usefulGterms, 0);
+	synInst(d_univs[id], d_usefulGterms, 0);
       }
     }
     
-    if(d_instRound==theoryCore()->getCM()->scopeLevel())
-      d_callThisRound++;
-    else  {
-      d_callThisRound=0;
-      d_instRound.set(theoryCore()->getCM()->scopeLevel());
-    }
     TRACE("inend", "debug 3 0", "", "");
     TRACE("quant","this round; ",d_callThisRound,"");
 
@@ -3855,13 +2797,6 @@ void TheoryQuant::synCheckSat(bool fullEffort){
       synInst(d_univs[id], d_usefulGterms , 0);
     }
     
-//     if(d_instRound==theoryCore()->getCM()->scopeLevel())
-//       d_callThisRound++;
-//     else  {
-//       d_callThisRound=0;
-//       d_instRound.set(theoryCore()->getCM()->scopeLevel());
-//     }
-    
     return;
   }
 
@@ -3873,96 +2808,16 @@ void TheoryQuant::synCheckSat(bool fullEffort){
     synInst(d_univs[id], d_usefulGterms, d_lastUsefulGtermsPos);
   }
   
-  if(d_instRound==theoryCore()->getCM()->scopeLevel())
-    d_callThisRound++;
-  else  {
-    d_callThisRound=0;
-    d_instRound.set(theoryCore()->getCM()->scopeLevel());
-  }
   
   TRACE("quant","this round; ",d_callThisRound,"");
 
   return;
 }
 
-
-
 void TheoryQuant::semCheckSat(bool fullEffort){
-//   size_t uSize = d_univs.size() ;
-  
-//   if (0 == uSize )
-//     return;
-
-//   if((*d_useLazyInst) && (!fullEffort) )
-//     return;
-
-//   if(fullEffort)   {
-//     setIncomplete("Quantifier instantiation");
-//   }
-  
-//   //  if (d_callThisRound > 30)
-//   // return;
-
-  
-//   const CDList<Expr>& allterms = theoryCore()->getTerms();
-//   size_t tSize = allterms.size();
-  
-//   TRACE("quant",uSize, " uSize and univsSavedPOS " , d_univsSavedPos);
-//   TRACE("quant",tSize, " tSize and TermsSavedPos ",d_savedTermsPos);
-
-//   if ( (uSize == d_univsSavedPos) && (tSize == d_savedTermsPos) )
-//     return;
-
-//   d_typeExprMap.clear();
-//   cacheHead.clear();
-//   for (size_t i=0; i<tSize; i++)  {
-//     Expr term = allterms[i];
-//     //      cout << "dealing "<<term.toString()<<" of  type "<<getBaseType(term).toString()<<endl;;
-//     if (*d_useAtomSem)      {
-//       if (0 ==term.arity())	{	  
-// 	Type t = getBaseType(term);
-// 	(d_typeExprMap[t]).push_back(term);
-//       }
-//     }
-//     else {
-//       Type t = getBaseType(term);
-//       (d_typeExprMap[t]).push_back(term);
-//     }
-//     if(canGetHead(term))   cacheHead.insert(getHead(term));
-//   }
-  
-//   if ( (uSize > d_univsSavedPos) && (tSize > d_savedTermsPos) )  {
-//     for(size_t id=d_univsSavedPos; id<uSize; id++) {
-//       semInst(d_univs[id],0);
-//     }
-//     for(size_t id=0; id<d_univsSavedPos; id++) {
-//       semInst(d_univs[id],d_savedTermsPos);
-//     }
-//   }
-//   else if ( (uSize == d_univsSavedPos) && (tSize > d_savedTermsPos) )  {
-//     for(size_t id=0 ; id<uSize; id++) {
-//       semInst(d_univs[id],d_savedTermsPos);
-//     }
-//   }
-//   else if ( (uSize > d_univsSavedPos) && (tSize == d_savedTermsPos) ) {
-//     for(size_t id=d_univsSavedPos ; id<uSize; id++) {
-//       semInst(d_univs[id],0);
-//     }
-//   }
-//   else cout <<" I do not believe this"<<endl;;
-  
-//   d_univsSavedPos.set(uSize);
-//   d_savedTermsPos.set(tSize);
-//   if(d_instRound==theoryCore()->getCM()->scopeLevel())  d_callThisRound++;
-//   else{
-//       d_callThisRound=0;
-//       d_instRound.set(theoryCore()->getCM()->scopeLevel());
-//   }
-//   TRACE("quant","this round; ",d_callThisRound,"");
-//   return;
 }
 
-
+//the following is old code and I did not modify much, Yeting
 void TheoryQuant::naiveCheckSat(bool fullEffort){
   TRACE("quant", "checkSat ", fullEffort, "{");
   IF_DEBUG(int instCount = d_instCount);
@@ -3999,6 +2854,7 @@ void TheoryQuant::naiveCheckSat(bool fullEffort){
 // 	for(size_t i=0; i<uSize; i++)
 // 	  assertions.push_back(d_univs[i].getExpr());
 	//build the map of all terms grouped into vectors by types
+	TRACE("quant", "checkSat terms size = ", assertions.size() , " ");
 	mapTermsByType(assertions);
 	for(size_t i=0, pos = d_univsContextPos.get(); i<uSize; i++) {
 	  if(d_instCount>= *d_maxQuantInst)
@@ -4197,12 +3053,7 @@ bool TheoryQuant::recursiveMap(const Expr& e)
 /*!\brief Used to notify the quantifier algorithm of possible 
  * instantiations that were used in proving a context inconsistent.
  */
-void TheoryQuant::notifyInconsistent(const Theorem& thm)
-{
-  // Reset the instantiation count
-  // d_instCount = 0;
-  
-  //  cout<<"incson"<<endl;
+void TheoryQuant::notifyInconsistent(const Theorem& thm){
 #ifdef DEBUG
 
   if( CVC3::debugger.trace("quant inscon")  ){
@@ -4224,7 +3075,6 @@ void TheoryQuant::notifyInconsistent(const Theorem& thm)
       cout<<"i="<<i<<" :"<<simplifyExpr(cur)<<"|:|"<<cur<<" |:type: "<<cur.getType()<<endl; 
       //	  << " and kind is" << allterms[i].getEM()->getKindName(allterms[i].getKind())<<endl;
     }
-    */
     cout<<"===========cur insts=========="<<endl;
     
     for (size_t i=0; i<d_instsOnCurPathSimp.size(); i++){
@@ -4232,7 +3082,7 @@ void TheoryQuant::notifyInconsistent(const Theorem& thm)
       cout<<"i="<<i<<" :"<<simplifyExpr(cur)<<"|:|"<<cur<<" |:type:| "<<cur.getType()<<endl ;
 	//	  << " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
     }
-    cout<<"-----------end----------"<<endl;
+    cout<<"-----------end----------"<<endl;*/
   }
 #endif
 #ifdef DEBUG
@@ -4241,11 +3091,6 @@ void TheoryQuant::notifyInconsistent(const Theorem& thm)
     std::vector<Expr> asp2; 
     std::vector<Expr> asp3; 
     std::vector<Expr> asp4; 
-    
-    //    myvcl->getUserAssumptions(asp1);
-    //    myvcl->getInternalAssumptions(asp2);
-    //    myvcl->getAssumptions(asp3);
-    //    myvcl->getAssumptionsUsed(asp4);
     
     cout<<"user assumptions"<<endl;
     for(size_t  i=0; i<asp1.size(); i++){
@@ -4279,7 +3124,7 @@ void TheoryQuant::notifyInconsistent(const Theorem& thm)
   DebugAssert(thm.getExpr().isFalse(), "notifyInconsistent called with"
 	" theorem: " + thm.toString() + " which is not a derivation of false");
   TRACE("quant", "notifyInconsistent: { " , thm.toString(), "}");
-  thm.clearAllFlags();
+  //  thm.clearAllFlags();
   //  findInstAssumptions(thm);
   TRACE("quant terse", "notifyInconsistent: savedTerms size = ",
 	d_savedTerms.size(), "");
@@ -4570,16 +3415,6 @@ TheoryQuant::parseExprOp(const Expr& e) {
     return res;
     break;
   }
-//       vector<Expr> bvarDecls, bvars;
-//       Expr bvarDeclsExpr;
-//       for(Expr::iterator i = e[1].begin(), iend=e[1].end(); i!=iend; ++i) {
-//         bvars = i->getKids();
-// 	bvars.insert(bvars.begin(), Expr(e.getEM(), ID, Expr(e.getEM(), STRING_EXPR, "VARDECL")));
-// 	bvarDecls.push_back(Expr(e.getEM(), RAW_LIST, bvars));
-// 	}
-//       bvarDeclsExpr = Expr(e.getEM(), RAW_LIST, bvarDecls);
-//       return Expr(e.getEM(), kind, parseExpr(bvarDeclsExpr), parseExpr(e[2]));
-//     }
   default:
     DebugAssert(false,
 		"TheoryQuant::parseExprOp: invalid command or expression: " + e.toString());

@@ -303,7 +303,7 @@ public:
   void getInternalAssumptions(std::vector<Expr>& assumptions);
   void getAssumptions(std::vector<Expr>& assumptions);
   void getAssumptionsUsed(std::vector<Expr>& assumptions);
-  void getCounterExample(std::vector<Expr>& assertions, bool inOrder);
+  void getCounterExample(std::vector<Expr>& assumptions, bool inOrder);
   void getConcreteModel(ExprMap<Expr> & m);
   bool inconsistent(std::vector<Expr>& assumptions);
   bool incomplete();

@@ -2,7 +2,7 @@
 /*!
  * \file theory_quant.h
  * 
- * Author: Sergey Berezin
+ * Author: Sergey Berezin, Yeting Ge
  * 
  * Created: Jun 24 21:13:59 GMT 2003
  *
@@ -55,6 +55,7 @@ class QuantProofRules;
    bool hasRWOp;
    bool hasTrans;
    bool hasT2; //if has trans of 2,
+   bool isSimple; //if of the form g(x,a);
  public: 
    Trigger(TheoryCore* core, Expr e, Polarity pol, int pri);
    bool  isPos();
@@ -70,6 +71,8 @@ class QuantProofRules;
    bool  hasTr(); 
    void  setTrans2(bool b);
    bool  hasTr2(); 
+   void  setSimp();
+   bool  isSimp(); 
  };
 
 
@@ -90,13 +93,10 @@ class TheoryQuant :public Theory {
   //! universally quantified formulas to be instantiated, the var bindings is in d_bingQueue and the ground term matched with the trigger is in d_gtermQueue 
   std::queue<Theorem> d_univsQueue;
 
-  std::queue<std::vector<Expr> > d_bindQueue;
+  std::queue<Theorem> d_simplifiedThmQueue;
 
-  std::queue<Expr> d_gtermQueue;
+  ExprMap<std::set<std::vector<Expr> > >  d_tempBinds;
 
-  //! map the asserted quantified formulas to internal 'simplified' version of formulas 
-  ExprMap<Theorem> d_simpUnivs;
-  
   //!tracks the possition of preds 
   CDO<size_t> d_lastPredsPos;
   //!tracks the possition of terms 
@@ -133,6 +133,8 @@ class TheoryQuant :public Theory {
 
   //! set if the fullEffort = 1
   int d_inEnd; 
+
+  int d_allout; 
 
   //! a map of types to posisitions in the d_contextTerms list
   std::map<Type, CDList<size_t>* ,TypeComp> d_contextMap;
@@ -198,7 +200,6 @@ class TheoryQuant :public Theory {
   const bool* d_useAtomSem;
   const bool* d_translate;//!translate only
 
-  const bool* d_useMatchOld;//!use old matching algorithm, to be deleted
   const bool* d_useTrigNew;//!use new trig class, to be deleted
   const bool* d_usePart;//!use partial instantiaion
   const bool* d_useMult;//use 
@@ -229,9 +230,6 @@ class TheoryQuant :public Theory {
   void arrayIndexName(const Expr& e);
 
   std::vector<Expr> d_allInsts; //! all instantiations
-  CDList<Expr> d_instsOnCurPath; //! instantiated formuls on current path
-
-  CDList<Expr> d_instsOnCurPathSimp; //!instantiated formuls(simplified) on the current path
 
   int d_initMaxScore;
   int d_offset_multi_trig ;
@@ -251,11 +249,6 @@ class TheoryQuant :public Theory {
   ExprMap<std::vector<Trigger> > d_multTrigs;
   ExprMap<std::vector<Trigger> > d_partTrigs;
 
-
-  int exprInitScore(const Expr&);
-  CDMap<Expr, int> d_exprScore;
-  
-  CDList<Expr> d_exprUpdate;//the expr to be updated in d_exprScore 
  
   CDO<size_t> d_exprLastUpdatedPos ;//the position of the last expr updated in d_exprUpdate 
 
@@ -263,16 +256,12 @@ class TheoryQuant :public Theory {
 
   std::map<ExprIndex, Expr> d_indexExpr;
 
-  //  bool usefulInMatch(const Expr& e);
-
   int getExprScore(const Expr& e);
-  int setExprScore(const Expr& e, int max);
-
 
   //!the score for a full trigger
-  ExprMap<std::vector<CDO<int>*> > d_fullTrigScore;
   
   ExprMap<bool> d_hasTriggers;
+  ExprMap<bool> d_hasMoreBVs;
 
   int d_trans_num;
   int d_trans2_num;
@@ -330,10 +319,8 @@ class TheoryQuant :public Theory {
   std::set<std::string> cacheHead;
 
   StatCounter d_allInstCount ;
-  CDO<int> d_instRound;
-  CDO<bool> d_partCalled;;
-  CDO<bool> d_fullendCalled;;
 
+  CDO<bool> d_partCalled;;
 
   std::vector<Theorem> d_cacheTheorem;
   size_t d_cacheThmPos;
@@ -342,10 +329,6 @@ class TheoryQuant :public Theory {
 
   int sendInstNew();
 
-  CDMap<Expr, int > d_thmTimes; 
-
-  CDMap<Expr, std::vector<Expr> > d_instExprReasons; //!the reason a expr is introduced
-  //the vector always has the univ, trig, and gterm used in the instantiations
   CDMap<Expr, std::set<std::vector<Expr> > > d_instHistory;//the history of instantiations
   //map univ to the trig, gterm and result
 
@@ -357,28 +340,16 @@ class TheoryQuant :public Theory {
   const std::vector<Expr>& getSubTerms(const Expr& e);
 
   //ExprMap<int > d_thmTimes; 
-  //  void enqueueInst(const Theorem, const Theorem); 
-  void enqueueInst(const Theorem univ, const std::vector<Expr> bind, const Expr gterm);
-
-  bool grounded(const Expr& e);
-  void ground(const Expr& e);
-  bool goodBind(const Theorem& univ, 
-		const Expr& trig,
-		//		const int trig_index,
-		const std::vector<Expr>& binds,
-		const Expr& germ);
+  void enqueueInst(const Theorem, const Theorem); 
+  void enqueueInst(const Theorem& univ, const std::vector<Expr>& bind, const Expr& gterm);
 
   void enqueueInst(const Theorem& univ, 
 		   Trigger& trig,
-		   //		   const int trig_index,
 		   const std::vector<Expr>& binds,  
 		   const Expr& gterm
-		   //		   const Theorem thm
 		   );
     
-
   void synCheckSat(bool);
-  void synCheckSatOld(bool); //just to comfort the complier
   void semCheckSat(bool);
   void naiveCheckSat(bool);
 
@@ -386,8 +357,6 @@ class TheoryQuant :public Theory {
   void synInst(const Theorem & univ,  const CDList<Expr>& allterms, size_t tBegin);
 
   void synFullInst(const Theorem & univ,  const CDList<Expr>& allterms,	size_t tBegin);
-
-  void synFullInstEnd(const Theorem & univ, const CDList<Expr>& allterms, size_t tBegin );
 
   void synMultInst(const Theorem & univ,  const CDList<Expr>& allterms,	 size_t tBegin);
 
@@ -408,7 +377,14 @@ class TheoryQuant :public Theory {
 			   std::vector<Expr>& instGterms,
 			   const CDList<Expr>& allterms,		       
 			   size_t tBegin);
-  
+
+  bool goodSynMatchNewTrig(Trigger& trig,
+			   const std::vector<Expr> & boundVars,
+			   std::vector<std::vector<Expr> >& instBinds,
+			   std::vector<Expr>& instGterms,
+			   const Expr& gterm);
+    
+
   bool synMatchTopPred(const Expr& gterm, const Trigger trig, ExprMap<Expr>& env);
 
   bool recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
@@ -420,13 +396,6 @@ class TheoryQuant :public Theory {
 			     const CDList<Expr>& allterms,		       
 			     size_t tBegin);
     
-  bool hasGoodSynInst(const Expr& e,
-		      std::vector<Expr>& bVars,
-		      std::vector<std::vector<Expr> >& instBinds,
-		      std::vector<Expr>& instGterms,
-		      const CDList<Expr>& allterms,		       
-		      size_t tBegin);
-
   bool hasGoodSynMultiInst(const Expr& e,
 			   std::vector<Expr>& bVars,
 			   std::vector<std::vector<Expr> >& instSet,
@@ -452,7 +421,7 @@ class TheoryQuant :public Theory {
   void setupTriggers(const Theorem& thm);
 
   void saveContext();
-  void resetContext();
+
 
   /*! \brief categorizes all the terms contained in an expressions by
    *type.

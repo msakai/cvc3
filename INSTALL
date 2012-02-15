@@ -33,7 +33,7 @@ To build shared libraries (and thus a much smaller executable), use:
   ./configure --enable-dynamic
 </pre>
 
-Be sure to set LD_LIBRARY_PATH to <cvc3dir>/lib when using shared libraries.
+Be sure to set LD_LIBRARY_PATH to &lt;cvc3dir&gt;/lib when using shared libraries.
 
 Alternatively, these and other options can be changed by editing the
 Makefile.local file after running configure.  However, be aware that re-running
@@ -185,9 +185,9 @@ Installation depends on two configuration options: prefix and exec_prefix.  By
 default, both are set to /usr/local, but these can be overridden by specifying
 the correct arguments to configure or by editing Makefile.local.
 
-Installation copies all necessary header files to <prefix>/include/cvc3.  It
-installs the library libcvc3 in <exec_prefix>/lib and the executable cvc3 in
-<exec_prefix>/bin.  By default, a shared library and executable are installed.
+Installation copies all necessary header files to &lt;prefix&gt;/include/cvc3.  It
+installs the library libcvc3 in &lt;exec_prefix&gt;/lib and the executable cvc3 in
+&lt;exec_prefix&gt;/bin.  By default, a shared library and executable are installed.
 If you want to install static versions, configure for a static build as
 described above.
 

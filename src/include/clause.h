@@ -229,7 +229,7 @@ namespace CVC3 {
 
     friend std::ostream& operator<<(std::ostream& os, const Clause& c);
 
-    IF_DEBUG(bool wpCheck() const);
+    IF_DEBUG(bool wpCheck() const;)
     IF_DEBUG(const std::string& getFile() const { return d_clause->d_file; })
     IF_DEBUG(int getLine() const { return d_clause->d_line; })
 

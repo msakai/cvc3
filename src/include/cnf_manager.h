@@ -214,8 +214,8 @@ public:
   Lit addAssumption(const CVC3::Theorem& thm, CNF_Formula& cnf);
 
   //! Convert thm to CNF and add it to the current formula
-  /*! \param thm should be of form A |- B where A is a set of literals
-   * The new clauses are added to cnf.
+  /*! \param thm should be of form A |- B where A is a set of literals.
+   * \param cnf the new clauses are added to cnf.
    * Returns Lit corresponding to the root of the expression that was
    * translated. */
   Lit addLemma(const CVC3::Theorem& thm, CNF_Formula& cnf);

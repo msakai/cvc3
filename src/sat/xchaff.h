@@ -13,8 +13,6 @@
 #include "sat_api.h"
 #include "xchaff_solver.h"
 
-using namespace std;
-
 class Xchaff :public SatSolver {
   CSolver *_solver;
 
@@ -56,8 +54,8 @@ public:
         { return lit.id & 1; }
   int   NumClauses()
         { return _solver->num_clauses(); }
-  Clause AddClause(vector<Lit>& lits)
-        { return mkClause(_solver->add_clause((vector<long>&)lits)); }
+  Clause AddClause(std::vector<Lit>& lits)
+        { return mkClause(_solver->add_clause((std::vector<long>&)lits)); }
   Clause GetClause(int clauseIndex);
   Clause GetFirstClause()
         { Clause c;
@@ -69,7 +67,7 @@ public:
 	  for (unsigned i= clause.id + 1; i< _solver->clauses().size(); ++i)
             if ( _solver->clause(i).in_use()) { c.id = i; break; }
           return c; }
-  void  GetClauseLits(Clause clause, vector<Lit>* lits);
+  void  GetClauseLits(SatSolver::Clause clause, std::vector<Lit>* lits);
   SatSolver::SATStatus Satisfiable(bool allowNewClauses);
   int   GetVarAssignment(Var var)
         { return _solver->variable(var.id).value(); }

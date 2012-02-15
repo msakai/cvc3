@@ -353,6 +353,15 @@ public:
    */
   virtual void notifyInconsistent(const Theorem& thm) { }
 
+  //! Theory-specific registration of atoms
+  /*!
+   * If a theory wants to implement its own theory propagation, it
+   * should implement this method and use it to collect all atoms
+   * that the core is interested in.  If the theory can deduce the atom
+   * or its negation, it should do so (using enqueueFact).
+   */
+  virtual void registerAtom(const Expr& e) { }
+
   /*@}*/ // End of Theory_API group
 
   /***************************************************************************/

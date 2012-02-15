@@ -348,7 +348,7 @@ namespace CVC3 {
   /////////////////////////////////////////////////////////////////////////////
 
     //! Register a new kind.
-    /*! The kind may already be regestered under the same name, but if
+    /*! The kind may already be registered under the same name, but if
      *  the name is different, it's an error.
      * 
      * If the new kind is supposed to represent a type, set isType to true.

@@ -218,13 +218,13 @@ namespace CVC3 {
   private:
     // Constructor.   NOTE: it is private; only friend classes can call it.
     RegTheoremValue(TheoremManager* tm, const Expr& thm,
-		   const Assumptions& assump, const Proof& pf, bool isAssump,
-                   int scope = -1)
+                    const Assumptions& assump, const Proof& pf, bool isAssump,
+                    int scope = -1)
       : TheoremValue(tm, thm, pf, isAssump), d_assump(assump)
     {
       DebugAssert(d_tm->isActive(), "TheoremValue()");
       if (isAssump) {
-        DebugAssert(d_assump.empty(), "Expected empty assumptions");
+        DebugAssert(assump.empty(), "Expected empty assumptions");
         // refcount tricks are because a loop is created with Assumptions
         d_refcount = 1;
         {
@@ -234,19 +234,6 @@ namespace CVC3 {
         d_refcount = 0;
         if (scope == -1) d_scopeLevel = tm->getCM()->scopeLevel();
         else d_scopeLevel = scope;
-/* 	if(!thm.inUserAssumption()){ */
-/* 	  if(thm.isNot()){ */
-/* 	    d_quantLevel = myvcl->core()->getQuantLevelForTerm(thm[0]); */
-/* 	    TRACE("quantlevel", d_quantLevel," not theorem_1: ", thm.toString()); */
-/* 	  } */
-/* 	  else{ */
-/* 	    d_quantLevel = myvcl->core()->getQuantLevelForTerm(thm); */
-/* 	    TRACE("quantlevel", d_quantLevel," theorem_1: ", thm.toString()); */
-/* 	  } */
-/* 	} */
-/* 	else{ */
-/* 	  TRACE("quantlevel", d_quantLevel, " theorem in assump get_1 ", thm.toString()); */
-/* 	} */
       }
       else {
         if (!d_assump.empty()) {
@@ -259,12 +246,7 @@ namespace CVC3 {
               d_quantLevel = i->getQuantLevel();
           }
         }
-
       }
-/*       if(thm.isNot() && thm[0].isForall()){ */
-/* 	d_quantLevel++; */
-/* 	TRACE("quantlevel", d_quantLevel, " theorem get_1++ ", thm.toString()); */
-/*       } */
       TRACE("quantlevel", d_quantLevel, " theorem get_1 ", thm.toString()); 
       TRACE("quantlevel", d_quantLevel, " theorem get_1 ", thm.getIndex()); 
     }
@@ -332,20 +314,6 @@ namespace CVC3 {
         d_refcount = 0;
         if (scope == -1) d_scopeLevel = d_tm->getCM()->scopeLevel();
         else d_scopeLevel = scope;
-
-/* 	if(!d_thm.inUserAssumption()){ */
-/* 	  if(d_thm.isNot()){ */
-/* 	    d_quantLevel=myvcl->core()->getQuantLevelForTerm(d_thm[0]); */
-/* 	    TRACE("quantlevel", d_quantLevel," not theorem: ", d_thm.toString());  */
-/* 	  } */
-/* 	  else{ */
-/* 	    d_quantLevel=myvcl->core()->getQuantLevelForTerm(d_thm); */
-/* 	    TRACE("quantlevel", d_quantLevel," theorem: ", d_thm.toString());  */
-/* 	  } */
-/* 	} */
-/* 	else{ */
-/* 	  TRACE("quantlevel", d_quantLevel, " theorem in assump get ", d_thm.toString());	   */
-/* 	} */
       }
       else {
         if (!assump.empty()) {
@@ -359,12 +327,7 @@ namespace CVC3 {
               d_quantLevel = i->getQuantLevel();
           }
         }
-
       }
-/*       if(d_thm.isNot() && d_thm[0].isForall()){ */
-/* 	d_quantLevel++; */
-/* 	TRACE("quantlevel", d_quantLevel, " theorem get++ ", d_thm.toString()); */
-/*       } */
       TRACE("quantlevel", d_quantLevel, " theorem get ", d_thm.toString());
     }
 

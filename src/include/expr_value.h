@@ -107,8 +107,6 @@ class ExprValue {
   //! context-dependent bit-vector for flags that are context-dependend
   CDFlags d_dynamicFlags;
 
-  CDFlags d_dynamicFlags2;
-
   //! Height of this expression
   //  int d_height;
 
@@ -212,7 +210,6 @@ public:
       d_hash(0), d_find(NULL), d_notifyList(NULL),
       d_simpCacheTag(0),
       d_dynamicFlags(em->getCurrentContext()),
-      d_dynamicFlags2(em->getCurrentContext()),
       //      d_height(0), d_highestKid(-1),
       d_flag(0), d_kind(kind), d_em(em)
   {

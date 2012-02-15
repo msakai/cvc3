@@ -78,7 +78,7 @@ public:
   void push() { return d_cm->push(); }
   void pop() { return d_cm->pop(); }
   void assertLit(Lit l) { d_ss->assertLit(l); }
-  DPLLT::ConsistentResult checkConsistent(Clause& c, bool fullEffort)
+  SAT::DPLLT::ConsistentResult checkConsistent(Clause& c, bool fullEffort)
     { return d_ss->checkConsistent(c, fullEffort); }
   bool outOfResources() { return d_ss->theoryCore()->outOfResources(); }
   Lit getImplication() { return d_ss->getImplication(); }
@@ -155,7 +155,7 @@ bool SearchSat::recordNewRootLit(Lit lit, int priority, bool atBottomScope)
   }
   
   if (d_prioritySetStart.get() == d_prioritySet.end() ||
-      ((*(d_prioritySetStart.get())).getPriority() < priority))
+      ((*status.first) < (*(d_prioritySetStart.get()))))
     d_prioritySetStart = status.first;
   return true;
 }
@@ -184,7 +184,7 @@ void SearchSat::addSplitter(const Expr& e, int priority)
 void SearchSat::assertLit(Lit l)
 {
   //  DebugAssert(d_inCheckSat, "Should only be used as a call-back");
-  Expr e = d_cnfManager->concreteLit(l, false);
+  Expr e = d_cnfManager->concreteLit(l);
 
   IF_DEBUG(
   string indentStr(theoryCore()->getCM()->scopeLevel(), ' ');
@@ -208,6 +208,14 @@ void SearchSat::assertLit(Lit l)
     //  TRACE("assertLit", indentStr, l.getVar(), val);
     //  )
 
+  // This can happen if the SAT solver propagates a learned unit clause from a p
+  bool isSATLemma = false;
+  if (e.isNull()) {
+    e = d_cnfManager->concreteLit(l, false);
+    DebugAssert(!e.isNull(), "Expected known expr");
+    isSATLemma = true;
+  }
+
   DebugAssert(!e.isNull(), "Expected known expr");
   DebugAssert(!e.isIntAssumption() || getValue(l) == SAT::Var::TRUE_VAL,
               "internal assumptions should be true");
@@ -219,6 +227,10 @@ void SearchSat::assertLit(Lit l)
   DebugAssert(!e.isIntAssumption(), "Expected new assumption");
   e.setIntAssumption();
   Theorem thm = d_commonRules->assumpRule(e);
+  if (isSATLemma) {
+    CNF_Formula_Impl cnf;
+    d_cnfManager->addAssumption(thm, cnf);
+  }
   Expr atom = e.isNot() ? e[0] : e;
   thm.setQuantLevel(theoryCore()->getQuantLevelForTerm(atom));
   d_intAssumptions.push_back(thm);
@@ -226,7 +238,7 @@ void SearchSat::assertLit(Lit l)
 }
 
 
-DPLLT::ConsistentResult SearchSat::checkConsistent(Clause& c, bool fullEffort)
+SAT::DPLLT::ConsistentResult SearchSat::checkConsistent(SAT::Clause& c, bool fullEffort)
 {
   DebugAssert(d_inCheckSat, "Should only be used as a call-back");
   if (d_core->inconsistent()) {
@@ -266,7 +278,7 @@ Lit SearchSat::getImplication()
 }
 
 
-void SearchSat::getExplanation(Lit l, Clause& c)
+void SearchSat::getExplanation(Lit l, SAT::Clause& c)
 {
   //  DebugAssert(d_inCheckSat, "Should only be used as a call-back");
   DebugAssert(c.size() == 0, "Expected size = 0");
@@ -741,6 +753,29 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
       cout<<"-----------end----------pred"<<endl;
     }
 
+    if( CVC3::debugger.trace("model unknown nonquant")  ){
+      cout<<"=========== quant pred begin=========="<<endl;
+      const CDList<Expr>& allpreds = d_core->getPredicates();
+      for (size_t i=0; i<allpreds.size(); i++){
+
+	Expr cur = allpreds[i];
+	if(cur.isForall() || cur.isExists() || 
+	   (cur.isNot() && (cur[0].isForall()||cur[0].isExists())) ||
+	   cur.isEq() || 
+	   (cur.isNot() && cur[0].isEq())){
+	}
+	else{
+	  if(allpreds[i].hasFind()) {
+	    cout<<"i="<<i<<" :";
+	    cout<<allpreds[i].getFindLevel();
+	    cout<<":"<<d_core->findExpr(allpreds[i])<<"|"<<allpreds[i]<<endl;
+	  }
+	}
+      }
+      cout<<"-----------end----------pred"<<endl;
+    }
+
+
 #endif
   }
   d_cnfManager->setBottomScope(-1);
@@ -864,8 +899,8 @@ Theorem SearchSat::newUserAssumptionInt(const Expr& e, CNF_Formula_Impl& cnf, bo
     e.setUserAssumption(scope);
     thm = d_commonRules->assumpRule(e, scope);
     d_userAssumptions.push_back(thm, scope);
-    if ((atBottomScope && d_bottomScope != d_core->getCM()->scopeLevel()) ||
-        (e.isAbsLiteral() && !e.unnegate().isBoolConst())) {
+    if (atBottomScope && d_bottomScope != d_core->getCM()->scopeLevel()) {
+      //TODO: run preprocessor without using context-dependent information
       if (!recordNewRootLit(d_cnfManager->addAssumption(thm, cnf), 0, atBottomScope)) {
         cnf.deleteLast();
       }

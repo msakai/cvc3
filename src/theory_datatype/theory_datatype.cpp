@@ -236,12 +236,14 @@ void TheoryDatatype::checkSat(bool fullEffort)
              +"\n\n for expression: "+e.toString());
           ExprMap<unsigned>& c = d_datatypes[getBaseType(e).getExpr()];
           ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
+          vector<Expr> vec;
           for (; c_it != c_end; ++c_it) {
-            if (u & (1 << bigunsigned((*c_it).second))) break;
+            if (u & (1 << bigunsigned((*c_it).second))) {
+              vec.push_back(datatypeTestExpr((*c_it).first.getName(), e));
+            }
           }
-          DebugAssert(c_it != c_end,
-              "datatype: checkSat: couldn't find constructor");
-          addSplitter(datatypeTestExpr((*c_it).first.getName(), e));
+          DebugAssert(vec.size() > 1, "datatype: checkSat: expected 2 or more possible constructors");
+          enqueueFact(d_rules->dummyTheorem(d_facts, Expr(OR, vec)));
           d_splitterAsserted = true;
         }
       }

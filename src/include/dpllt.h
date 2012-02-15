@@ -45,6 +45,7 @@ public:
      * \param c should be empty initially.  If INCONSISTENT is returned,
      * then c will contain a conflict clause when it returns.  Otherwise, c is
      * unchanged.
+     * \param fullEffort true for a full check, false for a fast check
      */
     virtual ConsistentResult checkConsistent(Clause& c, bool fullEffort) = 0;
 
@@ -69,6 +70,7 @@ public:
      * literal l as well as other literals that are in the current assignment.
      * The clause is such that it would have caused a unit propagation at the
      * time getImplication() was called.
+     * \param l the literal
      * \param c should be empty initially. */
     virtual void getExplanation(Lit l, Clause& c) = 0;
 

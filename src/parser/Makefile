@@ -29,35 +29,28 @@ include ../../Makefile.local
 # Rules for transient files
 ##################################################
 lexPL.cpp:	PL.lex parsePL_defs.h
-		$(LEX) $(LFLAGS) -I -PPL PL.lex
-		@mv lex.PL.c lexPL.cpp
+		$(LEX) $(LFLAGS) -I -PPL -olexPL.cpp PL.lex
 
-parsePL_defs.h	\
+parsePL_defs.h:	parsePL.cpp
+
 parsePL.cpp:	PL.y
-		$(YACC) $(YFLAGS) -p PL --debug -v PL.y
-		@mv y.tab.c parsePL.cpp
-		@mv y.tab.h parsePL_defs.h
-
+		$(YACC) $(YFLAGS) -o parsePL.cpp -p PL --debug -v PL.y
+		@mv parsePL.hpp parsePL_defs.h
 
 lexLisp.cpp:	Lisp.lex parseLisp_defs.h
-		$(LEX) $(LFLAGS) -I -PLisp Lisp.lex
-		@mv lex.Lisp.c lexLisp.cpp
+		$(LEX) $(LFLAGS) -I -PLisp -olexLisp.cpp Lisp.lex
 
-parseLisp_defs.h \
+parseLisp_defs.h: parseLisp.cpp
+
 parseLisp.cpp:	Lisp.y
-		$(YACC) $(YFLAGS) -p Lisp --debug -v Lisp.y
-		@mv y.tab.c parseLisp.cpp
-		@mv y.tab.h parseLisp_defs.h
-
+		$(YACC) $(YFLAGS) -o parseLisp.cpp -p Lisp --debug -v Lisp.y
+		@mv parseLisp.hpp parseLisp_defs.h
 
 lexsmtlib.cpp:	smtlib.lex parsesmtlib_defs.h
-		$(LEX) $(LFLAGS) -I -Psmtlib smtlib.lex
-		@mv lex.smtlib.c lexsmtlib.cpp
+		$(LEX) $(LFLAGS) -I -Psmtlib -olexsmtlib.cpp smtlib.lex
 
-parsesmtlib_defs.h \
-parsesmtlib.cpp:	smtlib.y
-		$(YACC) $(YFLAGS) -p smtlib --debug -v smtlib.y
-		@mv y.tab.c parsesmtlib.cpp
-		@mv y.tab.h parsesmtlib_defs.h
+parsesmtlib_defs.h: parsesmtlib.cpp
 
-
+parsesmtlib.cpp: smtlib.y
+		$(YACC) $(YFLAGS) -o parsesmtlib.cpp -p smtlib --debug -v smtlib.y
+		@mv parsesmtlib.hpp parsesmtlib_defs.h

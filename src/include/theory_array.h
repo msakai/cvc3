@@ -82,7 +82,7 @@ public:
   void computeType(const Expr& e);
   Type computeBaseType(const Type& t);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);
-  void computeModel(const Expr& e, std::vector<Expr>& v);
+  void computeModel(const Expr& e, std::vector<Expr>& vars);
   Expr computeTCC(const Expr& e);
   virtual Expr parseExprOp(const Expr& e);
   ExprStream& print(ExprStream& os, const Expr& e);

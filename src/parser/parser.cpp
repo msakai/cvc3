@@ -111,6 +111,9 @@ namespace CVC3 {
       d_data->useName = true;
       d_data->temp.fileName = fileName;
       d_data->temp.is = new ifstream(fileName.c_str());
+      if (!(*d_data->temp.is)) {
+        throw ParserException("File not found: "+fileName);
+      }
       d_data->temp.interactive = false;
     }
     initParser();

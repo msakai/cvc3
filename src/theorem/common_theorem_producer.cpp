@@ -120,7 +120,8 @@ CommonTheoremProducer::implIntro3(const Theorem3& phi,
   if(assump.size() == 0) return phi;
 
   Assumptions a(phiAssump - assump);
-  a.add(tccs);
+  Assumptions b(tccs);
+  a.add(b);
   Proof pf;
   if(withProof()) {
     vector<Proof> u; // Proof labels for assumptions

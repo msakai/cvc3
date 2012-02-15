@@ -241,19 +241,19 @@ Read it <strong>NOW</strong>.
 - Create the following files (either empty or copy them from an
   existing theory), and add them <strong>to your new CVS branch</strong>:
    <dl>
-   <dt>In <tt>src/include/</tt>
-       <dd><tt>theory_foo.h</tt>
-   <dt>In <tt>src/theory_foo/</tt>
-       <dd><tt>theory_foo.cpp</tt>
-       <dd><tt>Makefile.in</tt>
+   <dt>In <tt>src/include/</tt></dt>
+       <dd><tt>theory_foo.h</tt></dd>
+   <dt>In <tt>src/theory_foo/</tt></dt>
+       <dd><tt>theory_foo.cpp</tt><br>
+       <tt>Makefile.in</tt></dd>
    </dl>
   If your new theory needs to create new custom proof rules, also
   create
    <dl>
-   <dt>in <tt>src/theory_foo/</tt>
-       <dd><tt>foo_proof_rules.h</tt>
-       <dd><tt>foo_theorem_producer.h</tt>
-       <dd><tt>foo_theorem_producer.cpp</tt>
+   <dt>in <tt>src/theory_foo/</tt></dt>
+       <dd><tt>foo_proof_rules.h</tt><br>
+       <tt>foo_theorem_producer.h</tt><br>
+       <tt>foo_theorem_producer.cpp</tt></dd>
    </dl>
   While you at it, add the <strong>required header comment</strong> to
   each source file (*.h and *.cpp), with the appropriately modified
@@ -440,8 +440,8 @@ void operator delete(void*) { }
 \endverbatim
 
 Subclasses may overload other virtual methods of <tt>ExprValue</tt> as
-needed.  For instance, <tt>arity()</tt>, <tt>getKids()</tt>, <tt>\ref
-ExprValueGenericAttr "getXXXAttr"()</tt>, etc.  Some standard
+needed.  For instance, <tt>arity()</tt>, <tt>getKids()</tt>,
+<tt>ExprValueGenericAttr "getXXXAttr"()</tt>, etc.  Some standard
 attribute access functions can also be overloaded,
 e.g. <tt>getString()</tt>, <tt>getRational()</tt>.
 

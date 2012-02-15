@@ -355,8 +355,6 @@ ExprManager::getOutputLang() const {
 }
 
 
-// Register a new kind.  The kind may already be regestered under
-// the same name, but if the name is different, it's an error.
 void ExprManager::newKind(int kind, const string &name, bool isType) {
   if(d_kindMap.count(kind) == 0) {
     d_kindMap[kind] = name;

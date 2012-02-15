@@ -150,7 +150,9 @@ class Expr {
     //! Well-founded (used in datatypes)
     WELL_FOUNDED = 0x800,
     //! Compute transitive closure (for binary uninterpreted predicates)
-    COMPUTE_TRANS_CLOSURE = 0x1000
+    COMPUTE_TRANS_CLOSURE = 0x1000,
+    //! Whether expr contains a bounded variable (for quantifier instantiation)
+    CONTAINS_BOUND_VAR = 0x00020000
   } StaticFlagsEnum;
 
   //! bit-masks for dynamic flags
@@ -165,13 +167,9 @@ class Expr {
     IS_USER_REGISTERED_ATOM = 0x200,
     IS_SELECTED = 0x2000,
     IS_STORED_PREDICATE = 0x4000,
-    IS_REGISTERED_ATOM = 0x8000
+    IS_REGISTERED_ATOM = 0x8000,
+    IN_USER_ASSUMPTION = 0x00010000
   } DynamicFlagsEnum;
-
-  typedef enum {
-    //! Whether expr is in a user assumption
-    IN_USER_ASSUMPTION = 0x0001,
-  } DynamicFlagsEnum2;
 
   //! Convenient null expr
   static Expr s_null;
@@ -523,6 +521,9 @@ public:
   // Get the ComputeTransClosure flag
   bool computeTransClosure() const;
 
+  // Get the ContainsBoundVar flag
+  bool containsBoundVar() const;
+
   // Get the ImpliedLiteral flag
   bool isImpliedLiteral() const;
 
@@ -631,6 +632,9 @@ public:
 
   // Set the ComputeTransClosure flag
   void setComputeTransClosure() const;
+
+  // Set the ContainsBoundVar flag
+  void setContainsBoundVar() const;
 
   // Set the impliedLiteral flag for this Expr
   void setImpliedLiteral() const;
@@ -1139,6 +1143,10 @@ inline bool Expr::computeTransClosure() const {
   return d_expr->d_dynamicFlags.get(COMPUTE_TRANS_CLOSURE);
 }
 
+inline bool Expr::containsBoundVar() const {
+  return d_expr->d_dynamicFlags.get(CONTAINS_BOUND_VAR);
+}
+
 inline bool Expr::isImpliedLiteral() const {
   return d_expr->d_dynamicFlags.get(IMPLIED_LITERAL);
 }
@@ -1247,6 +1255,11 @@ inline void Expr::setWellFounded() const {
 inline void Expr::setComputeTransClosure() const {
   DebugAssert(!isNull(), "Expr::setComputeTransClosure() on Null expr");
   d_expr->d_dynamicFlags.set(COMPUTE_TRANS_CLOSURE, 0);
+}
+
+inline void Expr::setContainsBoundVar() const {
+  DebugAssert(!isNull(), "Expr::setContainsBoundVar() on Null expr");
+  d_expr->d_dynamicFlags.set(CONTAINS_BOUND_VAR, 0);
 }
 
 inline void Expr::setImpliedLiteral() const {

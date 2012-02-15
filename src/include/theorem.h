@@ -259,6 +259,13 @@ namespace CVC3 {
     friend std::ostream& operator<<(std::ostream& os, const Theorem& t) {
       return t.print(os, "Theorem");
     }
+
+    static bool TheoremEq(const Theorem& t1, const Theorem& t2) 
+    { 
+      DebugAssert(!t1.isNull() && !t2.isNull(), 
+                  "AssumptionsValue() Null Theorem passed to constructor");
+      return t1 == t2;
+    }
   };  // End of Theorem
 
 /*****************************************************************************/

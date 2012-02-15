@@ -236,9 +236,9 @@ public:
   virtual Theorem newIntAssumption(const Expr& e);
   //! Helper for above function
   void newIntAssumption(const Theorem& thm);
-  //! Get all assertions made in this and all previous contexts.
-  /*! \param assertions should be an empty vector which will be filled \
-    with the assertions */
+  //! Get all assumptions made in this and all previous contexts.
+  /*! \param assumptions should be an empty vector which will be filled \
+    with the assumptions */
   void getUserAssumptions(std::vector<Expr>& assumptions);
   void getInternalAssumptions(std::vector<Expr>& assumptions);
   virtual void getAssumptions(std::vector<Expr>& assumptions);

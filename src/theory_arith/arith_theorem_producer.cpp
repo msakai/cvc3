@@ -886,7 +886,7 @@ ArithTheoremProducer::canonMultTerm1Term2(const Expr& t1, const Expr& t2) {
   // Proof pf;
   // if(withProof()) pf = newPf("canon_mult_term1_term2", t1, t2);
   if(CHECK_PROOFS) {
-    CHECK_SOUND(false, "Fatal Error: We don' support multiplication"
+    CHECK_SOUND(false, "Fatal Error: We don't support multiplication"
                 "of two non constant terms at this time " 
                 + t1.toString() + " and " + t2.toString());
   }

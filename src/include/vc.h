@@ -28,8 +28,7 @@
 /*****************************************************************************/
 /*!
  *\defgroup Note Note that this list of modules is very incomplete
- *\brief Note that this list of modules is very incomplete.
- *@{
+ *\brief Note that this list of modules is very incomplete
  */
 /*****************************************************************************/
 
@@ -157,7 +156,7 @@ public:
    * satisfying the predicate pred(x).
    *
    * \param witness is an expression of type T for which pred holds (if a Null
-   *  expression is passed as a witness, cvc will try to prove \exists x. pred(x)).
+   *  expression is passed as a witness, cvc will try to prove \f$\exists x. pred(x))\f$.
    *  if the witness check fails, a TypecheckException is thrown.
    */
   virtual Type subtypeType(const Expr& pred, const Expr& witness) = 0;

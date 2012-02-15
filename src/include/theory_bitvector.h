@@ -266,7 +266,7 @@ public:
   void checkType(const Expr& e);
   void computeType(const Expr& e);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);
-  void computeModel(const Expr& e, std::vector<Expr>& v);
+  void computeModel(const Expr& e, std::vector<Expr>& vars);
   Expr computeTypePred(const Type& t, const Expr& e);
   Expr computeTCC(const Expr& e);
   ExprStream& print(ExprStream& os, const Expr& e);

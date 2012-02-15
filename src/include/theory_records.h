@@ -77,7 +77,7 @@ public:
   
   Expr computeTypePred(const Type& t, const Expr& e);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);
-  void computeModel(const Expr& e, std::vector<Expr>& v);
+  void computeModel(const Expr& e, std::vector<Expr>& vars);
 
   Expr computeTCC(const Expr& e);
   virtual Expr parseExprOp(const Expr& e);

@@ -321,7 +321,7 @@ void CSolver::set_var_value(int v, int value, ClauseIdx ante, int dl)
 void CSolver::set_var_value_with_current_dl(int v, vector<CLitPoolElement *> & ht_ptrs)
 {
     ClauseIdx cl_idx;
-    CLitPoolElement * ht_ptr, * other_ht_ptr, * ptr;
+    CLitPoolElement * ht_ptr, * other_ht_ptr = NULL, * ptr;
     int dir;
     for (vector <CLitPoolElement *>::iterator itr = ht_ptrs.begin(); itr != ht_ptrs.end(); ++itr) {
 	ht_ptr = *itr;
@@ -368,7 +368,7 @@ void CSolver::set_var_value_with_current_dl(int v, vector<CLitPoolElement *> & h
 void CSolver::set_var_value_not_current_dl(int v, vector<CLitPoolElement *> & ht_ptrs)
 {
     ClauseIdx cl_idx;
-    CLitPoolElement * ht_ptr, * other_ht_ptr, * ptr, * max_ptr = NULL;
+    CLitPoolElement * ht_ptr, * other_ht_ptr = NULL, * ptr, * max_ptr = NULL;
     int dir,max_dl;
 
     for (vector <CLitPoolElement *>::iterator itr = ht_ptrs.begin(); 

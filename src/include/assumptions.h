@@ -58,6 +58,8 @@ namespace CVC3 {
     static bool findExprs(const Assumptions& a, const std::vector<Expr>& es, 
 			  std::vector<Theorem>& gamma);
 
+    void add(const std::vector<Theorem>& thms);
+
   public:
     //! Default constructor: no value is created
     Assumptions() { }
@@ -78,15 +80,11 @@ namespace CVC3 {
 
     static const Assumptions& emptyAssump() { return s_empty; }
 
-    void mergeVectors(const std::vector<Theorem>& v1,
-                      const std::vector<Theorem>& v2,
-                      std::vector<Theorem>& v);
     void add1(const Theorem& t) {
       DebugAssert(d_vector.empty(), "expected empty vector");
       d_vector.push_back(t);
     }
     void add(const Theorem& t);
-    void add(const std::vector<Theorem>& thms);
     void add(const Assumptions& a) { add(a.d_vector); }
     // clear the set of assumptions
     void clear() { d_vector.clear(); }
@@ -150,9 +148,6 @@ namespace CVC3 {
 
     iterator begin() const { return iterator(d_vector.begin()); }
     iterator end() const { return iterator(d_vector.end()); }
-
-    // Adding from iterators
-    void add(const iterator& it) { add(*it); }
 
     // Merging assumptions
     //    friend Assumptions operator+(const Assumptions& a1, const Assumptions& a2);

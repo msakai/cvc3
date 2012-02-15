@@ -27,7 +27,7 @@ using namespace CVC3;
 using namespace SAT;
 
 
-unsigned Clause::getMaxVar() const
+unsigned SAT::Clause::getMaxVar() const
 {
   unsigned max = 0;
   const_iterator i, iend;
@@ -39,7 +39,7 @@ unsigned Clause::getMaxVar() const
 }
 
 
-void Clause::print() const
+void SAT::Clause::print() const
 {
   if (isSatisfied()) cout << "*";
   const_iterator i, iend;

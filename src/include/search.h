@@ -108,11 +108,15 @@ protected:
    *  query, but the context may be inconsistent.  Finally, if it returns
    *  ABORT, the context will be one which satisfies as much as
    *  possible.
+   * \param e the formula to check.
+   * \param result the resulting theorem, if the formula is valid.
  */
   virtual QueryResult checkValid(const Expr& e, Theorem& result) = 0;
 
   //! Reruns last check with e as an additional assumption
   /*! This method should only be called after a query which is invalid.
+   * \param e the additional assumption
+   * \param result the resulting theorem, if the query is valid.
    */
   virtual QueryResult restart(const Expr& e, Theorem& result) = 0;
 
@@ -147,8 +151,8 @@ protected:
   virtual void getInternalAssumptions(std::vector<Expr>& assumptions) = 0;
 
   //! Get all assumptions made in this and all previous contexts.
-  /*! \param assumption should be an empty vector which will be filled \
-    with the assumption */
+  /*! \param assumptions should be an empty vector which will be filled \
+    with the assumptions */
   virtual void getAssumptions(std::vector<Expr>& assumptions) = 0;
 
   //! Check if the formula has already been assumed previously

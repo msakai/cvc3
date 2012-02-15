@@ -48,6 +48,7 @@ namespace CVC3 {
      * each position i need to have matching types.
      * \param t1 is the quantifier (a Theorem)
      * \param terms are the terms to instantiate.
+     * \param quantLevel is the quantification level for the theorem.
      */
     virtual Theorem universalInst(const Theorem& t1,
 				  const std::vector<Expr>& terms, int quantLevel) = 0;
@@ -57,7 +58,8 @@ namespace CVC3 {
 
 
     virtual Theorem partialUniversalInst(const Theorem& t1,
-					 const std::vector<Expr>& terms) = 0;
+					 const std::vector<Expr>& terms,
+					 int quantLevel) = 0;
 
     /*! @brief From T|- QUANTIFIER (vars): e we get T|-QUANTIFIER(vars') e
      * where vars' is obtained from vars by removing all bound variables

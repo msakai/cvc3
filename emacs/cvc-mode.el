@@ -70,25 +70,19 @@
 
 ;;;; Fontification stuff
 
-;;; Add cvc-mode to the list of fontified modes
-(if (string-match "XEmacs" emacs-version) ()
-  (setq font-lock-defaults-alist 
-	(cons '(cvc-mode cvc-font-lock-keywords
-			 nil nil nil nil)
-	      font-lock-defaults-alist)))
-
 (defun cvc-keyword-match (keyword)
 ;  "Convert a string into a regexp matching any capitalization of that string."
   "Convert a string into a regexp matching that string as a separate word."
-  (let ((regexp "")
-	(index 0)
-	(len (length keyword)))
+;  (let ((regexp "")
+;	(index 0)
+;	(len (length keyword)))
 ;    (while (< index len)
 ;      (let ((c (aref keyword index)))
 ;	(setq regexp
 ;	      (concat regexp (format "[%c%c]" (downcase c) (upcase c))))
 ;	(setq index (+ index 1))))
-    (format "\\b%s\\b" keyword)))
+    (format "\\b%s\\b" keyword))
+;)
 
 (defvar cvc-font-lock-separator-face 'cvc-font-lock-separator-face)
 (defvar font-lock-preprocessor-face 'font-lock-preprocessor-face)
@@ -173,14 +167,6 @@ concatenation of `cvc-infix-operators' and `cvc-other-operators'.")
 (defconst cvc-separator-regexp "[,.;():]"
   "A regexp that matches any separator in CVC mode.")
 
-(defun cvc-minimal-decoration ()
-  (interactive)
-  (setq font-lock-keywords cvc-font-lock-keywords-1))
-
-(defun cvc-maximal-decoration ()
-  (interactive)
-  (setq font-lock-keywords cvc-font-lock-keywords-2))
-
 (defconst cvc-font-lock-keywords-1
   (purecopy
    (list
@@ -217,6 +203,14 @@ concatenation of `cvc-infix-operators' and `cvc-other-operators'.")
       cvc-font-lock-keywords-2
       cvc-font-lock-keywords-1))
 
+(defun cvc-minimal-decoration ()
+  (interactive)
+  (setq font-lock-keywords cvc-font-lock-keywords-1))
+
+(defun cvc-maximal-decoration ()
+  (interactive)
+  (setq font-lock-keywords cvc-font-lock-keywords-2))
+
 ;;;; Running CVC 
 
 (defvar cvc-command "cvc3" 
@@ -243,6 +237,11 @@ Must be a single string or nil.")
 This variable is updated automatically each time CVC process takes off.")
 
 (defvar cvc-options-changed nil)
+
+(defvar cvc-current-buffer nil
+  "The current CVC editing buffer.
+This variable is buffer-local.")
+(make-local-variable 'cvc-current-buffer)
 
 (defun cvc-args (file &optional args)
   "Compiles the string of CVC command line args from various variables."
@@ -351,8 +350,8 @@ specification."
 	  (if cvc-window 
 	      (select-window cvc-window)
 	    (switch-to-buffer cvc-buffer))
-	  (if (get-buffer-window buffer)
-	      (delete-window (get-buffer-window buffer)))
+	  (if window
+	      (delete-window window))
 	  (setq cvc-options-changed nil)))) )
 
 (defun cvc-save-and-return ()
@@ -365,7 +364,6 @@ Normally is called from the *.ord buffer while editing variable ordering
 for CVC specification. Bound to \\[cvc-save-and-return]"
   (interactive)
   (let* ((buffer (current-buffer))
-	 (buffer-file (buffer-file-name))
 	 (cvc-buffer-name
 	  (let* ((match (string-match "\\.[^.]*$" (buffer-name))))
 	    (if match
@@ -393,14 +391,6 @@ for CVC specification. Bound to \\[cvc-save-and-return]"
 Run \\[eval-buffer] when done."
   (interactive)
   (let* ((buffer (current-buffer))
-	 (opt-file-name 
-	  (let ((match (string-match "\\.cvc$"
-				     (buffer-file-name))))
-	    (if match
-		(concat (substring (buffer-file-name)
-				   0 match)
-			".opt")
-	      (concat (buffer-file-name) ".opt"))))
 	 (opt-buffer-name 
 	  (let ((match (string-match "\\.cvc$"
 				     (buffer-name))))
@@ -694,9 +684,13 @@ Please report bugs to barrett@cs.nyu.edu."
 	(if font-lock-maximum-decoration
 	    cvc-font-lock-keywords-2
 	  cvc-font-lock-keywords-1))
-  (if (and (not (string-match "XEmacs" emacs-version))
-	   cvc-font-lock-mode-on font-lock-global-modes window-system)
-      (font-lock-mode 1))
+  (if running-xemacs
+      (put 'cvc-mode 'font-lock-defaults
+	   '(cvc-font-lock-keywords nil nil nil nil))
+    (setq font-lock-defaults '(cvc-font-lock-keywords nil nil nil nil)))
+    (if (and cvc-font-lock-mode-on (or running-xemacs font-lock-global-modes)
+	     window-system)
+	(font-lock-mode 1))
   (setq mode-line-process nil) ; put 'cvc-status when hooked up to inferior CVC
   (run-hooks 'cvc-mode-hook))
 
@@ -707,14 +701,13 @@ find the associated CVC file and updates its options accordingly.  See
 `\\[describe-bindings]' for key bindings.  "
   (interactive)
   (emacs-lisp-mode)
-  (make-local-variable 'cvc-current-buffer)
 ;;; Make all the variables with CVC options local to the current buffer
 ;;; to avoid accidental override of the global values
   (cvc-make-local-vars)
   (setq major-mode 'cvc-options-edit-mode)
   (setq mode-name "CVC Options")
-  (if (and (not (string-match "XEmacs" emacs-version))
-	   cvc-font-lock-mode-on  font-lock-global-modes window-system)
+  (if (and cvc-font-lock-mode-on (or running-xemacs font-lock-global-modes)
+	   window-system)
       (font-lock-mode t))
   (use-local-map (copy-keymap (current-local-map)))
   (local-set-key "\C-c\C-c" 'cvc-save-and-load-options))

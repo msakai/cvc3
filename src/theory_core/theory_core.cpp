@@ -459,7 +459,7 @@ void TheoryCore::assertFormula(const Theorem& thm)
 }
 
 
-Theorem TheoryCore::rewriteCore(const Expr& e)
+Theorem CVC3::TheoryCore::rewriteCore(const Expr& e)
 {
   if (e.hasFind()) {
     return find(e);
@@ -1769,7 +1769,7 @@ Expr TheoryCore::parseExprOp(const Expr& e)
       throw ParserException("Bad COND expression: "+e.toString());
     break;
   }
-  case LET: { // (LET ((v1 [ type1 ] e1) ... ) body)
+  case LET: { // (LET ((v1 e1) (v2 e2) ... ) body)
     Expr e2(e);
     while (true) {
       if(!(e2.arity() == 3 && e2[1].getKind() == RAW_LIST && e2[1].arity() > 0))
@@ -2691,7 +2691,6 @@ void TheoryCore::registerAtom(const Expr& e, const Theorem& thm)
   //  if (e.isQuantifier()) return;
   e.setRegisteredAtom();
   d_termTheorems[e] = thm;  
-  // TODO: don't change state by calling this function
   DebugAssert(e.isAbsAtomicFormula(), "Expected atomic formula");
   IF_DEBUG(ScopeWatcher sw(&d_inRegisterAtom));
   Theorem thm2 = simplify(e);
@@ -2702,6 +2701,7 @@ void TheoryCore::registerAtom(const Expr& e, const Theorem& thm)
     setFindLiteral(d_commonRules->iffFalseElim(thm2));
   }
   else {
+    theoryOf(e)->registerAtom(e);
     setupSubFormulas(thm2.getRHS(), e, thm);
   }
   processFactQueue(LOW);

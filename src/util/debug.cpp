@@ -134,8 +134,8 @@ DebugTimer::~DebugTimer() {
     delete d_time;
 }
 
-void Debug::init(const vector<pair<string,bool> >* traceOptions,
-                 const string* dumpName)
+void Debug::init(const std::vector<std::pair<std::string,bool> >* traceOptions,
+                 const std::string* dumpName)
 {
   d_traceOptions = traceOptions;
   d_dumpName = dumpName;
@@ -324,7 +324,7 @@ ostream& Debug::getOSDumpTrace() {
 
 // Print an entry to the dump-sat file: free-form message
 void Debug::dumpTrace(const std::string& title, 
-		      const vector<pair<string,string> >& fields) {
+		      const std::vector<std::pair<std::string,std::string> >& fields) {
   ostream& os = getOSDumpTrace();
   os << "[" << title << "]\n";
   for(size_t i=0, iend=fields.size(); i<iend; ++i)

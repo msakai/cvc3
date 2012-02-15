@@ -124,14 +124,6 @@ bool Assumptions::findExprs(const Assumptions& a, const vector<Expr>& es,
 }
 
 
-static bool TheoremEq(const Theorem& t1, const Theorem& t2) 
-{ 
-  DebugAssert(!t1.isNull() && !t2.isNull(), 
-      	"AssumptionsValue() Null Theorem passed to constructor");
-  return t1 == t2;
-}
-
-
 Assumptions::Assumptions(const vector<Theorem>& v) {
   if (v.empty()) return;
   d_vector.reserve(v.size());
@@ -148,7 +140,7 @@ Assumptions::Assumptions(const vector<Theorem>& v) {
   if (d_vector.size() <= 1) return;
   sort(d_vector.begin(), d_vector.end());
   vector<Theorem>::iterator newend =
-    unique(d_vector.begin(), d_vector.end(), TheoremEq);
+    unique(d_vector.begin(), d_vector.end(), Theorem::TheoremEq);
 
   d_vector.resize(newend - d_vector.begin());
 }
@@ -178,19 +170,42 @@ Assumptions::Assumptions(const Theorem& t1, const Theorem& t2)
 }
 
 
-void Assumptions::mergeVectors(const vector<Theorem>& v1,
-                               const vector<Theorem>& v2,
-                               vector<Theorem>& v)
+void Assumptions::add(const Theorem& t)
 {
-  v.reserve(v1.size() + v2.size());
+  if (t.getAssumptionsRef().empty()) return;
+  vector<Theorem>::iterator iter, iend = d_vector.end();
+  iter = lower_bound(d_vector.begin(), iend, t);
+  if (iter != iend && compare(t, *iter) == 0) return;
+  d_vector.insert(iter, t);
+}
 
-  vector<Theorem>::const_iterator i = v1.begin();
-  vector<Theorem>::const_iterator j = v2.begin();
-  const vector<Theorem>::const_iterator v1end = v1.end();
-  const vector<Theorem>::const_iterator v2end = v2.end();
+
+void Assumptions::add(const std::vector<Theorem>& thms)
+{
+  if (thms.size() == 0) return;
+
+IF_DEBUG(
+  vector<Theorem>::const_iterator iend = thms.end();
+  for (vector<Theorem>::const_iterator i = thms.begin(); 
+       i != iend; ++i) {
+    if (i+1 == iend) break;
+    DebugAssert(compare(*i, *(i+1)) == -1, "Expected sorted");
+  }
+)
+  vector<Theorem> v;
+  v.reserve(d_vector.size()+thms.size());
+
+  vector<Theorem>::const_iterator i = d_vector.begin();
+  vector<Theorem>::const_iterator j = thms.begin();
+  const vector<Theorem>::const_iterator v1end = d_vector.end();
+  const vector<Theorem>::const_iterator v2end = thms.end();
 
   // merge
   while (i != v1end && j != v2end) {
+    if (j->getAssumptionsRef().empty()) {
+      ++j;
+      continue;
+    }
     switch(compare(*i, *j)) {
       case 0:
         // copy only 1, drop down to next case
@@ -206,36 +221,11 @@ void Assumptions::mergeVectors(const vector<Theorem>& v1,
   }
   // Push in the remaining elements
   for(; i != v1end; ++i) v.push_back(*i);
-  for(; j != v2end; ++j) v.push_back(*j);
-}
-
-
-void Assumptions::add(const Theorem& t)
-{
-  if (t.getAssumptionsRef().empty()) return;
-
-  // TODO: linear search is bad
-  vector<Theorem>::iterator iter = d_vector.begin();
-  const vector<Theorem>::const_iterator vend = d_vector.end();
-  for (; iter != vend; ++iter) {
-    int c(compare(t, *iter));
-    if(c == 0) return; // t == *iter
-    if(c < 0) break; // t < *iter
-  }
-  d_vector.insert(iter, t);
-}
-
-
-void Assumptions::add(const std::vector<Theorem>& thms)
-{
-  vector<Theorem>::const_iterator iend = thms.end();
-  for (vector<Theorem>::const_iterator i = thms.begin(); 
-       i != iend; ++i) {
-    d_vector.push_back(*i);
+  for(; j != v2end; ++j) {
+    if (!j->getAssumptionsRef().empty())
+      v.push_back(*j);
   }
 
-  vector<Theorem> v;
-  mergeVectors(d_vector, thms, v);
   d_vector.swap(v);
 }
 

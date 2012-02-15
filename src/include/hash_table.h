@@ -50,11 +50,24 @@
 #ifndef _cvc3__hash__hash_table_h_
 #define _cvc3__hash__hash_table_h_
 
-#include <cassert>
 #include <vector>
+#include <string>
 #include <functional>
 #include <algorithm>
 #include "hash_fun.h"
+
+// For some reason, including debug.h doesn't work--so redeclare macros here
+
+#ifdef DEBUG
+#define DebugAssert(cond, str) if(!(cond)) \
+ CVC3::debugError(__FILE__, __LINE__, #cond, str)
+namespace CVC3 {
+extern void debugError(const std::string& file, int line,
+                       const std::string& cond, const std::string& msg);
+}
+#else
+#define DebugAssert(cond, str)
+#endif
 
 namespace Hash {
   // get size_t from hash_fun, which gets it from cstddef
@@ -209,12 +222,12 @@ namespace Hash {
     }
 
     Bucket* getBucketByIndex(const size_type index) {
-      assert(0 <= index && index < d_data.size() && "hash_table::getBucketByIndex");
+      DebugAssert(index < d_data.size(),"hash_table::getBucketByIndex");
       return d_data.at(index);
     }
 
     const Bucket* getBucketByIndex(const size_type index) const {
-      assert(0 <= index && index < d_data.size() && "hash_table::getBucketByIndex (const)");
+      DebugAssert(index < d_data.size(),"hash_table::getBucketByIndex (const)");
       return d_data.at(index);
     }
 
@@ -333,7 +346,7 @@ namespace Hash {
       // for each bucket ...
       for (size_type i = 0; i < data.size(); ++i) {
 	// .. copy each element
-	assert(0 <= i && i < d_data.size() && "hash_table::operator=");
+	DebugAssert(i < d_data.size(),"hash_table::operator=");
 	
 	  // copy bucket if not empty
 	Bucket* source = data[i];
@@ -381,7 +394,7 @@ namespace Hash {
 	}
 	d_data[i] = NULL;
       }
-    };
+    }
 
 
 
@@ -629,7 +642,7 @@ namespace Hash {
       // go to next data - pre-increment
       iterator& operator++() {
 	// must not be the end iterator
-	assert(d_node != NULL);
+	DebugAssert(d_node != NULL, "hash operator++");
 
 	// get current bucket index
 	size_type index = d_hash_table->getBucketIndex(d_hash_table->extractKey(d_node->d_value));
@@ -649,7 +662,8 @@ namespace Hash {
 	    *this = d_hash_table->end();
 	    return *this;
 	  }
-	  assert(index >= 0 && index < d_hash_table->d_data.size());
+	  DebugAssert(index < d_hash_table->d_data.size(),
+                      "hash operator++ 2");
 
 	  d_node = d_hash_table->getBucketByIndex(index);
 	}
@@ -675,7 +689,7 @@ namespace Hash {
       // are two iterator identical?
       bool operator==(const iterator& other) const {
 	// if the same bucket iterator, then it must be the same hash table
-	assert(d_node == NULL || d_node != other.d_node || d_hash_table == other.d_hash_table);
+	DebugAssert(d_node == NULL || d_node != other.d_node || d_hash_table == other.d_hash_table, "hash operator==");
 	return (d_node == other.d_node);
       }
 
@@ -741,7 +755,7 @@ namespace Hash {
       // go to next data - pre-increment
       const_iterator& operator++() {
 	// must not be the end iterator
-	assert(d_node != NULL);
+	DebugAssert(d_node != NULL, "");
 
 	// get current bucket index
 	size_type index = d_hash_table->getBucketIndex(d_hash_table->extractKey(d_node->d_value));
@@ -761,7 +775,7 @@ namespace Hash {
 	    *this = d_hash_table->end();
 	    return *this;
 	  }
-	  assert(index >= 0 && index < d_hash_table->d_data.size());
+	  DebugAssert(index < d_hash_table->d_data.size(),"");
 
 	  d_node = d_hash_table->getBucketByIndex(index);
 	}
@@ -787,7 +801,7 @@ namespace Hash {
       // are two iterator identical?
       bool operator==(const const_iterator& other) const {
 	// if the same bucket iterator, then it must be the same hash table
-	assert(d_node == NULL || d_node != other.d_node || d_hash_table == other.d_hash_table);
+	DebugAssert(d_node == NULL || d_node != other.d_node || d_hash_table == other.d_hash_table,"");
 	return (d_node == other.d_node);
       }
 
