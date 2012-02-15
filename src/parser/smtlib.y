@@ -298,6 +298,7 @@ bench_attribute:
       if (*$3 == "AUFLIA" ||
           *$3 == "AUFLIRA" ||
           *$3 == "AUFNIRA" ||
+          *$3 == "LIA" ||
           *$3 == "LRA" ||
           *$3 == "UFNIA") {
         cmd2 = CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("quant-complete-inst"), VC->ratExpr(1)));

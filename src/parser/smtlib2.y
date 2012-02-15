@@ -197,6 +197,7 @@ command_aux:
       if (*$2 == "AUFLIA" ||
           *$2 == "AUFLIRA" ||
           *$2 == "AUFNIRA" ||
+          *$2 == "LIA" ||
           *$2 == "QF_AUFLIA" ||
           *$2 == "QF_IDL" ||
           *$2 == "QF_LIA" ||
@@ -227,6 +228,7 @@ command_aux:
       if (*$2 == "AUFLIA" ||
           *$2 == "AUFLIRA" ||
           *$2 == "AUFNIRA" ||
+          *$2 == "LIA" ||
           *$2 == "LRA" ||
           *$2 == "UFLRA" ||
           *$2 == "UFNIA") {
