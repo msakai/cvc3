@@ -19,19 +19,20 @@
  */
 /*****************************************************************************/
 
-
 #include <signal.h>
-#include <unistd.h>
 #include <fstream>
 #include <iomanip>
 
-
+#include "os.h"
 #include "vc.h"
 #include "parser.h"
 #include "vc_cmd.h"
 #include "command_line_flags.h"
 #include "statistics.h"
 
+#ifdef _MSC_VER
+#include <windows.h>
+#endif
 
 using namespace std;
 using namespace CVC3;
@@ -47,6 +48,7 @@ static string programName;
 static ValidityChecker* vc = NULL;
 IF_DEBUG(static DebugTimer* pRuntime = NULL;)
 
+#ifndef _MSC_VER
 void sighandler(int signum) {
   cerr << "\nInterrupted by signal " << signum;
   if(signum == SIGALRM)
@@ -59,6 +61,14 @@ void sighandler(int signum) {
     cout << vc->getStatistics() << endl;
   exit(1);
 }
+#else
+DWORD WINAPI thread_timeout(PVOID timeout) {
+  Sleep((int)timeout * 1000);
+  cerr << "self-timeout." << endl;
+  ExitProcess(1);
+}
+#endif
+
 
 int main(int argc, char **argv)
 {
@@ -67,11 +77,13 @@ int main(int argc, char **argv)
   IF_DEBUG(DebugTimer runtime(CVC3::debugger.timer("total runtime")));
   IF_DEBUG(pRuntime = &runtime);
 
+#ifndef _MSC_VER
   signal(SIGINT, sighandler);
   signal(SIGTERM, sighandler);
   signal(SIGQUIT, sighandler);
   signal(SIGALRM, sighandler);
-
+#endif
+  
   string fileName("");
 
   try {
@@ -85,7 +97,12 @@ int main(int argc, char **argv)
   // Set the timeout, if given in the command line options
   int timeout = flags["timeout"].getInt();
   if(timeout > 0) {
+#ifndef _MSC_VER
     alarm(timeout);
+#else
+    // http://msdn2.microsoft.com/en-us/library/ms682453.aspx
+    CreateThread(NULL, 0, thread_timeout, (PVOID)timeout, 0, NULL);
+#endif
   }
 
   /*
@@ -115,7 +132,7 @@ int main(int argc, char **argv)
       IF_DEBUG( << " (debug build)")
 	 << "\n\n";
     cout <<
-      "Copyright (C) 2003-2006 by the Board of Trustees of Leland Stanford Junior\n" 
+      "Copyright (C) 2003-2007 by the Board of Trustees of Leland Stanford Junior\n" 
       "University, New York University, and the University of Iowa.\n\n"
       "THIS SOFTWARE PROVIDED AS-IS, WITHOUT ANY WARRANTIES. "
       "USE IT AT YOUR OWN RISK.\n"

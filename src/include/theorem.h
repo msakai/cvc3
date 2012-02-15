@@ -51,6 +51,7 @@
 #ifndef _cvc3__theorem_h_
 #define _cvc3__theorem_h_
 
+#include "os.h"
 #include "proof.h"
 #include "assumptions.h"
 
@@ -73,7 +74,7 @@ namespace CVC3 {
   // since natural deduction sometimes requires proving the same
   // conclusion from different assumptions independently, e.g. in
   // disjunction elimination rule.
-  class Theorem {
+  class CVC_DLL Theorem {
   private:
     // Make a theorem producing class our friend.  No definition is
     // exposed here.
@@ -88,7 +89,7 @@ namespace CVC3 {
     // directly.  Also, the lowest bit is set to 1 to indicate that its
     // a reflexivity theorem.  This really helps performance!
     union {
-      long d_thm;
+      intptr_t d_thm;
       ExprValue* d_expr;
     };
 
@@ -106,7 +107,7 @@ namespace CVC3 {
       { return (compare(t1, t2) != 0); }
 
     //! Constructor only used by TheoremValue for assumptions
-    Theorem(TheoremValue* thm) :d_thm(((long)thm) | 0x1) {}
+    Theorem(TheoremValue* thm) :d_thm(((intptr_t)thm) | 0x1) {}
 
     //! Constructor for a new theorem 
     Theorem(TheoremManager* tm, const Expr &thm, const Assumptions& assump,

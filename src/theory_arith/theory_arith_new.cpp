@@ -2514,8 +2514,8 @@ void TheoryArithNew::update(const Expr& x_i, const EpsRational& v) {
 	
 		// Go through all the variables that depend on x_i
 		const set<Expr>& dependent = (*find).second;
-		set<Expr>::iterator it     = dependent.begin();
-		set<Expr>::iterator it_end = dependent.end(); 		
+		set<Expr>::const_iterator it     = dependent.begin();
+		set<Expr>::const_iterator it_end = dependent.end(); 		
 		// Fix the values of all the variables
 		while (it != it_end) {
 			
@@ -2576,8 +2576,8 @@ void TheoryArithNew::pivotAndUpdate(const Expr& x_i, const Expr& x_j, const EpsR
 	
 	// Go through all the variables that depend on x_j, and update their value (there will be at least one, i.e. x_i) // TODO: maybe optimise
 	const set<Expr>& dependent = (*dependenciesMap.find(x_j)).second;
-	set<Expr>::iterator it     = dependent.begin();
-	set<Expr>::iterator it_end = dependent.end(); 		
+	set<Expr>::const_iterator it     = dependent.begin();
+	set<Expr>::const_iterator it_end = dependent.end(); 		
 	// Go throught all the basic variables
 	while (it != it_end) {
 		

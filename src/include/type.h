@@ -29,6 +29,8 @@
 
 namespace CVC3 {
 
+#include "os.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                           //
 // Class: Type								     //
@@ -37,7 +39,7 @@ namespace CVC3 {
 // Description: Wrapper around expr for api                                  //
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
-class Type {
+class CVC_DLL Type {
   Expr d_expr;
 
 public:
@@ -45,6 +47,7 @@ public:
   Type(Expr expr);
   //! Special constructor that doesn't check if expr is a type
   //TODO: make this private
+  Type(const Type& type) :d_expr(type.d_expr) {}
   Type(Expr expr, bool dummy) :d_expr(expr) {}
   const Expr& getExpr() const { return d_expr; }
 

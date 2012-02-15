@@ -216,7 +216,7 @@ public:
     return Lit((*i).second);
   }
 
-  void CNF_Manager::cons(unsigned lb, unsigned ub, const CVC3::Expr& e2, std::vector<unsigned>& newLits);
+  void cons(unsigned lb, unsigned ub, const CVC3::Expr& e2, std::vector<unsigned>& newLits);
 
   //! Convert thm A |- B (A is a set of literals) into a clause ~A \/ B
   /*! c should be an empty clause that will be filled with the result */

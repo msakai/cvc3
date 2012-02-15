@@ -41,7 +41,7 @@ void fatalError(const std::string& file, int line,
 
 #ifdef DEBUG
 
-#include <sys/time.h>
+#include <ctime>
 #include <iomanip>
 
 namespace CVC3 {
@@ -57,51 +57,38 @@ void debugError(const std::string& file, int line,
 
 class DebugTime {
 public:
-  timeval d_tv;
+  clock_t d_clock;
+
   // Constructors
   DebugTime() {
-    d_tv.tv_sec = 0;
-    d_tv.tv_usec = 0;
+    d_clock = 0;
   }
-  DebugTime(const timeval& tv): d_tv(tv) { }
+  DebugTime(const clock_t& clock): d_clock(clock) { }
 
   // Set time to zero
   void reset() {
-    d_tv.tv_sec = 0;
-    d_tv.tv_usec = 0;
+    d_clock = 0;
   }
     
   // Incremental assignments
   DebugTime& operator+=(const DebugTime& t) {
-    d_tv.tv_sec += t.d_tv.tv_sec;
-    d_tv.tv_usec += t.d_tv.tv_usec;
-    while(d_tv.tv_usec >= 1000000) {
-      d_tv.tv_usec -= 1000000;
-      d_tv.tv_sec++;
-    }
+    d_clock += t.d_clock;
     return *this;
   }
   DebugTime& operator-=(const DebugTime& t) {
-    while(d_tv.tv_usec < t.d_tv.tv_usec) {
-      d_tv.tv_usec += 1000000;
-      d_tv.tv_sec--;
-    }
-    d_tv.tv_sec -= t.d_tv.tv_sec;
-    d_tv.tv_usec -= t.d_tv.tv_usec;
+    d_clock -= t.d_clock;
     return *this;
   }
 
-  friend class DebugTimer;
   friend bool operator==(const DebugTime& t1, const DebugTime& t2);
   friend bool operator!=(const DebugTime& t1, const DebugTime& t2);
 
-  friend bool operator<(const DebugTimer& t1, const DebugTimer& t2);
-  friend bool operator>(const DebugTimer& t1, const DebugTimer& t2);
-  friend bool operator<=(const DebugTimer& t1, const DebugTimer& t2);
-  friend bool operator>=(const DebugTimer& t1, const DebugTimer& t2);
+  friend bool operator<(const DebugTime& t1, const DebugTime& t2);
+  friend bool operator>(const DebugTime& t1, const DebugTime& t2);
+  friend bool operator<=(const DebugTime& t1, const DebugTime& t2);
+  friend bool operator>=(const DebugTime& t1, const DebugTime& t2);
 
   friend ostream& operator<<(ostream& os, const DebugTime& t);
-  friend ostream& operator<<(ostream& os, const DebugTimer& t);
 };
 
 DebugTime operator+(const DebugTime& t1, const DebugTime& t2) {
@@ -116,12 +103,27 @@ DebugTime operator-(const DebugTime& t1, const DebugTime& t2) {
 }
 
 bool operator==(const DebugTime& t1, const DebugTime& t2) {
-  return(t1.d_tv.tv_sec == t2.d_tv.tv_sec
-	 && t1.d_tv.tv_usec == t2.d_tv.tv_usec);
+  return t1.d_clock == t2.d_clock;
 }
 
 bool operator!=(const DebugTime& t1, const DebugTime& t2) {
   return !(t1 == t2);
+}
+
+bool operator<(const DebugTime& t1, const DebugTime& t2) {
+  return t1.d_clock < t2.d_clock;
+}
+
+bool operator>(const DebugTime& t1, const DebugTime& t2) {
+  return t1.d_clock > t2.d_clock;
+}
+
+bool operator<=(const DebugTime& t1, const DebugTime& t2) {
+  return t1.d_clock <= t2.d_clock;
+}
+
+bool operator>=(const DebugTime& t1, const DebugTime& t2) {
+  return t1.d_clock >= t2.d_clock;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -221,29 +223,23 @@ bool operator!=(const DebugTimer& t1, const DebugTimer& t2) {
   return(*t1.d_time != *t2.d_time);
 }
 bool operator<(const DebugTimer& t1, const DebugTimer& t2) {
-  return((*t1.d_time).d_tv.tv_sec < (*t2.d_time).d_tv.tv_sec
-	 || ((*t1.d_time).d_tv.tv_sec == (*t2.d_time).d_tv.tv_sec
-	     && (*t1.d_time).d_tv.tv_usec < (*t2.d_time).d_tv.tv_usec));
+  return *t1.d_time < *t2.d_time;
 }
 bool operator>(const DebugTimer& t1, const DebugTimer& t2) {
-  return((*t1.d_time).d_tv.tv_sec > (*t2.d_time).d_tv.tv_sec
-	 || ((*t1.d_time).d_tv.tv_sec == (*t2.d_time).d_tv.tv_sec
-	     && (*t1.d_time).d_tv.tv_usec > (*t2.d_time).d_tv.tv_usec));
+  return *t1.d_time > *t2.d_time;
 }
 bool operator<=(const DebugTimer& t1, const DebugTimer& t2) {
-  return((*t1.d_time).d_tv.tv_sec <= (*t2.d_time).d_tv.tv_sec
-	 || ((*t1.d_time).d_tv.tv_sec == (*t2.d_time).d_tv.tv_sec
-	     && (*t1.d_time).d_tv.tv_usec <= (*t2.d_time).d_tv.tv_usec));
+  return *t1.d_time <= *t2.d_time;
 }
 bool operator>=(const DebugTimer& t1, const DebugTimer& t2) {
-  return((*t1.d_time).d_tv.tv_sec >= (*t2.d_time).d_tv.tv_sec
-	 || ((*t1.d_time).d_tv.tv_sec == (*t2.d_time).d_tv.tv_sec
-	     && (*t1.d_time).d_tv.tv_usec >= (*t2.d_time).d_tv.tv_usec));
+  return *t1.d_time >= *t2.d_time;
 }
 
 // Print the time and timer's values
 ostream& operator<<(ostream& os, const DebugTime& t) {
-  os << t.d_tv.tv_sec << "." << setfill('0') << setw(6) << t.d_tv.tv_usec;
+  int seconds = (int)(t.d_clock / CLOCKS_PER_SEC);
+  int milliseconds = 1000 * int((((double)(t.d_clock % CLOCKS_PER_SEC)) / CLOCKS_PER_SEC));
+  os << seconds << "." << setfill('0') << setw(6) << milliseconds;
   return os;
 }
 ostream& operator<<(ostream& os, const DebugTimer& timer) {
@@ -292,20 +288,15 @@ DebugTimer Debug::newTimer() {
 }
 
 void Debug::setCurrentTime(DebugTimer& timer) {
-  struct timezone tz;
-  DebugAssert(gettimeofday(&((*timer.d_time).d_tv), &tz) == 0,
-	      "Debug::setCurrentTime() failed");
+  *timer.d_time = clock();
 }
+
 // Set the timer to the difference between current time and the
 // time stored in the timer: timer = currentTime - timer.
 // Intended to obtain the time interval since the last call to
 // setCurrentTime() with that timer.
 void Debug::setElapsed(DebugTimer& timer) {
-  struct timezone tz;
-  DebugTime t;
-  DebugAssert(gettimeofday(&(t.d_tv), &tz) == 0,
-	      "Debug::setElapsed() failed");
-  *timer.d_time = t - (*timer.d_time);
+  *timer.d_time -= DebugTime(clock());
 }
 
 /*! If the stream is not initialized, open the file

@@ -2621,7 +2621,7 @@ Theorem ArithTheoremProducerOld::addInequalities(const Theorem& thm1, const Theo
   	int kind2  = expr2.getKind();
   
   	// Set-up the resulting inequality
-  	int kind = (kind1 == kind2) ? kind1 : (kind1 == LT | kind2 == LT)? LT : GT;
+  	int kind = (kind1 == kind2) ? kind1 : ((kind1 == LT) || (kind2 == LT))? LT : GT;
   
   	// Create the proof object
   	Proof pf;   	

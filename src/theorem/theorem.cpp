@@ -137,7 +137,7 @@ namespace CVC3 {
     else
       tv = new(tm->getMM()) RegTheoremValue(tm, thm, assump, pf, isAssump, scope);
     tv->d_refcount++;
-    d_thm = ((long)tv)|0x1;
+    d_thm = ((intptr_t)tv)|0x1;
     //    TRACE("theorem", "Theorem(e) => ", *this, "");
     DebugAssert(!withProof() || !pf.isNull(),
 		"Null proof in theorem:\n"+toString());

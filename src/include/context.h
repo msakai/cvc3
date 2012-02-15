@@ -192,7 +192,7 @@ public:
  * makeCopy, restoreData, and setNull.
  */
 ///////////////////////////////////////////////////////////////////////////////
-class ContextObj {
+class CVC_DLL ContextObj {
 friend class Scope;
 friend class ContextObjChain;
 friend class CDFlags;

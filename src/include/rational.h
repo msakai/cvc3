@@ -38,7 +38,7 @@
 // To be defined only in bignum.cpp
 namespace CVC3 {
 
-  class Rational {
+  class CVC_DLL Rational {
   private:
     class Impl;
     Impl *d_n;

@@ -257,9 +257,10 @@ bench_attribute:
         BVENABLED = true;
         $$ = NULL;
       }
-      else if (*$3 == "QF_LRA") {
-        $$ = new CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("arith-new"), VC->ratExpr(1)));
-      }
+// This enables the new arith for QF_LRA, but this results in assertion failures in DEBUG mode
+//       else if (*$3 == "QF_LRA") {
+//         $$ = new CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("arith-new"), VC->ratExpr(1)));
+//       }
       else {
         $$ = NULL;
       }

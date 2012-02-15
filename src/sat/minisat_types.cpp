@@ -1,10 +1,11 @@
 /*****************************************************************************/
 /*!
  *\file minisat_types.cpp
+ *\brief MiniSat internal types
  *
  * Author: Alexander Fuchs
  *
- * Created: Wed Jan 03 11:04:00 2006
+ * Created: Fri Sep 08 11:04:00 2006
  *
  * <hr>
  *

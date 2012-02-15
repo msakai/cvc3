@@ -520,7 +520,7 @@ public:
   bool operator==(const ExprValue& ev2) const;
 }; // end of class ExprApply
 
-class ExprApply: public ExprNode {
+class CVC_DLL ExprApply: public ExprNode {
   friend class Expr;
   friend class ExprManager;
 private:

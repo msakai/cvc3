@@ -1,7 +1,7 @@
 /*****************************************************************************/
 /*!
  *\file minisat_derivation.cpp
- *\brief Proof logging minisat
+ *\brief MiniSat proof logging
  *
  * Author: Alexander Fuchs
  *

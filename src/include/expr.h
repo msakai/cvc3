@@ -29,6 +29,7 @@
 #include <iterator>
 #include <map>
 
+#include "os.h"
 #include "compat_hash_map.h"
 #include "compat_hash_set.h"
 #include "rational.h"
@@ -123,7 +124,7 @@ namespace CVC3 {
    * reborn).
    */
   /**************************************************************************/
-class Expr {
+class CVC_DLL Expr {
   friend class ExprHasher;
   friend class ExprManager;
   friend class Op;
@@ -204,7 +205,7 @@ public:
    * expression is destroyed.
   */
   /////////////////////////////////////////////////////////////////////////////
-  class iterator
+  class CVC_DLL iterator
     : public std::iterator<std::input_iterator_tag,Expr,ptrdiff_t>
   {
     friend class Expr;
@@ -693,7 +694,7 @@ public:
   // Friend methods                                                          //
   /////////////////////////////////////////////////////////////////////////////
 
-  friend std::ostream& operator<<(std::ostream& os, const Expr& e);
+  friend CVC_DLL std::ostream& operator<<(std::ostream& os, const Expr& e);
 
   // The master method which defines some fixed total ordering on all
   // Exprs.  If e1 < e2, e1==e2, and e1 > e2, it returns -1, 0, 1

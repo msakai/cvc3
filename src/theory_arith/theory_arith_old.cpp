@@ -2139,8 +2139,10 @@ Theorem TheoryArithOld::normalize(const Expr& e) {
       thm = canonPredEquiv(thm);
       break;
     default:
-      DebugAssert(false,
-		  "normalize: control should not reach here" + kind);
+      // MS .net doesn't accept "..." + int
+      ostringstream ss;
+      ss << "normalize: control should not reach here " << kind;
+      DebugAssert(false, ss.str());
       break;
     }
   }

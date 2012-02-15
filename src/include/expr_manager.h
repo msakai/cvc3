@@ -28,6 +28,7 @@
 #ifndef _cvc3__include__expr_manager_h_
 #define _cvc3__include__expr_manager_h_
 
+#include "os.h"
 #include "expr_map.h"
 
 namespace CVC3 {
@@ -37,6 +38,7 @@ namespace CVC3 {
   class MemoryManager;
   class ExprManagerNotifyObj;
   class TheoremManager;
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //! Expression Manager
@@ -53,7 +55,7 @@ namespace CVC3 {
 */
 ///////////////////////////////////////////////////////////////////////////////
 
-  class ExprManager {
+  class CVC_DLL ExprManager {
     friend class Expr;
     friend class ExprValue;
     friend class Op; // It wants to call rebuildExpr

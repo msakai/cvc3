@@ -1,3 +1,23 @@
+/*****************************************************************************/
+/*!
+ *\file minisat_varorder.h
+ *\brief MiniSat decision heuristics
+ *
+ * Author: Alexander Fuchs
+ *
+ * Created: Fri Sep 08 11:04:00 2006
+ *
+ * <hr>
+ *
+ * License to use, copy, modify, sell and/or distribute this software
+ * and its documentation for any purpose is hereby granted without
+ * royalty, subject to the terms and conditions defined in the \ref
+ * LICENSE file provided with this distribution.
+ * 
+ * <hr>
+ */
+/*****************************************************************************/
+
 /**************************************************************************************[VarOrder.h]
 MiniSat -- Copyright (c) 2003-2005, Niklas Een, Niklas Sorensson
 

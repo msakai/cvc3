@@ -11,6 +11,10 @@
 - \ref README
 - \ref LICENSE
 - \ref INSTALL
+<!--
+- \ref WINDOWS_README
+- \ref WINDOWS_INSTALL
+-->
 
 Go back to the <a href="http://www.cs.nyu.edu/acsys/cvc3/">CVC3 Home Page</a>
 

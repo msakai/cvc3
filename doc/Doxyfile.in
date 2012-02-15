@@ -464,6 +464,9 @@ INPUT                  = . \
                          ../README \
                          ../LICENSE \
                          ../INSTALL
+# \
+#                         ../windows/README \
+#                         ../windows/INSTALL
 
 # If the value of the INPUT tag contains directories, you can use the 
 # FILE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp 

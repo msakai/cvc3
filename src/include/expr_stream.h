@@ -32,6 +32,7 @@
 #ifndef _cvc3__expr_stream_h_
 #define _cvc3__expr_stream_h_
 
+#include "os.h"
 #include "expr.h"
 
 namespace CVC3 {
@@ -106,7 +107,7 @@ namespace CVC3 {
     TheoryArith::print().
     
   */
-  class ExprStream {
+  class CVC_DLL ExprStream {
   private:
     ExprManager* d_em; //!< The ExprManager to use
     std::ostream* d_os; //!< The ostream to print into

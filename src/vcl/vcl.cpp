@@ -19,6 +19,7 @@
 
 
 #include <fstream>
+#include "os.h"
 #include "vcl.h"
 #include "parser.h"
 #include "vc_cmd.h"
@@ -102,7 +103,7 @@ CLFlags ValidityChecker::createFlags() {
   // Pretty-printing related flags
   flags.addFlag("dagify-exprs",
 		CLFlag(true, "Print expressions with sharing as DAGs"));
-  flags.addFlag("lang", CLFlag("smtlib", "Input language "
+  flags.addFlag("lang", CLFlag("presentation", "Input language "
 			       "(presentation, smtlib, internal)"));
   flags.addFlag("output-lang", CLFlag("", "Output language "
 				      "(presentation, smtlib, simplify, internal, lisp)"));

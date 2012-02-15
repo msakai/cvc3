@@ -26,6 +26,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include "os.h"
 #include "exception.h"
 
 /*! @brief If something goes horribly wrong, print a message and abort
@@ -115,7 +116,6 @@ public:
   // First, wrapper classes for flags, counters, and timers.  Later,
   // we overload some operators like '=', '++', etc. for those
   // classes.
-
   //! Boolean flag (can only be true or false)
   class DebugFlag {
   private:
@@ -427,6 +427,11 @@ public:
 
 #define DBG_PRINT_MSG(cond, msg)
 #define TRACE_MSG(flag, msg)
+
+// to make the CLI wrapper happy
+namespace CVC3 {
+class DebugException: public Exception { };
+}
 
 #endif // DEBUG
 

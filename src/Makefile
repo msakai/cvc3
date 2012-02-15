@@ -51,6 +51,7 @@ HEADER_NAMES = \
   memory_manager_malloc.h \
   memory_manager_context.h \
   notifylist.h \
+  os.h \
   parser.h \
   proof.h \
   rational.h \

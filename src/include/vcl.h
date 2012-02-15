@@ -44,7 +44,7 @@ namespace CVC3 {
   class TheoryDatatype;
   class Translator;
 
-class VCL : public ValidityChecker {
+class CVC_DLL VCL : public ValidityChecker {
 
   //! Pointers to main system components
   ExprManager* d_em;

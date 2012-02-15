@@ -22,6 +22,7 @@
 #ifndef _cvc3__include__vc_h_
 #define _cvc3__include__vc_h_
 
+#include "os.h"
 #include "queryresult.h"
 #include "expr.h"
 
@@ -89,7 +90,7 @@ class Statistics;
  * up the context can be retrieved using getAssumptions.
  */
 /*****************************************************************************/
-class ValidityChecker {
+class CVC_DLL ValidityChecker {
 
 public:
   //! Constructor
