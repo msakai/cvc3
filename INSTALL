@@ -196,7 +196,7 @@ following in the top-level %CVC3 directory:
 </pre>
 
 <b>Note:</b> The Java interface depends on the "build type" (e.g.,
-"optimized", "debug) of %CVC3. If you choose to re-configure and
+"optimized", "debug") of %CVC3. If you choose to re-configure and
 re-build %CVC3 with a different build type, you must run "make clean"
 in the current directory and re-build the interface (cleaning and 
 rebuilding the entire %CVC3 package will suffice).
@@ -278,9 +278,25 @@ Mac OS X
 Mac OS X uses <code>DYLD_LIBRARY_PATH</code> in place of
 <code>LD_LIBRARY_PATH</code>.
 
-By default, %CVC3 compiles in 32-bit mode on 64-bit Intel Macs. Use
-<code>./configure --build=x86_64-darwin</code> to build in 64-bit
-mode. (See <a href="#64-bit Platforms">64-bit Platforms</a>.)
+On Intel Macs, by default, %CVC3 compiles in 32-bit or 64-bit mode
+based on the compiler's default.  If you want to build as one or
+the other in particular (for example, to match your libgmp
+installation), put CXXFLAGS=-m32 (and JREFLAGS=-d32, if you are
+compiling the Java bindings) in the environment when you run 
+configure.
+
+To run regression testing (make regress), you'll need GNU time.
+We suggest you install MacPorts (from macports.org) and then the
+"gtime" package.
+
+You'll need also a libgmp installation.  libgmp can be downloaded from
+gmplib.org.  If you install it in a nonstandard location (with
+./configure --prefix=...) you'll need to give this location to CVC3
+when you configure it:
+
+  ./configure --with-extra-includes=...--with-extra-libs=...
+
+or it may not find your installation of libgmp.
 
 <h3>
  Cygwin 
@@ -318,9 +334,14 @@ you'll need to point CVC3 to it.  Again using symbolic linking as above:
   $ ./configure --enable-java --with-java-home=/programs/Java/jdk1.6.0_16 ...
 </pre>
 
-Further, note that building CVC3 with dynamic libraries under cygwin is
-currently unsupported.  If you encounter problems, please configure
-with --enable-static.
+Such symbolic linking (and in general using cygwin full paths) may cause
+problems with non-cygwin programs.  In particular, if you have Windows
+emacs installed (instead of cygwin's emacs), you have a version of etags
+that may give errors at the end of the install.  These errors (about source
+files not existing when in fact they do) shouldn't break the build (make
+won't complain and bomb out; it's just that these are at the very end of
+the build, so it looks like they are causing problems) and can be safely
+ignored.
 
 <h3>
  <a name="64-bit Platforms">64-bit Platforms</a>
@@ -340,6 +361,19 @@ You can use the <code>--build</code> argument to
 <code>configure</code> to override the default. For example, to
 compile in 64-bit mode on a x86-64 CPU, you can use <code>./configure
 --build=x86_64-pc-linux-gnu</code>.
+
+<h3>
+  LLVM
+</h3>
+
+<em><strong>Note: Compiling %CVC3 with LLVM is not supported and 
+may cause runtime errors.</strong></em>
+
+To compiler with LLVM, run configure with the options:
+
+<pre>
+./configure CXX=llvm-gcc LIBS='-lstdc++'
+</pre>
 
 <h3>
 Other Configuration Options

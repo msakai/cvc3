@@ -364,7 +364,7 @@ private:
 	 * Fixes the current max coefficient to be used in the ordering. If the maximal coefficient
 	 * changes in the future, it will not be used in the ordering.
 	 *
-	 * @param var the variable
+	 * @param variable the variable
 	 * @param max the value to set it to
 	 */
 	void fixCurrentMaxCoefficient(Expr variable, Rational max);
@@ -653,7 +653,7 @@ private:
 	  				inline bool operator == (const EpsRational& r) const { return (q == r.q && k == r.k);	}
 
 	  				/**
-	  				 * Les then or equal comparison operator.
+	  				 * Less than or equal comparison operator.
 	  				 */
 	  				inline bool operator <= (const EpsRational& r) const {
 	  					switch (r.type) {
@@ -678,19 +678,19 @@ private:
 	  				}
 
 	  				/**
-	  				 * Les then comparison operator.
+	  				 * Less than comparison operator.
 	  				 */
 	  				inline bool operator < (const EpsRational& r) const { return !(r <= *this); }
 
 	  				/**
-	  				 * Bigger then equal comparison operator.
+	  				 * Greater than comparison operator.
 	  				 */
 	  				inline bool operator > (const EpsRational& r) const { return !(*this <= r); }
 
 	  				/**
 	  				 * Returns the string representation of the number.
 	  				 *
-	  				 * @param the string representation of the number
+	  				 * @return the string representation of the number
 	  				 */
 	  				std::string toString() const {
 	  					switch (type) {
@@ -846,7 +846,6 @@ private:
 			 * @param x variable x::Difference
 			 * @param y variable y
 			 * @param c rational c
-			 * @param kind the kind of inequality (LE or LT)
 			 * @param edge_thm the theorem for this edge
 			 */
 			void addEdge(const Expr& x, const Expr& y, const Rational& c, const Theorem& edge_thm);

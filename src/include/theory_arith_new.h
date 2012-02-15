@@ -434,7 +434,7 @@ public:
   				inline bool operator == (const EpsRational& r) const { return (q == r.q && k == r.k);	}
   				
   				/**
-  				 * Les then or equal comparison operator.
+  				 * Less than or equal comparison operator.
   				 */
   				inline bool operator <= (const EpsRational& r) const { 
   					switch (r.type) {
@@ -459,12 +459,12 @@ public:
   				}
   				
   				/**
-  				 * Les then comparison operator.
+  				 * Less than comparison operator.
   				 */
   				inline bool operator < (const EpsRational& r) const { return !(r <= *this); }
   				
   				/**
-  				 * Bigger then equal comparison operator.
+  				 * Greater than comparison operator.
   				 */
   				inline bool operator > (const EpsRational& r) const { return !(*this <= r); }
   				
@@ -787,6 +787,7 @@ public:
   		 * Asserts a new upper bound constraint on a variable and performs a simple check for consistency (not complete).
   		 * 
   		 * @param x_i the variable to assert the bound on
+  		 * @param c the bound to assert
 		 */
   		QueryResult assertUpper(const Expr& x_i, const EpsRational& c, const Theorem& thm);
 
@@ -794,13 +795,15 @@ public:
   		 * Asserts a new lower bound constraint on a variable and performs a simple check for consistency (not complete).
   		 * 
   		 * @param x_i the variable to assert the bound on
+  		 * @param c the bound to assert
 		 */
   		QueryResult assertLower(const Expr& x_i, const EpsRational& c, const Theorem& thm);
   		
   		/**
-  		 * Asserts a new equality constraint on a variable by asserting both upper and lower bound.
+  		 * Asserts a new equality constraint on a variable by asserting both upper and lower bounds.
   		 * 
   		 * @param x_i the variable to assert the bound on
+  		 * @param c the bound to assert
 		 */
   		QueryResult assertEqual(const Expr& x_i, const EpsRational& c, const Theorem& thm);  		
 
@@ -862,7 +865,7 @@ public:
   		
   		/**
   		 * Knowing that the tableaux row for \f$x_i\f$ is the problematic one, generate the
-  		 * explanation clause. The variables in the row of \f$x_i = \sum_{x_j \in \mathcal{N}}{a_ij x_j}\f$ are separatied to
+  		 * explanation clause. The variables in the row of \f$x_i = \sum_{x_j \in \mathcal{N}}{a_ij x_j}\f$ are separated to
   		 * <ul>
   		 * <li>\f$\mathcal{N}^+ = \left\lbrace x_j \in \mathcal{N} \; | \; a_{ij} > 0 \right\rbrace\f$
 		 * <li>\f$\mathcal{N}^- = \left\lbrace  x_j \in \mathcal{N} \; | \; a_{ij} < 0\right\rbrace\f$ 
@@ -878,7 +881,7 @@ public:
 
   		/**
   		 * Knowing that the tableaux row for \f$x_i\f$ is the problematic one, generate the
-  		 * explanation clause. The variables in the row of \f$x_i = \sum_{x_j \in \mathcal{N}}{a_ij x_j}\f$ are separatied to
+  		 * explanation clause. The variables in the row of \f$x_i = \sum_{x_j \in \mathcal{N}}{a_ij x_j}\f$ are separated to
   		 * <ul>
   		 * <li>\f$\mathcal{N}^+ = \left\lbrace x_j \in \mathcal{N} \; | \; a_{ij} > 0 \right\rbrace\f$
 		 * <li>\f$\mathcal{N}^- = \left\lbrace  x_j \in \mathcal{N} \; | \; a_{ij} < 0\right\rbrace\f$ 

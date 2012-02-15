@@ -195,8 +195,19 @@ def print_definition(cpp_file, name, (result, args, body)):
     print_unembed_args(cpp_file, args)
     cpp_file.writelines([
             "    " + "    ".join(body),
-            "  } catch (const Exception& e) { toJava(env, e); };\n",
-            "}\n\n"])
+            "  } catch (const Exception& e) {\n",
+            "    toJava(env, e);\n"])
+    if result in [ "jobject", "jobjectArray", "jstring" ]:
+        cpp_file.writelines(["    return NULL;\n"])
+    elif result == "jboolean":
+        cpp_file.writelines(["    return false;\n"])
+    elif result == "jint":
+        cpp_file.writelines(["    return -1;\n"])
+    elif result <> "void":
+        print("BUG: return type " + result + " is not handled in print_definition")
+        sys.exit(1)
+    cpp_file.writelines(["  };\n",
+					     "}\n\n"])
 
 def print_cpp(cpp_name, declarations, definitions, includes):
     try:

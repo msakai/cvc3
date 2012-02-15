@@ -1159,7 +1159,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       // * check if any of the kids simplify (if not, don't bother).
       // If kids are already simplified, we'll hit the simplifier
       // cache.  It's only expensive when kids do indeed simplify.
-      if(!res.getRHS().hasFind()) {
+      if(theoryCore()->inUpdate() || !res.getRHS().hasFind()) {
 	Expr ee = res.getRHS();
 	vector<Theorem> thms;
 	vector<unsigned> changed;

@@ -2,6 +2,9 @@ package cvc3;
 
 import java.util.*;
 
+import cvc3.Expr;
+import cvc3.JniUtils;
+
 public class ValidityChecker extends Embedded {
     // jni methods
     private static native Object
@@ -306,9 +309,21 @@ public class ValidityChecker extends Embedded {
 	jniForallExpr1(Object ValidityChecker, Object[] ExprVars, Object ExprBody) throws Cvc3Exception;
     private static native Object
 	jniForallExpr2(Object ValidityChecker, Object[] ExprVars, Object ExprBody,
-		      Object[] ExprTriggers) throws Cvc3Exception;
+		      Object ExprTrigger) throws Cvc3Exception;
+    private static native Object
+    jniForallExpr3(Object ValidityChecker, Object[] ExprVars, Object ExprBody,
+              Object[] ExprTriggers) throws Cvc3Exception;
+    private static native Object
+	jniForallExpr4(Object ValidityChecker, Object[] ExprVars, Object ExprBody,
+		      Object[][] ExprTriggers) throws Cvc3Exception;
+    private static native void
+	jniSetTrigger(Object ValidityChecker, Object ExprClosure, Object ExprTrigger) throws Cvc3Exception;
     private static native void
 	jniSetTriggers(Object ValidityChecker, Object ExprClosure, Object[] ExprTriggers) throws Cvc3Exception;
+    private static native void
+    jniSetTriggers2(Object ValidityChecker, Object ExprClosure, Object[][] ExprTriggers) throws Cvc3Exception;
+    private static native void
+    jniSetMultiTrigger(Object ValidityChecker, Object ExprClosure, Object[] ExprMultiTrigger) throws Cvc3Exception;
     private static native Object
 	jniExistsExpr(Object ValidityChecker, Object[] ExprVars, Object ExprBody) throws Cvc3Exception;
     private static native Object
@@ -1338,16 +1353,46 @@ public class ValidityChecker extends Embedded {
 	  embeddedManager());
     }
 
-    public ExprMut forallExpr(List vars, Expr body, List triggers) throws Cvc3Exception {
+    public ExprMut forallExpr(List vars, Expr body, Expr trigger) throws Cvc3Exception {
 	assert(JniUtils.listInstanceof(vars, Expr.class));
 	return new ExprMut(
 	  jniForallExpr2(embedded(), JniUtils.unembedList(vars), body.embedded(),
+                         trigger.embedded()),
+	  embeddedManager());
+    }
+
+    public ExprMut forallExpr(List vars, Expr body, List triggers) throws Cvc3Exception {
+	assert(JniUtils.listInstanceof(vars, Expr.class));
+	assert(JniUtils.listInstanceof(triggers, Expr.class));
+	return new ExprMut(
+	  jniForallExpr3(embedded(), JniUtils.unembedList(vars), body.embedded(),
 			JniUtils.unembedList(triggers)),
 	  embeddedManager());
     }
 
+    public ExprMut forallExprMultiTriggers(List vars, Expr body, List multiTriggers)
+      throws Cvc3Exception {
+    assert (JniUtils.listInstanceof(vars, Expr.class));
+    assert (JniUtils.listListInstanceof(multiTriggers, Expr.class));
+    return new ExprMut(jniForallExpr4(embedded(), JniUtils.unembedList(vars),
+        body.embedded(), JniUtils.unembedListList(multiTriggers)),
+        embeddedManager());
+    }
+
+    public void setTrigger(Expr closure, Expr trigger) throws Cvc3Exception {
+      jniSetTrigger(embedded(), closure.embedded(), trigger.embedded());
+    }
+
     public void setTriggers(Expr closure, List triggers) throws Cvc3Exception {
-	jniSetTriggers(embedded(), closure.embedded(), JniUtils.unembedList(triggers));
+      jniSetTriggers(embedded(), closure.embedded(), JniUtils.unembedList(triggers));
+    }
+
+    public void setMultiTrigger(Expr closure, List multiTrigger) throws Cvc3Exception {
+      jniSetMultiTrigger(embedded(), closure.embedded(), JniUtils.unembedList(multiTrigger));
+    }
+
+    public void setMultiTriggers(Expr closure, List triggers) throws Cvc3Exception {
+      jniSetTriggers2(embedded(), closure.embedded(), JniUtils.unembedListList(triggers));
     }
 
     public ExprMut existsExpr(List vars, Expr body) throws Cvc3Exception {

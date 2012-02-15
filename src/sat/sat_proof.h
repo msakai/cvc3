@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*!
- *\file minisat_proof.h
+ *\file sat_proof.h
  *\brief Sat solver proof representation
  *
  * Author: Alexander Fuchs

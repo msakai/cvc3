@@ -28,6 +28,7 @@
 // This code is trusted
 #define _CVC3_TRUSTED_
 
+#include <cstdio>
 #include "bitvector_theorem_producer.h"
 #include "common_proof_rules.h"
 #include "theory_core.h"
@@ -479,7 +480,7 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
 
   //if both MSBs are constants, then we can optimize the output.  we
   //know precisely the value of the signed comparison in cases where
-  //topbit of e0 and e1 are constants. e.g. |-1@t0 < 0@t1 is clearly
+  //topbit of e0 and e1 are constants. e.g. |-1\@t0 < 0\@t1 is clearly
   //|-TRUE.
 
   //-1 indicates that both topBits are not known to be BVCONSTS
@@ -1009,9 +1010,9 @@ Theorem BitvectorTheoremProducer::bitExtractConstant(const Expr & x, int i)
 }
 
 
-// Input: x: a_0 @ ... @ a_n,
+// Input: x: a_0 \@ ... \@ a_n,
 //        i: bitposition
-// Output |- BOOLEXTRACT(a_0 @ ... @ a_n, i) <=> BOOLEXTRACT(a_j, k)
+// Output |- BOOLEXTRACT(a_0 \@ ... \@ a_n, i) <=> BOOLEXTRACT(a_j, k)
 //        where j and k are determined by structure of CONCAT
 Theorem BitvectorTheoremProducer::bitExtractConcatenation(const Expr & x,
 							  int i)
@@ -1939,7 +1940,7 @@ Theorem BitvectorTheoremProducer::eqToBits(const Theorem& eq) {
 }
 
 
-//! t<<n = c @ 0bin00...00, takes e == (t<<n)
+//! t<<n = c \@ 0bin00...00, takes e == (t<<n)
 Theorem BitvectorTheoremProducer::leftShiftToConcat(const Expr& e) {
   if(CHECK_PROOFS) {
     // The kids must be constant expressions
@@ -1963,7 +1964,7 @@ Theorem BitvectorTheoremProducer::leftShiftToConcat(const Expr& e) {
   return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
-//! t<<n = c @ 0bin00...00, takes e == (t<<n)
+//! t<<n = c \@ 0bin00...00, takes e == (t<<n)
 Theorem BitvectorTheoremProducer::constWidthLeftShiftToConcat(const Expr& e) {
   if(CHECK_PROOFS) {
     // The kids must be constant expressions
@@ -1996,7 +1997,7 @@ Theorem BitvectorTheoremProducer::constWidthLeftShiftToConcat(const Expr& e) {
 }
 
 
-//! t>>m = 0bin00...00 @ t[bvLength-1:m], takes e == (t>>n)
+//! t>>m = 0bin00...00 \@ t[bvLength-1:m], takes e == (t>>n)
 Theorem BitvectorTheoremProducer::rightShiftToConcat(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == RIGHTSHIFT && e.arity() == 1,
@@ -2028,7 +2029,7 @@ Theorem BitvectorTheoremProducer::rightShiftToConcat(const Expr& e) {
 }
 
 
-//! BVSHL(t,c) = t[n-c,0] @ 0bin00...00
+//! BVSHL(t,c) = t[n-c,0] \@ 0bin00...00
 Theorem BitvectorTheoremProducer::bvshlToConcat(const Expr& e) {
   if(CHECK_PROOFS) {
     // The second kid must be a constant expression
@@ -2102,7 +2103,7 @@ Theorem BitvectorTheoremProducer::bvshlSplit(const Expr &e)
 }
 
 
-//! BVLSHR(t,c) = 0bin00...00 @ t[n-1,c]
+//! BVLSHR(t,c) = 0bin00...00 \@ t[n-1,c]
 Theorem BitvectorTheoremProducer::bvlshrToConcat(const Expr& e)
 {
   if(CHECK_PROOFS) {
@@ -2265,7 +2266,7 @@ Theorem BitvectorTheoremProducer::rewriteBVSub(const Expr& e)
 
 
 //! k*t = BVPLUS(n, <sum of shifts of t>) -- translation of k*t to BVPLUS
-/*! If k = 2^m, return k*t = t@0...0 */
+/*! If k = 2^m, return k*t = t\@0...0 */
 Theorem BitvectorTheoremProducer::constMultToPlus(const Expr& e) {
   DebugAssert(false,
 	      "BitvectorTheoremProducer::constMultToPlus: this rule does not work\n");
@@ -2459,7 +2460,7 @@ BitvectorTheoremProducer::extractExtract(const Expr& e) {
 }
 
 
-//! (t1 @ t2)[i:j] = t1[...] @ t2[...]  (push extraction through concat)
+//! (t1 \@ t2)[i:j] = t1[...] \@ t2[...]  (push extraction through concat)
 Theorem
 BitvectorTheoremProducer::extractConcat(const Expr& e) {
   TRACE("bitvector rules", "extractConcat(", e, ") {");
@@ -2672,7 +2673,7 @@ Theorem BitvectorTheoremProducer::negConst(const Expr& e) {
 }
 
 
-//! ~(t1@...@tn) = (~t1)@...@(~tn) -- push negation through concat
+//! ~(t1\@...\@tn) = (~t1)\@...\@(~tn) -- push negation through concat
 Theorem
 BitvectorTheoremProducer::negConcat(const Expr& e) {
   if(CHECK_PROOFS) {
@@ -3190,7 +3191,7 @@ int BitvectorTheoremProducer::sameKidCheck(const Expr&  e,
 }
 
 
-//! c1@c2@...@cn = c  (concatenation of constant bitvectors)
+//! c1\@c2\@...\@cn = c  (concatenation of constant bitvectors)
 Theorem BitvectorTheoremProducer::concatConst(const Expr& e) {
   if(CHECK_PROOFS) {
     // The kids must be constant expressions
@@ -3211,7 +3212,7 @@ Theorem BitvectorTheoremProducer::concatConst(const Expr& e) {
 }
 
 
-//! Flatten one level of nested concatenation, e.g.: x@(y@z)@w = x@y@z@w
+//! Flatten one level of nested concatenation, e.g.: x\@(y\@z)\@w = x\@y\@z\@w
 Theorem
 BitvectorTheoremProducer::concatFlatten(const Expr& e) {
   if(CHECK_PROOFS) {
@@ -3233,7 +3234,7 @@ BitvectorTheoremProducer::concatFlatten(const Expr& e) {
 }
 
 
-//! Merge n-ary concat. of adjacent extractions: x[15:8]@x[7:0] = x[15:0]
+//! Merge n-ary concat. of adjacent extractions: x[15:8]\@x[7:0] = x[15:0]
 Theorem
 BitvectorTheoremProducer::concatMergeExtract(const Expr& e) {
   if(CHECK_PROOFS) {
@@ -4681,7 +4682,7 @@ Theorem BitvectorTheoremProducer::BVMult_order_subterms( const Expr& e )
 }
 
 
-// BVMULT(N, a@b, y) = BVPLUS(N, BVMULT(N,b,y), BVMULT(N-n,a,y) @ n-bit-0-string)
+// BVMULT(N, a\@b, y) = BVPLUS(N, BVMULT(N,b,y), BVMULT(N-n,a,y) \@ n-bit-0-string)
 // where n = BVSize(b), a != 0, one of a or b is a constant
 Theorem BitvectorTheoremProducer::liftConcatBVMult(const Expr& e)
 {
@@ -4917,7 +4918,7 @@ Theorem BitvectorTheoremProducer::distributive_rule( const Expr& e )
 }
 
 
-// BVPLUS(N, a0, ..., an) = BVPLUS(N-n,a0[N-1:n],...an[N-1:n])@t
+// BVPLUS(N, a0, ..., an) = BVPLUS(N-n,a0[N-1:n],...an[N-1:n])\@t
 // where n = BVSize(t), and the sum of the lowest n bits of a0..an is exactly
 // equal to t (i.e. no carry)
 Theorem BitvectorTheoremProducer::liftConcatBVPlus(const Expr& e)
@@ -5602,9 +5603,9 @@ Theorem BitvectorTheoremProducer::canonBVUMinus( const Expr& e )
 
 // Input: t[hi:lo] = rhs
 // if t appears as leaf in rhs, then:
-//    t[hi:lo] = rhs |- Exists x,y,z. (t = x @ y @ z AND y = rhs), solvedForm = false
+//    t[hi:lo] = rhs |- Exists x,y,z. (t = x \@ y \@ z AND y = rhs), solvedForm = false
 // else
-//    t[hi:lo] = rhs |- Exists x,z. (t = x @ rhs @ z), solvedForm = true
+//    t[hi:lo] = rhs |- Exists x,z. (t = x \@ rhs \@ z), solvedForm = true
 Theorem BitvectorTheoremProducer::processExtract(const Theorem& e, bool& solvedForm)
 {
   Expr expr = e.getExpr();
@@ -6075,7 +6076,7 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e, int maxEffort )
 }
 
 
-//! BVZEROEXTEND(e, i) = zeroString @ e
+//! BVZEROEXTEND(e, i) = zeroString \@ e
 // where zeroString is a string of i zeroes
 Theorem BitvectorTheoremProducer::zeroExtendRule(const Expr& e) {
   if(CHECK_PROOFS) {
@@ -6103,7 +6104,7 @@ Theorem BitvectorTheoremProducer::zeroExtendRule(const Expr& e) {
 }
 
 
-//! BVREPEAT(e, i) = e @ e @ ... @ e
+//! BVREPEAT(e, i) = e \@ e \@ ... \@ e
 // where e appears i times on the right
 Theorem BitvectorTheoremProducer::repeatRule(const Expr& e) {
   if(CHECK_PROOFS) {
@@ -6136,7 +6137,7 @@ Theorem BitvectorTheoremProducer::repeatRule(const Expr& e) {
 }
 
 
-//! BVROTL(e, i) = a[n-i-1:0] @ a[n-1:n-i]
+//! BVROTL(e, i) = a[n-i-1:0] \@ a[n-1:n-i]
 // where n is the size of e and i is less than n (otherwise i mod n is used)
 Theorem BitvectorTheoremProducer::rotlRule(const Expr& e) {
   if(CHECK_PROOFS) {
@@ -6167,7 +6168,7 @@ Theorem BitvectorTheoremProducer::rotlRule(const Expr& e) {
 }
 
 
-//! BVROTR(e, i) = a[i-1:0] @ a[n-1:i]
+//! BVROTR(e, i) = a[i-1:0] \@ a[n-1:i]
 // where n is the size of e and i is less than n (otherwise i mod n is used)
 Theorem BitvectorTheoremProducer::rotrRule(const Expr& e) {
   if(CHECK_PROOFS) {

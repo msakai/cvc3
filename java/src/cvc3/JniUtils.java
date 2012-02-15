@@ -68,7 +68,15 @@ public class JniUtils {
 	return embedded;
     }
 
-
+    public static List embedListList(Object[][] cobjects, Class c, EmbeddedManager embeddedManager) {
+      List embedded = new ArrayList(cobjects.length);
+      for (int i = 0; i < cobjects.length; ++i) {
+        Object[] cobject = cobjects[i];
+        embedded.add( embedList(cobject,c,embeddedManager) );
+      }
+      return embedded;
+    }
+    
     // embed an array of c++ objects in a hash map
     public static HashMap embedHashMap(Object[] cobjects, Class ck, Class cv,
 				       EmbeddedManager embeddedManager) {
@@ -127,8 +135,8 @@ public class JniUtils {
 	return unembedded;
     }
 
-    public static Object[] unembedListList(List embedded) {
-	Object[] unembedded = new Object[embedded.size()];
+    public static Object[][] unembedListList(List embedded) {
+	Object[][] unembedded = new Object[embedded.size()][];
 
 	for (int i = 0; i < embedded.size(); ++i) {
 	    Object list = embedded.get(i);
@@ -139,8 +147,8 @@ public class JniUtils {
 	return unembedded;
     }
 
-    public static Object[] unembedListListList(List embedded) {
-	Object[] unembedded = new Object[embedded.size()];
+    public static Object[][][] unembedListListList(List embedded) {
+	Object[][][] unembedded = new Object[embedded.size()][][];
 
 	for (int i = 0; i < embedded.size(); ++i) {
 	    Object list = embedded.get(i);

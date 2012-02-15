@@ -91,6 +91,7 @@ namespace CVC3 {
   Theorem& Theorem::operator=(const Theorem& th) {
     // Handle self-assignment
     if(this == &th) return *this;
+    if(d_thm == th.d_thm) return *this;
 
     long tmp = th.d_thm;
 

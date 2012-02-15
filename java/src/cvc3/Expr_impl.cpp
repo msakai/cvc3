@@ -242,6 +242,10 @@ DEFINITION: Java_cvc3_Expr_jniGetRational
 jobject c Expr expr
 return embed_const_ref<Rational>(env, &expr->getRational());
 
+DEFINITION: Java_cvc3_Expr_jniGetTriggers
+jobjectArray c Expr expr
+return toJavaVVConstRef(env, expr->getTriggers());
+
 DEFINITION: Java_cvc3_Expr_jniGetTheorem
 jobject c Expr expr
 return embed_const_ref<Theorem>(env, &expr->getTheorem());
@@ -258,8 +262,6 @@ DEFINITION: Java_cvc3_Expr_jniGetOp
 jobject c Expr expr
 return embed_copy<Op>(env, expr->getOp());
 
-
-
 DEFINITION: Java_cvc3_Expr_jniIsNull
 jboolean c Expr expr
 return expr->isNull();
@@ -268,6 +270,14 @@ DEFINITION: Java_cvc3_Expr_jniArity
 jint c Expr expr
 return expr->arity();
 
-DEFINITION: Java_cvc3_Expr_jniGetChild
+DEFINITION: Java_cvc3_Expr_jniGetKid
 jobject c Expr expr n int i
 return embed_const_ref<Expr>(env, &((*expr)[ji]));
+
+DEFINITION: Java_cvc3_Expr_jniGetKids
+jobjectArray c Expr expr
+return toJavaVConstRef(env, expr->getKids());
+
+DEFINITION: Java_cvc3_Expr_jniSubstExpr
+jobject c Expr e cv Expr oldExprs cv Expr newExprs
+return embed_copy(env, e->substExpr(oldExprs,newExprs));

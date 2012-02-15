@@ -115,14 +115,14 @@ MODULES = cvc_util \
 	c_interface
 
 CVC_EXE = $(TOP)/bin/$(PROJECTNAME)
-ifneq ($(CYGWIN),)
-LIB_BASE_NAME=cyg$(PROJECTNAME)
-else
-LIB_BASE_NAME=lib$(PROJECTNAME)
-endif
 LIB_BASE=$(LIB_DIR)/$(LIB_BASE_NAME)
 LIB_STATIC_NAME=$(LIB_BASE_NAME).$(STATIC_LIB_SUFFIX)
 LIB_SHARED_BASE=$(LIB_BASE_NAME).$(SHARED_LIB_SUFFIX)
+ifneq ($(CYGWIN),)
+    LIB_SHARED_MAJOR=$(LIB_BASE_NAME)-$(subst .,-,$(LIB_MAJOR_VERSION)).$(SHARED_LIB_SUFFIX)
+    LIB_SHARED_COMPAT=$(LIB_BASE_NAME)-$(subst .,-,$(LIB_COMPAT_VERSION)).$(SHARED_LIB_SUFFIX)
+    LIB_SHARED_FULL=$(LIB_BASE_NAME)-$(subst .,-,$(LIB_VERSION)).$(SHARED_LIB_SUFFIX)
+else
 ifneq ($(MAC_OSX),)
     LIB_SHARED_MAJOR=$(LIB_BASE_NAME).$(LIB_MAJOR_VERSION).$(SHARED_LIB_SUFFIX)
     LIB_SHARED_COMPAT=$(LIB_BASE_NAME).$(LIB_COMPAT_VERSION).$(SHARED_LIB_SUFFIX)
@@ -131,6 +131,7 @@ else
     LIB_SHARED_MAJOR=$(LIB_SHARED_BASE).$(LIB_MAJOR_VERSION)
     LIB_SHARED_COMPAT=$(LIB_SHARED_BASE).$(LIB_COMPAT_VERSION)
     LIB_SHARED_FULL=$(LIB_SHARED_BASE).$(LIB_VERSION)
+endif
 endif
 # LIB_SONAME=$(LIB_SHARED_FULL).$(SONAME)
 LIB_STATIC=$(LIB_DIR)/$(LIB_STATIC_NAME)
@@ -204,7 +205,6 @@ else
 ifneq ($(CYGWIN),)
 	eval $(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
     -Wl,-soname,$(LIB_SHARED_MAJOR) -o \''$(LIB_SHARED)'\' `cat UNPACKED` $(LD_LIBS)
-	-ldconfig -nv $(LIB_DIR)
 else
 	cat UNPACKED | xargs $(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
     -Wl,-soname,$(LIB_SHARED_MAJOR) -o '$(LIB_SHARED)' `` $(LD_LIBS)
@@ -223,7 +223,11 @@ $(CVC_LIB): $(LIB_STATIC)
 else
 $(CVC_LIB): $(LIB_SHARED)
 	ln -sf $(LIB_SHARED) '$(call dirx,$@)/$(LIB_SHARED_FULL)'
+ifeq ($(MAC_OSX),)
+ifeq ($(CYGWIN),)
 	-ldconfig -nv '$(call dirx,$@)'
+endif
+endif
 	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_COMPAT)'
 	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_MAJOR)'
 	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_BASE)'
@@ -252,11 +256,16 @@ install: $(HEADERS)
 	mkdir -p $(incdir)
 	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(HEADERS) $(incdir)
 	mkdir -p $(libdir)
-	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(CVC_LIB) $(libdir)
 ifeq ($(STATIC),1)
+	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(CVC_LIB_DIR)/$(CVC_LIB_NAME).$(LIB_VERSION) $(libdir)
 	ln -sf $(CVC_LIB_NAME).$(LIB_VERSION) $(libdir)/$(call notdirx,$(CVC_LIB))
 else
+	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(CVC_LIB) $(libdir)
+ifeq ($(MAC_OSX),)
+ifeq ($(CYGWIN),)
 	-ldconfig -nv $(libdir)
+endif
+endif
 	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_COMPAT) 
 	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_MAJOR)
 	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_BASE)

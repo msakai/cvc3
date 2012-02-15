@@ -1710,6 +1710,18 @@ Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body) {
 }
 
 Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
+                     const Expr& trig) {
+  DebugAssert(vars.size() > 0, "VCL::foralLExpr()");
+  return d_em->newClosureExpr(FORALL, vars, body, trig);
+}
+
+Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
+                     const vector<Expr>& triggers) {
+  DebugAssert(vars.size() > 0, "VCL::foralLExpr()");
+  return d_em->newClosureExpr(FORALL, vars, body, triggers);
+}
+
+Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
 		     const vector<vector<Expr> >& triggers) {
   DebugAssert(vars.size() > 0, "VCL::foralLExpr()");
   return d_em->newClosureExpr(FORALL, vars, body, triggers);
@@ -1719,6 +1731,17 @@ void VCL::setTriggers(const Expr& e, const std::vector< std::vector<Expr> >& tri
   e.setTriggers(triggers);
 }
 
+void VCL::setTriggers(const Expr& e, const std::vector<Expr>& triggers) {
+  e.setTriggers(triggers);
+}
+
+void VCL::setTrigger(const Expr& e, const Expr& trigger) {
+  e.setTrigger(trigger);
+}
+
+void VCL::setMultiTrigger(const Expr& e, const std::vector<Expr>& multiTrigger) {
+  e.setMultiTrigger(multiTrigger);
+}
 
 Expr VCL::existsExpr(const vector<Expr>& vars, const Expr& body) {
   return d_em->newClosureExpr(EXISTS, vars, body);

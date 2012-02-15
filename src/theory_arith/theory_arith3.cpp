@@ -421,7 +421,7 @@ TheoryArith3::canonConjunctionEquiv(const Theorem& thm) {
   return thm;
 }
 
-/*! Psuedo-code for doSolve. (Input is an equation) (output is a Theorem)
+/*! Pseudo-code for doSolve. (Input is an equation) (output is a Theorem)
  *  -# translate e to the form e' = 0
  *  -# if (e'.isRational()) then {if e' != 0 return false else true}
  *  -# a for loop checks if all the variables are integers.

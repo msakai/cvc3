@@ -21,6 +21,7 @@
 #ifndef _cvc3__include__memory_manager_context_h
 #define _cvc3__include__memory_manager_context_h
 
+#include <cstdlib>
 #include <vector>
 #include "memory_manager.h"
 

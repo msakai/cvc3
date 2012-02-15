@@ -371,7 +371,7 @@ public:
     DebugAssert(false, "setTriggers() is called on ExprValue");
   }
 
-  virtual const std::vector<std::vector<Expr> >& getTrigs() const { //by yeting
+  virtual const std::vector<std::vector<Expr> >& getTriggers() const { //by yeting
     DebugAssert(false, "getTrigs() is called on ExprValue");
     static std::vector<std::vector<Expr> > null;
     return null;
@@ -915,7 +915,7 @@ private:
   virtual const std::vector<Expr>& getVars() const { return d_vars; }
   virtual const Expr& getBody() const { return d_body; }
   virtual void setTriggers(const std::vector<std::vector<Expr> >& triggers) { d_manual_triggers = triggers; }
-  virtual const std::vector<std::vector<Expr> >&  getTrigs() const { return d_manual_triggers; }
+  virtual const std::vector<std::vector<Expr> >&  getTriggers() const { return d_manual_triggers; }
 
 protected:
 

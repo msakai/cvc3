@@ -24,6 +24,7 @@
 #include "compat_hash_set.h"
 #include "rational.h"
 
+#include <climits>
 #include <sstream>
 #include <gmp.h>
 #include <limits.h>

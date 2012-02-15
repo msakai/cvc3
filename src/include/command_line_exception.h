@@ -31,7 +31,7 @@ public:
   // Constructors
   CLException() { }
   CLException(const std::string& msg): Exception(msg) { }
-  CLException(char* msg): Exception(msg) { }
+  CLException(const char* msg): Exception(msg) { }
   // Destructor
   virtual ~CLException() { }
   // Printing the message

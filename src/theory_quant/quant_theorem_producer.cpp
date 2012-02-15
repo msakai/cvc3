@@ -116,7 +116,7 @@ QuantTheoremProducer::normalizeQuant(const Expr& quant) {
     newVars.push_back(newExpr);
   }
 
-  vector<vector<Expr> > trigs = quant.getTrigs();
+  vector<vector<Expr> > trigs = quant.getTriggers();
   for(size_t i = 0 ; i < trigs.size(); i++){
     for(size_t j = 0 ; j < trigs[i].size(); j++){
       trigs[i][j] = trigs[i][j].substExpr(cur_vars,newVars);
@@ -239,8 +239,9 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
  * size as the vector of bound variables in e. Also elements in
  * each position i need to have matching base types. psi is the conjunction of
  * subtype predicates for the bound variables of the quanitfied expression.
- * \param t1 is the quantifier (a Theorem)
- * \param terms are the terms to instantiate.
+ * \param t1 the quantifier (a Theorem)
+ * \param terms the terms to instantiate.
+ * \param quantLevel the quantification level for the formula
  */
 Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Expr>& terms, int quantLevel){
 

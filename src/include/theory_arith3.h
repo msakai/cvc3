@@ -337,7 +337,7 @@ private:
 	 * Fixes the current max coefficient to be used in the ordering. If the maximal coefficient
 	 * changes in the future, it will not be used in the ordering.
 	 * 
-	 * @param var the variable
+	 * @param variable the variable
 	 * @param max the value to set it to
 	 */ 
 	void fixCurrentMaxCoefficient(Expr variable, Rational max);

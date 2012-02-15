@@ -44,6 +44,7 @@ build:
 ifeq ($(BUILD_JAVA),1)
 	cd $(TOP)/java; $(MAKE) $(TARGET) VERSION=$(VERSION)
 endif
+ifeq ($(CYGWIN),)
 ifndef TARGET
 	find $(TOP)/src '(' -name "*.h" -o -name "*.cpp" -o       \
 	                           -name "*.y" ')'       \
@@ -54,6 +55,7 @@ ifdef ETAGS
 endif
 ifdef EBROWSE
 	ebrowse --files=FILES
+endif
 endif
 endif
 

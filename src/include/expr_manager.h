@@ -302,6 +302,10 @@ namespace CVC3 {
     Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
                         const Expr& body);
     Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
+                        const Expr& body, const Expr& trig);
+    Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
+                        const Expr& body, const std::vector<Expr>& trigs);
+    Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
                         const Expr& body, const std::vector<std::vector<Expr> >& trigs);
 
     // Vector of children constructors (vector may be empty)
@@ -512,9 +516,23 @@ inline Expr ExprManager::newClosureExpr(int kind,
 inline Expr ExprManager::newClosureExpr(int kind,
                                         const std::vector<Expr>& vars,
                                         const Expr& body,
+                                        const std::vector<Expr>& trigs)
+  { ExprClosure ev(this, kind, vars, body);
+    Expr ret = newExpr(&ev); ret.setTriggers(trigs); return ret; }
+
+inline Expr ExprManager::newClosureExpr(int kind,
+                                        const std::vector<Expr>& vars,
+                                        const Expr& body,
                                         const std::vector<std::vector<Expr> >& trigs)
   { ExprClosure ev(this, kind, vars, body);
     Expr ret = newExpr(&ev); ret.setTriggers(trigs); return ret; }
+
+inline Expr ExprManager::newClosureExpr(int kind,
+                                        const std::vector<Expr>& vars,
+                                        const Expr& body,
+                                        const Expr& trig)
+  { ExprClosure ev(this, kind, vars, body);
+    Expr ret = newExpr(&ev); ret.setTrigger(trig); return ret; }
 
 inline bool ExprManager::EqEV::operator()(const ExprValue* ev1,
                                           const ExprValue* ev2) const {

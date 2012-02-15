@@ -2888,9 +2888,9 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
   }
 
   if  (*d_useManTrig  ) {
-    if(e.getTrigs().size() > 0) {
+    if(e.getTriggers().size() > 0) {
       //      cout<<"manual trig found"<<endl;
-      //      cout<<vectorExpr2string(e.getTrigs())<<endl;
+      //      cout<<vectorExpr2string(e.getTriggers())<<endl;
     }
   }
 
@@ -2927,8 +2927,8 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
     }
 
 
-    if(*d_useManTrig && e.getTrigs().size() > 0  ){
-      std::vector<std::vector<Expr> > man_trigs = e.getTrigs();
+    if(*d_useManTrig && e.getTriggers().size() > 0  ){
+      std::vector<std::vector<Expr> > man_trigs = e.getTriggers();
       for(std::vector<std::vector<Expr> >::const_iterator i=man_trigs.begin(), iend=man_trigs.end(); i != iend; i++){
 	//	if(1 == i->arity()){
 	if(1 == i->size()){
@@ -3090,9 +3090,9 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
       TRACE("triggers", "new:full trigger pol:", pol,"");
     }
 
-    if(e.getTrigs().size() > 0) {
+    if(e.getTriggers().size() > 0) {
       //      cout<<"#### manual_trig: ";
-      //      cout<<vectorExpr2string(e.getTrigs())<<endl;
+      //      cout<<vectorExpr2string(e.getTriggers())<<endl;
     }
 
 
@@ -3111,8 +3111,8 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
   if(0 == d_fullTrigs[e].size())
     {  //setup multriggers
       std::vector<Expr>& cur_trig = d_multTriggers[e];
-      if(*d_useManTrig && e.getTrigs().size() > 0 ){
-	std::vector<std::vector<Expr> > man_trig = e.getTrigs();
+      if(*d_useManTrig && e.getTriggers().size() > 0 ){
+	std::vector<std::vector<Expr> > man_trig = e.getTriggers();
 	int count(0);
 	for(std::vector<std::vector<Expr> >::const_iterator i = man_trig.begin(), iend = man_trig.end(); i != iend; i++){
 	  //	  if (i->arity() > 1) count++;
@@ -3239,7 +3239,7 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
 
       {//new way of multi trigger
 
-	if(!(*d_useManTrig) || e.getTrigs().size() <= 0){
+	if(!(*d_useManTrig) || e.getTriggers().size() <= 0){
 	//	if(!(*d_useManTrig)){
 	  if( 3 == cur_trig.size() ||  4 == cur_trig.size() || 5 == cur_trig.size() || 6 == cur_trig.size()  ){
 	    for(size_t i = 0; i < cur_trig.size(); i++){
@@ -8688,7 +8688,7 @@ TheoryQuant::print(ExprStream& os, const Expr& e) {
       os << push << ") " << pushdag << push;
 
       // print manual triggers
-      const vector<vector<Expr> >& triggers = e.getTrigs();
+      const vector<vector<Expr> >& triggers = e.getTriggers();
       for (vector<vector<Expr> >::const_iterator i=triggers.begin(), iend=triggers.end(); i != iend; ++i) {
 	//        const vector<Expr>& terms = (*i).getKids();
         const vector<Expr>& terms = (*i);
@@ -8741,7 +8741,7 @@ TheoryQuant::print(ExprStream& os, const Expr& e) {
            << e.getBody() << push;
 
         // print manual triggers
-        const vector<vector<Expr> >& triggers = e.getTrigs();
+        const vector<vector<Expr> >& triggers = e.getTriggers();
         for (vector<vector<Expr> >::const_iterator i=triggers.begin(), iend=triggers.end(); i != iend; ++i) {
 	  //          const vector<Expr>& terms = (*i).getKids();
           const vector<Expr>& terms = (*i);

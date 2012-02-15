@@ -33,7 +33,7 @@ namespace CVC3 {
     // Constructors
     SoundException() { }
     SoundException(const std::string& msg): Exception(msg) { }
-    SoundException(char* msg): Exception(msg) { }
+    SoundException(const char* msg): Exception(msg) { }
     // Destructor
     virtual ~SoundException() { }
     virtual std::string toString() const {

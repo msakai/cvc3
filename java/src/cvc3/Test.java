@@ -63,6 +63,10 @@ class Test {
 	  allPassed = test18() && allPassed;
 	  System.out.println("\n}\ntest19():");
 	  allPassed = test19() && allPassed;
+      System.out.println("\n}\ntest22():");
+      allPassed = test22() && allPassed;
+      System.out.println("\n}\ntest23():");
+      allPassed = test23() && allPassed;
 	  /* :TODO:
 	  if (regressLevel > 1) {
 	      System.out.println("\n}\ntestgeorge1():");
@@ -218,7 +222,7 @@ class Test {
 	    b = check(vc, e);
 	    DebugAssert(b, "Should be valid");
 
-	    // Check x = y -> f(x) = f(y)
+	    // Check x = y . f(x) = f(y)
 
 	    Expr x = vc.varExpr("x", vc.realType());
 	    Expr y = vc.varExpr("y", vc.realType());
@@ -917,6 +921,121 @@ class Test {
     }
 
 
+  public static boolean test22() throws Cvc3Exception {
+    ValidityChecker vc = null;
+
+    try {
+      vc = ValidityChecker.create();
+      Type intType = vc.intType();
+      Type fType = vc.funType(intType, intType);
+
+      Op f = vc.createOp("f", fType);
+      Expr x = vc.varExpr("x", intType);
+      Expr fx = vc.exprFromString("f(x)");
+
+      Expr p = vc.exprFromString("FORALL (x:INT) : x < f(x)");
+
+      List patternvv = new ArrayList();
+      List patternv = new ArrayList();
+      patternv.add(fx);
+      patternvv.add(patternv);
+
+      vc.setTriggers(p, patternv);
+      DebugAssert(patternvv.equals(p.getTriggers()),
+          "Expected p.getTriggers() == patternvv: " + p.toString());
+
+      vc.setMultiTriggers(p, patternvv);
+
+      DebugAssert(patternvv.equals(p.getTriggers()),
+          "Expected p.getTriggers() == patternvv: " + p.toString());
+
+      List vars = new ArrayList();
+      vars.add(x);
+      Expr r = vc.forallExpr(vars, vc.ltExpr(x, fx), patternv);
+
+      DebugAssert(patternvv.equals(r.getTriggers()),
+          "Expected r.getTriggers() == patternvv: " + r.toString());
+
+      Expr s = vc.exprFromString("FORALL (x:INT) : x > f(x)");
+      vc.setTrigger(s, fx);
+
+      List trigsvv = s.getTriggers();
+      DebugAssert(trigsvv.size() == 1, "Expected s.getTriggers().size() == 1: "
+          + trigsvv.size());
+
+      List trigsv = (List)trigsvv.get(0);
+      DebugAssert(trigsv.size() == 1, "Expected s.getTriggers()[0].size() == 1: "
+          + trigsv.size());
+
+      DebugAssert(fx.equals(trigsv.get(0)),
+          "Expected s.getTriggers()[0][0] == fx: " + (trigsv.get(0)));
+
+      Expr t = vc.exprFromString("FORALL (x:INT) : x > f(x)");
+      vc.setMultiTrigger(t, patternv);
+      trigsvv = t.getTriggers();
+      DebugAssert(trigsvv.size() == 1, "Expected t.getTriggers().size() == 1: "
+          + trigsvv.size());
+
+      trigsv = (List)trigsvv.get(0);
+      DebugAssert(trigsv.size() == 1, "Expected t.getTriggers()[0].size() == 1: "
+          + trigsv.size());
+
+      DebugAssert(fx.equals(trigsv.get(0)),
+          "Expected t.getTriggers()[0][0] == fx: " + (trigsv.get(0)));
+
+      Expr u = vc.forallExprMultiTriggers(vars, vc.ltExpr(x, fx), patternvv);
+
+      DebugAssert(patternvv.equals(u.getTriggers()),
+          "Expected u.getTriggers() == patternvv: " + u.toString());
+    
+    } catch (Exception e) {
+      System.out.println("*** Exception caught in test22(): \n" + e);
+      e.printStackTrace(System.out);
+      return false;
+    } finally {
+      if (vc != null)
+        vc.delete();
+    }
+    return true;
+  }
+    
+  private static boolean test23() throws Cvc3Exception {
+    ValidityChecker vc = null;
+
+    try {
+      vc = ValidityChecker.create();
+      Type intType = vc.intType();
+
+      Expr x = vc.varExpr("x",intType);
+      Expr y= vc.varExpr("y",intType);
+      Expr a = vc.varExpr("a",intType);
+      Expr b = vc.varExpr("b",intType);
+
+      Expr s = vc.exprFromString("x < y");
+      Expr t = vc.exprFromString("a < b");
+
+      System.out.println( "s=" + s + "\nt=" + t );
+
+      List oldExprs = new ArrayList(), newExprs = new ArrayList();
+      oldExprs.add(x);
+      oldExprs.add(y);
+      newExprs.add(a);
+      newExprs.add(b);
+
+      Expr u = s.subst(oldExprs,newExprs);
+      System.out.println( "u=" + u );
+
+      DebugAssert( t.equals(u), "Expected t==u" );
+    } catch(Throwable e) {
+      System.out.println( "*** Exception caught in test23(): ");
+      e.printStackTrace(System.out);
+      return false;
+    } finally {
+      if (vc != null)
+        vc.delete();
+    }
+    return true;
+  }
 
     public static ExprMut bvadder(ValidityChecker vc, Expr a, Expr b, Expr c) throws Cvc3Exception {
 	return vc.newBVXorExpr(a, vc.newBVXorExpr(b, c));

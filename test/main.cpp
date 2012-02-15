@@ -55,6 +55,36 @@ void newAssertion(ValidityChecker* vc, Expr e)
   vc->assertFormula(e);
 }
 
+int eqExprVecs(const vector<Expr>& v1,
+                const vector<Expr>& v2) {
+    if( v1.size() != v2.size() ) {
+        return 0;
+    }
+
+    for( unsigned int i=0; i < v1.size(); ++i ) {
+        if( v1[i] != v2[i] ) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int eqExprVecVecs(const vector<vector<Expr> > vv1,
+                   const vector<vector<Expr> > vv2) {
+    if( vv1.size() != vv2.size() ) {
+        return 0;
+    }
+
+    for( unsigned int i=0; i < vv1.size(); ++i ) {
+        if( !eqExprVecs(vv1[i],vv2[i]) ) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 
 void test ()
 {
@@ -1793,6 +1823,120 @@ void test21()  {
   delete vc;
 }
 
+void test22() {
+  CLFlags flags = ValidityChecker::createFlags();
+  ValidityChecker* vc = ValidityChecker::create(flags);
+
+  try {
+    Type intType(vc->intType());
+    Type fType(vc->funType(intType,intType));
+
+    Op f(vc->createOp("f",fType));
+    Expr x(vc->varExpr("x",intType));
+    Expr fx(vc->exprFromString("f(x)"));
+
+    Expr p(vc->exprFromString("FORALL (x:INT) : x < f(x)"));
+
+    vector<vector<Expr> > patternvv;
+    vector<Expr> patternv;
+    patternv.push_back(fx);
+    patternvv.push_back(patternv);
+
+    vc->setTriggers(p,patternv);
+    DebugAssert( eqExprVecVecs(p.getTriggers(), patternvv),
+                 "Expected p.getTriggers() == patternvv: " + p.toString() );
+
+    vc->setTriggers(p,patternvv);
+
+    DebugAssert( eqExprVecVecs(p.getTriggers(), patternvv),
+                 "Expected p.getTriggers() == patternvv: " + p.toString() );
+
+    // [chris 10/4/2009] Not sure why, but this fails
+
+    // Expr q(vc->exprFromString("FORALL (x:INT) : PATTERN (f(x)) : x < f(x)"));
+
+    // DebugAssert( eqExprVecVecs(q.getTriggers(), patternvv),
+    //              "Expected q.getTriggers() == patternvv"  + q.toString());
+
+    vector<Expr> vars;
+    vars.push_back(x);
+    Expr r(vc->forallExpr( vars, vc->ltExpr(x,fx), patternvv ));
+
+    DebugAssert( eqExprVecVecs(r.getTriggers(), patternvv),
+                 "Expected r.getTriggers() == patternvv: " + r.toString() );
+
+    Expr s(vc->exprFromString("FORALL (x:INT) : x > f(x)"));
+    vc->setTrigger(s,fx);
+    
+    std::vector<std::vector<Expr> > trigsvv = s.getTriggers();
+    DebugAssert( trigsvv.size() == 1, 
+                 "Expected s.getTriggers().size() == 1: " + trigsvv.size() );
+
+    std::vector<Expr> trigsv = trigsvv[0];
+    DebugAssert( trigsv.size() == 1, 
+                 "Expected s.getTriggers()[0].size() == 1: "
+                 + trigsv.size() );
+
+    DebugAssert( trigsv[0] == fx, 
+                 "Expected s.getTriggers()[0][0] == fx: "
+                 + (trigsv[0].toString()) );
+
+    Expr t(vc->exprFromString("FORALL (x:INT) : x > f(x)"));
+    vc->setMultiTrigger(t,patternv);
+    trigsvv = t.getTriggers();
+    DebugAssert( trigsvv.size() == 1,
+                 "Expected t.getTriggers().size() == 1: " + trigsvv.size() );
+
+    trigsv = trigsvv[0];
+    DebugAssert( trigsv.size() == 1,
+                 "Expected t.getTriggers()[0].size() == 1: "
+                 + trigsv.size() );
+
+    DebugAssert( trigsv[0] == fx,
+                 "Expected t.getTriggers()[0][0] == fx: "
+                 + (trigsv[0].toString()) );
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test22(): \n" << e << endl;
+  }
+  delete vc;
+}
+
+void test23() {
+  CLFlags flags = ValidityChecker::createFlags();
+  ValidityChecker* vc = ValidityChecker::create(flags);
+
+  try {
+    Type intType(vc->intType());
+    Type fType(vc->funType(intType,intType));
+
+    Expr x(vc->varExpr("x",intType));
+    Expr y(vc->varExpr("y",intType));
+    Expr a(vc->varExpr("a",intType));
+    Expr b(vc->varExpr("b",intType));
+
+    Expr s(vc->exprFromString("x < y"));
+    Expr t(vc->exprFromString("a < b"));
+
+    cout << "s=" << s << "\nt=" << t << "\n";
+
+    std::vector<Expr> oldExprs, newExprs;
+    oldExprs.push_back(x);
+    oldExprs.push_back(y);
+    newExprs.push_back(a);
+    newExprs.push_back(b);
+
+    Expr u(s.substExpr(oldExprs,newExprs));
+    cout << "u=" << u << "\n";
+
+    DebugAssert( t == u, "Expected t==u" );
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test23(): \n" << e << endl;
+  }
+  delete vc;
+}
+
 int main(int argc, char** argv)
 {
   int regressLevel = 3;
@@ -1855,6 +1999,10 @@ int main(int argc, char** argv)
     test20();
     cout << "\n}\ntest21(): {" << endl;
     test21();
+    cout << "\n}\ntest22(): {" << endl;
+    test22();
+    cout << "\n}\ntest23(): {" << endl;
+    test23();
 
     if (regressLevel > 1) {
       cout << "\n}\ntestgeorge1(): {" << endl;

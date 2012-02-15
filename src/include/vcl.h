@@ -335,9 +335,17 @@ public:
   Expr boundVarExpr(const std::string& name, const std::string& uid,
 		    const Type& type);
   Expr forallExpr(const std::vector<Expr>& vars, const Expr& body);
+  Expr forallExpr(const std::vector<Expr>& vars, const Expr& body, const Expr& trigger);
   Expr forallExpr(const std::vector<Expr>& vars, const Expr& body,
-		  const std::vector<std::vector<Expr> >& triggers);
+		  const std::vector<Expr>& triggers);
+  Expr forallExpr(const std::vector<Expr>& vars, const Expr& body,
+                  const std::vector<std::vector<Expr> >& triggers);
+
   void setTriggers(const Expr& e, const std::vector<std::vector<Expr> >& triggers);
+  void setTriggers(const Expr& e, const std::vector<Expr>& triggers);
+  void setTrigger(const Expr& e, const Expr& trigger);
+  void setMultiTrigger(const Expr& e, const std::vector<Expr>& multiTrigger);
+
   Expr existsExpr(const std::vector<Expr>& vars, const Expr& body);
   Op lambdaExpr(const std::vector<Expr>& vars, const Expr& body);
   Op transClosure(const Op& op);

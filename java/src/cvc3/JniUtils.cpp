@@ -115,6 +115,7 @@ namespace Java_cvc3_JniUtils {
     jclass exceptionClass = env->FindClass(exceptionName.c_str());
     DebugAssert(exceptionClass != NULL,
 		string("JniUtils::toJava(Exception): unknown class") + exceptionName);
+    // queues up the exception in the Java layer
     env->ThrowNew(exceptionClass, e.toString().c_str());
   }
 

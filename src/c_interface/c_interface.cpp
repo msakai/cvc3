@@ -2150,7 +2150,7 @@ extern "C" Type vc_forallExpr(VC vc, Expr* Bvars, int numBvars, Expr f)
   }
 }
 
-// triggers must be a vector of listExpr
+// triggers must be an array of listExpr
 // each listExpr represent a trigger
 // if a listExpr contains more than one Expr, then it is a multi-trigger
 extern "C" void vc_setTriggers(VC vc, Expr e, int numTrigs, Expr* triggers)

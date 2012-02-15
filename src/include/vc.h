@@ -28,9 +28,7 @@
 #include "formula_value.h"
 
 /*****************************************************************************/
-/*!
- *\defgroup Note Note that this list of modules is very incomplete
- *\brief Note that this list of modules is very incomplete
+/*! Note that this list of modules is very incomplete
  */
 /*****************************************************************************/
 
@@ -744,20 +742,32 @@ public:
 
   //! Universal quantifier
   virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body) = 0;
-  //! Universal quantifier with triggers
+  //! Universal quantifier with a trigger
+  virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body, 
+                          const Expr& trigger) = 0;
+  //! Universal quantifier with a set of triggers.
+  virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body,
+                          const std::vector<Expr>& triggers) = 0;
+  //! Universal quantifier with a set of multi-triggers.
   virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body,
 			  const std::vector<std::vector<Expr> >& triggers) = 0;
 
   //! Set triggers for quantifier instantiation
   /*!
-   * \param e is the expression for which triggers are being set.  \param
-   * Each item in triggers is a vector of Expr containing one or more
-   * patterns.  A pattern is a term or Atomic predicate sub-expression of
-   * e.  A vector containing more than one pattern is treated as a
+   * \param e the expression for which triggers are being set.
+   * \param triggers Each item in triggers is a vector of Expr containing one
+   * or more patterns.  A pattern is a term or Atomic predicate sub-expression
+   * of e.  A vector containing more than one pattern is treated as a
    * multi-trigger.  Patterns will be matched in the order they occur in
    * the vector.
   */
   virtual void setTriggers(const Expr& e, const std::vector<std::vector<Expr> > & triggers) = 0;
+  //! Set triggers for quantifier instantiation (no multi-triggers)
+  virtual void setTriggers(const Expr& e, const std::vector<Expr>& triggers) = 0;
+  //! Set a single trigger for quantifier instantiation
+  virtual void setTrigger(const Expr& e, const Expr& trigger) = 0;
+  //! Set a single multi-trigger for quantifier instantiation
+  virtual void setMultiTrigger(const Expr& e, const std::vector<Expr>& multiTrigger) = 0;
 
   //! Existential quantifier
   virtual Expr existsExpr(const std::vector<Expr>& vars, const Expr& body) = 0;

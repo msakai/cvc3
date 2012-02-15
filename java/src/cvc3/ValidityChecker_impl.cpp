@@ -584,12 +584,32 @@ jobject m ValidityChecker vc cv Expr vars c Expr body
 return embed_copy(env, vc->forallExpr(vars, *body));
 
 DEFINITION: Java_cvc3_ValidityChecker_jniForallExpr2
+jobject m ValidityChecker vc cv Expr vars c Expr body c Expr trigger
+return embed_copy(env, vc->forallExpr(vars, *body, *trigger));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniForallExpr3
 jobject m ValidityChecker vc cv Expr vars c Expr body cv Expr triggers
 return embed_copy(env, vc->forallExpr(vars, *body, triggers));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniForallExpr4
+jobject m ValidityChecker vc cv Expr vars c Expr body cvv Expr triggers
+return embed_copy(env, vc->forallExpr(vars, *body, triggers));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniSetTrigger
+void m ValidityChecker vc c Expr closure c Expr trigger
+vc->setTrigger(*closure, *trigger);
 
 DEFINITION: Java_cvc3_ValidityChecker_jniSetTriggers
 void m ValidityChecker vc c Expr closure cv Expr triggers
 vc->setTriggers(*closure, triggers);
+
+DEFINITION: Java_cvc3_ValidityChecker_jniSetTriggers2
+void m ValidityChecker vc c Expr closure cvv Expr triggers
+vc->setTriggers(*closure, triggers);
+
+DEFINITION: Java_cvc3_ValidityChecker_jniSetMultiTrigger
+void m ValidityChecker vc c Expr closure cv Expr multiTrigger
+vc->setMultiTrigger(*closure, multiTrigger);
 
 DEFINITION: Java_cvc3_ValidityChecker_jniExistsExpr
 jobject m ValidityChecker vc cv Expr vars c Expr body
@@ -797,4 +817,4 @@ vc->printStatistics();
 
 DEFINITION: Java_cvc3_ValidityChecker_jniSetTimeLimit
 void m ValidityChecker vc n int n
-vc->setTimeLimit((uint)n);
+vc->setTimeLimit((unsigned int)n);

@@ -308,7 +308,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LIB_MAJOR_VERSION LIB_MINOR_VERSION LIB_TEENY_VERSION CXX CXXFLAGS LDFLAGS CPPFLAGS ac_ct_CXX EXEEXT OBJEXT CXXCPP AR ac_ct_AR EXTRA_SAT_HEADERS EXTRA_SAT_CPP DPLL_BASIC VERSION OPTIMIZED GCOV GPROF LD build build_cpu build_vendor build_os host host_cpu host_vendor host_os INSTALL INSTALL_FLAGS TIME PERL YACC LEX LEXLIB LEX_OUTPUT_ROOT STATIC BUILD_SHARED_LIB STATIC_FLAG DYNAMIC_FLAG SHARED LD_SWITCHES_PRE LD_SWITCHES_POST LD_LIB_DIR STATIC_LIB_SUFFIX SHARED_LIB_SUFFIX RATIONAL_IMPL BUILD_JAVA javadir JAR JAVA JAVAC JAVAH JFLAGS JREFLAGS JNI_INC EGREP JAVA_INCLUDES TOP DOXYGEN DOXYTAG FIG2DEV HAVE_DOT ETAGS EBROWSE LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LIB_MAJOR_VERSION LIB_MINOR_VERSION LIB_TEENY_VERSION CXX CXXFLAGS LDFLAGS CPPFLAGS ac_ct_CXX EXEEXT OBJEXT CXXCPP AR ac_ct_AR EXTRA_SAT_HEADERS EXTRA_SAT_CPP DPLL_BASIC VERSION OPTIMIZED GCOV GPROF LD build build_cpu build_vendor build_os host host_cpu host_vendor host_os INSTALL INSTALL_FLAGS TIME PERL YACC LEX LEXLIB LEX_OUTPUT_ROOT STATIC BUILD_SHARED_LIB STATIC_FLAG DYNAMIC_FLAG SHARED LD_SWITCHES_PRE LD_SWITCHES_POST LD_LIB_DIR STATIC_LIB_SUFFIX SHARED_LIB_SUFFIX RATIONAL_IMPL BUILD_JAVA javadir JAR JAVA JAVAC JAVAH JFLAGS JREFLAGS PYTHON JNI_INC EGREP JAVA_INCLUDES TOP DOXYGEN DOXYTAG FIG2DEV HAVE_DOT ETAGS EBROWSE LIBOBJS LTLIBOBJS'
 ac_subst_files='LICENSE_INFO'
 
 # Initialize some variables set by options.
@@ -801,6 +801,10 @@ ac_env_JREFLAGS_set=${JREFLAGS+set}
 ac_env_JREFLAGS_value=$JREFLAGS
 ac_cv_env_JREFLAGS_set=${JREFLAGS+set}
 ac_cv_env_JREFLAGS_value=$JREFLAGS
+ac_env_PYTHON_set=${PYTHON+set}
+ac_env_PYTHON_value=$PYTHON
+ac_cv_env_PYTHON_set=${PYTHON+set}
+ac_cv_env_PYTHON_value=$PYTHON
 
 #
 # Report the --help message.
@@ -927,6 +931,7 @@ Some influential environment variables:
   JAVAH       JNI utility command
   JFLAGS      Java compiler flags
   JREFLAGS    Java runtime flags
+  PYTHON      Python runtime
 
 Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
@@ -1392,9 +1397,9 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 # Teeny version: increases for library bug fixes (API hasn't changed)
 
 
-LIB_MAJOR_VERSION=1
-LIB_MINOR_VERSION=0
-LIB_TEENY_VERSION=0
+LIB_MAJOR_VERSION=2
+LIB_MINOR_VERSION=1
+LIB_TEENY_VERSION=1
 
 if test "${CXXFLAGS+set}" != set; then
   CXXFLAGS=""
@@ -2483,8 +2488,16 @@ esac
 
 case "$host_cpu" in
   i?86)
-    CXXFLAGS="$CXXFLAGS -m32"
-    JREFLAGS="$JREFLAGS -d32"
+    # punt for Mac OS-- it gives you i386 even on 64-bit
+    # let darwin's gcc build what it wants (or have the user add
+    # -mXX to CXXFLAGS themselves)
+    if test "$MAC_OSX" = 1; then :; else
+      CXXFLAGS="$CXXFLAGS -m32"
+      if test "$CYGWIN" = 1; then :; else
+        # Sun's Java on Windows doesn't have -d*
+        JREFLAGS="$JREFLAGS -d32"
+      fi
+    fi
     ;;
 
   x86_64)
@@ -2639,8 +2652,8 @@ if test "$TIME" = "not found"; then
   { echo "$as_me:$LINENO: WARNING: Regression tests depend upon GNU time." >&5
 echo "$as_me: WARNING: Regression tests depend upon GNU time." >&2;}
 if test -n "$MAC_OSX"; then
-  { echo "$as_me:$LINENO: WARNING: Please install GNU time; we suggest using MacPorts or DarwinPorts." >&5
-echo "$as_me: WARNING: Please install GNU time; we suggest using MacPorts or DarwinPorts." >&2;}
+  { echo "$as_me:$LINENO: WARNING: Please install GNU time; we suggest using MacPorts" >&5
+echo "$as_me: WARNING: Please install GNU time; we suggest using MacPorts" >&2;}
 fi
 fi
 
@@ -3534,6 +3547,7 @@ BUILD_JAVA="0"
 
 
 
+
 javadir='${exec_prefix}/java'
 
 
@@ -3575,34 +3589,41 @@ fi;
     JAVA_HOME=/System/Library/Frameworks/JavaVM.framework/Home
   fi
 
-  if test -n "${JAVA_INCLUDE_PATH}" -a -d "${JAVA_INCLUDE_PATH}" ; then
-		JAVA_INCLUDES=-I${JAVA_INCLUDE_PATH}
-  elif test -d ${JAVA_HOME}/include ; then
-	JAVA_INCLUDES=-I${JAVA_HOME}/include
-		if test -d ${JAVA_HOME}/include/genunix ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/genunix"
-	fi
-		if test -d ${JAVA_HOME}/include/linux ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/linux"
-	fi
-		if test -d ${JAVA_HOME}/include/solaris ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/solaris"
-	fi
-		if test -d ${JAVA_HOME}/include/freebsd ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/freebsd"
-	fi
-		if test -d ${JAVA_HOME}/include/win32 ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/win32"
-	fi
-        if test -d ${JAVA_HOME}/include/bsd ; then
-                JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/bsd"
-        fi
-  elif test -d ${JAVA_HOME}/Headers; then
-	JAVA_INCLUDES=-I${JAVA_HOME}/Headers
-  else
-	{ { echo "$as_me:$LINENO: error: Unable to locate Java directories" >&5
+    if ! ( test -n "${JAVA_INCLUDE_PATH}" -a -d "${JAVA_INCLUDE_PATH}" ) ; then
+    if test -d ${JAVA_HOME}/include ; then
+          JAVA_INCLUDE_PATH=${JAVA_HOME}/include
+        elif test -d ${JAVA_HOME}/Headers; then
+          JAVA_INCLUDE_PATH=-I${JAVA_HOME}/Headers
+    else
+          { { echo "$as_me:$LINENO: error: Unable to locate Java directories" >&5
 echo "$as_me: error: Unable to locate Java directories" >&2;}
    { (exit 1); exit 1; }; }
+    fi
+  fi
+
+  JAVA_INCLUDES=-I${JAVA_INCLUDE_PATH}
+    if test -d ${JAVA_INCLUDE_PATH}/genunix ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/genunix"
+  fi
+    if test -d ${JAVA_INCLUDE_PATH}/linux ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/linux"
+  fi
+    if test -d ${JAVA_INCLUDE_PATH}/solaris ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/solaris"
+  fi
+    if test -d ${JAVA_INCLUDE_PATH}/freebsd ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/freebsd"
+  fi
+    if test -d ${JAVA_INCLUDE_PATH}/win32 ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/win32"
+  fi
+  if test -d ${JAVA_INCLUDE_PATH}/bsd ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/bsd"
+  fi
+
+
+  if test -d ${JAVA_HOME}/bin; then
+      PATH=${JAVA_HOME}/bin:$PATH
   fi
 
   # Check for Java tools
@@ -3610,32 +3631,36 @@ echo "$as_me: error: Unable to locate Java directories" >&2;}
 set dummy javac; ac_word=$2
 echo "$as_me:$LINENO: checking for $ac_word" >&5
 echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
-if test "${ac_cv_prog_JAVAC+set}" = set; then
+if test "${ac_cv_path_JAVAC+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
-  if test -n "$JAVAC"; then
-  ac_cv_prog_JAVAC="$JAVAC" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+  case $JAVAC in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_JAVAC="$JAVAC" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
 do
   IFS=$as_save_IFS
   test -z "$as_dir" && as_dir=.
   for ac_exec_ext in '' $ac_executable_extensions; do
   if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_JAVAC="javac"
+    ac_cv_path_JAVAC="$as_dir/$ac_word$ac_exec_ext"
     echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
 done
 done
 
-  test -z "$ac_cv_prog_JAVAC" && ac_cv_prog_JAVAC="{ { echo "$as_me:$LINENO: error: javac not found: adjust PATH or set JAVAC" >&5
+  test -z "$ac_cv_path_JAVAC" && ac_cv_path_JAVAC="{ { echo "$as_me:$LINENO: error: javac not found: adjust PATH or set JAVAC" >&5
 echo "$as_me: error: javac not found: adjust PATH or set JAVAC" >&2;}
    { (exit 1); exit 1; }; }"
+  ;;
+esac
 fi
-fi
-JAVAC=$ac_cv_prog_JAVAC
+JAVAC=$ac_cv_path_JAVAC
+
 if test -n "$JAVAC"; then
   echo "$as_me:$LINENO: result: $JAVAC" >&5
 echo "${ECHO_T}$JAVAC" >&6
@@ -3649,32 +3674,36 @@ fi
 set dummy javah; ac_word=$2
 echo "$as_me:$LINENO: checking for $ac_word" >&5
 echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
-if test "${ac_cv_prog_JAVAH+set}" = set; then
+if test "${ac_cv_path_JAVAH+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
-  if test -n "$JAVAH"; then
-  ac_cv_prog_JAVAH="$JAVAH" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+  case $JAVAH in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_JAVAH="$JAVAH" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
 do
   IFS=$as_save_IFS
   test -z "$as_dir" && as_dir=.
   for ac_exec_ext in '' $ac_executable_extensions; do
   if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_JAVAH="javah"
+    ac_cv_path_JAVAH="$as_dir/$ac_word$ac_exec_ext"
     echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
 done
 done
 
-  test -z "$ac_cv_prog_JAVAH" && ac_cv_prog_JAVAH="{ { echo "$as_me:$LINENO: error: javah not found: adjust PATH or set JAVAH" >&5
+  test -z "$ac_cv_path_JAVAH" && ac_cv_path_JAVAH="{ { echo "$as_me:$LINENO: error: javah not found: adjust PATH or set JAVAH" >&5
 echo "$as_me: error: javah not found: adjust PATH or set JAVAH" >&2;}
    { (exit 1); exit 1; }; } "
+  ;;
+esac
 fi
-fi
-JAVAH=$ac_cv_prog_JAVAH
+JAVAH=$ac_cv_path_JAVAH
+
 if test -n "$JAVAH"; then
   echo "$as_me:$LINENO: result: $JAVAH" >&5
 echo "${ECHO_T}$JAVAH" >&6
@@ -3688,32 +3717,36 @@ fi
 set dummy jar; ac_word=$2
 echo "$as_me:$LINENO: checking for $ac_word" >&5
 echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
-if test "${ac_cv_prog_JAR+set}" = set; then
+if test "${ac_cv_path_JAR+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
-  if test -n "$JAR"; then
-  ac_cv_prog_JAR="$JAR" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+  case $JAR in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_JAR="$JAR" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
 do
   IFS=$as_save_IFS
   test -z "$as_dir" && as_dir=.
   for ac_exec_ext in '' $ac_executable_extensions; do
   if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_JAR="jar"
+    ac_cv_path_JAR="$as_dir/$ac_word$ac_exec_ext"
     echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
 done
 done
 
-  test -z "$ac_cv_prog_JAR" && ac_cv_prog_JAR="{ { echo "$as_me:$LINENO: error: jar not found: adjust PATH or set JAR" >&5
+  test -z "$ac_cv_path_JAR" && ac_cv_path_JAR="{ { echo "$as_me:$LINENO: error: jar not found: adjust PATH or set JAR" >&5
 echo "$as_me: error: jar not found: adjust PATH or set JAR" >&2;}
    { (exit 1); exit 1; }; } "
+  ;;
+esac
 fi
-fi
-JAR=$ac_cv_prog_JAR
+JAR=$ac_cv_path_JAR
+
 if test -n "$JAR"; then
   echo "$as_me:$LINENO: result: $JAR" >&5
 echo "${ECHO_T}$JAR" >&6
@@ -3727,32 +3760,36 @@ fi
 set dummy java; ac_word=$2
 echo "$as_me:$LINENO: checking for $ac_word" >&5
 echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
-if test "${ac_cv_prog_JAVA+set}" = set; then
+if test "${ac_cv_path_JAVA+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
-  if test -n "$JAVA"; then
-  ac_cv_prog_JAVA="$JAVA" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+  case $JAVA in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_JAVA="$JAVA" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
 do
   IFS=$as_save_IFS
   test -z "$as_dir" && as_dir=.
   for ac_exec_ext in '' $ac_executable_extensions; do
   if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_JAVA="java"
+    ac_cv_path_JAVA="$as_dir/$ac_word$ac_exec_ext"
     echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
 done
 done
 
-  test -z "$ac_cv_prog_JAVA" && ac_cv_prog_JAVA="{ { echo "$as_me:$LINENO: error: java not found: adjust PATH or set JAVA" >&5
+  test -z "$ac_cv_path_JAVA" && ac_cv_path_JAVA="{ { echo "$as_me:$LINENO: error: java not found: adjust PATH or set JAVA" >&5
 echo "$as_me: error: java not found: adjust PATH or set JAVA" >&2;}
    { (exit 1); exit 1; }; } "
+  ;;
+esac
 fi
-fi
-JAVA=$ac_cv_prog_JAVA
+JAVA=$ac_cv_path_JAVA
+
 if test -n "$JAVA"; then
   echo "$as_me:$LINENO: result: $JAVA" >&5
 echo "${ECHO_T}$JAVA" >&6
@@ -4159,8 +4196,8 @@ fi
 if test $ac_cv_header_jni_h = yes; then
   :
 else
-  { { echo "$as_me:$LINENO: error: jni.h not found: adjust include path or use --with-jni" >&5
-echo "$as_me: error: jni.h not found: adjust include path or use --with-jni" >&2;}
+  { { echo "$as_me:$LINENO: error: jni.h not found: try setting --with-java-home or --with-java-includes" >&5
+echo "$as_me: error: jni.h not found: try setting --with-java-home or --with-java-includes" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
@@ -4305,14 +4342,57 @@ fi
 if test $ac_cv_header_jni_md_h = yes; then
   :
 else
-  { { echo "$as_me:$LINENO: error: jni_md.h not found: adjust include path or use --with-jni" >&5
-echo "$as_me: error: jni_md.h not found: adjust include path or use --with-jni" >&2;}
+  { { echo "$as_me:$LINENO: error: jni_md.h not found: try setting --with-java-home or --with-java-includes" >&5
+echo "$as_me: error: jni_md.h not found: try setting --with-java-home or --with-java-includes" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
 
 
     CPPFLAGS="$OLD_CPPFLAGS"
+
+  # Extract the first word of "python", so it can be a program name with args.
+set dummy python; ac_word=$2
+echo "$as_me:$LINENO: checking for $ac_word" >&5
+echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
+if test "${ac_cv_path_PYTHON+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  case $PYTHON in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_PYTHON="$PYTHON" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_PYTHON="$as_dir/$ac_word$ac_exec_ext"
+    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+
+  test -z "$ac_cv_path_PYTHON" && ac_cv_path_PYTHON="{ { echo "$as_me:$LINENO: error: python not found: adjust PATH or set PYTHON" >&5
+echo "$as_me: error: python not found: adjust PATH or set PYTHON" >&2;}
+   { (exit 1); exit 1; }; }"
+  ;;
+esac
+fi
+PYTHON=$ac_cv_path_PYTHON
+
+if test -n "$PYTHON"; then
+  echo "$as_me:$LINENO: result: $PYTHON" >&5
+echo "${ECHO_T}$PYTHON" >&6
+else
+  echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+fi
+
 fi
 
 
@@ -5412,6 +5492,7 @@ s,@JAVAC@,$JAVAC,;t t
 s,@JAVAH@,$JAVAH,;t t
 s,@JFLAGS@,$JFLAGS,;t t
 s,@JREFLAGS@,$JREFLAGS,;t t
+s,@PYTHON@,$PYTHON,;t t
 s,@JNI_INC@,$JNI_INC,;t t
 s,@EGREP@,$EGREP,;t t
 s,@JAVA_INCLUDES@,$JAVA_INCLUDES,;t t

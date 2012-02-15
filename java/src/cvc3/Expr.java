@@ -122,6 +122,8 @@ public class Expr extends Embedded {
 	jniGetBody(Object Expr) throws Cvc3Exception;
     private static native Object
 	jniGetRational(Object Expr) throws Cvc3Exception;
+    private static native Object[][]
+    jniGetTriggers(Object Expr) throws Cvc3Exception;
     private static native Object
 	jniGetTheorem(Object Expr) throws Cvc3Exception;
     private static native Object
@@ -136,8 +138,12 @@ public class Expr extends Embedded {
     private static native int
 	jniArity(Object Expr) throws Cvc3Exception;
     private static native Object
-	jniGetChild(Object Expr, int i) throws Cvc3Exception;
+	jniGetKid(Object Expr, int i) throws Cvc3Exception;
+    private static native Object[]
+	jniGetKids(Object Expr) throws Cvc3Exception;
 
+    private static native Object
+    jniSubstExpr(Object Expr, Object[] oldExprs, Object[] newExprs) throws Cvc3Exception;
 
 
     /// Constructor
@@ -182,7 +188,13 @@ public class Expr extends Embedded {
 	return 0;
     }
     
-
+    public Expr subst(List oldExprs, List newExprs) throws Cvc3Exception {
+      assert(JniUtils.listInstanceof(oldExprs, Expr.class));      
+      assert(JniUtils.listInstanceof(newExprs, Expr.class));      
+      return new Expr(jniSubstExpr(embedded(), JniUtils.unembedList(oldExprs),
+        JniUtils.unembedList(newExprs)), embeddedManager());
+    }
+    
     public String toString() {
 	String result = "";
 	try {
@@ -429,6 +441,11 @@ public class Expr extends Embedded {
 	return JniUtils.embedList(vars, Expr.class, embeddedManager());
     }
 
+    public List getTriggers() throws Cvc3Exception {
+      assert (jniIsClosure(embedded()));
+      return JniUtils.embedListList(jniGetTriggers(embedded()), Expr.class, embeddedManager());
+    }
+  
     public Expr getExistential() throws Cvc3Exception {
 	assert(jniIsSkolem(embedded()));
 	return new Expr(jniGetExistential(embedded()), embeddedManager());
@@ -454,7 +471,6 @@ public class Expr extends Embedded {
 	return new Theorem(jniGetTheorem(embedded()), embeddedManager());
     }
 
-  
     public TypeMut getType() throws Cvc3Exception {
 	return new TypeMut(jniGetType(embedded()), embeddedManager());
     }
@@ -477,7 +493,10 @@ public class Expr extends Embedded {
 
     public Expr getChild(int i) throws Cvc3Exception {
 	assert(i >= 0 && i < arity());
-	return new Expr(jniGetChild(embedded(), i), embeddedManager());
+	return new Expr(jniGetKid(embedded(), i), embeddedManager());
     }
 
+    public List getChildren() throws Cvc3Exception {
+        return JniUtils.embedList(jniGetKids(embedded()), Expr.class, embeddedManager());
+    }
 }

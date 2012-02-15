@@ -18,9 +18,9 @@ AC_SUBST(LIB_MINOR_VERSION)
 # Teeny version: increases for library bug fixes (API hasn't changed)
 AC_SUBST(LIB_TEENY_VERSION)
 
-LIB_MAJOR_VERSION=1
-LIB_MINOR_VERSION=0
-LIB_TEENY_VERSION=0
+LIB_MAJOR_VERSION=2
+LIB_MINOR_VERSION=1
+LIB_TEENY_VERSION=1
 
 dnl We don't want the default autoconf CXXFLAGS=-g -O2
 if test "${CXXFLAGS+set}" != set; then
@@ -150,8 +150,16 @@ esac
 
 case "$host_cpu" in
   i?86)
-    CXXFLAGS="$CXXFLAGS -m32"
-    JREFLAGS="$JREFLAGS -d32"
+    # punt for Mac OS-- it gives you i386 even on 64-bit
+    # let darwin's gcc build what it wants (or have the user add
+    # -mXX to CXXFLAGS themselves)
+    if test "$MAC_OSX" = 1; then :; else
+      CXXFLAGS="$CXXFLAGS -m32"
+      if test "$CYGWIN" = 1; then :; else
+        # Sun's Java on Windows doesn't have -d*
+        JREFLAGS="$JREFLAGS -d32"
+      fi
+    fi
     ;;
 
   x86_64)
@@ -189,7 +197,7 @@ fi
 if test "$TIME" = "not found"; then
   AC_MSG_WARN(Regression tests depend upon GNU time.)
 if test -n "$MAC_OSX"; then
-  AC_MSG_WARN(Please install GNU time; we suggest using MacPorts or DarwinPorts.)
+  AC_MSG_WARN(Please install GNU time; we suggest using MacPorts, see INSTALL.)
 fi
 fi
 
@@ -414,6 +422,7 @@ AC_ARG_VAR([JAVAC],[Java compiler command])
 AC_ARG_VAR([JAVAH],[JNI utility command])
 AC_ARG_VAR([JFLAGS],[Java compiler flags])
 AC_ARG_VAR([JREFLAGS],[Java runtime flags])
+AC_ARG_VAR([PYTHON],[Python runtime])
 
 javadir='${exec_prefix}/java'
 
@@ -443,7 +452,7 @@ if test "$BUILD_JAVA" = "1"; then
     AC_MSG_ERROR([The Java interface requires a dynamic library build. Use --enable-dynamic.])
   fi
 
-dnl [chris] BEGIN: copy from libjmagick6-jni
+dnl [chris] BEGIN: crib from libjmagick6-jni (significantly altered)
 dnl Determine if we have a decent Java distribution
   AC_ARG_WITH([java-home], 
       [AS_HELP_STRING([--with-java-home=PATH], [Java installation path])],
@@ -457,53 +466,60 @@ dnl [chris] Use a sensible default for JAVA_HOME on Mac
     JAVA_HOME=/System/Library/Frameworks/JavaVM.framework/Home
   fi
   
-  if test -n "${JAVA_INCLUDE_PATH}" -a -d "${JAVA_INCLUDE_PATH}" ; then
-	dnl Java include path supplied
-	JAVA_INCLUDES=-I${JAVA_INCLUDE_PATH}
-  elif test -d ${JAVA_HOME}/include ; then
-	JAVA_INCLUDES=-I${JAVA_HOME}/include
-	dnl The Blackdown JDK seems to have genunix.
-	if test -d ${JAVA_HOME}/include/genunix ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/genunix"
-	fi
-	dnl The Sun Linux JDK seems to use linux
-	if test -d ${JAVA_HOME}/include/linux ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/linux"
-	fi
-	dnl The Sun Solaris JDK seems to use solaris
-	if test -d ${JAVA_HOME}/include/solaris ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/solaris"
-	fi
-	dnl The Sun FreeBSD JDK seems to use freebsd
-	if test -d ${JAVA_HOME}/include/freebsd ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/freebsd"
-	fi
-	dnl The Sun Windows JDK seems to use win32
-	if test -d ${JAVA_HOME}/include/win32 ; then
-		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/win32"
-	fi
-        if test -d ${JAVA_HOME}/include/bsd ; then
-                JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/bsd"
-        fi
-dnl check for Mac OS X series of systems
-  elif test -d ${JAVA_HOME}/Headers; then
-	JAVA_INCLUDES=-I${JAVA_HOME}/Headers
-  else
-	AC_MSG_ERROR([Unable to locate Java directories])
+  dnl If we don't have a Java include path, try to derive one from JAVA_HOME
+  if ! ( test -n "${JAVA_INCLUDE_PATH}" -a -d "${JAVA_INCLUDE_PATH}" ) ; then
+    if test -d ${JAVA_HOME}/include ; then
+          JAVA_INCLUDE_PATH=${JAVA_HOME}/include
+    dnl check for Mac OS X series of systems
+    elif test -d ${JAVA_HOME}/Headers; then
+          JAVA_INCLUDE_PATH=-I${JAVA_HOME}/Headers
+    else
+          AC_MSG_ERROR([Unable to locate Java directories])
+    fi
   fi
-dnl [chris] END: copy from libjmagick6-jni
+
+  JAVA_INCLUDES=-I${JAVA_INCLUDE_PATH}
+  dnl The Blackdown JDK seems to have genunix.
+  if test -d ${JAVA_INCLUDE_PATH}/genunix ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/genunix"
+  fi
+  dnl The Sun Linux JDK seems to use linux
+  if test -d ${JAVA_INCLUDE_PATH}/linux ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/linux"
+  fi
+  dnl The Sun Solaris JDK seems to use solaris
+  if test -d ${JAVA_INCLUDE_PATH}/solaris ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/solaris"
+  fi
+  dnl The Sun FreeBSD JDK seems to use freebsd
+  if test -d ${JAVA_INCLUDE_PATH}/freebsd ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/freebsd"
+  fi
+  dnl The Sun Windows JDK seems to use win32
+  if test -d ${JAVA_INCLUDE_PATH}/win32 ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/win32"
+  fi
+  if test -d ${JAVA_INCLUDE_PATH}/bsd ; then
+          JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_INCLUDE_PATH}/bsd"
+  fi
+
+  dnl [chris] END: crib from libjmagick6-jni
+
+  if test -d ${JAVA_HOME}/bin; then
+      PATH=${JAVA_HOME}/bin:$PATH
+  fi
 
   # Check for Java tools
-  AC_CHECK_PROG([JAVAC],[javac],[javac],
+  AC_PATH_PROG([JAVAC],[javac],
       [AC_MSG_ERROR([javac not found: adjust PATH or set JAVAC])])
 
-  AC_CHECK_PROG([JAVAH],[javah],[javah],
+  AC_PATH_PROG([JAVAH],[javah],
       [AC_MSG_ERROR([javah not found: adjust PATH or set JAVAH])] )
 
-  AC_CHECK_PROG([JAR],[jar],[jar],
+  AC_PATH_PROG([JAR],[jar],
       [AC_MSG_ERROR([jar not found: adjust PATH or set JAR])] )
 
-  AC_CHECK_PROG([JAVA],[java],[java],
+  AC_PATH_PROG([JAVA],[java],
       [AC_MSG_ERROR([java not found: adjust PATH or set JAVA])] )
 
   dnl Save and restore CPPFLAGS while checking for JNI headers
@@ -512,12 +528,15 @@ dnl [chris] END: copy from libjmagick6-jni
   CPPFLAGS="${JAVA_INCLUDES} $CPPFLAGS"
 
   AC_CHECK_HEADER([jni.h],,
-      [AC_MSG_ERROR(jni.h not found: adjust include path or use --with-jni)])
+      [AC_MSG_ERROR(jni.h not found: try setting --with-java-home or --with-java-includes)])
   AC_CHECK_HEADER([jni_md.h],,
-      [AC_MSG_ERROR(jni_md.h not found: adjust include path or use --with-jni)])
+      [AC_MSG_ERROR(jni_md.h not found: try setting --with-java-home or --with-java-includes)])
 
   dnl Restore original CPPFLAGS
   CPPFLAGS="$OLD_CPPFLAGS"
+
+  AC_PATH_PROG([PYTHON],[python],
+      [AC_MSG_ERROR([python not found: adjust PATH or set PYTHON])])
 fi 
 dnl end of Java tests
 

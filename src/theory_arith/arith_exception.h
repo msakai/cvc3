@@ -35,7 +35,7 @@ namespace CVC3 {
     // Constructors
     ArithException() { }
     ArithException(const std::string& msg): Exception(msg) { }
-    ArithException(char* msg): Exception(msg) { }
+    ArithException(const char* msg): Exception(msg) { }
     // Destructor
     virtual ~ArithException() { }
     virtual std::string toString() const {

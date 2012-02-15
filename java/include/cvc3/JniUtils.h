@@ -189,6 +189,19 @@ namespace Java_cvc3_JniUtils {
     return jarray;
   }
 
+  template<class T>
+    jobjectArray
+    toJavaVVConstRef(JNIEnv* env, const std::vector<std::vector<T> >& v)
+    {
+      jobjectArray jarray = (jobjectArray) env->NewObjectArray(v.size(),
+          env->FindClass("[Ljava/lang/Object;"), NULL);
+      for (int i = 0; i < v.size(); ++i)
+        {
+          env->SetObjectArrayElement(jarray, i, toJavaVConstRef(env, v[i]));
+        }
+      return jarray;
+    }
+
   template <class T> std::vector<T> toCppV(JNIEnv* env, const jobjectArray& jarray) {
     std::vector<T> v;
     int length = env->GetArrayLength(jarray);

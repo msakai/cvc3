@@ -16,9 +16,16 @@ HEADER_PATH = include
 # object files: class, o
 OBJ_PATH    = obj
 # library files: so, jar
-LIB_PATH    = lib
+REL_LIB_PATH  = java/lib
+LIB_PATH      = $(TOP)/$(REL_LIB_PATH)
+REL_ARCH_LIB_PATH = $(REL_LIB_PATH)/$(PLATFORM_WITH_OPTIONS)
+ARCH_LIB_PATH = $(TOP)/$(REL_ARCH_LIB_PATH)
 
 CPPFLAGS += $(JAVA_INCLUDES)
+
+ifneq ($(CYGWIN),)
+CPPFLAGS += '-D__int64=long long'
+endif
 
 ifeq ($(OPTIMIZED), 1)
 CXXFLAGS += -O2
@@ -102,7 +109,13 @@ O_FILES = $(patsubst %.cpp,%.o,$(CPP_FILES))
 
 # library files
 # cpp library
-LIB_JNI_NAME = libcvc3jni
+LIB_PREFIX = lib
+LIB_JNI_NAME = $(LIB_PREFIX)cvc3jni
+ifneq ($(CYGWIN),)
+  LIB_JNI   = $(LIB_JNI_NAME)-$(subst .,-,$(LIB_VERSION)).$(SHARED_LIB_SUFFIX)
+  LIB_JNI_COMPAT  = $(LIB_JNI_NAME)-$(subst .,-,$(LIB_COMPAT_VERSION)).$(SHARED_LIB_SUFFIX)
+  LIB_JNI_MAJOR  = $(LIB_JNI_NAME)-$(subst .,-,$(LIB_MAJOR_VERSION)).$(SHARED_LIB_SUFFIX)
+else
 LIB_JNI_BASE   = $(LIB_JNI_NAME).$(SHARED_LIB_SUFFIX)
 ifneq ($(MAC_OSX),)
   LIB_JNI   = $(LIB_JNI_NAME).$(LIB_VERSION).$(SHARED_LIB_SUFFIX)
@@ -113,8 +126,9 @@ else
   LIB_JNI_COMPAT  = $(LIB_JNI_BASE).$(LIB_COMPAT_VERSION)
   LIB_JNI_MAJOR  = $(LIB_JNI_BASE).$(LIB_MAJOR_VERSION)
 endif
+endif
 # java library
-LIB_CVC3  = libcvc3.jar
+LIB_CVC3  = libcvc3-$(LIB_VERSION).jar
 # test alone
 PROG_TEST = cvc3test.jar
 # java stand alone
@@ -144,16 +158,19 @@ $(OBJ_PATH):
 $(LIB_PATH):
 	-mkdir -p $(LIB_PATH)
 
+$(ARCH_LIB_PATH):
+	-mkdir -p $(ARCH_LIB_PATH)
+
 # compile each java file
 classes: $(OBJ_PATH) $(CLASS_FILES) 
-$(CLASS_FILES): %.class: %.java
+$(CLASS_FILES): %.class: %.java $(OBJ_PATH)
 	$(JAVAC) $(JFLAGS) -sourcepath $(SOURCE_PATH) \
 	-d $(OBJ_PATH) $(SOURCE_PATH)/$(PACKAGE)/$*.java
 
 # create a jni header file for each library class file
 #headers: $(H_FILES) $(GCH_FILES)
-headers: $(OBJ_PATH) $(H_FILES) 
-$(H_FILES): %.h: %.java
+headers: $(OBJ_PATH) $(H_FILES)
+$(H_FILES): %.h: %.java $(OBJ_PATH)
 	$(JAVAH) -jni -force -classpath $(OBJ_PATH) \
 	-o $(HEADER_PATH)/$(PACKAGE)/$*.h $(PACKAGE).$*
 
@@ -165,38 +182,40 @@ $(GCH_FILES): %.h.gch: %.h
 
 # compile each cpp file
 $(JNI_CPP_FILES): %.cpp: %_impl.cpp %.h JniUtils.h
-	python ./create_impl.py \
+	$(PYTHON) ./create_impl.py \
 	$(HEADER_PATH)/$(PACKAGE)/$*.h \
 	$(SOURCE_PATH)/$(PACKAGE)/$*_impl.cpp \
 	$(SOURCE_PATH)/$(PACKAGE)/$*.cpp
 
 objects: $(OBJ_PATH) $(O_FILES) 
-$(O_FILES): %.o: %.cpp %.h
+$(O_FILES): %.o: %.cpp %.h $(OBJ_PATH)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c \
 	-I ../src/include -I $(HEADER_PATH)/$(PACKAGE)/ \
 	-o $(OBJ_PATH)/$(PACKAGE)/$*.o $(SOURCE_PATH)/$(PACKAGE)/$*.cpp
 
 # create the cpp jni wrapper library
 
-libjni: $(LIB_PATH) $(LIB_PATH)/$(LIB_JNI)
-$(LIB_PATH)/$(LIB_JNI): $(O_FILES) $(LIB_PATH)
+libjni: $(ARCH_LIB_PATH)/$(LIB_JNI) $(LIB_PATH)/$(LIB_JNI)
+$(ARCH_LIB_PATH)/$(LIB_JNI): $(O_FILES) $(ARCH_LIB_PATH)
 ifneq ($(MAC_OSX),)
 	$(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
       -install_name $(libdir)/$(LIB_JNI_MAJOR) \
       -compatibility_version $(LIB_COMPAT_VERSION) \
       -current_version $(LIB_VERSION) \
       -L../lib $(OBJ_PATH)/$(PACKAGE)/*.o \
-      -o '$(LIB_PATH)/$(LIB_JNI)' `` -lcvc3 $(LD_LIBS)
+      -o '$(ARCH_LIB_PATH)/$(LIB_JNI)' `` -lcvc3 $(LD_LIBS)
 else
 	$(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
       -Wl,-soname,$(LIB_JNI_COMPAT) \
       -L ../lib $(OBJ_PATH)/$(PACKAGE)/*.o \
-      -o $(LIB_PATH)/$(LIB_JNI) -lcvc3 $(LD_LIBS)
-	-ldconfig -nv $(LIB_PATH)
+      -o $(ARCH_LIB_PATH)/$(LIB_JNI) -lcvc3 $(LD_LIBS)
+ifeq ($(CYGWIN),)
+	-ldconfig -nv $(ARCH_LIB_PATH)
 endif
-	ln -sf $(LIB_JNI) $(LIB_PATH)/$(LIB_JNI_COMPAT)
-	ln -sf $(LIB_JNI) $(LIB_PATH)/$(LIB_JNI_MAJOR)
-	ln -sf $(LIB_JNI) $(LIB_PATH)/$(LIB_JNI_BASE)
+endif
+	ln -sf $(LIB_JNI) $(ARCH_LIB_PATH)/$(LIB_JNI_COMPAT)
+	ln -sf $(LIB_JNI) $(ARCH_LIB_PATH)/$(LIB_JNI_MAJOR)
+	ln -sf $(LIB_JNI) $(ARCH_LIB_PATH)/$(LIB_JNI_BASE)
 
 #	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared \
 
@@ -209,48 +228,63 @@ endif
 
 #ar ruvs /media/data/ESCJava/CVC3/cvc3/lib/linux-i686-debug/libvcl.a  /media/data/ESCJava/CVC3/cvc3/obj/vcl/linux-i686-debug/vcl.o  /media/data/ESCJava/CVC3/cvc3/obj/vcl/linux-i686-debug/vc_cmd.o
 
+$(LIB_PATH)/$(LIB_JNI): $(ARCH_LIB_PATH)/$(LIB_JNI)
+	ln -sf $< $@
+# [chris] ldconfig seems to just delete the .so's!
+# -ldconfig -nv '$(call dirx,$@)'
+	ln -sf $(LIB_JNI) '$(call dirx,$@)/$(LIB_JNI_COMPAT)'
+	ln -sf $(LIB_JNI) '$(call dirx,$@)/$(LIB_JNI_MAJOR)'
+	ln -sf $(LIB_JNI) '$(call dirx,$@)/$(LIB_JNI_BASE)'
+
 # create the java wrapper library
 libcvc3: $(LIB_PATH) $(LIB_PATH)/$(LIB_CVC3)
 $(LIB_PATH)/$(LIB_CVC3): $(LIB_CLASS_FILES)
-	cd $(OBJ_PATH) && $(JAR) cf ../$(LIB_PATH)/$(LIB_CVC3) $(PACKAGE)/*.class
+	cd $(OBJ_PATH) && $(JAR) cf ../../$(REL_LIB_PATH)/$(LIB_CVC3) $(PACKAGE)/*.class
 
 
-install: $(LIB_PATH)/$(LIB_JNI) $(LIB_PATH)/$(LIB_CVC3)
+install: $(ARCH_LIB_PATH)/$(LIB_JNI) $(LIB_PATH)/$(LIB_CVC3)
 	mkdir -p $(javadir)
 	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(LIB_PATH)/$(LIB_CVC3) $(javadir)
 	mkdir -p $(libdir)
-	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(LIB_PATH)/$(LIB_JNI) $(libdir)
+	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(ARCH_LIB_PATH)/$(LIB_JNI) $(libdir)
 	ln -sf $(LIB_JNI) $(libdir)/$(LIB_JNI_MAJOR)
 	ln -sf $(LIB_JNI) $(libdir)/$(LIB_JNI_COMPAT)
 	ln -sf $(LIB_JNI) $(libdir)/$(LIB_JNI_BASE)
+ifeq ($(MAC_OSX),)
+ifeq ($(CYGWIN),)
 	-ldconfig -nv $(libdir)
+endif
+endif
 #	chmod 644 $(libdir)/$(LIB_JNI)
 
 
 # create the java stand alone program
 cvc3: $(LIB_PATH) $(LIB_PATH)/$(PROG_CVC3)
 $(LIB_PATH)/$(PROG_CVC3): $(PROG_CLASS_FILES)
-	$(JAR) -cmf Cvc3_manifest $(LIB_PATH)/$(PROG_CVC3)
+	$(JAR) -cmf Cvc3_manifest ../$(REL_LIB_PATH)/$(PROG_CVC3)
 	@for i in $(PROG_CLASS_FILES); do \
-	  echo $(JAR) -uf $(LIB_PATH)/$(PROG_CVC3) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
-	  $(JAR) -uf $(LIB_PATH)/$(PROG_CVC3) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
+	  echo $(JAR) -uf ../$(REL_LIB_PATH)/$(PROG_CVC3) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
+	  $(JAR) -uf ../$(REL_LIB_PATH)/$(PROG_CVC3) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
 	done
 
 # create the test stand alone program
 testlib: $(LIB_PATH) $(LIB_PATH)/$(PROG_TEST)
 
 test: testlib
-	$(JAVA) $(JREFLAGS) -Djava.library.path=$(LIB_PATH) -ea -jar $(LIB_PATH)/$(PROG_TEST)
+	$(JAVA) $(JREFLAGS) -Djava.library.path=../$(REL_ARCH_LIB_PATH) -ea -jar ../$(REL_LIB_PATH)/$(PROG_TEST)
 
 $(LIB_PATH)/$(PROG_TEST): $(TEST_CLASS_FILES)
-	$(JAR) -cmf Test_manifest $(LIB_PATH)/$(PROG_TEST)
+	echo -e "Main-Class: cvc3/Test\nClass-Path: $(LIB_CVC3)\n" > Test_manifest
+	$(JAR) -cmf Test_manifest ../$(REL_LIB_PATH)/$(PROG_TEST)
 	@for i in $(TEST_CLASS_FILES); do \
-	  echo $(JAR) -uf $(LIB_PATH)/$(PROG_TEST) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
-	  $(JAR) -uf $(LIB_PATH)/$(PROG_TEST) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
+	  echo $(JAR) -uf ../$(REL_LIB_PATH)/$(PROG_TEST) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
+	  $(JAR) -uf ../$(REL_LIB_PATH)/$(PROG_TEST) -C $(OBJ_PATH) $(PACKAGE)/$$i; \
 	done
 
 regress: cvc3
-	./run_tests.py -vc '$(JAVA) $(JREFLAGS) -Djava.library.path=$(LIB_PATH) -ea -Xss100M -jar $(LIB_PATH)/$(PROG_CVC3)' -t 15 -m 500 -l 4 ../benchmarks
+	$(PYTHON) ./run_tests.py \
+	-vc '$(JAVA) $(JREFLAGS) -Djava.library.path=../$(REL_LIB_PATH) -ea -Xss100M -jar ../$(REL_LIB_PATH)/$(PROG_CVC3)' \
+	-t 15 -m 500 -l 4 ../benchmarks
 
 
 ifndef FILELIST
@@ -265,7 +299,7 @@ print_src:
 
 # clean up
 
-clean:
+clean: $(OBJ_PATH)
 	rm -f $(addprefix $(SOURCE_PATH)/$(PACKAGE)/, $(JNI_CPP_FILES))
 	rm -fr $(OBJ_PATH)/$(PACKAGE)/*
 	rm -fr $(LIB_PATH)/*

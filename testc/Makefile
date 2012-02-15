@@ -20,7 +20,7 @@ include ../Makefile.local
 
 $(OBJ_DIR)/main.o : main.c
 	@mkdir -p $(OBJ_DIR)
-	gcc -g -I../src/include -o $(OBJ_DIR)/main.o -c main.c
+	gcc $(CXXFLAGS) -g -I../src/include -o $(OBJ_DIR)/main.o -c main.c
 
 depend: main.c
 	@mkdir -p $(OBJ_DIR)

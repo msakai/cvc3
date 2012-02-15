@@ -251,7 +251,7 @@ public:
     const Expr* operator->() const { return &(operator*()); }
     //! Prefix increment
     iterator& operator++() {
-      d_it++;
+      ++d_it;
       return *this;
     }
     /*! @brief Postfix increment requires a Proxy object to hold the
@@ -388,7 +388,7 @@ public:
   //! Test if e is an atomic formula
   /*! An atomic formula is TRUE or FALSE or an application of a predicate
     (possibly 0-ary) which does not properly contain any formula.  For
-    instance, the formula "x = IF f THEN y ELSE z ENDIF is not an atomic
+    instance, the formula "x = IF f THEN y ELSE z ENDIF" is not an atomic
     formula, since it contains the condition "f", which is a formula. */
   bool isAtomicFormula() const;
   //! An abstract atomic formua is an atomic formula or a quantified formula
@@ -450,9 +450,12 @@ public:
 
   //! Set the triggers for a closure Expr
   void setTriggers(const std::vector<std::vector<Expr> >& triggers) const;
+  void setTriggers(const std::vector<Expr>& triggers) const;
+  void setTrigger(const Expr& trigger) const;
+  void setMultiTrigger(const std::vector<Expr>& multiTrigger) const;
 
   //! Get the manual triggers of the closure Expr
-  const std::vector<std::vector<Expr> >& getTrigs() const; //by yeting
+  const std::vector<std::vector<Expr> >& getTriggers() const; //by yeting
 
   //! Get the Rational value out of RATIONAL_EXPR
   const Rational& getRational() const;
@@ -807,10 +810,8 @@ inline Expr::Expr(const Expr& e) : d_expr(e.d_expr) {
 inline Expr& Expr::operator=(const Expr& e) {
   if(&e == this) return *this; // Self-assignment
   ExprValue* tmp = e.d_expr;
+  if(tmp == d_expr) return *this;
   if (tmp == NULL) {
-    if (d_expr == NULL) {
-      return *this;
-    }
     d_expr->decRefcount();
   }
   else {
@@ -1076,11 +1077,44 @@ inline const Expr& Expr::getBody() const {
   d_expr->setTriggers(triggers);
 }
 
- inline const std::vector<std::vector<Expr> >& Expr::getTrigs() const { //by yeting
+inline void Expr::setTriggers(const std::vector<Expr>& triggers) const {
+   DebugAssert(isClosure(),
+               "CVC3::Expr::setTriggers(): not a closure Expr:\n  "
+               + toString(AST_LANG));
+   std::vector<std::vector<Expr> > patternvv;
+   for(std::vector<Expr>::const_iterator i = triggers.begin(); i != triggers.end(); ++i ) {
+     std::vector<Expr> patternv;
+     patternv.push_back(*i);
+     patternvv.push_back(patternv);
+   }
+   d_expr->setTriggers(patternvv);
+ }
+
+inline void Expr::setTrigger(const Expr& trigger) const {
+  DebugAssert(isClosure(),
+	      "CVC3::Expr::setTrigger(): not a closure Expr:\n  "
+	      + toString(AST_LANG));
+  std::vector<std::vector<Expr> > patternvv;
+  std::vector<Expr> patternv;
+  patternv.push_back(trigger);
+  patternvv.push_back(patternv);
+  setTriggers(patternvv);
+}
+
+inline void Expr::setMultiTrigger(const std::vector<Expr>& multiTrigger) const {
+  DebugAssert(isClosure(),
+              "CVC3::Expr::setTrigger(): not a closure Expr:\n  "
+              + toString(AST_LANG));
+  std::vector<std::vector<Expr> > patternvv;
+  patternvv.push_back(multiTrigger);
+  setTriggers(patternvv);
+}
+
+ inline const std::vector<std::vector<Expr> >& Expr::getTriggers() const { //by yeting
   DebugAssert(isClosure(),
 	      "CVC3::Expr::getTrigs(): not a closure Expr:\n  "
 	      + toString(AST_LANG));
-  return d_expr->getTrigs();
+  return d_expr->getTriggers();
 }
 
 inline const Expr& Expr::getExistential() const {
