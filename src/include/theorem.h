@@ -415,7 +415,7 @@ namespace CVC3 {
   inline bool operator>=(const Theorem& t1, const Theorem& t2)
     { return compare(t1, t2) >= 0; }
 
-}; // end of namespace CVC3
+} // end of namespace CVC3
 
 #include "hash_fun.h"
 namespace Hash

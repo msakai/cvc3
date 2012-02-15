@@ -77,6 +77,9 @@ namespace CVC3 {
     Theorem substitutivityRule(const Expr& e,
                                const std::vector<unsigned>& changed,
                                const std::vector<Theorem>& thms);
+    Theorem substitutivityRule(const Expr& e,
+                               const int changed,
+                               const Theorem& thm);
     Theorem contradictionRule(const Theorem& e, const Theorem& not_e);
     Theorem excludedMiddle(const Expr& e);
     Theorem iffTrue(const Theorem& e);

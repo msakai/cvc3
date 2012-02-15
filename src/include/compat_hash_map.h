@@ -34,6 +34,6 @@
 #include "hash_map.h"
 namespace std {
   using namespace Hash;
-};
+}
 
 #endif

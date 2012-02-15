@@ -106,10 +106,10 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
     CHECK_SOUND(e.isForall(),
 		"universal instantiation: expr must be FORALL:\n"
 		+e.toString());
-    for(unsigned int i=0; i<terms.size(); i++)
-      CHECK_SOUND(d_theoryQuant->getBaseType(boundVars[i]) ==
-                  d_theoryQuant->getBaseType(terms[i]),
-	      "Universal instantiation: type mismatch");
+//     for(unsigned int i=0; i<terms.size(); i++)
+//       CHECK_SOUND(d_theoryQuant->getBaseType(boundVars[i]) ==
+//                   d_theoryQuant->getBaseType(terms[i]),
+// 	      "Universal instantiation: type mismatch");
   }
 
   //build up a conjunction of type predicates for expression

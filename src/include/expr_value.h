@@ -104,7 +104,7 @@ class ExprValue {
   //! For checking whether simplify cache is valid
   unsigned d_simpCacheTag;
 
-  //! context-dependent bit-vector for flags that are context-dependend
+  //! context-dependent bit-vector for flags that are context-dependent
   CDFlags d_dynamicFlags;
 
   //! Height of this expression
@@ -406,6 +406,9 @@ protected:
   unsigned arity() const { return d_children.size(); }
 
   //! Return reference to children
+  std::vector<Expr>& getKids1() { return d_children; }
+
+  //! Return reference to children
   const std::vector<Expr>& getKids() const { return d_children; }
 
   //! Use our static hash() for the member method
@@ -417,6 +420,9 @@ protected:
   virtual ExprValue* copy(ExprManager* em, ExprIndex idx = 0) const;
 
 public:
+  //! Constructor
+  ExprNode(ExprManager* em, int kind, ExprIndex idx = 0)
+    : ExprValue(em, kind, idx), d_sig(NULL), d_rep(NULL) { }
   //! Constructor
   ExprNode(ExprManager* em, int kind, const std::vector<Expr>& kids,
            ExprIndex idx = 0)
@@ -445,6 +451,75 @@ public:
 
 }; // end of class ExprNode
 
+// Class ExprNodeTmp; special version of ExprNode for Expr constructor
+class ExprNodeTmp: public ExprValue {
+  friend class Expr;
+  friend class ExprManager;
+
+protected:
+  //! Vector of children
+  const std::vector<Expr>& d_children;
+
+private:
+
+  //! Tell ExprManager who we are
+  size_t getMMIndex() const { return EXPR_NODE; }
+
+protected:
+  //! Return number of children
+  unsigned arity() const { return d_children.size(); }
+
+  //! Return reference to children
+  const std::vector<Expr>& getKids() const { return d_children; }
+
+  //! Use our static hash() for the member method
+  size_t computeHash() const {
+    return ExprValue::hash(d_kind, d_children);
+  }
+
+  //! Make a clean copy of itself using the given memory manager
+  virtual ExprValue* copy(ExprManager* em, ExprIndex idx = 0) const;
+
+public:
+  //! Constructor
+  ExprNodeTmp(ExprManager* em, int kind, const std::vector<Expr>& kids)
+    : ExprValue(em, kind, 0), d_children(kids) { }
+
+  //! Destructor
+  virtual ~ExprNodeTmp() {}
+    
+  //! Compare with another ExprValue
+  virtual bool operator==(const ExprValue& ev2) const;
+
+}; // end of class ExprNodeTmp
+
+// Special version for Expr Constructor
+class ExprApplyTmp: public ExprNodeTmp {
+  friend class Expr;
+  friend class ExprManager;
+private:
+  Expr d_opExpr;
+protected:
+  size_t getMMIndex() const { return EXPR_APPLY; }
+  size_t computeHash() const {
+    return PRIME*ExprNodeTmp::computeHash() + d_opExpr.hash();
+  }
+  Op getOp() const { return Op(d_opExpr); }
+  bool isApply() const { return true; }
+  // Make a clean copy of itself using the given memory manager
+  ExprValue* copy(ExprManager* em, ExprIndex idx = 0) const;
+public:
+  // Constructor
+  ExprApplyTmp(ExprManager* em, const Op& op,
+               const std::vector<Expr>& kids)
+    : ExprNodeTmp(em, NULL_KIND, kids), d_opExpr(op.getExpr())
+  { DebugAssert(!op.getExpr().isNull(), "Expected non-null Op");
+    d_kind = APPLY; }
+  virtual ~ExprApplyTmp() { }
+
+  bool operator==(const ExprValue& ev2) const;
+}; // end of class ExprApply
+
 class ExprApply: public ExprNode {
   friend class Expr;
   friend class ExprManager;
@@ -462,8 +537,7 @@ protected:
 public:
   // Constructor
   ExprApply(ExprManager* em, const Op& op, ExprIndex idx = 0)
-    : ExprNode(em, NULL_KIND, em->getEmptyVector(), idx),
-      d_opExpr(op.getExpr())
+    : ExprNode(em, NULL_KIND, idx), d_opExpr(op.getExpr())
   { DebugAssert(!op.getExpr().isNull(), "Expected non-null Op");
     d_kind = APPLY; }
   ExprApply(ExprManager* em, const Op& op,

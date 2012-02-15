@@ -71,6 +71,8 @@ HEADER_NAMES = \
   theorem_manager.h \
   theorem_producer.h \
   theory_arith.h \
+  theory_arith_new.h \
+  theory_arith_old.h \
   theory_array.h \
   theory_bitvector.h \
   theory_core.h \

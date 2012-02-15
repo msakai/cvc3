@@ -729,11 +729,11 @@ for constant symbols, and of the form
 \f[
 \begin{array}{rlcl}
 \mathrm{LET}
- & f_1 & = &\mathrm{LAMBDA}(x_1:T_{1,1}, \ldots, x:T_{1,n}).\; t_1,
+ & f_1 & = &\mathrm{LAMBDA}(x_1:T_{1,1}, \ldots, x:T_{1,n}):\; t_1,
  \\
  & & \vdots &
  \\
- & f_m & = & \mathrm{LAMBDA}(x_1:T_{m,1}, \ldots, x:T_{m,n}).\; t_n\ 
+ & f_m & = & \mathrm{LAMBDA}(x_1:T_{m,1}, \ldots, x:T_{m,n}):\; t_n\ 
  \\
  \mathrm{IN} & t ;
 \end{array}

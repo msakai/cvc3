@@ -235,11 +235,8 @@ Theorem TheoryCore::simplify(const Expr& e)
   if (e.isVar()) {
     thm = rewriteCore(e);
   }
-  else if (e.isApply()) {
-    thm = rewriteCore(theoryOf(e.getOpKind())->simplifyOp(e));
-  }
   else {
-    thm = rewriteCore(theoryOf(e.getKind())->simplifyOp(e));
+    thm = rewriteCore(theoryOf(e.getOpKind())->simplifyOp(e));
   }
 
   const Expr& e2 = thm.getRHS();
@@ -343,27 +340,22 @@ void TheoryCore::assertFactCore(const Theorem& e)
   IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
   TRACE("assertFactCore", indentStr, "AssertFactCore: ", e.getExpr().toString(PRESENTATION_LANG));
 
-  const Expr& e2 = e.getExpr();
-  Theorem equiv = simplify(e2);
-
-  Theorem estarThm(iffMP(e, equiv));
-  Expr estar = estarThm.getExpr();
-
-  // Make sure originally asserted atomic formulas have a find pointer
-  if(e2 != estar && !e2.isTrue() && e2.isAbsLiteral())
-    setFindLiteral(e);
-  
-  if(estar.isAnd()) {
-    for(int i=0,iend=estar.arity(); i<iend && !d_inconsistent; ++i)
-      assertFactCore(d_commonRules->andElim(estarThm, i));
-    return;
+  Theorem estarThm(e);
+  Expr estar = e.getExpr();
+  IF_DEBUG(Expr e2 = estar);
+  Theorem equiv = simplify(estar);
+  if (!equiv.isRefl()) {
+    estarThm = iffMP(e, equiv);
+    // Make sure originally asserted atomic formulas have a find pointer
+    if (!estar.isTrue() && estar.isAbsLiteral()) {
+      setFindLiteral(e);
+    }
+    estar = estarThm.getExpr();
   }
 
   if (estar.isAbsLiteral()) {
     if (estar.isEq()) {
-      // Notify the search engine
       Theorem solvedThm(solve(estarThm));
-      // Search engine doesn't have to know about estar at this point
       if(estar != solvedThm.getExpr()) setFindLiteral(estarThm);
       assertEqualities(solvedThm);
     }
@@ -374,7 +366,12 @@ void TheoryCore::assertFactCore(const Theorem& e)
     else if (!estar.isTrue()) {
       assertFormula(estarThm);
     }
-  } else {
+  } else if (estar.isAnd()) {
+    for(int i=0,iend=estar.arity(); i<iend && !d_inconsistent; ++i)
+      assertFactCore(d_commonRules->andElim(estarThm, i));
+    return;
+  }
+  else {
     // Notify the search engine
     enqueueSE(estarThm);
   }
@@ -393,13 +390,8 @@ void TheoryCore::assertFormula(const Theorem& thm)
   const Expr& e = thm.getExpr();
   DebugAssert(e.isAbsLiteral(),"assertFormula: nonliteral asserted:\n  "
               +thm.toString());
-#ifdef DEBUG
-  std::stringstream ss;
-  ss<<getCM()->scopeLevel();
-  std::string temp;
-  ss>>temp;
-  TRACE("asserts","Assert: ", temp+"|L| ", e.toString(PRESENTATION_LANG));
-#endif
+  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+  TRACE("assertFormula",indentStr,"AssertFormula: ", e.toString(PRESENTATION_LANG));
   Theory* i = theoryOf(e);
   // (Dis)equalities should also be asserted to the theories of
   // their types for concrete model generation 
@@ -510,20 +502,32 @@ void TheoryCore::setFindLiteral(const Theorem& thm)
   const Expr& e = thm.getExpr();
   NotifyList* L;
   if (e.isNot()) {
-    if (!e[0].hasFind()) {
+    const Expr& e0 = e[0];
+    if (!e0.hasFind()) {
+      IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+      TRACE("setFindLiteral", indentStr, "SFL: ", e.toString(PRESENTATION_LANG));
       Theorem findThm = d_commonRules->notToIff(thm);
-      e[0].setFind(findThm);
-      if (e[0].isRegisteredAtom()) {
+      e0.setFind(findThm);
+      if (e0.isRegisteredAtom()) {
         DebugAssert(!e.isImpliedLiteral(), "Should be new implied lit");
         e.setImpliedLiteral();
         d_impliedLiterals.push_back(thm);
       }
       d_em->invalidateSimpCache();
-      L = e[0].getNotify();
+      L = e0.getNotify();
       if (L) processNotify(findThm, L);
-    } 
+    }
+    else {
+      Theorem findThm = find(e0);
+      if (findThm.getRHS().isTrue()) {
+        setInconsistent(iffMP(d_commonRules->iffTrueElim(findThm),
+                              d_commonRules->notToIff(thm)));
+      }
+    }
   }
   else if (!e.hasFind()) {
+    IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+    TRACE("setFindLiteral", indentStr, "SFL: ", e.toString(PRESENTATION_LANG));
     Theorem findThm = d_commonRules->iffTrue(thm);
     e.setFind(findThm);
     if (e.isRegisteredAtom()) {
@@ -534,6 +538,12 @@ void TheoryCore::setFindLiteral(const Theorem& thm)
     d_em->invalidateSimpCache();
     L = e.getNotify();
     if (L) processNotify(findThm, L);
+  }
+  else {
+    Theorem findThm = find(e);
+    if (findThm.getRHS().isFalse()) {
+      setInconsistent(iffMP(thm, findThm));
+    }
   }
 }
 
@@ -680,7 +690,7 @@ Expr TheoryCore::processCond(const Expr& e, int i)
   if(i == e.arity()-2) {
     if(e[i].getKind() == RAW_LIST && e[i].arity() == 2
        && e[i+1].getKind() == RAW_LIST  && e[i+1].arity() == 2
-       && e[i+1][0].getKind() == ID && e[i+1][0][0].getString() == "ELSE") {
+       && e[i+1][0].getKind() == ID && e[i+1][0][0].getString() == "_ELSE") {
       Expr c(parseExpr(e[i][0]));
       Expr e1(parseExpr(e[i][1]));
       Expr e2(parseExpr(e[i+1][1]));
@@ -739,6 +749,7 @@ bool TheoryCore::isBasicKind(int kind)
     case XOR:
     case NOT:
     case EQ:
+    case DISTINCT:
     case CALL:
     case TRANSFORM:
     case CHECK_TYPE:
@@ -778,7 +789,6 @@ TheoryCore::TheoryCore(ContextManager* cm,
     d_terms(cm->getCurrentContext()),
     d_predicates(cm->getCurrentContext()),
     d_vars(cm->getCurrentContext()),
-    d_sharedTerms(cm->getCurrentContext()),
     d_solver(NULL),
     d_simplifyInPlace(false),
     d_currentRecursiveSimplifier(NULL),
@@ -825,6 +835,7 @@ TheoryCore::TheoryCore(ContextManager* cm,
   kinds.push_back(SKOLEM_VAR);
   kinds.push_back(EQ);
   kinds.push_back(NEQ);
+  kinds.push_back(DISTINCT);
   kinds.push_back(ECHO);
   kinds.push_back(DBG);
   kinds.push_back(TRACE);
@@ -996,6 +1007,11 @@ Theorem TheoryCore::rewrite(const Expr& e)
     case NOT:
       thm = rewriteLitCore(e);
       break;
+    case DISTINCT: {
+      Theorem thm1 = d_rules->rewriteDistinct(e);
+      thm = transitivityRule(thm1, simplify(thm1.getRHS()));
+      break;
+    }
     case IMPLIES: {
       thm = d_rules->rewriteImplies(e);
       const Expr& rhs = thm.getRHS();
@@ -1336,27 +1352,27 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
     break;
   }
   case NOT: { // Push negation down
-    if(!e.isAbsLiteral() && getFlags()["pushneg"].getBool()) {
-      Theorem res = d_exprTrans->pushNegation1(e);
-      if(res.getLHS() != res.getRHS())
-	// Recurse; there may be shortcuts to take advantage of
-	res = transitivityRule(res, simplifyOp(res.getRHS()));
-      else {
-	res = Theory::simplifyOp(e);
-	// Try pushing negation once more
-	Theorem thm = d_exprTrans->pushNegation1(res.getRHS());
-	if(thm.getLHS() != thm.getRHS()) {
-	  thm = transitivityRule(thm, simplify(thm.getRHS()));
-	  res = transitivityRule(res, thm);
-	}
-      }
-      return res;
-    } else {
+//     if(!e.isAbsLiteral() && getFlags()["pushneg"].getBool()) {
+//       Theorem res = d_exprTrans->pushNegation1(e);
+//       if(res.getLHS() != res.getRHS())
+// 	// Recurse; there may be shortcuts to take advantage of
+// 	res = transitivityRule(res, simplifyOp(res.getRHS()));
+//       else {
+// 	res = Theory::simplifyOp(e);
+// 	// Try pushing negation once more
+// 	Theorem thm = d_exprTrans->pushNegation1(res.getRHS());
+// 	if(thm.getLHS() != thm.getRHS()) {
+// 	  thm = transitivityRule(thm, simplify(thm.getRHS()));
+// 	  res = transitivityRule(res, thm);
+// 	}
+//       }
+//       return res;
+//     } else {
       Theorem res = simplify(e[0]);
       if (res.getLHS() != res.getRHS()) {
         return d_commonRules->substitutivityRule(e, res);
       }
-    }
+//     }
     break;
   }
   case IMPLIES: {
@@ -1452,8 +1468,21 @@ void TheoryCore::computeType(const Expr& e)
 	   +"\n\n in expression: \n"+e.toString());
       }
       e.setType(boolType());
-    }
       break;
+    }
+    case DISTINCT: {
+      Type t0(getBaseType(e[0]));
+      for (int i = 1; i < e.arity(); ++i) {
+        if (t0 != getBaseType(e[i])) {
+          throw TypecheckException
+            ("Type mismatch in distinct:\n\n types:\n"+t0.toString()
+             +"\n\n and type: \n"+getBaseType(e[i]).toString()
+             +"\n\n in expression: \n"+e.toString());
+        }
+      }
+      e.setType(boolType());
+      break;
+    }
     case NOT:
     case AND:
     case OR:
@@ -1511,7 +1540,7 @@ void TheoryCore::computeType(const Expr& e)
 
       for (int k = 0; k < e.arity(); ++k) {
 	Type valType(getBaseType(e[k]));
-	if (funType[k] != Type::anyType(d_em) && valType != getBaseType(funType[k])) {
+	if (funType[k] != Type::anyType(d_em) && !(valType == getBaseType(funType[k]) || valType == Type::anyType(d_em)) ) {
 	  throw TypecheckException("Type mismatch for expression:\n\n   "
 				   + e[k].toString()
 				   + "\n\nhas the following type:\n\n  "
@@ -2259,6 +2288,13 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       os << "(" << push << "=" << space << e[0]
 	 << space << e[1] << push << ")";
       break;
+    case DISTINCT: {
+      int i=0, iend=e.arity();
+      os << "(" << push << "distinct";
+      for(; i!=iend; ++i) os << space << e[i];
+      os << push << ")";
+      break;
+    }
     case NOT:
       os << "(" << push << "not" << space << e[0] << push << ")";
       break;
@@ -2267,19 +2303,19 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       os << "(" << push << "and";
       for(; i!=iend; ++i) os << space << e[i];
       os << push << ")";
-    }
       break;
+    }
     case OR: {
       int i=0, iend=e.arity();
       os << "(" << push << "or";
-      for(; i!=iend; ++i) os << space << e[i] << space;
+      for(; i!=iend; ++i) os << space << e[i];
       os << push << ")";
       break;
     }
     case XOR: {
       int i=0, iend=e.arity();
       os << "(" << push << "xor";
-      for(; i!=iend; ++i) os << space << e[i] << space;
+      for(; i!=iend; ++i) os << space << e[i];
       os << push << ")";
       break;
     }
@@ -2642,11 +2678,17 @@ void TheoryCore::addFact(const Theorem& e)
   DebugAssert(d_queue.empty(), "addFact[start]: Expected empty queue");
   DebugAssert(d_queueSE.empty(), "addFact[start]: Expected empty queue");
   DebugAssert(d_update_thms.empty() && d_update_data.empty(),
-              "adFact[start]: Expected empty update list");
+              "addFact[start]: Expected empty update list");
   IF_DEBUG(ScopeWatcher sw(&d_inAddFact));
 
-  if(!d_inconsistent) {
-    enqueueFact(e);
+  if(!d_inconsistent && !outOfResources()) {
+    getResource();
+    d_queue.push(e);
+    if (outOfResources()) {
+      // No more resources: ignore all the remaining facts and fail
+      // gracefully
+      setIncomplete("Exhausted user-specified resource");
+    }
     processFactQueue();
   }
 
@@ -2701,7 +2743,9 @@ void TheoryCore::registerAtom(const Expr& e, const Theorem& thm)
     setFindLiteral(d_commonRules->iffFalseElim(thm2));
   }
   else {
-    theoryOf(e)->registerAtom(e);
+    //TODO: why does arith need thm2.getRHS() instead of e?
+    //    theoryOf(e)->registerAtom(e);
+    theoryOf(thm2.getRHS())->registerAtom(thm2.getRHS());
     setupSubFormulas(thm2.getRHS(), e, thm);
   }
   processFactQueue(LOW);
@@ -2908,7 +2952,6 @@ void TheoryCore::collectBasicVars()
 	Theory* t2 = theoryOf(getBaseType(var).getExpr().getKind());
 	if(t1 != t2) {
 	  TRACE("model", "collectBasicVars: adding shared var: ", var, "");
-	  d_sharedTerms.insert(var, t1);
 	  t1->addSharedTerm(var);
 	  t2->addSharedTerm(var);
 	}
@@ -3283,16 +3326,7 @@ void TheoryCore::setInconsistent(const Theorem& e)
 
 void TheoryCore::setupTerm(const Expr& t, Theory* i, const Theorem& thm)
 {
-  // Even if t is already setup, it may become shared with another theory
-  Theory* j = theoryOf(t);
-  if(i != j && t.isTerm()) {
-    j->addSharedTerm(t);
-    i->addSharedTerm(t);
-    d_sharedTerms.insert(t, j);
-  }
-  
   int k;
-
   // Atomic formulas (non-terms) may have find pointers without the
   // subterms being setup.  Recurse down to the terms before checking
   // for find pointers.
@@ -3314,18 +3348,23 @@ void TheoryCore::setupTerm(const Expr& t, Theory* i, const Theorem& thm)
       t.setStoredPredicate();
       d_predicates.push_back(t);
       d_termTheorems[t] = thm;
-      j->setup(t);
+      theoryOf(t)->setup(t);
       //      d_termTheorems[t] = thm;
       TRACE("quantlevel","pushed pred ",t,thm);
       TRACE("quantlevel","pushed pred quantlevel",thm.getQuantLevel(),"");
     }
     return;
   }
+
+  // Even if t is already setup, it may become shared with another theory
+  Theory* j = theoryOf(t);
+  if(i != j) {
+    j->addSharedTerm(t);
+    i->addSharedTerm(t);
+  }
   
   // If already setup, nothing else to do
-  if (t.hasFind()) {
-    return;
-  }
+  if (t.hasFind()) return;
 
   // Proceed with the setup
 
@@ -3338,7 +3377,7 @@ void TheoryCore::setupTerm(const Expr& t, Theory* i, const Theorem& thm)
 
 
   for (k = 0; k < t.arity(); ++k) {
-    setupTerm(t[k], theoryOf(t), thm);
+    setupTerm(t[k], j, thm);
   }
   t.setFind(d_commonRules->reflexivityRule(t));
   j->setup(t);

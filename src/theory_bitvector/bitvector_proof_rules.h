@@ -80,8 +80,8 @@ namespace CVC3 {
     //! Pad the kids of BVLT/BVLE to make their length equal
     virtual Theorem padBVLTRule(const Expr& e, int len) = 0;
 
-    //! Sign Extend the kids of SBVLT/SBVLE to make their length equal
-    virtual Theorem padSBVLTRule(const Expr& e, int len) = 0; 
+    //! Sign Extend the kids of BVSLT/BVSLE to make their length equal
+    virtual Theorem padBVSLTRule(const Expr& e, int len) = 0; 
     
     /*! input: e0 <=(s) e1. output depends on whether the topbits(MSB) of
      *  e0 and e1 are constants. If they are constants then optimizations
@@ -265,6 +265,16 @@ namespace CVC3 {
     virtual Theorem constWidthLeftShiftToConcat(const Expr& e) = 0;
     //! t>>m = 0bin00...00 @ t[bvlength-1:m], takes e == (t>>n)
     virtual Theorem rightShiftToConcat(const Expr& e) = 0;
+    //! a XOR b <=> (a & ~b) | (~a & b)
+    virtual Theorem rewriteXOR(const Expr& e) = 0;
+    //! a XNOR b <=> (~a & ~b) | (a & b)
+    virtual Theorem rewriteXNOR(const Expr& e) = 0;
+    //! a NAND b <=> ~(a & b)
+    virtual Theorem rewriteNAND(const Expr& e) = 0;
+    //! a NOR b <=> ~(a | b)
+    virtual Theorem rewriteNOR(const Expr& e) = 0;
+    //! a - b <=> a + (-b)
+    virtual Theorem rewriteBVSub(const Expr& e) = 0;
     //! k*t = BVPLUS(n, <sum of shifts of t>) -- translation of k*t to BVPLUS
     /*! If k = 2^m, return k*t = t\@0...0 */
     virtual Theorem constMultToPlus(const Expr& e) = 0;
@@ -349,6 +359,10 @@ namespace CVC3 {
     virtual Theorem negBVand(const Expr& e) = 0;
     //! ~(t1 | t2) <=> ~t1 & ~t2 -- DeMorgan's Laws
     virtual Theorem negBVor(const Expr& e) = 0;
+    //! ~(t1 xor t2) = ~t1 xor t2
+    virtual Theorem negBVxor(const Expr& e) = 0;
+    //! ~(t1 xnor t2) = t1 xor t2
+    virtual Theorem negBVxnor(const Expr& e) = 0;
 
     // Bit-wise AND rules
     //! c1&c2&t = c&t -- compute bit-wise AND of constant bitvector arguments

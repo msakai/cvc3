@@ -27,7 +27,8 @@
 #include "search_sat.h"
 #include "theory_core.h"
 #include "theory_uf.h"
-#include "theory_arith.h"
+#include "theory_arith_old.h"
+#include "theory_arith_new.h"
 #include "theory_bitvector.h"
 #include "theory_array.h"
 #include "theory_quant.h"
@@ -85,6 +86,7 @@ CLFlags ValidityChecker::createFlags() {
 
   //Translation related flags
   flags.addFlag("expResult", CLFlag("", "For smtlib translation.  Give the expected result"));
+  flags.addFlag("category", CLFlag("unknown", "For smtlib translation.  Give the category"));
   flags.addFlag("translate", CLFlag(false, "Produce a complete translation from "
                                            "the input language to output language.  "));
   flags.addFlag("real2int", CLFlag(false, "When translating, convert reals to integers."));
@@ -92,6 +94,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("convert2diff", CLFlag("", "When translating, try to force into difference logic.  Legal values are int and real."));
   flags.addFlag("iteLiftArith", CLFlag(false, "For translation.  If true, ite's are lifted out of arith exprs."));
   flags.addFlag("convertArray", CLFlag(false, "For translation.  If true, arrays are converted to uninterpreted functions if possible."));
+  flags.addFlag("combineAssump", CLFlag(false, "For translation.  If true, assumptions are combined into the query."));
 
   // Parser related flags
   flags.addFlag("old-func-syntax",CLFlag(false, "Enable parsing of old-style function syntax"));
@@ -99,7 +102,7 @@ CLFlags ValidityChecker::createFlags() {
   // Pretty-printing related flags
   flags.addFlag("dagify-exprs",
 		CLFlag(true, "Print expressions with sharing as DAGs"));
-  flags.addFlag("lang", CLFlag("presentation", "Input language "
+  flags.addFlag("lang", CLFlag("smtlib", "Input language "
 			       "(presentation, smtlib, internal)"));
   flags.addFlag("output-lang", CLFlag("", "Output language "
 				      "(presentation, smtlib, simplify, internal, lisp)"));
@@ -118,6 +121,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("proofs", CLFlag(false, "Produce proofs"));
   flags.addFlag("check-proofs",
 		CLFlag(IF_DEBUG(true ||) false, "Check proofs on-the-fly"));
+  flags.addFlag("minimizeClauses", CLFlag(false, "Use brute-force minimization of clauses"));
 
   // Core framework switches
   flags.addFlag("tcc", CLFlag(false, "Check TCCs for each ASSERT and QUERY"));
@@ -145,6 +149,7 @@ CLFlags ValidityChecker::createFlags() {
   // DP-specific flags
 
   // Arithmetic
+  flags.addFlag("arith-new",CLFlag(false, "Use new arithmetic dp"));
   flags.addFlag("var-order",
 		CLFlag(false, "Use simple variable order in arith"));
   flags.addFlag("ineq-delay", CLFlag(10, "Accumulate this many inequalities "
@@ -399,7 +404,9 @@ VCL::VCL(const CLFlags& flags)
                                 (*d_flags)["convert2diff"].getString(),
                                 (*d_flags)["iteLiftArith"].getBool(),
                                 (*d_flags)["expResult"].getString(),
-                                (*d_flags)["convertArray"].getBool());
+                                (*d_flags)["category"].getString(),
+                                (*d_flags)["convertArray"].getBool(),
+                                (*d_flags)["combineAssump"].getBool());
 
   d_dump = d_translator->start((*d_flags)["dump-log"].getString());
 
@@ -411,7 +418,13 @@ VCL::VCL(const CLFlags& flags)
   trueExpr().setFind(d_theoryCore->reflexivityRule(trueExpr()));
 
   d_theories.push_back(d_theoryUF = new TheoryUF(d_theoryCore));
-  d_theories.push_back(d_theoryArith = new TheoryArith(d_theoryCore));
+
+  if ((*d_flags)["arith-new"].getBool()) {
+    d_theories.push_back(d_theoryArith = new TheoryArithNew(d_theoryCore));
+  }
+  else {
+    d_theories.push_back(d_theoryArith = new TheoryArithOld(d_theoryCore));
+  }
   d_theories.push_back(d_theoryArray = new TheoryArray(d_theoryCore));
   d_theories.push_back(d_theoryRecords = new TheoryRecords(d_theoryCore));
   d_theories.push_back(d_theorySimulate = new TheorySimulate(d_theoryCore));
@@ -464,6 +477,7 @@ VCL::~VCL()
   popto(0);
   d_cm->popto(0);
   delete d_stackLevel;
+  free(d_stackLevel);
   d_translator->finish();
   delete d_translator;
 
@@ -480,9 +494,6 @@ VCL::~VCL()
   d_lastQuery = Theorem3();
   d_lastQueryTCC = Theorem();
   d_lastClosure = Theorem3();
-  TRACE_MSG("delete", "Deleting d_vars {");
-  d_vars.clear();
-  TRACE_MSG("delete", "Finished deleting d_vars }");
   // Delete ExprManager BEFORE TheoremManager, since Exprs use Theorems
   TRACE_MSG("delete", "Clearing d_em {");
   d_em->clear();
@@ -528,6 +539,22 @@ void VCL::reprocessFlags() {
       throw CLException("Unrecognized SAT solver name: "
                         +(*d_flags)["sat"].getString());
   }
+
+  if (d_theoryArith->getName() == "ArithmeticOld" &&
+      (*d_flags)["arith-new"].getBool()) {
+    delete d_theoryArith;
+    d_theoryArith = new TheoryArithNew(d_theoryCore);
+    d_theories[2] = d_theoryArith;
+    d_translator->setTheoryArith(d_theoryArith);
+  }
+  else if (d_theoryArith->getName() == "ArithmeticNew" &&
+           !(*d_flags)["arith-new"].getBool()) {
+    delete d_theoryArith;
+    d_theoryArith = new TheoryArithOld(d_theoryCore);
+    d_theories[2] = d_theoryArith;
+    d_translator->setTheoryArith(d_theoryArith);
+  }
+
   //TODO: handle more flags
 }
 
@@ -680,6 +707,12 @@ void VCL::dataType(const vector<string>& names,
 Type VCL::arrayType(const Type& typeIndex, const Type& typeData)
 {
   return ::arrayType(typeIndex, typeData);
+}
+
+
+Type VCL::bitvecType(int n)
+{
+  return d_theoryBitvector->newBitvectorType(n);
 }
 
 
@@ -1241,6 +1274,180 @@ Expr VCL::writeExpr(const Expr& array, const Expr& index, const Expr& newValue)
 }
 
 
+Expr VCL::newBVConstExpr(const std::string& s, int base)
+{
+  return d_theoryBitvector->newBVConstExpr(s, base);
+}
+
+
+Expr VCL::newBVConstExpr(const std::vector<bool>& bits)
+{
+  return d_theoryBitvector->newBVConstExpr(bits);
+}
+
+
+Expr VCL::newBVConstExpr(const Rational& r, int len)
+{
+  return d_theoryBitvector->newBVConstExpr(r, len);
+}
+
+
+Expr VCL::newConcatExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newConcatExpr(t1, t2);
+}
+
+
+Expr VCL::newConcatExpr(const std::vector<Expr>& kids)
+{
+  return d_theoryBitvector->newConcatExpr(kids);
+}
+
+
+Expr VCL::newBVExtractExpr(const Expr& e, int hi, int low)
+{
+  return d_theoryBitvector->newBVExtractExpr(e, hi, low);
+}
+
+
+Expr VCL::newBVNegExpr(const Expr& t1)
+{
+  return d_theoryBitvector->newBVNegExpr(t1);
+}
+
+
+Expr VCL::newBVAndExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVAndExpr(t1, t2);
+}
+
+
+Expr VCL::newBVAndExpr(const std::vector<Expr>& kids)
+{
+  return d_theoryBitvector->newBVAndExpr(kids);
+}
+
+
+Expr VCL::newBVOrExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVOrExpr(t1, t2);
+}
+
+
+Expr VCL::newBVOrExpr(const std::vector<Expr>& kids)
+{
+  return d_theoryBitvector->newBVOrExpr(kids);
+}
+
+
+Expr VCL::newBVXorExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVXorExpr(t1, t2);
+}
+
+
+Expr VCL::newBVXorExpr(const std::vector<Expr>& kids)
+{
+  return d_theoryBitvector->newBVXorExpr(kids);
+}
+
+
+Expr VCL::newBVXnorExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVXnorExpr(t1, t2);
+}
+
+
+Expr VCL::newBVXnorExpr(const std::vector<Expr>& kids)
+{
+  return d_theoryBitvector->newBVXnorExpr(kids);
+}
+
+
+Expr VCL::newBVNandExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVNandExpr(t1, t2);
+}
+
+
+Expr VCL::newBVNorExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVNorExpr(t1, t2);
+}
+
+
+Expr VCL::newBVLTExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVLTExpr(t1, t2);
+}
+
+
+Expr VCL::newBVLEExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVLEExpr(t1, t2);
+}
+
+
+Expr VCL::newBVSLTExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVSLTExpr(t1, t2);
+}
+
+
+Expr VCL::newBVSLEExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVSLEExpr(t1, t2);
+}
+
+
+Expr VCL::newSXExpr(const Expr& t1, int len)
+{
+  return d_theoryBitvector->newSXExpr(t1, len);
+}
+
+
+Expr VCL::newBVUminusExpr(const Expr& t1)
+{
+  return d_theoryBitvector->newBVUminusExpr(t1);
+}
+
+
+Expr VCL::newBVSubExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVSubExpr(t1, t2);
+}
+
+
+Expr VCL::newBVPlusExpr(int numbits, const std::vector<Expr>& k)
+{
+  return d_theoryBitvector->newBVPlusExpr(numbits, k);
+}
+
+
+Expr VCL::newBVMultExpr(int numbits, const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVMultExpr(numbits, t1, t2);
+}
+
+
+Expr VCL::newFixedLeftShiftExpr(const Expr& t1, int r)
+{
+  return d_theoryBitvector->newFixedLeftShiftExpr(t1, r);
+}
+
+
+Expr VCL::newFixedConstWidthLeftShiftExpr(const Expr& t1, int r)
+{
+  return d_theoryBitvector->newFixedConstWidthLeftShiftExpr(t1, r);
+}
+
+
+Expr VCL::newFixedRightShiftExpr(const Expr& t1, int r)
+{
+  return d_theoryBitvector->newFixedRightShiftExpr(t1, r);
+}
+
+
 Expr VCL::tupleExpr(const vector<Expr>& exprs) {
   DebugAssert(exprs.size() > 0, "VCL::tupleExpr()");
   return d_theoryRecords->tupleExpr(exprs);
@@ -1360,7 +1567,7 @@ void VCL::assertFormula(const Expr& e)
 
   // Check if the ofstream is open (as opposed to the command line flag)
   if(d_dump) {
-    d_translator->dumpAssertion(e);
+    if (d_translator->dumpAssertion(e)) return;
   }
 
   TRACE("assetFormula", "VCL::assertFormula(", e, ") {");
@@ -1767,4 +1974,22 @@ void VCL::loadFile(istream& is, InputLanguage lang,
   Parser parser(this, lang, is, interactive);
   VCCmd cmd(this, &parser);
   cmd.processCommands();
+}
+
+
+unsigned long VCL::printMemory()
+{
+  cout << "VCL: " <<
+    sizeof(VCL) + d_theories.size() * sizeof(Theory*)
+       << endl;
+
+  cout << "Context: " << d_cm->getMemory() << endl;
+  return 0;
+//   d_em->printMemory();
+//   d_tm->printMemory();
+//   d_translator->printMemory();
+//   d_se->printMemory();
+
+//   d_theoryCore->printMemory();
+  
 }

@@ -63,6 +63,7 @@ namespace CVC3 {
     Theorem orDistributivityRule(const Expr& e);
     Theorem andDistributivityRule(const Expr& e);
     Theorem rewriteImplies(const Expr& e);
+    Theorem rewriteDistinct(const Expr& e);
     Theorem NotToIte(const Expr& not_e);
     Theorem OrToIte(const Expr& e);
     Theorem AndToIte(const Expr& e);

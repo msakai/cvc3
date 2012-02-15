@@ -81,7 +81,7 @@ class SearchSat :public SearchEngine {
   SAT::CNF_Manager::CNFCallback *d_cnfCallback;
 
   //! Cached values of variables
-  std::vector<SmartCDO<SAT::Var::Val> > d_vars;
+  std::vector<SAT::Var::Val> d_vars;
 
   //! Whether we are currently in a call to dpllt->checkSat
   bool d_inCheckSat;
@@ -100,6 +100,12 @@ class SearchSat :public SearchEngine {
 
   //! Current position in d_lemmas
   CDO<unsigned> d_lemmasNext;
+
+  //! List for backtracking var values
+  std::vector<unsigned> d_varsUndoList;
+
+  //! Backtracking size of d_varsUndoList
+  CDO<unsigned> d_varsUndoListSize;
 
 public:
   //! Pair of Lit and priority of this Lit
@@ -212,7 +218,13 @@ private:
   void setValue(SAT::Var v, SAT::Var::Val val) {
     DebugAssert(!v.isNull(), "expected non-null Var");
     DebugAssert(unsigned(v) < d_vars.size(), "Var out of bounds in getValue");
-    d_vars[v] = val; }
+    DebugAssert(d_vars[v] == SAT::Var::UNKNOWN, "Expected unknown");
+    DebugAssert(val != SAT::Var::UNKNOWN, "Expected set to non-unknown");
+    d_vars[v] = val;
+    DebugAssert(d_varsUndoListSize == d_varsUndoList.size(), "Size mismatch");
+    d_varsUndoList.push_back(unsigned(v));
+    d_varsUndoListSize = d_varsUndoListSize + 1;
+  }
 
   //! Check whether this variable's value is justified
   bool checkJustified(SAT::Var v)

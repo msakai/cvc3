@@ -382,18 +382,18 @@ BitvectorTheoremProducer::bitExtractSXRule(const Expr& e, int i) {
 
 //! Pad the kids of SIGN BVLT/SIGN BVLE to make their bvLength equal
 Theorem
-BitvectorTheoremProducer::padSBVLTRule(const Expr& e, int len) {
+BitvectorTheoremProducer::padBVSLTRule(const Expr& e, int len) {
   if(CHECK_PROOFS) {
-    CHECK_SOUND((SBVLT == e.getOpKind() || SBVLE == e.getOpKind()) && 
+    CHECK_SOUND((BVSLT == e.getOpKind() || BVSLE == e.getOpKind()) && 
 		e.arity()==2,
-		"BitvectorTheoremProducer::padSBVLTRule: " 
-		"input must e be a SBVLT/SBVLE: e = " + e.toString());
+		"BitvectorTheoremProducer::padBVSLTRule: " 
+		"input must e be a BVSLT/BVSLE: e = " + e.toString());
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind() &&
 		BITVECTOR==e[1].getType().getExpr().getOpKind(),
-		"BitvectorTheoremProducer::padSBVLTRule: " 
+		"BitvectorTheoremProducer::padBVSLTRule: " 
 		"for BVMULT terms e[0],e[1] must be a BV: " + e.toString());
     CHECK_SOUND(0<=len,
-		"BitvectorTheoremProducer::padSBVLTRule: " 
+		"BitvectorTheoremProducer::padBVSLTRule: " 
 		"input len must be >=0 and an integer: len = " + 
 		int2string(len));
   }
@@ -402,14 +402,14 @@ BitvectorTheoremProducer::padSBVLTRule(const Expr& e, int len) {
   int kind = e.getOpKind();
 
   Expr output;
-  if(kind == SBVLT)
-    output = d_theoryBitvector->newSBVLTExpr(e0,e1);
+  if(kind == BVSLT)
+    output = d_theoryBitvector->newBVSLTExpr(e0,e1);
   else
-    output = d_theoryBitvector->newSBVLEExpr(e0,e1);
+    output = d_theoryBitvector->newBVSLEExpr(e0,e1);
 
   Proof pf;
   if(withProof())
-    pf = newPf("pad_sbvlt_rule", e);
+    pf = newPf("pad_bvslt_rule", e);
   Theorem result(newRWTheorem(e,output,Assumptions::emptyAssump(),pf));
   return result;
 }
@@ -426,10 +426,10 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
 				       const Theorem& topBit0, 
 				       const Theorem& topBit1){
   if(CHECK_PROOFS) {
-    CHECK_SOUND((SBVLT == e.getOpKind() || SBVLE == e.getOpKind()) && 
+    CHECK_SOUND((BVSLT == e.getOpKind() || BVSLE == e.getOpKind()) && 
 		e.arity()==2,
 		"BitvectorTheoremProducer::signedBVLTRule: " 
-		"input must e be a SBVLT/SBVLE: e = " + e.toString());
+		"input must e be a BVSLT/BVSLE: e = " + e.toString());
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind() &&
 		BITVECTOR==e[1].getType().getExpr().getOpKind(),
 		"BitvectorTheoremProducer::signedBVLTRule: " 
@@ -490,25 +490,25 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
   //to read
   if(e0len == 1) {
     if(b0==0 && b1==0) 
-      output = eKind==SBVLT ? fExpr      : tExpr;
+      output = eKind==BVSLT ? fExpr      : tExpr;
     else if(b0==0  && b1==1)
       output = fExpr;
     else if(b0==1  && b1==0)
       output = tExpr;
     else if(b0==1  && b1==1)
-      output = eKind==SBVLT ? fExpr      : tExpr;
+      output = eKind==BVSLT ? fExpr      : tExpr;
     else if(b0==0  && b1==-1)
-      output = eKind==SBVLT ? fExpr      : MSB1isZero;
+      output = eKind==BVSLT ? fExpr      : MSB1isZero;
     else if(b0==1  && b1==-1)
-      output = eKind==SBVLT ? MSB1isZero : tExpr;
+      output = eKind==BVSLT ? MSB1isZero : tExpr;
     else if(b0==-1 && b1==0)
-      output = eKind==SBVLT ? MSB0isOne  : tExpr;
+      output = eKind==BVSLT ? MSB0isOne  : tExpr;
     else if(b0==-1 && b1==1)
-      output = eKind==SBVLT ? fExpr      : MSB0isOne;
+      output = eKind==BVSLT ? fExpr      : MSB0isOne;
     else
       //both b0 and b1 are -1
       output = 
-	eKind==SBVLT ? 
+	eKind==BVSLT ? 
 	MSB0isOne.andExpr(MSB1isZero) : 
 	MSB0isOne.orExpr(MSB1isZero);
   } else {
@@ -516,11 +516,11 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
     Expr newE0 = d_theoryBitvector->newBVExtractExpr(e0,e0len-2,0);
     Expr newE1 = d_theoryBitvector->newBVExtractExpr(e1,e1len-2,0);
     Expr newBVLT = 
-      eKind==SBVLT ?
+      eKind==BVSLT ?
       d_theoryBitvector->newBVLTExpr(newE0,newE1):
       d_theoryBitvector->newBVLEExpr(newE0,newE1);
 //     Expr newBVLTreverse = 
-//       eKind==SBVLT ?
+//       eKind==BVSLT ?
 //       d_theoryBitvector->newBVLTExpr(newE1,newE0):
 //       d_theoryBitvector->newBVLEExpr(newE1,newE0);
 
@@ -1816,6 +1816,95 @@ Theorem BitvectorTheoremProducer::rightShiftToConcat(const Expr& e) {
 }
 
 
+Theorem BitvectorTheoremProducer::rewriteXOR(const Expr& e)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(e.getKind() == BVXOR && e.arity() == 2,
+                "Bad call to rewriteXOR");
+  }
+  Expr nege0 = d_theoryBitvector->newBVNegExpr(e[0]);
+  Expr nege1 = d_theoryBitvector->newBVNegExpr(e[1]);
+  Expr or1 = d_theoryBitvector->newBVAndExpr(nege0, e[1]);
+  Expr or2 = d_theoryBitvector->newBVAndExpr(e[0], nege1);
+
+  Proof pf;
+  if (withProof())
+    pf = newPf("rewriteXOR", e);
+  return newRWTheorem(e, d_theoryBitvector->newBVOrExpr(or1, or2),
+                      Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem BitvectorTheoremProducer::rewriteXNOR(const Expr& e)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(e.getKind() == BVXNOR && e.arity() == 2,
+                "Bad call to rewriteXNOR");
+  }
+  Expr nege0 = d_theoryBitvector->newBVNegExpr(e[0]);
+  Expr nege1 = d_theoryBitvector->newBVNegExpr(e[1]);
+  Expr or1 = d_theoryBitvector->newBVAndExpr(nege0, nege1);
+  Expr or2 = d_theoryBitvector->newBVAndExpr(e[0], e[1]);
+
+  Proof pf;
+  if (withProof())
+    pf = newPf("rewriteXNOR", e);
+  return newRWTheorem(e, d_theoryBitvector->newBVOrExpr(or1, or2),
+                      Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem BitvectorTheoremProducer::rewriteNAND(const Expr& e)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(e.getKind() == BVNAND && e.arity() == 2,
+                "Bad call to rewriteNAND");
+  }
+  Expr andExpr = d_theoryBitvector->newBVAndExpr(e[0], e[1]);
+  Proof pf;
+  if (withProof())
+    pf = newPf("rewriteNAND", e);
+  return newRWTheorem(e, d_theoryBitvector->newBVNegExpr(andExpr),
+                      Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem BitvectorTheoremProducer::rewriteNOR(const Expr& e)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(e.getKind() == BVNOR && e.arity() == 2,
+                "Bad call to rewriteNOR");
+  }
+  Expr orExpr = d_theoryBitvector->newBVOrExpr(e[0], e[1]);
+  Proof pf;
+  if (withProof())
+    pf = newPf("rewriteNOR", e);
+  return newRWTheorem(e, d_theoryBitvector->newBVNegExpr(orExpr),
+                      Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem BitvectorTheoremProducer::rewriteBVSub(const Expr& e)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(e.getKind() == BVSUB && e.arity() == 2 &&
+                d_theoryBitvector->BVSize(e[0]) ==
+                d_theoryBitvector->BVSize(e[1]),
+                "Bad call to rewriteBVSub");
+  }
+  int bvsize = d_theoryBitvector->BVSize(e[0]);
+  vector<Expr> k;
+  k.push_back(e[0]);
+  k.push_back(d_theoryBitvector->newBVUminusExpr(e[1]));
+  
+  Proof pf;
+  if (withProof())
+    pf = newPf("rewriteBVSub", e);
+  return newRWTheorem(e, d_theoryBitvector->newBVPlusExpr(bvsize, k),
+                      Assumptions::emptyAssump(), pf);
+}
+
+
 //! k*t = BVPLUS(n, <sum of shifts of t>) -- translation of k*t to BVPLUS
 /*! If k = 2^m, return k*t = t@0...0 */
 Theorem BitvectorTheoremProducer::constMultToPlus(const Expr& e) {
@@ -2306,6 +2395,60 @@ BitvectorTheoremProducer::negBVor(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("bitneg_or", e);
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
+}
+
+
+//! ~(t1 xor t2) = ~t1 xor t2
+Theorem
+BitvectorTheoremProducer::negBVxor(const Expr& e) {
+  if(CHECK_PROOFS) {
+    CHECK_SOUND(e.getOpKind() == BVNEG && e.arity() == 1 && e[0].arity() > 0,
+		"BitvectorTheoremProducer::negBVxor: e = "+e.toString());
+    CHECK_SOUND(e[0].getOpKind() == BVXOR,
+		"BitvectorTheoremProducer::negBVxor: e = "+e.toString());
+  }
+
+  Expr output;
+  std::vector<Expr> children;
+  Expr::iterator i = e[0].begin(), iend = e[0].end();
+  children.push_back(d_theoryBitvector->newBVNegExpr(*i));
+  ++i;
+  for(; i!=iend; ++i)
+    children.push_back(*i);
+  output = d_theoryBitvector->newBVXorExpr(children);
+
+  Proof pf;
+  if(withProof())
+    pf = newPf("bitneg_xor", e);
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
+}
+
+
+//! ~(t1 xnor t2) = t1 xor t2
+Theorem
+BitvectorTheoremProducer::negBVxnor(const Expr& e) {
+  if(CHECK_PROOFS) {
+    CHECK_SOUND(e.getOpKind() == BVNEG && e.arity() == 1 && e[0].arity() > 0,
+		"BitvectorTheoremProducer::negBVxor: e = "+e.toString());
+    CHECK_SOUND(e[0].getOpKind() == BVXNOR,
+		"BitvectorTheoremProducer::negBVxor: e = "+e.toString());
+  }
+
+  Expr t2 = e[0][1];
+  if (e[0].arity() > 2) {
+    std::vector<Expr> children;
+    Expr::iterator i = e[0].begin(), iend = e[0].end();
+    ++i;
+    for(; i!=iend; ++i)
+      children.push_back(*i);
+    t2 = d_theoryBitvector->newBVXnorExpr(children);
+  }
+  Expr output = d_theoryBitvector->newBVXorExpr(e[0][0], t2);
+
+  Proof pf;
+  if(withProof())
+    pf = newPf("bitneg_xnor", e);
   return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 

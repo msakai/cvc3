@@ -223,7 +223,7 @@ Expr ExprManager::rebuildRec(const Expr& e) {
     ev = *i;
   } else {
     ev->setIndex(nextIndex());
-    installExprValue(ev);
+    d_exprSet.insert(ev);
   }
   // Use non-uniquifying Expr() constructor
   Expr res(ev);
@@ -234,12 +234,11 @@ Expr ExprManager::rebuildRec(const Expr& e) {
   Type t;
   if (!e.d_expr->d_type.isNull()) {
     t = Type(rebuildRec(e.d_expr->d_type.getExpr()));
+    if (ev->d_type.isNull()) ev->d_type = t;
+    if (ev->d_type != t) {
+      throw Exception("Types don't match in rebuildRec");
+    }
   }
-  if (ev->d_type.isNull()) ev->d_type = t;
-  else if (ev->d_type != t) {
-    throw Exception("Types don't match in rebuildRec");
-  }
-
   return res;
 }
 
@@ -251,7 +250,7 @@ ExprValue* ExprManager::newExprValue(ExprValue* ev) {
   // No such ExprValue.  Create a clean copy, insert it into the set
   // and return the new pointer.
   ExprValue* p_ev = ev->copy(this, nextIndex());
-  installExprValue(p_ev);
+  d_exprSet.insert(p_ev);
   return p_ev;
 }
 
@@ -441,161 +440,162 @@ void ExprManager::checkType(const Expr& e) {
 
 static void registerKinds(ExprManager& em) {
   // Register type kinds
-  REG_TYPE(BOOLEAN);
+  em.newKind(BOOLEAN, "_BOOLEAN", true);
   //  REG(TUPLE_TYPE);
-  REG_TYPE(ANY_TYPE);
-  REG_TYPE(ARROW);
-  REG_TYPE(TYPE);
-  REG_TYPE(TYPEDECL);
-  REG_TYPE(TYPEDEF);
-  REG_TYPE(SUBTYPE);
+  em.newKind(ANY_TYPE, "_ANY_TYPE", true);
+  em.newKind(ARROW, "_ARROW", true);
+  em.newKind(TYPE, "_TYPE", true);
+  em.newKind(TYPEDECL, "_TYPEDECL", true);
+  em.newKind(TYPEDEF, "_TYPEDEF", true);
+  em.newKind(SUBTYPE, "_SUBTYPE", true);
 
   // Register expression (non-type) kinds 
-  REG(NULL_KIND);
+  em.newKind(NULL_KIND, "_NULL_KIND");
 
-  REG(RAW_LIST);
-  REG(STRING_EXPR);
-  REG(RATIONAL_EXPR);
-  REG(TRUE_EXPR);
-  REG(FALSE_EXPR);
+  em.newKind(RAW_LIST, "_RAW_LIST");
+  em.newKind(STRING_EXPR, "_STRING_EXPR");
+  em.newKind(RATIONAL_EXPR, "_RATIONAL_EXPR");
+  em.newKind(TRUE_EXPR, "_TRUE_EXPR");
+  em.newKind(FALSE_EXPR, "_FALSE_EXPR");
   
-  REG(EQ);
-  REG(NEQ);
+  em.newKind(EQ, "_EQ");
+  em.newKind(NEQ, "_NEQ");
+  em.newKind(DISTINCT, "_DISTINCT");
   
-  REG(NOT);
-  REG(AND);
-  REG(OR);
-  REG(XOR);
-  REG(IFF);
-  REG(IMPLIES);
+  em.newKind(NOT, "_NOT");
+  em.newKind(AND, "_AND");
+  em.newKind(OR, "_OR");
+  em.newKind(XOR, "_XOR");
+  em.newKind(IFF, "_IFF");
+  em.newKind(IMPLIES, "_IMPLIES");
 
-  REG(AND_R);
-  REG(IFF_R);
-  REG(ITE_R);
+  em.newKind(AND_R, "_AND_R");
+  em.newKind(IFF_R, "_IFF_R");
+  em.newKind(ITE_R, "_ITE_R");
 
-  REG(ITE);
+  em.newKind(ITE, "_ITE");
   
-  REG(FORALL);
-  REG(EXISTS);
+  em.newKind(FORALL, "_FORALL");
+  em.newKind(EXISTS, "_EXISTS");
   
-  REG(UFUNC);
-  REG(APPLY);
+  em.newKind(UFUNC, "_UFUNC");
+  em.newKind(APPLY, "_APPLY");
 
-  REG(ASSERT);
-  REG(QUERY);
-  REG(CHECKSAT);
-  REG(CONTINUE);
-  REG(RESTART);
-  REG(DBG);
-  REG(TRACE);
-  REG(UNTRACE);
-  REG(OPTION);
-  REG(HELP);
-  REG(TRANSFORM);
-  REG(PRINT);
-  REG(CALL);
-  REG(ECHO);
-  REG(INCLUDE);
-  REG(DUMP_PROOF);
-  REG(DUMP_ASSUMPTIONS);
-  REG(DUMP_SIG);
-  REG(DUMP_TCC);
-  REG(DUMP_TCC_ASSUMPTIONS);
-  REG(DUMP_TCC_PROOF);
-  REG(DUMP_CLOSURE);
-  REG(DUMP_CLOSURE_PROOF);
-  REG(WHERE);
-  REG(ASSERTIONS);
-  REG(ASSUMPTIONS);
-  REG(COUNTEREXAMPLE);
-  REG(COUNTERMODEL);
-  REG(PUSH);
-  REG(POP);
-  REG(POPTO);
-  REG(PUSH_SCOPE);
-  REG(POP_SCOPE);
-  REG(POPTO_SCOPE);
-  REG(CONTEXT);
-  REG(FORGET);
-  REG(GET_TYPE);
-  REG(CHECK_TYPE);
-  REG(GET_CHILD);
-  REG(SUBSTITUTE);
-  REG(SEQ);
+  em.newKind(ASSERT, "_ASSERT");
+  em.newKind(QUERY, "_QUERY");
+  em.newKind(CHECKSAT, "_CHECKSAT");
+  em.newKind(CONTINUE, "_CONTINUE");
+  em.newKind(RESTART, "_RESTART");
+  em.newKind(DBG, "_DBG");
+  em.newKind(TRACE, "_TRACE");
+  em.newKind(UNTRACE, "_UNTRACE");
+  em.newKind(OPTION, "_OPTION");
+  em.newKind(HELP, "_HELP");
+  em.newKind(TRANSFORM, "_TRANSFORM");
+  em.newKind(PRINT, "_PRINT");
+  em.newKind(CALL, "_CALL");
+  em.newKind(ECHO, "_ECHO");
+  em.newKind(INCLUDE, "_INCLUDE");
+  em.newKind(DUMP_PROOF, "_DUMP_PROOF");
+  em.newKind(DUMP_ASSUMPTIONS, "_DUMP_ASSUMPTIONS");
+  em.newKind(DUMP_SIG, "_DUMP_SIG");
+  em.newKind(DUMP_TCC, "_DUMP_TCC");
+  em.newKind(DUMP_TCC_ASSUMPTIONS, "_DUMP_TCC_ASSUMPTIONS");
+  em.newKind(DUMP_TCC_PROOF, "_DUMP_TCC_PROOF");
+  em.newKind(DUMP_CLOSURE, "_DUMP_CLOSURE");
+  em.newKind(DUMP_CLOSURE_PROOF, "_DUMP_CLOSURE_PROOF");
+  em.newKind(WHERE, "_WHERE");
+  em.newKind(ASSERTIONS, "_ASSERTIONS");
+  em.newKind(ASSUMPTIONS, "_ASSUMPTIONS");
+  em.newKind(COUNTEREXAMPLE, "_COUNTEREXAMPLE");
+  em.newKind(COUNTERMODEL, "_COUNTERMODEL");
+  em.newKind(PUSH, "_PUSH");
+  em.newKind(POP, "_POP");
+  em.newKind(POPTO, "_POPTO");
+  em.newKind(PUSH_SCOPE, "_PUSH_SCOPE");
+  em.newKind(POP_SCOPE, "_POP_SCOPE");
+  em.newKind(POPTO_SCOPE, "_POPTO_SCOPE");
+  em.newKind(CONTEXT, "_CONTEXT");
+  em.newKind(FORGET, "_FORGET");
+  em.newKind(GET_TYPE, "_GET_TYPE");
+  em.newKind(CHECK_TYPE, "_CHECK_TYPE");
+  em.newKind(GET_CHILD, "_GET_CHILD");
+  em.newKind(SUBSTITUTE, "_SUBSTITUTE");
+  em.newKind(SEQ, "_SEQ");
 
   // Kinds used mostly in the parser
 
-  REG(TCC);
-  REG(ID);
-  REG(VARDECL);
-  REG(VARDECLS);
+  em.newKind(TCC, "_TCC");
+  em.newKind(ID, "_ID");
+  em.newKind(VARDECL, "_VARDECL");
+  em.newKind(VARDECLS, "_VARDECLS");
 
 
-  REG(BOUND_VAR);
-  REG(BOUND_ID);
+  em.newKind(BOUND_VAR, "_BOUND_VAR");
+  em.newKind(BOUND_ID, "_BOUND_ID");
 
-  REG(SKOLEM_VAR);
-  REG(THEOREM_KIND);
+  em.newKind(SKOLEM_VAR, "_SKOLEM_VAR");
+  em.newKind(THEOREM_KIND, "_THEOREM_KIND");
 
-//   REG(UPDATE);
-//   REG(UPDATE_SELECT);
+//   em.newKind(UPDATE, "_UPDATE");
+//   em.newKind(UPDATE_SELECT, "_UPDATE_SELECT");
 
-//   REG(RECORD_TYPE);
-//   REG(RECORD);
-//   REG(RECORD_SELECT);
-//   REG(RECORD_UPDATE);
+//   em.newKind(RECORD_TYPE, "_RECORD_TYPE");
+//   em.newKind(RECORD, "_RECORD");
+//   em.newKind(RECORD_SELECT, "_RECORD_SELECT");
+//   em.newKind(RECORD_UPDATE, "_RECORD_UPDATE");
 
-//   REG(TUPLE);
-//   REG(TUPLE_SELECT);
-//   REG(TUPLE_UPDATE);
+//   em.newKind(TUPLE, "_TUPLE");
+//   em.newKind(TUPLE_SELECT, "_TUPLE_SELECT");
+//   em.newKind(TUPLE_UPDATE, "_TUPLE_UPDATE");
 
-//   REG(SUBRANGE);
+//   em.newKind(SUBRANGE, "_SUBRANGE");
 
-//   REG(SCALARTYPE);
-//   REG(DATATYPE);
-//   REG(THISTYPE);
-//   REG(CONSTRUCTOR);
-//   REG(SELECTOR);
-//   REG(TESTER);
-  //  REG(DATATYPE_UPDATE);
+//   em.newKind(SCALARTYPE, "_SCALARTYPE");
+//   em.newKind(DATATYPE, "_DATATYPE");
+//   em.newKind(THISTYPE, "_THISTYPE");
+//   em.newKind(CONSTRUCTOR, "_CONSTRUCTOR");
+//   em.newKind(SELECTOR, "_SELECTOR");
+//   em.newKind(TESTER, "_TESTER");
+  //  em.newKind(DATATYPE_UPDATE, "_DATATYPE_UPDATE");
 
-  REG(IF);
-  REG(IFTHEN);
-  REG(ELSE);
-  REG(COND);
+  em.newKind(IF, "_IF");
+  em.newKind(IFTHEN, "_IFTHEN");
+  em.newKind(ELSE, "_ELSE");
+  em.newKind(COND, "_COND");
 
-  REG(LET);
-  REG(LETDECLS);
-  REG(LETDECL);
+  em.newKind(LET, "_LET");
+  em.newKind(LETDECLS, "_LETDECLS");
+  em.newKind(LETDECL, "_LETDECL");
 
-  REG(LAMBDA);
-  REG(SIMULATE);
+  em.newKind(LAMBDA, "_LAMBDA");
+  em.newKind(SIMULATE, "_SIMULATE");
 
-  REG(CONST);
-  REG(VARLIST);
-  REG(UCONST);
-  REG(DEFUN);
+  em.newKind(CONST, "_CONST");
+  em.newKind(VARLIST, "_VARLIST");
+  em.newKind(UCONST, "_UCONST");
+  em.newKind(DEFUN, "_DEFUN");
 
   // Arithmetic types and operators
-//   REG(REAL);
-//   REG(INT);
+//   em.newKind(REAL, "_REAL");
+//   em.newKind(INT, "_INT");
 
-//   REG(UMINUS);
-//   REG(PLUS);
-//   REG(MINUS);
-//   REG(MULT);
-//   REG(DIVIDE);
-//   REG(POW);
-//   REG(INTDIV);
-//   REG(MOD);
-//   REG(LT);
-//   REG(LE);
-//   REG(GT);
-//   REG(GE);
-//   REG(IS_INTEGER);
-//   REG(NEGINF);
-//   REG(POSINF);
-//   REG(FLOOR);
+//   em.newKind(UMINUS, "_UMINUS");
+//   em.newKind(PLUS, "_PLUS");
+//   em.newKind(MINUS, "_MINUS");
+//   em.newKind(MULT, "_MULT");
+//   em.newKind(DIVIDE, "_DIVIDE");
+//   em.newKind(POW, "_POW");
+//   em.newKind(INTDIV, "_INTDIV");
+//   em.newKind(MOD, "_MOD");
+//   em.newKind(LT, "_LT");
+//   em.newKind(LE, "_LE");
+//   em.newKind(GT, "_GT");
+//   em.newKind(GE, "_GE");
+//   em.newKind(IS_INTEGER, "_IS_INTEGER");
+//   em.newKind(NEGINF, "_NEGINF");
+//   em.newKind(POSINF, "_POSINF");
+//   em.newKind(FLOOR, "_FLOOR");
 }
 
 

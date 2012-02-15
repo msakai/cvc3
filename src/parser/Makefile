@@ -3,7 +3,7 @@ MODULE = parser
 LIBRARY=libparser.a
 
 # Do not optimize the parser code - it compiles forever in some gcc versions
-EXTRAFLAGS = -O0
+#EXTRAFLAGS = -O0
 
 TRANSIENT_CPP = \
  parsePL.cpp lexPL.cpp \

@@ -35,6 +35,6 @@
 #include "hash_set.h"
 namespace std {
   using namespace Hash;
-};
+}
 
 #endif

@@ -224,10 +224,26 @@ Theory* Theory::theoryOf(const Expr& e)
 }
 
 
+const Theorem& Theory::findRef(const Expr& e)
+{
+  DebugAssert(e.hasFind(), "expected find");
+  const Theorem& thm1 = e.getFind();
+  if (thm1.isRefl()) return thm1;
+  const Expr& e1 = thm1.getRHS();
+  if (!e1.hasFind() || e1.getFind().getRHS() == e1) return thm1;
+  const Theorem& thm2 = findRef(e1);
+  DebugAssert(thm2.getLHS()==e1,"");
+  DebugAssert(thm2.getLHS() != thm2.getRHS(),"");
+  e.setFind(transitivityRule(thm1,thm2));
+  return e.getFind();
+}
+
+
 Theorem Theory::find(const Expr& e)
 {
   if (!e.hasFind()) return reflexivityRule(e);
   const Theorem& thm1 = e.getFind();
+  if (thm1.isRefl()) return thm1;
   const Expr& e1 = thm1.getRHS();
   if (e1 == e || !e1.hasFind() ||
       e1.getFind().getRHS() == e1) return thm1;
@@ -303,26 +319,39 @@ Expr Theory::getTypePred(const Type& t, const Expr& e)
 Theorem Theory::updateHelper(const Expr& e)
 {
   int ar = e.arity();
-  if (ar == 1) {
-    Theorem res = find(e[0]);
-    if (res.getLHS() != res.getRHS()) {
-      return d_commonRules->substitutivityRule(e, res);
-    }
-  }
-  else if (ar > 0) {
-    vector<Theorem> newChildrenThm;
-    vector<unsigned> changed;
-    int k(0);
-    Theorem thm;
-    for (; k < ar; ++k) {
-      thm = find(e[k]);
-      if (thm.getLHS() != thm.getRHS()) {
-        newChildrenThm.push_back(thm);
-        changed.push_back(k);
+  switch (ar) {
+    case 0:
+      break;
+    case 1: {
+      const Theorem& res = findRef(e[0]);
+      if (res.getLHS() != res.getRHS()) {
+        return d_commonRules->substitutivityRule(e, res);
       }
+      break;
     }
-    if (changed.size() > 0)
-      return d_commonRules->substitutivityRule(e, changed, newChildrenThm);
+    case 2: {
+      const Theorem thm0 = findRef(e[0]);
+      const Theorem thm1 = findRef(e[1]);
+      if (thm0.getLHS() != thm0.getRHS() ||
+          thm1.getLHS() != thm1.getRHS()) {
+        return d_commonRules->substitutivityRule(e, thm0, thm1);
+      }
+      break;
+    }
+    default: {
+      vector<Theorem> newChildrenThm;
+      vector<unsigned> changed;
+      for (int k = 0; k < ar; ++k) {
+        const Theorem& thm = findRef(e[k]);
+        if (thm.getLHS() != thm.getRHS()) {
+          newChildrenThm.push_back(thm);
+          changed.push_back(k);
+        }
+      }
+      if (changed.size() > 0)
+        return d_commonRules->substitutivityRule(e, changed, newChildrenThm);
+      break;
+    }
   }
   return reflexivityRule(e);
 }

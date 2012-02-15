@@ -50,10 +50,10 @@ TheoryDatatype::TheoryDatatype(TheoryCore* core)
   d_rules = createProofRules();
 
   // Register new local kinds with ExprManager
-  getEM()->newKind(DATATYPE, "DATATYPE", true);
-  getEM()->newKind(CONSTRUCTOR, "CONSTRUCTOR");
-  getEM()->newKind(SELECTOR, "SELECTOR");
-  getEM()->newKind(TESTER, "TESTER");
+  getEM()->newKind(DATATYPE, "_DATATYPE", true);
+  getEM()->newKind(CONSTRUCTOR, "_CONSTRUCTOR");
+  getEM()->newKind(SELECTOR, "_SELECTOR");
+  getEM()->newKind(TESTER, "_TESTER");
 
   vector<int> kinds;
   kinds.push_back(DATATYPE);

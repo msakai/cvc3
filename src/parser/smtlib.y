@@ -147,7 +147,7 @@ cmd:
 benchmark:
     LPAREN_TOK BENCHMARK_TOK bench_name bench_attributes RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("SEQ",*$4));
+      $$ = new CVC3::Expr(VC->listExpr("_SEQ",*$4));
       delete $4;
     }
   | EOF_TOK
@@ -187,12 +187,12 @@ bench_attributes:
 bench_attribute:
     COLON_TOK ASSUMPTION_TOK an_formula
     {
-      $$ = new CVC3::Expr(VC->listExpr("ASSERT", *$3));
+      $$ = new CVC3::Expr(VC->listExpr("_ASSERT", *$3));
       delete $3;
     }
   | COLON_TOK FORMULA_TOK an_formula 
     {
-      $$ = new CVC3::Expr(VC->listExpr("CHECKSAT", *$3));
+      $$ = new CVC3::Expr(VC->listExpr("_CHECKSAT", *$3));
       delete $3;
     }
   | COLON_TOK STATUS_TOK status 
@@ -204,27 +204,27 @@ bench_attribute:
       ARRAYSENABLED = false;
       BVENABLED = false;
       if (*$3 == "QF_UF") {
-        $$ = new CVC3::Expr(VC->listExpr("TYPE", VC->idExpr("U")));
+        $$ = new CVC3::Expr(VC->listExpr("_TYPE", VC->idExpr("U")));
       }
       else if (*$3 == "QF_A" ||
                *$3 == "QF_AX") {
         ARRAYSENABLED = true;
         std::vector<CVC3::Expr> tmp;
-        tmp.push_back(VC->listExpr("TYPE", VC->idExpr("Index")));
-        tmp.push_back(VC->listExpr("TYPE", VC->idExpr("Element")));
-        tmp.push_back(VC->listExpr("TYPEDEF", VC->idExpr("Array"),
-                                   VC->listExpr("ARRAY",
+        tmp.push_back(VC->listExpr("_TYPE", VC->idExpr("Index")));
+        tmp.push_back(VC->listExpr("_TYPE", VC->idExpr("Element")));
+        tmp.push_back(VC->listExpr("_TYPEDEF", VC->idExpr("Array"),
+                                   VC->listExpr("_ARRAY",
                                                 VC->idExpr("Index"),
                                                 VC->idExpr("Element"))));
-        $$ = new CVC3::Expr(VC->listExpr("SEQ", tmp));
+        $$ = new CVC3::Expr(VC->listExpr("_SEQ", tmp));
       }
       else if (*$3 == "QF_AUFLIA" ||
                *$3 == "AUFLIA") {
         ARRAYSENABLED = true;
-        $$ = new CVC3::Expr(VC->listExpr("TYPEDEF", VC->idExpr("Array"),
-                                         VC->listExpr("ARRAY",
-                                                      VC->idExpr("INT"),
-                                                      VC->idExpr("INT"))));
+        $$ = new CVC3::Expr(VC->listExpr("_TYPEDEF", VC->idExpr("Array"),
+                                         VC->listExpr("_ARRAY",
+                                                      VC->idExpr("_INT"),
+                                                      VC->idExpr("_INT"))));
       }
       else if (*$3 == "QF_AUFLIRA" ||
                *$3 == "AUFLIRA" ||
@@ -232,29 +232,33 @@ bench_attribute:
                *$3 == "AUFNIRA") {
         ARRAYSENABLED = true;
         std::vector<CVC3::Expr> tmp;
-        tmp.push_back(VC->listExpr("TYPEDEF", VC->idExpr("Array1"),
-                                   VC->listExpr("ARRAY",
-                                                VC->idExpr("INT"),
-                                                VC->idExpr("REAL"))));
-        tmp.push_back(VC->listExpr("TYPEDEF", VC->idExpr("Array2"),
-                                   VC->listExpr("ARRAY",
-                                                VC->idExpr("INT"),
+        tmp.push_back(VC->listExpr("_TYPEDEF", VC->idExpr("Array1"),
+                                   VC->listExpr("_ARRAY",
+                                                VC->idExpr("_INT"),
+                                                VC->idExpr("_REAL"))));
+        tmp.push_back(VC->listExpr("_TYPEDEF", VC->idExpr("Array2"),
+                                   VC->listExpr("_ARRAY",
+                                                VC->idExpr("_INT"),
                                                 VC->idExpr("Array1"))));
-        $$ = new CVC3::Expr(VC->listExpr("SEQ", tmp));
+        $$ = new CVC3::Expr(VC->listExpr("_SEQ", tmp));
       }
       else if (*$3 == "QF_AUFBV" ||
                *$3 == "QF_ABV") {
         ARRAYSENABLED = true;
         BVENABLED = true;
-        $$ = new CVC3::Expr(VC->listExpr("TYPEDEF", VC->idExpr("Array"),
-                                         VC->listExpr("ARRAY",
-                                                      VC->listExpr("BITVECTOR", VC->ratExpr(32)),
-                                                      VC->listExpr("BITVECTOR", VC->ratExpr(8)))));
+        $$ = NULL;
+//         $$ = new CVC3::Expr(VC->listExpr("_TYPEDEF", VC->idExpr("Array"),
+//                                          VC->listExpr("_ARRAY",
+//                                                       VC->listExpr("_BITVECTOR", VC->ratExpr(32)),
+//                                                       VC->listExpr("_BITVECTOR", VC->ratExpr(8)))));
       }
       else if (*$3 == "QF_BV" ||
                *$3 == "QF_UFBV") {
         BVENABLED = true;
         $$ = NULL;
+      }
+      else if (*$3 == "QF_LRA") {
+        $$ = new CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("arith-new"), VC->ratExpr(1)));
       }
       else {
         $$ = NULL;
@@ -263,17 +267,17 @@ bench_attribute:
     }
   | COLON_TOK EXTRASORTS_TOK LPAREN_TOK sort_symbs RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("TYPE", *$4));
+      $$ = new CVC3::Expr(VC->listExpr("_TYPE", *$4));
       delete $4;
     }
   | COLON_TOK EXTRAFUNS_TOK LPAREN_TOK fun_symb_decls RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("SEQ", *$4));
+      $$ = new CVC3::Expr(VC->listExpr("_SEQ", *$4));
       delete $4;
     }
   | COLON_TOK EXTRAPREDS_TOK LPAREN_TOK pred_symb_decls RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("SEQ", *$4));
+      $$ = new CVC3::Expr(VC->listExpr("_SEQ", *$4));
       delete $4;
     }
   | COLON_TOK NOTES_TOK STRING_TOK
@@ -359,11 +363,11 @@ fun_sig:
     fun_symb sort_symbs
     {
       if ($2->size() == 1) {
-        $$ = new CVC3::Expr(VC->listExpr("CONST", VC->listExpr(*$1), (*$2)[0]));
+        $$ = new CVC3::Expr(VC->listExpr("_CONST", VC->listExpr(*$1), (*$2)[0]));
       }
       else {
-        CVC3::Expr tmp(VC->listExpr("ARROW", *$2));
-        $$ = new CVC3::Expr(VC->listExpr("CONST", VC->listExpr(*$1), tmp));
+        CVC3::Expr tmp(VC->listExpr("_ARROW", *$2));
+        $$ = new CVC3::Expr(VC->listExpr("_CONST", VC->listExpr(*$1), tmp));
       }
       delete $1;
       delete $2;
@@ -402,16 +406,16 @@ pred_sig:
     pred_symb sort_symbs
     {
       std::vector<CVC3::Expr> tmp(*$2);
-      tmp.push_back(VC->idExpr("BOOLEAN"));
-      CVC3::Expr tmp2(VC->listExpr("ARROW", tmp));
-      $$ = new CVC3::Expr(VC->listExpr("CONST", VC->listExpr(*$1), tmp2));
+      tmp.push_back(VC->idExpr("_BOOLEAN"));
+      CVC3::Expr tmp2(VC->listExpr("_ARROW", tmp));
+      $$ = new CVC3::Expr(VC->listExpr("_CONST", VC->listExpr(*$1), tmp2));
       delete $1;
       delete $2;
     }
   | pred_symb
     {
-      $$ = new CVC3::Expr(VC->listExpr("CONST", VC->listExpr(*$1),
-                                       VC->idExpr("BOOLEAN")));
+      $$ = new CVC3::Expr(VC->listExpr("_CONST", VC->listExpr(*$1),
+                                       VC->idExpr("_BOOLEAN")));
       delete $1;
     }
 ;
@@ -468,7 +472,7 @@ an_formula:
   | LPAREN_TOK LET_TOK LPAREN_TOK var an_term RPAREN_TOK an_formula annotations RPAREN_TOK
     {
       CVC3::Expr e(VC->listExpr(VC->listExpr(*$4, *$5)));
-      $$ = new CVC3::Expr(VC->listExpr("LET", e, *$7));
+      $$ = new CVC3::Expr(VC->listExpr("_LET", e, *$7));
       delete $4;
       delete $5;
       delete $7;
@@ -477,7 +481,7 @@ an_formula:
   | LPAREN_TOK LET_TOK LPAREN_TOK var an_term RPAREN_TOK an_formula RPAREN_TOK
     {
       CVC3::Expr e(VC->listExpr(VC->listExpr(*$4, *$5)));
-      $$ = new CVC3::Expr(VC->listExpr("LET", e, *$7));
+      $$ = new CVC3::Expr(VC->listExpr("_LET", e, *$7));
       delete $4;
       delete $5;
       delete $7;
@@ -485,7 +489,7 @@ an_formula:
   | LPAREN_TOK FLET_TOK LPAREN_TOK fvar an_formula RPAREN_TOK an_formula annotations RPAREN_TOK
     {
       CVC3::Expr e(VC->listExpr(VC->listExpr(*$4, *$5)));
-      $$ = new CVC3::Expr(VC->listExpr("LET", e, *$7));
+      $$ = new CVC3::Expr(VC->listExpr("_LET", e, *$7));
       delete $4;
       delete $5;
       delete $7;
@@ -494,7 +498,7 @@ an_formula:
   | LPAREN_TOK FLET_TOK LPAREN_TOK fvar an_formula RPAREN_TOK an_formula RPAREN_TOK
     {
       CVC3::Expr e(VC->listExpr(VC->listExpr(*$4, *$5)));
-      $$ = new CVC3::Expr(VC->listExpr("LET", e, *$7));
+      $$ = new CVC3::Expr(VC->listExpr("_LET", e, *$7));
       delete $4;
       delete $5;
       delete $7;
@@ -528,42 +532,42 @@ quant_var:
 quant_symb:
     EXISTS_TOK
     {
-      $$ = new std::string("EXISTS");
+      $$ = new std::string("_EXISTS");
     }
   | FORALL_TOK
     {
-      $$ = new std::string("FORALL");
+      $$ = new std::string("_FORALL");
     }
 ;
 
 connective:
     NOT_TOK
     {
-      $$ = new std::string("NOT");
+      $$ = new std::string("_NOT");
     }
   | IMPLIES_TOK
     {
-      $$ = new std::string("IMPLIES");
+      $$ = new std::string("_IMPLIES");
     }
   | IF_THEN_ELSE_TOK
     {
-      $$ = new std::string("IF");
+      $$ = new std::string("_IF");
     }
   | AND_TOK
     {
-      $$ = new std::string("AND");
+      $$ = new std::string("_AND");
     }
   | OR_TOK
     {
-      $$ = new std::string("OR");
+      $$ = new std::string("_OR");
     }
   | XOR_TOK
     {
-      $$ = new std::string("XOR");
+      $$ = new std::string("_XOR");
     }
   | IFF_TOK
     {
-      $$ = new std::string("IFF");
+      $$ = new std::string("_IFF");
     }
 ;
 
@@ -581,7 +585,7 @@ an_atom:
     {
       if ($4->size() == 1 && (*$4)[0] == "transclose" &&
           $3->size() == 2) {
-        $$ = new CVC3::Expr(VC->listExpr("TRANS_CLOSURE",
+        $$ = new CVC3::Expr(VC->listExpr("_TRANS_CLOSURE",
                                         *$2, (*$3)[0], (*$3)[1]));
       }
       else {
@@ -605,25 +609,32 @@ an_atom:
     }
   | LPAREN_TOK DISTINCT_TOK an_terms annotations RPAREN_TOK
     {
-      std::vector<CVC3::Expr> tmp;
-      for (unsigned i = 0; i < (*$3).size(); ++i) {
-	for (unsigned j = i+1; j < (*$3).size(); ++j) {
-	  tmp.push_back(VC->listExpr("NEQ", (*$3)[i], (*$3)[j]));
-	}
-      }
-      $$ = new CVC3::Expr(VC->listExpr("AND", tmp));
+      $$ = new CVC3::Expr(VC->listExpr("_DISTINCT", *$3));
+
+//       std::vector<CVC3::Expr> tmp;
+//       tmp.push_back(*$2);
+//       tmp.insert(tmp.end(), $3->begin(), $3->end());
+//       $$ = new CVC3::Expr(VC->listExpr(tmp));
+//       for (unsigned i = 0; i < (*$3).size(); ++i) {
+//         tmp.push_back(($3)[i])
+// 	for (unsigned j = i+1; j < (*$3).size(); ++j) {
+// 	  tmp.push_back(VC->listExpr("_NEQ", (*$3)[i], (*$3)[j]));
+// 	}
+//       }
+//       $$ = new CVC3::Expr(VC->listExpr("_AND", tmp));
       delete $3;
       delete $4;
     }
   | LPAREN_TOK DISTINCT_TOK an_terms RPAREN_TOK
     {
-      std::vector<CVC3::Expr> tmp;
-      for (unsigned i = 0; i < (*$3).size(); ++i) {
-	for (unsigned j = i+1; j < (*$3).size(); ++j) {
-	  tmp.push_back(VC->listExpr("NEQ", (*$3)[i], (*$3)[j]));
-	}
-      }
-      $$ = new CVC3::Expr(VC->listExpr("AND", tmp));
+      $$ = new CVC3::Expr(VC->listExpr("_DISTINCT", *$3));
+//       std::vector<CVC3::Expr> tmp;
+//       for (unsigned i = 0; i < (*$3).size(); ++i) {
+// 	for (unsigned j = i+1; j < (*$3).size(); ++j) {
+// 	  tmp.push_back(VC->listExpr("_NEQ", (*$3)[i], (*$3)[j]));
+// 	}
+//       }
+//       $$ = new CVC3::Expr(VC->listExpr("_AND", tmp));
       delete $3;
     }
 ;
@@ -631,11 +642,11 @@ an_atom:
 prop_atom:
     TRUE_TOK
     {
-      $$ = new CVC3::Expr(VC->idExpr("TRUE_EXPR"));
+      $$ = new CVC3::Expr(VC->idExpr("_TRUE_EXPR"));
     }
   | FALSE_TOK
     { 
-      $$ = new CVC3::Expr(VC->idExpr("FALSE_EXPR"));
+      $$ = new CVC3::Expr(VC->idExpr("_FALSE_EXPR"));
     }
   | fvar
     {
@@ -689,7 +700,7 @@ an_term:
     }
   | LPAREN_TOK ITE_TOK an_formula an_term an_term annotations RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("IF", *$3, *$4, *$5));
+      $$ = new CVC3::Expr(VC->listExpr("_IF", *$3, *$4, *$5));
       delete $3;
       delete $4;
       delete $5;
@@ -697,7 +708,7 @@ an_term:
     }
   | LPAREN_TOK ITE_TOK an_formula an_term an_term RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("IF", *$3, *$4, *$5));
+      $$ = new CVC3::Expr(VC->listExpr("_IF", *$3, *$4, *$5));
       delete $3;
       delete $4;
       delete $5;
@@ -755,7 +766,7 @@ sort_symb:
     SYM_TOK LBRACKET_TOK NUMERAL_TOK RBRACKET_TOK
     {
       if (BVENABLED && *$1 == "BitVec") {
-        $$ = new CVC3::Expr(VC->listExpr("BITVECTOR", VC->ratExpr(*$3)));
+        $$ = new CVC3::Expr(VC->listExpr("_BITVECTOR", VC->ratExpr(*$3)));
       }
       else {
         $$ = new CVC3::Expr(VC->listExpr(*$1, VC->ratExpr(*$3)));
@@ -763,12 +774,26 @@ sort_symb:
       delete $1;
       delete $3;
     }
+  | SYM_TOK LBRACKET_TOK NUMERAL_TOK COLON_TOK NUMERAL_TOK RBRACKET_TOK
+    {
+      if (BVENABLED && ARRAYSENABLED && *$1 == "Array") {
+        $$ = new CVC3::Expr(VC->listExpr("_ARRAY",
+                                         VC->listExpr("_BITVECTOR", VC->ratExpr(*$3)),
+                                         VC->listExpr("_BITVECTOR", VC->ratExpr(*$5))));
+      }
+      else {
+        $$ = new CVC3::Expr(VC->listExpr(*$1, VC->ratExpr(*$3), VC->ratExpr(*$5)));
+      }
+      delete $1;
+      delete $3;
+      delete $5;
+    }
   | SYM_TOK 
     { 
       if (*$1 == "Real") {
-	$$ = new CVC3::Expr(VC->idExpr("REAL"));
+	$$ = new CVC3::Expr(VC->idExpr("_REAL"));
       } else if (*$1 == "Int") {
-	$$ = new CVC3::Expr(VC->idExpr("INT"));
+	$$ = new CVC3::Expr(VC->idExpr("_INT"));
       } else {
 	$$ = new CVC3::Expr(VC->idExpr(*$1));
       }
@@ -779,29 +804,29 @@ sort_symb:
 pred_symb:
     SYM_TOK
     {
-      if (BVENABLED && *$1 == "bvlt") {
-        $$ = new CVC3::Expr(VC->idExpr("BVLT"));
+      if (BVENABLED && (*$1 == "bvlt" || *$1 == "bvult")) {
+        $$ = new CVC3::Expr(VC->idExpr("_BVLT"));
       }
-      else if (BVENABLED && *$1 == "bvleq") {
-        $$ = new CVC3::Expr(VC->idExpr("BVLE"));
+      else if (BVENABLED && (*$1 == "bvleq" || *$1 == "bvule")) {
+        $$ = new CVC3::Expr(VC->idExpr("_BVLE"));
       }
-      else if (BVENABLED && *$1 == "bvgeq") {
-        $$ = new CVC3::Expr(VC->idExpr("BVGE"));
+      else if (BVENABLED && (*$1 == "bvgeq" || *$1 == "bvuge")) {
+        $$ = new CVC3::Expr(VC->idExpr("_BVGE"));
       }
-      else if (BVENABLED && *$1 == "bvgt") {
-        $$ = new CVC3::Expr(VC->idExpr("BVGT"));
+      else if (BVENABLED && (*$1 == "bvgt" || *$1 == "bvugt")) {
+        $$ = new CVC3::Expr(VC->idExpr("_BVGT"));
       }
       else if (BVENABLED && *$1 == "bvslt") {
-        $$ = new CVC3::Expr(VC->idExpr("SBVLT"));
+        $$ = new CVC3::Expr(VC->idExpr("_BVSLT"));
       }
-      else if (BVENABLED && *$1 == "bvsleq") {
-        $$ = new CVC3::Expr(VC->idExpr("SBVLE"));
+      else if (BVENABLED && (*$1 == "bvsleq" || *$1 == "bvsle")) {
+        $$ = new CVC3::Expr(VC->idExpr("_BVSLE"));
       }
-      else if (BVENABLED && *$1 == "bvsgeq") {
-        $$ = new CVC3::Expr(VC->idExpr("SBVGE"));
+      else if (BVENABLED && (*$1 == "bvsgeq" || *$1 == "bvsge")) {
+        $$ = new CVC3::Expr(VC->idExpr("_BVSGE"));
       }
       else if (BVENABLED && *$1 == "bvsgt") {
-        $$ = new CVC3::Expr(VC->idExpr("SBVGT"));
+        $$ = new CVC3::Expr(VC->idExpr("_BVSGT"));
       }
       else {
         $$ = new CVC3::Expr(VC->idExpr(*$1));
@@ -812,17 +837,17 @@ pred_symb:
     { 
       if ($1->length() == 1) {
 	switch ((*$1)[0]) {
-	  case '=': $$ = new CVC3::Expr(VC->idExpr("EQ")); break;
-	  case '<': $$ = new CVC3::Expr(VC->idExpr("LT")); break;
-	  case '>': $$ = new CVC3::Expr(VC->idExpr("GT")); break;
+	  case '=': $$ = new CVC3::Expr(VC->idExpr("_EQ")); break;
+	  case '<': $$ = new CVC3::Expr(VC->idExpr("_LT")); break;
+	  case '>': $$ = new CVC3::Expr(VC->idExpr("_GT")); break;
 	  default: $$ = new CVC3::Expr(VC->idExpr(*$1)); break;
 	}
       }
       else {
 	if (*$1 == "<=") {
-	  $$ = new CVC3::Expr(VC->idExpr("LE"));
+	  $$ = new CVC3::Expr(VC->idExpr("_LE"));
 	} else if (*$1 == ">=") {
-	  $$ = new CVC3::Expr(VC->idExpr("GE"));
+	  $$ = new CVC3::Expr(VC->idExpr("_GE"));
 	}
 	else $$ = new CVC3::Expr(VC->idExpr(*$1));
       }
@@ -831,11 +856,47 @@ pred_symb:
 ;
 
 fun_symb:
-    SYM_TOK LBRACKET_TOK NUMERAL_TOK COLON_TOK NUMERAL_TOK RBRACKET_TOK
+    SYM_TOK LBRACKET_TOK NUMERAL_TOK RBRACKET_TOK
+    {
+      $$ = new std::vector<CVC3::Expr>;
+      if (BVENABLED && *$1 == "repeat") {
+        $$->push_back(VC->idExpr("_BVREPEAT"));
+      }
+      else if (BVENABLED && *$1 == "zero_extend") {
+        $$->push_back(VC->idExpr("_BVZEROEXTEND"));
+      }
+      else if (BVENABLED && *$1 == "sign_extend") {
+        $$->push_back(VC->idExpr("_SX"));
+        $$->push_back(VC->idExpr("_smtlib"));
+      }
+      else if (BVENABLED && *$1 == "rotate_left") {
+        $$->push_back(VC->idExpr("_BVROTL"));
+      }
+      else if (BVENABLED && *$1 == "rotate_right") {
+        $$->push_back(VC->idExpr("_BVROTR"));
+      }
+      else if (BVENABLED &&
+               $1->size() > 2 &&
+               (*$1)[0] == 'b' &&
+               (*$1)[1] == 'v') {
+        int i = 2;
+        while ((*$1)[i] >= '0' && (*$1)[i] <= '9') ++i;
+        if ((*$1)[i] == '\0') {
+          $$->push_back(VC->idExpr("_BVCONST"));
+          $$->push_back(VC->ratExpr($1->substr(2), 10));
+        }
+        else $$->push_back(VC->idExpr(*$1));
+      }
+      else $$->push_back(VC->idExpr(*$1));
+      $$->push_back(VC->ratExpr(*$3));
+      delete $1;
+      delete $3;
+    }
+  | SYM_TOK LBRACKET_TOK NUMERAL_TOK COLON_TOK NUMERAL_TOK RBRACKET_TOK
     {
       $$ = new std::vector<CVC3::Expr>;
       if (BVENABLED && *$1 == "extract") {
-        $$->push_back(VC->idExpr("EXTRACT"));
+        $$->push_back(VC->idExpr("_EXTRACT"));
       }
       else $$->push_back(VC->idExpr(*$1));
       $$->push_back(VC->ratExpr(*$3));
@@ -848,76 +909,139 @@ fun_symb:
     {
       $$ = new std::vector<CVC3::Expr>;
       if (ARRAYSENABLED && *$1 == "select") {
-        $$->push_back(VC->idExpr("READ"));
+        $$->push_back(VC->idExpr("_READ"));
       }
       else if (ARRAYSENABLED && *$1 == "store") {
-        $$->push_back(VC->idExpr("WRITE"));
-      }
-      else if (BVENABLED && *$1 == "concat") {
-        $$->push_back(VC->idExpr("CONCAT"));
-      }
-      else if (BVENABLED && *$1 == "bvnot") {
-        $$->push_back(VC->idExpr("BVNEG"));
-      }
-      else if (BVENABLED && *$1 == "bvneg") {
-        $$->push_back(VC->idExpr("BVUMINUS"));
-      }
-      else if (BVENABLED && *$1 == "bvand") {
-        $$->push_back(VC->idExpr("BVAND"));
-      }
-      else if (BVENABLED && *$1 == "bvor") {
-        $$->push_back(VC->idExpr("BVOR"));
-      }
-      else if (BVENABLED && *$1 == "bvxor") {
-        $$->push_back(VC->idExpr("BVXOR"));
-      }
-      else if (BVENABLED && *$1 == "bvsub") {
-        $$->push_back(VC->idExpr("BVSUB"));
-      }
-      else if (BVENABLED && *$1 == "bvadd") {
-        $$->push_back(VC->idExpr("BVPLUS"));
-      }
-      else if (BVENABLED && *$1 == "bvmul") {
-        $$->push_back(VC->idExpr("BVMULT"));
+        $$->push_back(VC->idExpr("_WRITE"));
       }
       else if (BVENABLED && *$1 == "bit0") {
-        $$->push_back(VC->idExpr("BVCONST"));
+        $$->push_back(VC->idExpr("_BVCONST"));
         $$->push_back(VC->ratExpr(0));
         $$->push_back(VC->ratExpr(1));
       }
       else if (BVENABLED && *$1 == "bit1") {
-        $$->push_back(VC->idExpr("BVCONST"));
+        $$->push_back(VC->idExpr("_BVCONST"));
         $$->push_back(VC->ratExpr(1));
         $$->push_back(VC->ratExpr(1));
       }
-      else if (BVENABLED && *$1 == "bvnand") {
-        $$->push_back(VC->idExpr("BVNAND"));
+      else if (BVENABLED && *$1 == "concat") {
+        $$->push_back(VC->idExpr("_CONCAT"));
       }
-      else if (BVENABLED && *$1 == "bvnor") {
-        $$->push_back(VC->idExpr("BVNOR"));
+      else if (BVENABLED && *$1 == "bvnot") {
+        $$->push_back(VC->idExpr("_BVNEG"));
       }
+      else if (BVENABLED && *$1 == "bvand") {
+        $$->push_back(VC->idExpr("_BVAND"));
+      }
+      else if (BVENABLED && *$1 == "bvor") {
+        $$->push_back(VC->idExpr("_BVOR"));
+      }
+      else if (BVENABLED && *$1 == "bvneg") {
+        $$->push_back(VC->idExpr("_BVUMINUS"));
+      }
+      else if (BVENABLED && *$1 == "bvadd") {
+        $$->push_back(VC->idExpr("_BVPLUS"));
+      }
+      else if (BVENABLED && *$1 == "bvmul") {
+        $$->push_back(VC->idExpr("_BVMULT"));
+      }
+      else if (BVENABLED && *$1 == "bvudiv") {
+        $$->push_back(VC->idExpr("_BVUDIV"));
+      }
+      else if (BVENABLED && *$1 == "bvurem") {
+        $$->push_back(VC->idExpr("_BVUREM"));
+      }
+      else if (BVENABLED && *$1 == "bvshl") {
+        $$->push_back(VC->idExpr("_BVSHL"));
+      }
+      else if (BVENABLED && *$1 == "bvlshr") {
+        $$->push_back(VC->idExpr("_BVLSHR"));
+      }
+
+      else if (BVENABLED && *$1 == "bvxor") {
+        $$->push_back(VC->idExpr("_BVXOR"));
+      }
+      else if (BVENABLED && *$1 == "bvxnor") {
+        $$->push_back(VC->idExpr("_BVXNOR"));
+      }
+      else if (BVENABLED && *$1 == "bvcomp") {
+        $$->push_back(VC->idExpr("_BVCOMP"));
+      }
+
+      else if (BVENABLED && *$1 == "bvsub") {
+        $$->push_back(VC->idExpr("_BVSUB"));
+      }
+      else if (BVENABLED && *$1 == "bvsdiv") {
+        $$->push_back(VC->idExpr("_BVSDIV"));
+      }
+      else if (BVENABLED && *$1 == "bvsrem") {
+        $$->push_back(VC->idExpr("_BVSREM"));
+      }
+      else if (BVENABLED && *$1 == "bvsmod") {
+        $$->push_back(VC->idExpr("_BVSMOD"));
+      }
+      else if (BVENABLED && *$1 == "bvashr") {
+        $$->push_back(VC->idExpr("_BVASHR"));
+      }
+
+      // For backwards compatibility:
       else if (BVENABLED && *$1 == "shift_left0") {
-        $$->push_back(VC->idExpr("CONST_WIDTH_LEFTSHIFT"));
+        $$->push_back(VC->idExpr("_CONST_WIDTH_LEFTSHIFT"));
       }
       else if (BVENABLED && *$1 == "shift_right0") {
-        $$->push_back(VC->idExpr("RIGHTSHIFT"));
+        $$->push_back(VC->idExpr("_RIGHTSHIFT"));
       }
       else if (BVENABLED && *$1 == "sign_extend") {
-        $$->push_back(VC->idExpr("SX"));
+        $$->push_back(VC->idExpr("_SX"));
         $$->push_back(VC->idExpr("_smtlib"));
       }
+
+      // Bitvector constants
       else if (BVENABLED &&
                $1->size() > 2 &&
                (*$1)[0] == 'b' &&
                (*$1)[1] == 'v') {
-        int i = 2;
-        while ((*$1)[i] >= '0' && (*$1)[i] <= '9') ++i;
-        if ((*$1)[i] == '\0') {
-          $$->push_back(VC->idExpr("BVCONST"));
-          $$->push_back(VC->ratExpr($1->substr(2), 10));
-          $$->push_back(VC->ratExpr(BVSIZE));                        
+        bool done = false;
+        if ((*$1)[2] >= '0' && (*$1)[2] <= '9') {
+          int i = 3;
+          while ((*$1)[i] >= '0' && (*$1)[i] <= '9') ++i;
+          if ((*$1)[i] == '\0') {
+            $$->push_back(VC->idExpr("_BVCONST"));
+            $$->push_back(VC->ratExpr($1->substr(2), 10));
+            $$->push_back(VC->ratExpr(32));
+            done = true;
+          }
         }
-        else $$->push_back(VC->idExpr(*$1));
+        else if ($1->size() > 5) {
+          std::string s = $1->substr(0,5);
+          if (s == "bvbin") {
+            int i = 5;
+            while ((*$1)[i] >= '0' && (*$1)[i] <= '1') ++i;
+            if ((*$1)[i] == '\0') {
+              $$->push_back(VC->idExpr("_BVCONST"));
+              $$->push_back(VC->ratExpr($1->substr(5), 2));
+              $$->push_back(VC->ratExpr(i-5));
+              done = true;
+            }
+          }
+          else if (s == "bvhex") {
+            int i = 5;
+            char c = (*$1)[i];
+            while ((c >= '0' && c <= '9') ||
+                   (c >= 'a' && c <= 'f') ||
+                   (c >= 'A' && c <= 'F')) {
+              ++i;
+              c =(*$1)[i];
+            }
+            if ((*$1)[i] == '\0') {
+              $$->push_back(VC->idExpr("_BVCONST"));
+              $$->push_back(VC->ratExpr($1->substr(5), 16));
+              $$->push_back(VC->ratExpr(i-5));
+              done = true;
+            }
+          }
+        }
+        if (!done) $$->push_back(VC->idExpr(*$1));
       }
       else {
         $$->push_back(VC->idExpr(*$1));
@@ -929,11 +1053,11 @@ fun_symb:
       $$ = new std::vector<CVC3::Expr>;
       if ($1->length() == 1) {
 	switch ((*$1)[0]) {
-	case '+': $$->push_back(VC->idExpr("PLUS")); break;
-	case '-': $$->push_back(VC->idExpr("MINUS")); break;
-	case '*': $$->push_back(VC->idExpr("MULT")); break;
-	case '~': $$->push_back(VC->idExpr("UMINUS")); break;
-	case '/': $$->push_back(VC->idExpr("DIVIDE")); break;
+	case '+': $$->push_back(VC->idExpr("_PLUS")); break;
+	case '-': $$->push_back(VC->idExpr("_MINUS")); break;
+	case '*': $$->push_back(VC->idExpr("_MULT")); break;
+	case '~': $$->push_back(VC->idExpr("_UMINUS")); break;
+	case '/': $$->push_back(VC->idExpr("_DIVIDE")); break;
 	default: $$->push_back(VC->idExpr(*$1));
 	}
       }

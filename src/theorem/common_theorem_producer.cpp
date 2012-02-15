@@ -500,6 +500,55 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
 }
 
 
+Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
+                                                  const int changed,
+                                                  const Theorem& thm)
+{
+  // Get the arity of the expression
+  int size = e.arity();
+
+  // The changed must be within the arity
+  DebugAssert(size >= changed, "Bad call to substitutivityRule");
+
+  // Check that t is c == d or c IFF d
+  if(CHECK_PROOFS)
+    CHECK_SOUND(thm.isRewrite() && thm.getLHS() == e[changed], "CVC3::CommonTheoremProducer::substitutivityRule:\n  "
+                "premise is not an equality or IFF: " + thm.getExpr().toString() + "\n" +
+                "e = " + e.toString());
+
+  // Collect the new sub-expressions
+  vector<Expr> c;
+  for(int k = 0; k < size; ++ k)    	
+    if (k != changed) c.push_back(e[k]);
+    else c.push_back(thm.getRHS());
+
+  // Construct the new expression
+  Expr e2(e.getOp(), c);
+	
+  // Check if they are the same 
+  IF_DEBUG(if(e == e2) {
+    ostream& os = debugger.getOS();
+    os << "substitutivityRule: e = " << e << "\n e2 = " << e2 << endl;
+  });
+
+  // The new expressions must not be equal
+  DebugAssert(e != e2, "substitutivityRule should not be called in this case:\ne = "+e.toString());
+
+  // Construct the proof object
+  Proof pf;
+  Assumptions a(thm);
+  if(withProof()) {
+    // Check that t is c == d or c IFF d
+    if(CHECK_PROOFS)
+      CHECK_SOUND(thm.isRewrite(), "CVC3::CommonTheoremProducer::substitutivityRule:\npremise is not an equality or IFF: " + thm.getExpr().toString());                 
+    pf = newPf("optimized_subst_op2",e,e2,thm.getProof());
+  }
+
+  // Return the resulting theorem 
+  return newRWTheorem(e, e2, a, pf);;
+}
+
+
 // |- e,  |- !e ==> |- FALSE
 Theorem CommonTheoremProducer::contradictionRule(const Theorem& e,
                                                  const Theorem& not_e) {

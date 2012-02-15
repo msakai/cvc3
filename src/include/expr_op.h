@@ -48,6 +48,7 @@ namespace CVC3 {
 class Op {
   friend class Expr;
   friend class ExprApply;
+  friend class ExprApplyTmp;
   friend class ::CInterface;
 
   int d_kind;

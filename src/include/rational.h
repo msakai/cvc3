@@ -177,6 +177,6 @@ namespace CVC3 {
   // Debugging print
   void printRational(const Rational &x);
 
-}; // end of namespace CVC3
+} // end of namespace CVC3
 
 #endif

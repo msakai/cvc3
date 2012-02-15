@@ -62,7 +62,9 @@ class Translator {
   const std::string& d_convertToDiff;
   bool d_iteLiftArith;
   const std::string& d_expResult;
+  const std::string& d_category;
   bool d_convertArray;
+  bool d_combineAssump;
 
   //! The log file for top-level API calls in the CVC3 input language
   std::ostream* d_osdump;
@@ -70,7 +72,7 @@ class Translator {
   std::ifstream d_tmpFile;
   bool d_dump, d_dumpFileOpen;
 
-  bool d_intIntArray, d_intRealArray, d_intIntRealArray, d_bv32_8, d_ax, d_unknown;
+  bool d_intIntArray, d_intRealArray, d_intIntRealArray, d_ax, d_unknown;
   bool d_realUsed;
   bool d_intUsed;
   bool d_intConstUsed;
@@ -94,9 +96,9 @@ class Translator {
 
   std::string fileToSMTLIBIdentifier(const std::string& filename);
   Expr preprocessRec(const Expr& e, ExprMap<Expr>& cache);
-  Expr preprocess(const Expr& e);
+  Expr preprocess(const Expr& e, ExprMap<Expr>& cache);
   Expr preprocess2Rec(const Expr& e, ExprMap<Expr>& cache, Type desiredType);
-  Expr preprocess2(const Expr& e);
+  Expr preprocess2(const Expr& e, ExprMap<Expr>& cache);
   bool containsArray(const Expr& e);
   Expr processType(const Expr& e);
 
@@ -109,11 +111,13 @@ public:
              const std::string& convertToDiff,
              bool iteLiftArith,
              const std::string& expResult,
-             bool convertArray);
+             const std::string& category,
+             bool convertArray,
+             bool combineAssump);
 
   bool start(const std::string& dumpFile);
   void dump(const Expr& e, bool dumpOnly = false);
-  void dumpAssertion(const Expr& e);
+  bool dumpAssertion(const Expr& e);
   bool dumpQuery(const Expr& e);
   void dumpQueryResult(QueryResult qres);
   void finish();

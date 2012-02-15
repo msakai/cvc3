@@ -67,7 +67,7 @@ ifeq ($(OPTGDB),1)
   DEBUG_PLATFORM =
 else
 ifeq ($(OPTIMIZED),1)
-  LOCAL_CXXFLAGS = -O2
+  LOCAL_CXXFLAGS = -O9 -funroll-all-loops -fexpensive-optimizations
   DEBUG_PLATFORM =
 else
   LOCAL_CXXFLAGS = -DDEBUG -g

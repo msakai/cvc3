@@ -53,6 +53,7 @@ typedef enum {
   // Equality
   EQ,
   NEQ,
+  DISTINCT,
 
   // Propositional connectives
   NOT,

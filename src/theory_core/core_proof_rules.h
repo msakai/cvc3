@@ -77,6 +77,9 @@ namespace CVC3 {
     //! ==> IMPLIES(e1,e2) IFF OR(!e1, e2)
     virtual Theorem rewriteImplies(const Expr& e) = 0;
 
+    //! ==> DISTINCT(e1,...,en) IFF AND 1 <= i < j <= n (e[i] /= e[j])
+    virtual Theorem rewriteDistinct(const Expr& e) = 0;
+
     //! ==> NOT(e) == ITE(e, FALSE, TRUE)
     virtual Theorem NotToIte(const Expr& not_e) = 0;
     //! ==> Or(e) == ITE(e[1], TRUE, e[0])

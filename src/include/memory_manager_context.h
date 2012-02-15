@@ -141,6 +141,14 @@ class ContextMemoryManager :public MemoryManager {
     }
   }
 
+  unsigned getMemory() {
+    return d_chunkList.size() * d_chunkSizeBytes;
+  }
+
+  static unsigned getStaticMemory() {
+    return s_freePages.size() * 16384;
+  }
+
 }; // end of class ContextMemoryManager
 
 }

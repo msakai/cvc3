@@ -134,6 +134,10 @@ void SearchSat::restore()
   while (d_pendingLemmasSize < d_pendingLemmas.size()) {
     d_pendingLemmas.pop_back();
   }
+  while (d_varsUndoListSize < d_varsUndoList.size()) {
+    d_vars[d_varsUndoList.back()] = SAT::Var::UNKNOWN;
+    d_varsUndoList.pop_back();
+  }
 }
 
 
@@ -221,18 +225,23 @@ void SearchSat::assertLit(Lit l)
               "internal assumptions should be true");
   // This happens if the SAT solver has been restarted--it re-asserts its old assumptions
   if (e.isIntAssumption()) return;
-  setValue(l.getVar(), l.isPositive() ? Var::TRUE_VAL : Var::FALSE_VAL);
+  if (getValue(l) == SAT::Var::UNKNOWN) {
+    setValue(l.getVar(), l.isPositive() ? Var::TRUE_VAL : Var::FALSE_VAL);
+  }
+  else {
+    DebugAssert(!e.isAbsLiteral(), "invariant violated");
+    DebugAssert(getValue(l) == Var::TRUE_VAL, "invariant violated");
+    return;
+  }
   if (!e.isAbsLiteral()) return;
 
-  DebugAssert(!e.isIntAssumption(), "Expected new assumption");
   e.setIntAssumption();
   Theorem thm = d_commonRules->assumpRule(e);
   if (isSATLemma) {
     CNF_Formula_Impl cnf;
     d_cnfManager->addAssumption(thm, cnf);
   }
-  Expr atom = e.isNot() ? e[0] : e;
-  thm.setQuantLevel(theoryCore()->getQuantLevelForTerm(atom));
+  thm.setQuantLevel(theoryCore()->getQuantLevelForTerm(e.isNot() ? e[0] : e));
   d_intAssumptions.push_back(thm);
   d_core->addFact(thm);
 }
@@ -309,11 +318,9 @@ bool SearchSat::getNewClauses(CNF_Formula& cnf)
     }
   }
   d_pendingLemmasNext = d_pendingLemmas.size();
-    
-  while (d_cnfManager->numVars() >= d_vars.size()) {
-    d_vars.push_back(SmartCDO<SAT::Var::Val>(
-                       d_core->getCM()->getCurrentContext(),
-                       SAT::Var::UNKNOWN, 0));
+
+  if (d_cnfManager->numVars() > d_vars.size()) {
+    d_vars.resize(d_cnfManager->numVars(), SAT::Var::UNKNOWN);
   }
 
   //DebugAssert(d_inCheckSat, "Should only be used as a call-back");
@@ -325,8 +332,18 @@ bool SearchSat::getNewClauses(CNF_Formula& cnf)
 }
 
 
+// #include "vcl.h"
+
+// namespace CVC3 {
+// extern VCL* myvcl;
+// }
+
 Lit SearchSat::makeDecision()
 {
+//   static unsigned long numCalls = 0;
+//   if (numCalls++ % 1000 == 0) {
+//     myvcl->printMemory();
+//   }
   DebugAssert(d_inCheckSat, "Should only be used as a call-back");
   Lit litDecision;
 
@@ -802,6 +819,7 @@ SearchSat::SearchSat(TheoryCore* core, const string& name)
     d_pendingLemmasSize(core->getCM()->getCurrentContext(), 0),
     d_pendingLemmasNext(core->getCM()->getCurrentContext(), 0),
     d_lemmasNext(core->getCM()->getCurrentContext(), 0),
+    d_varsUndoListSize(core->getCM()->getCurrentContext(), 0),
     d_prioritySetStart(core->getCM()->getCurrentContext()),
     d_prioritySetEntriesSize(core->getCM()->getCurrentContext(), 0),
     d_prioritySetBottomEntriesSize(0),
@@ -810,7 +828,8 @@ SearchSat::SearchSat(TheoryCore* core, const string& name)
     d_nextImpliedLiteral(core->getCM()->getCurrentContext(), 0),
     d_restorer(core->getCM()->getCurrentContext(), this)
 {
-  d_cnfManager = new CNF_Manager(core->getTM());
+  d_cnfManager = new CNF_Manager(core->getTM(), core->getStatistics(),
+                                 core->getFlags()["minimizeClauses"].getBool());
   d_cnfCallback = new SearchSatCNFCallback(this);
   d_cnfManager->registerCNFCallback(d_cnfCallback);
   d_coreSatAPI = new SearchSatCoreSatAPI(this);
@@ -918,10 +937,8 @@ Theorem SearchSat::newUserAssumptionInt(const Expr& e, CNF_Formula_Impl& cnf, bo
         }
       }
     }
-    while (d_cnfManager->numVars() >= d_vars.size()) {
-      d_vars.push_back(SmartCDO<SAT::Var::Val>(
-                         d_core->getCM()->getCurrentContext(),
-                         SAT::Var::UNKNOWN, 0));
+    if (d_cnfManager->numVars() > d_vars.size()) {
+      d_vars.resize(d_cnfManager->numVars(), SAT::Var::UNKNOWN);
     }
   }
   return thm;

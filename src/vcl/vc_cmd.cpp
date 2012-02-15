@@ -143,6 +143,8 @@ void VCCmd::reportResult(QueryResult qres, bool checkingValidity)
     }
     cout << flush;
   }
+  //  d_vc->printStatistics();
+  exit(0);
 }
 
 

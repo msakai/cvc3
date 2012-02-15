@@ -136,7 +136,7 @@ private:
   /*! @brief Pointer to the pointer of the previous object which
   points to us.  This makes a doubly-linked list for easy element
   deletion */
-  //  ContextObjChain** d_restoreChainPrev;
+  ContextObjChain** d_restoreChainPrev;
 
   //! Pointer to the previous copy which belongs to the same master
   ContextObjChain* d_restore;
@@ -150,7 +150,7 @@ private:
   //! Private constructor (only friends can use it)
   ContextObjChain(ContextObj* data, ContextObj* master, 
 		  ContextObjChain* restore)
-    : d_restoreChainNext(NULL), //d_restoreChainPrev(NULL),
+    : d_restoreChainNext(NULL), d_restoreChainPrev(NULL),
       d_restore(restore), d_data(data), d_master(master)
   { }
 
@@ -168,6 +168,15 @@ public:
   }
 
   void operator delete(void*) { }
+
+  // If you use this operator, you have to call free yourself when the memory
+  // is freed.
+  void* operator new(size_t size, bool b) {
+    return malloc(size);
+  }
+  void operator delete(void* pMem, bool b) {
+    free(pMem);
+  }
 
   IF_DEBUG(std::string name() const;)
 };
@@ -198,7 +207,7 @@ private:
   IF_DEBUG(std::string d_name);
   IF_DEBUG(bool d_active);
 
-  //! Update on the given scope, on the current scope if 'scope' == 0
+  //! Update on the given scope, on the current scope if 'scope' == -1
   void update(int scope = -1);
 
 protected:
@@ -326,6 +335,7 @@ public:
   void popto(int toLevel);
   void addNotifyObj(ContextNotifyObj* obj) { d_notifyObjList.push_back(obj); }
   void deleteNotifyObj(ContextNotifyObj* obj);
+  unsigned long getMemory();
 };
 
 // Have to define after Context class
@@ -333,10 +343,10 @@ inline bool Scope::isCurrent(void) const
   { return this == d_context->topScope(); }
 
 inline void Scope::addToChain(ContextObjChain* obj) {
-  //  if(d_restoreChain != NULL)
-  //    d_restoreChain->d_restoreChainPrev = &obj->d_restoreChainNext;
+  if(d_restoreChain != NULL)
+    d_restoreChain->d_restoreChainPrev = &(obj->d_restoreChainNext);
   obj->d_restoreChainNext = d_restoreChain;
-  //  obj->d_restoreChainPrev = &d_restoreChain;
+  obj->d_restoreChainPrev = &d_restoreChain;
   d_restoreChain = obj;
 }
 
@@ -360,7 +370,7 @@ inline ContextObj::ContextObj(Context* context, bool atBottomScope)
   DebugAssert(context != NULL, "NULL context pointer");
   if (atBottomScope) d_scope = context->bottomScope();
   else d_scope = context->topScope();
-  d_restore = new(getCMM()) ContextObjChain(NULL, this, NULL);
+  d_restore = new(true) ContextObjChain(NULL, this, NULL);
   d_scope->addToChain(d_restore);
   //  if (atBottomScope) d_scope->addSpecialObject(d_restore);
   //  TRACE("context verbose", "ContextObj()[", this, "]");
@@ -391,6 +401,7 @@ public:
   Context* createContext(const std::string& name="");
   Context* getCurrentContext() { return d_curContext; }
   Context* switchContext(Context* context);
+  unsigned long getMemory();
 };
 
 /****************************************************************************/

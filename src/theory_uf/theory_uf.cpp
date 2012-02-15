@@ -48,8 +48,8 @@ TheoryUF::TheoryUF(TheoryCore* core)//, bool useAckermann)
   d_rules = createProofRules();
 
   // Register new local kinds with ExprManager
-  getEM()->newKind(TRANS_CLOSURE, "TRANS_CLOSURE");
-  getEM()->newKind(OLD_ARROW, "OLD_ARROW", true);
+  getEM()->newKind(TRANS_CLOSURE, "_TRANS_CLOSURE");
+  getEM()->newKind(OLD_ARROW, "_OLD_ARROW", true);
 
   vector<int> kinds;
   //TODO: should this stuff really be in theory_uf?
@@ -240,15 +240,35 @@ void TheoryUF::update(const Theorem& e, const Expr& d)
   }
   */
   // Record the original signature
-  Theorem dEQdsig = d.getSig();
-  updateCC(e, d);
+  const Theorem& dEQdsig = d.getSig();
   if (!dEQdsig.isNull()) {
     const Expr& dsig = dEQdsig.getRHS();
-    Theorem thm = d.getSig();
-    if(!thm.isNull()) {
-      const Expr& newSig = thm.getRHS();
-
-      if (dsig != newSig && d.isApply() && findExpr(d).isTrue()) {
+    Theorem thm = updateHelper(d);
+    const Expr& sigNew = thm.getRHS();
+    if (sigNew == dsig) {
+      //      TRACE_MSG("facts update", "updateCC["+getName()+"]() [no change] => }");
+      return;
+    }
+    dsig.setRep(Theorem());
+    const Theorem& repEQsigNew = sigNew.getRep();
+    if (!repEQsigNew.isNull()) {
+      d.setSig(Theorem());
+      enqueueFact(transitivityRule(repEQsigNew, symmetryRule(thm)));
+    }
+    else if (d.getType().isBool()) {
+      d.setSig(Theorem());
+      enqueueFact(thm);
+    }
+    else {
+      int k, ar(d.arity());
+      for (k = 0; k < ar; ++k) {
+	if (sigNew[k] != dsig[k]) {
+	  sigNew[k].addToNotify(this, d);
+	}
+      }
+      d.setSig(thm);
+      sigNew.setRep(thm);
+      if (dsig != sigNew && d.isApply() && findExpr(d).isTrue()) {
         if (d.getOpExpr().computeTransClosure()) {
           thm = getCommonRules()->iffTrueElim(transitivityRule(symmetryRule(thm),
                                                                find(d)));

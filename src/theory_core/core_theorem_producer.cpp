@@ -356,6 +356,36 @@ CoreTheoremProducer::rewriteImplies(const Expr& e) {
   return newRWTheorem(e, !e[0] || e[1], Assumptions::emptyAssump(), pf);
 }
 
+// ==> DISTINCT(e1,...,en) IFF AND 1 <= i < j <= n (e[i] /= e[j])
+Theorem
+CoreTheoremProducer::rewriteDistinct(const Expr& e) {
+  Proof pf;
+  if(CHECK_PROOFS) {
+    CHECK_SOUND(e.getKind() == DISTINCT, "rewriteDistinct precondition violated");
+    CHECK_SOUND(e.arity() > 0, "rewriteDistinct precondition violated");
+  }
+  if(withProof()) {
+    pf = newPf("rewrite_distinct");
+  }
+  Expr res;
+  if (e.arity() == 1) {
+    res = e.getEM()->trueExpr();
+  }
+  else if (e.arity() == 2) {
+    res = !(e[0].eqExpr(e[1]));
+  }
+  else {
+    vector<Expr> tmp;
+    for (int i = 0; i < e.arity(); ++i) {
+      for (int j = i+1; j < e.arity(); ++j) {
+        tmp.push_back(!(e[i].eqExpr(e[j])));
+      }
+    }
+    res = Expr(AND, tmp);
+  }
+  return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
+}
+
 // ==> NOT(e) == ITE(e, FALSE, TRUE)
 Theorem
 CoreTheoremProducer::NotToIte(const Expr& not_e){

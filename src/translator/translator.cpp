@@ -100,6 +100,18 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
 
   Rational r;
   switch (e2.getKind()) {
+    case APPLY:
+      // Expand lambda applications
+      if (e2.getOpKind() == LAMBDA) {
+        Expr lambda(e2.getOpExpr());
+        Expr body(lambda.getBody());
+        const vector<Expr>& vars = lambda.getVars();
+        FatalAssert(vars.size() == (size_t)e2.arity(), 
+                    "wrong number of arguments applied to lambda\n");
+        body = body.substExpr(vars, e2.getKids());
+        e2 = preprocessRec(body, cache);
+      }
+      break;
     case EQ:
       if (d_theoryArith->getBaseType(e2[0]) != d_theoryArith->realType())
         break;
@@ -336,9 +348,8 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
 }
 
 
-Expr Translator::preprocess(const Expr& e)
+Expr Translator::preprocess(const Expr& e, ExprMap<Expr>& cache)
 {
-  ExprMap<Expr> cache;
   Expr result;
   try {
     result = preprocessRec(e, cache);
@@ -461,9 +472,8 @@ Expr Translator::preprocess2Rec(const Expr& e, ExprMap<Expr>& cache, Type desire
 }
 
 
-Expr Translator::preprocess2(const Expr& e)
+Expr Translator::preprocess2(const Expr& e, ExprMap<Expr>& cache)
 {
-  ExprMap<Expr> cache;
   Expr result;
   try {
     result = preprocess2Rec(e, cache, Type());
@@ -494,17 +504,21 @@ Translator::Translator(ExprManager* em,
                        const string& convertToDiff,
                        bool iteLiftArith,
                        const string& expResult,
-                       bool convertArray)
+                       const string& category,
+                       bool convertArray,
+                       bool combineAssump)
   : d_em(em), d_translate(translate),
     d_real2int(real2int),
     d_convertArith(convertArith),
     d_convertToDiff(convertToDiff),
     d_iteLiftArith(iteLiftArith),
     d_expResult(expResult),
+    d_category(category),
     d_convertArray(convertArray),
+    d_combineAssump(combineAssump),
     d_dump(false), d_dumpFileOpen(false),
     d_intIntArray(false), d_intRealArray(false), d_intIntRealArray(false),
-    d_bv32_8(false), d_ax(false), d_unknown(false),
+    d_ax(false), d_unknown(false),
     d_realUsed(false), d_intUsed(false), d_intConstUsed(false),
     d_langUsed(NOT_USED), d_UFIDL_ok(true), d_arithUsed(false),
     d_zeroVar(NULL)
@@ -618,7 +632,7 @@ void Translator::dump(const Expr& e, bool dumpOnly)
 }
 
 
-void Translator::dumpAssertion(const Expr& e)
+bool Translator::dumpAssertion(const Expr& e)
 {
   Expr outExpr = Expr(ASSERT, e);
   if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
@@ -627,6 +641,7 @@ void Translator::dumpAssertion(const Expr& e)
   else {
     *d_osdump << outExpr << endl;
   }
+  return d_translate;
 }
 
 
@@ -714,34 +729,47 @@ void Translator::finish()
     else *d_osdump << "unknown";
     *d_osdump << endl;
 
+    // difficulty
+    *d_osdump << "  :difficulty { unknown }" << endl;
+
+    // category
+    *d_osdump << "  :category { ";
+    *d_osdump << d_category << " }" << endl;
+
     // Compute logic for smt-lib
     bool qf_uf = false;
     {
-      // Step 1: preprocess asserts, queries, and types
-      vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
-      for (; i != iend; ++i) {
-        Expr e = *i;
-        switch (e.getKind()) {
-          case ASSERT: {
-            Expr e2 = preprocess(e[0]);
-            e2.getType();
-            *i = Expr(ASSERT, e2);
-            break;
+      {
+        ExprMap<Expr> cache;
+        // Step 1: preprocess asserts, queries, and types
+        vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
+        for (; i != iend; ++i) {
+          Expr e = *i;
+          switch (e.getKind()) {
+            case ASSERT: {
+              Expr e2 = preprocess(e[0], cache);
+              if (e[0] == e2) break;
+              e2.getType();
+              *i = Expr(ASSERT, e2);
+              break;
+            }
+            case QUERY: {
+              Expr e2 = preprocess(e[0].negate(), cache);
+              if (e[0].negate() == e2) break;
+              e2.getType();
+              *i = Expr(QUERY, e2.negate());
+              break;
+            }
+            case CONST: {
+              DebugAssert(e.arity() == 2, "Expected CONST with arity 2");
+              Expr e2 = processType(e[1]);
+              if (e[1] == e2) break;
+              *i = Expr(CONST, e[0], e2);
+              break;
+            }
+            default:
+              break;
           }
-          case QUERY: {
-            Expr e2 = preprocess(e[0].negate());
-            e2.getType();
-            *i = Expr(QUERY, e2.negate());
-            break;
-          }
-          case CONST: {
-            DebugAssert(e.arity() == 2, "Expected CONST with arity 2");
-            Expr e2 = processType(e[1]);
-            *i = Expr(CONST, e[0], e2);
-            break;
-          }
-          default:
-            break;
         }
       }
 
@@ -753,17 +781,19 @@ void Translator::finish()
 
       // Step 2: If both int and real are used, try to separate them
       if (!d_unknown && d_intUsed && d_realUsed) {
-        for (i = d_dumpExprs.begin(); i != iend; ++i) {
+        ExprMap<Expr> cache;
+        vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
+        for (; i != iend; ++i) {
           Expr e = *i;
           switch (e.getKind()) {
             case ASSERT: {
-              Expr e2 = preprocess2(e[0]);
+              Expr e2 = preprocess2(e[0], cache);
               e2.getType();
               *i = Expr(ASSERT, e2);
               break;
             }
             case QUERY: {
-              Expr e2 = preprocess2(e[0].negate());
+              Expr e2 = preprocess2(e[0].negate(), cache);
               e2.getType();
               *i = Expr(QUERY, e2.negate());
               break;
@@ -780,9 +810,7 @@ void Translator::finish()
       if (d_unknown ||
           d_theoryRecords->theoryUsed() ||
           d_theorySimulate->theoryUsed() ||
-          d_theoryDatatype->theoryUsed() ||
-          (d_theoryBitvector->theoryUsed() &&
-           d_theoryBitvector->getMaxSize() > 32)) {
+          d_theoryDatatype->theoryUsed()) {
         *d_osdump << "unknown";
       }
       else {
@@ -917,12 +945,12 @@ void Translator::finish()
           else if (d_theoryBitvector->theoryUsed()) {
 
             // Promote undefined subset logics
-            if (QF && !UF) {
+            if (A && QF && !UF) {
               UF = true;
               *d_osdump << "UF";
             }
 
-            *d_osdump << "BV[32]";
+            *d_osdump << "BV";//[" << d_theoryBitvector->getMaxSize() << "]";
           }
           else {
 
@@ -951,17 +979,30 @@ void Translator::finish()
     // Dump the actual expressions
 
     vector<Expr>::const_iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
+    vector<Expr> assumps;
     for (; i != iend; ++i) {
       Expr e = *i;
       switch (e.getKind()) {
         case ASSERT: {
-          *d_osdump << "  :assumption" << endl;
-          *d_osdump << e[0] << endl;
+          if (d_combineAssump) {
+            assumps.push_back(e[0]);
+          }
+          else {
+            *d_osdump << "  :assumption" << endl;
+            *d_osdump << e[0] << endl;
+          }
           break;
         }
         case QUERY: {
           *d_osdump << "  :formula" << endl;
-          *d_osdump << e[0].negate() << endl;
+          if (!assumps.empty()) {
+            assumps.push_back(e[0].negate());
+            e = Expr(AND, assumps);
+            *d_osdump << e << endl;
+          }
+          else {
+            *d_osdump << e[0].negate() << endl;
+          }
           break;
         }
         default:
@@ -1032,10 +1073,13 @@ bool Translator::printArrayExpr(ExprStream& os, const Expr& e)
         return true;
       }
     }
-    else if (Type(e[0]) == d_theoryBitvector->newBitvectorType(32) &&
-             Type(e[1]) == d_theoryBitvector->newBitvectorType(8)) {
-      d_bv32_8 = true;
-      os << "Array";
+    else if (e[0].getKind() == BITVECTOR &&
+             e[1].getKind() == BITVECTOR) {
+      os << "Array[";
+      os << d_theoryBitvector->getBitvectorTypeParam(Type(e[0]));
+      os << ":";
+      os << d_theoryBitvector->getBitvectorTypeParam(Type(e[1]));
+      os << "]";
       return true;
     }
     os << "Array";

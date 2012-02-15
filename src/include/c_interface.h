@@ -388,10 +388,10 @@ Expr vc_bvLeExpr(VC vc, Expr left, Expr right);
 Expr vc_bvGtExpr(VC vc, Expr left, Expr right);
 Expr vc_bvGeExpr(VC vc, Expr left, Expr right);
 
-Expr vc_sbvLtExpr(VC vc, Expr left, Expr right);
-Expr vc_sbvLeExpr(VC vc, Expr left, Expr right);
-Expr vc_sbvGtExpr(VC vc, Expr left, Expr right);
-Expr vc_sbvGeExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSLtExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSLeExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSGtExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSGeExpr(VC vc, Expr left, Expr right);
 
 
 Expr vc_bvUMinusExpr(VC vc, Expr child);

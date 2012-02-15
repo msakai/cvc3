@@ -106,10 +106,6 @@ class TheoryCore :public Theory {
   //! Cache for tcc's
   ExprMap<Expr> d_tccCache;
 
-  //! List of all terms that are shared between theories (alien subterms)
-  /*! Maps each shared term to its own theory. */
-  CDMap<Expr, Theory*> d_sharedTerms;
-
   //! Array of registered theories
   std::vector<Theory*> d_theories;
 

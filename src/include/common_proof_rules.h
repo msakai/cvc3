@@ -139,6 +139,7 @@ namespace CVC3 {
     virtual Theorem substitutivityRule(const Expr& e,
                                        const std::vector<unsigned>& changed,
                                        const std::vector<Theorem>& thms) = 0;
+    virtual Theorem substitutivityRule(const Expr& e, const int changed, const Theorem& thm) = 0;
 
     // |- e,  |- !e ==> |- FALSE
     /*! @brief

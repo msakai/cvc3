@@ -540,14 +540,10 @@ Theorem TheoryBitvector::bitBlastTerm(const Expr& t, int bitPosition)
 					getBoolExtractIndex(extractTerm)));
       break;
     }
-    case LEFTSHIFT:
-    case RIGHTSHIFT:
-    case SX:
-    case BVSUB:
-    case BVUMINUS:
-      DebugAssert(false, "control should not reach here.");
-      break;
     default:
+      DebugAssert(theoryOf(t2.getOpKind()) != this,
+                  "Unexpected operator in bitBlastTerm:"
+                  +t2.toString());
       //we have bitvector variable.
       //check if the expr is indeed a BITVECTOR.   
       IF_DEBUG(Type type = t2.getType());
@@ -1026,7 +1022,7 @@ TheoryBitvector::normalizeConcat(const Expr& e, bool useFind) {
       break;
     }
     default:
-      DebugAssert(false, "normalizeConcat: bad expr: "+e.toString());
+      FatalAssert(false, "normalizeConcat: bad expr: "+e.toString());
       res = reflexivityRule(e);
       break;
     }
@@ -1212,14 +1208,14 @@ Theorem TheoryBitvector::flattenBVPlus(const Expr& e) {
 
 //! signextend e0 <=(s) e1 appropriately, then normalize and return
 Theorem TheoryBitvector::signExtendBVLT(const Expr& e, int len, bool useFind) {
-  DebugAssert(e.getOpKind()==SBVLT || e.getOpKind()==SBVLE,
+  DebugAssert(e.getOpKind()==BVSLT || e.getOpKind()==BVSLE,
 	      "TheoryBitvector::signExtendBVLT: input must be BVLT/BVLE"
 	      + e.toString());
   std::vector<Theorem> thms;
   std::vector<unsigned> changed;
 
   //e0 <= e1 <==> pad(e0) <= pad(e1)
-  Theorem thm = d_rules->padSBVLTRule(e, len);
+  Theorem thm = d_rules->padBVSLTRule(e, len);
   Expr paddedE = thm.getRHS();
 
   //the rest of the code simply normalizes pad(e0) and pad(e1)
@@ -1379,8 +1375,8 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache,
     }
     break;
   }
-  case SBVLT:
-  case SBVLE:{
+  case BVSLT:
+  case BVSLE:{
     /*! input: e0 <=(s) e1. output depends on whether the topbits(MSB) of
      *  e0 and e1 are constants. If they are constants then optimizations
      *  are done. In general, the following rule is implemented.
@@ -1401,8 +1397,8 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache,
     Theorem thm0 = signExtendBVLT(e, bvlength, useFind);
     //signpad(e0) <= signpad(e1)
     Expr thm0RHS = thm0.getRHS();
-    DebugAssert(thm0RHS.getOpKind() == SBVLT || 
-		thm0RHS.getOpKind() == SBVLE,
+    DebugAssert(thm0RHS.getOpKind() == BVSLT || 
+		thm0RHS.getOpKind() == BVSLE,
 		"TheoryBitvector::RewriteBV");
     //signpad(e0)[bvlength-1:bvlength-1]
     const Expr MSB0 = newBVExtractExpr(thm0RHS[0],bvlength-1,bvlength-1);
@@ -1500,6 +1496,31 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache,
   case EXTRACT:
     res = normalizeConcat(e, useFind);
     break;
+  case BVXOR: {
+    Theorem thm1 = d_rules->rewriteXOR(e);
+    res = transitivityRule(thm1, simplify(thm1.getRHS()));
+    break;
+  }
+  case BVXNOR: {
+    Theorem thm1 = d_rules->rewriteXNOR(e);
+    res = transitivityRule(thm1, simplify(thm1.getRHS()));
+    break;
+  }
+  case BVNAND: {
+    Theorem thm1 = d_rules->rewriteNAND(e);
+    res = transitivityRule(thm1, simplify(thm1.getRHS()));
+    break;
+  }
+  case BVNOR: {
+    Theorem thm1 = d_rules->rewriteNOR(e);
+    res = transitivityRule(thm1, simplify(thm1.getRHS()));
+    break;
+  }
+  case BVSUB: {
+    Theorem thm1 = d_rules->rewriteBVSub(e);
+    res = transitivityRule(thm1, simplify(thm1.getRHS()));
+    break;
+  }
   case BVPLUS:
   case BVUMINUS:
   case BVMULT:
@@ -1639,6 +1660,22 @@ Theorem TheoryBitvector::pushNegationRec(const Expr& e, bool neg) {
         res = transitivityRule(res, rewrite(res.getRHS()));
       }
       break;
+    }
+    case BVXOR: {
+      res = d_rules->negBVxor(NegExpr);
+      Expr ee = res.getRHS();
+
+      // only the first child is negated
+      Theorem thm0 = pushNegationRec(ee[0][0], true);
+      if (!thm0.isRefl()) {
+        thm0 = substitutivityRule(ee, 0, thm0);
+        res = transitivityRule(res, thm0);
+      }
+      break;      
+    }
+    case BVXNOR: {
+      res = d_rules->negBVxnor(NegExpr);
+      break;      
     }
     case CONCAT: {
       //demorgan's laws. 
@@ -1831,77 +1868,96 @@ TheoryBitvector::TheoryBitvector(TheoryCore* core)
     d_maxLength(0),
     d_index1(core->getCM()->getCurrentContext(), 0, 0)
 {
-  getEM()->newKind(BITVECTOR, "BITVECTOR", true);
-  getEM()->newKind(BVCONST, "BVCONST");
-  getEM()->newKind(HEXBVCONST, "HEXBVCONST");
-  getEM()->newKind(CONCAT, "CONCAT");
-  getEM()->newKind(BVOR, "BVOR");
-  getEM()->newKind(BVAND, "BVAND");
-  getEM()->newKind(BVXOR, "BVXOR");
-  getEM()->newKind(BVNAND, "BVNAND");
-  getEM()->newKind(BVNOR, "BVNOR");
-  getEM()->newKind(BVXNOR, "BVXNOR");
-  getEM()->newKind(BVNEG, "BVNEG");
-  getEM()->newKind(EXTRACT, "EXTRACT");
-  getEM()->newKind(LEFTSHIFT, "LEFTSHIFT");
-  getEM()->newKind(CONST_WIDTH_LEFTSHIFT, "CONST_WIDTH_LEFTSHIFT");
-  getEM()->newKind(RIGHTSHIFT, "RIGHTSHIFT");
-  getEM()->newKind(VARSHIFT, "VARSHIFT");
-  getEM()->newKind(BVPLUS, "BVPLUS");
-  getEM()->newKind(BVMULT, "BVMULT");
-  getEM()->newKind(BVSUB, "BVSUB");
-  getEM()->newKind(BVUMINUS, "BVUMINUS");
-  getEM()->newKind(BOOLEXTRACT, "BOOLEXTRACT");
-  getEM()->newKind(SX,"SX");
-  getEM()->newKind(SBVLT, "SBVLT");
-  getEM()->newKind(SBVLE, "SBVLE");
-  getEM()->newKind(SBVGT, "SBVGT");
-  getEM()->newKind(SBVGE, "SBVGE");
-  getEM()->newKind(BVLT, "BVLT");
-  getEM()->newKind(BVLE, "BVLE");
-  getEM()->newKind(BVGT, "BVGT");
-  getEM()->newKind(BVGE, "BVGE");
-  getEM()->newKind(INTTOBV, "INTTOBV");
-  getEM()->newKind(BVTOINT, "BVTOINT");
-  getEM()->newKind(BVTYPEPRED, "BVTYPEPRED");
-  getEM()->newKind(BVPARAMOP, "BVPARAMOP");
-
+  getEM()->newKind(BITVECTOR, "_BITVECTOR", true);
+  getEM()->newKind(BVCONST, "_BVCONST");
+  getEM()->newKind(CONCAT, "_CONCAT");
+  getEM()->newKind(EXTRACT, "_EXTRACT");
+  getEM()->newKind(BOOLEXTRACT, "_BOOLEXTRACT");
+  getEM()->newKind(LEFTSHIFT, "_LEFTSHIFT");
+  getEM()->newKind(CONST_WIDTH_LEFTSHIFT, "_CONST_WIDTH_LEFTSHIFT");
+  getEM()->newKind(RIGHTSHIFT, "_RIGHTSHIFT");
+  getEM()->newKind(BVSHL, "_BVSHL");
+  getEM()->newKind(BVLSHR, "_BVLSHR");
+  getEM()->newKind(BVASHR, "_BVASHR");
+  getEM()->newKind(SX,"_SX");
+  getEM()->newKind(BVREPEAT,"_BVREPEAT");
+  getEM()->newKind(BVZEROEXTEND,"_BVZEROEXTEND");
+  getEM()->newKind(BVROTL,"_BVROTL");
+  getEM()->newKind(BVROTR,"_BVROTR");
+  getEM()->newKind(BVAND, "_BVAND");
+  getEM()->newKind(BVOR, "_BVOR");
+  getEM()->newKind(BVXOR, "_BVXOR");
+  getEM()->newKind(BVXNOR, "_BVXNOR");
+  getEM()->newKind(BVNEG, "_BVNEG");
+  getEM()->newKind(BVNAND, "_BVNAND");
+  getEM()->newKind(BVNOR, "_BVNOR");
+  getEM()->newKind(BVCOMP, "_BVCOMP");
+  getEM()->newKind(BVUMINUS, "_BVUMINUS");
+  getEM()->newKind(BVPLUS, "_BVPLUS");
+  getEM()->newKind(BVSUB, "_BVSUB");
+  getEM()->newKind(BVMULT, "_BVMULT");
+  getEM()->newKind(BVUDIV, "_BVUDIV");
+  getEM()->newKind(BVSDIV, "_BVSDIV");
+  getEM()->newKind(BVUREM, "_BVUREM");
+  getEM()->newKind(BVSREM, "_BVSREM");
+  getEM()->newKind(BVSMOD, "_BVSMOD");
+  getEM()->newKind(BVLT, "_BVLT");
+  getEM()->newKind(BVLE, "_BVLE");
+  getEM()->newKind(BVGT, "_BVGT");
+  getEM()->newKind(BVGE, "_BVGE");
+  getEM()->newKind(BVSLT, "_BVSLT");
+  getEM()->newKind(BVSLE, "_BVSLE");
+  getEM()->newKind(BVSGT, "_BVSGT");
+  getEM()->newKind(BVSGE, "_BVSGE");
+  getEM()->newKind(INTTOBV, "_INTTOBV");
+  getEM()->newKind(BVTOINT, "_BVTOINT");
+  getEM()->newKind(BVTYPEPRED, "_BVTYPEPRED");
  
   std::vector<int> kinds;
   kinds.push_back(BITVECTOR);
   kinds.push_back(BVCONST);
-  kinds.push_back(HEXBVCONST);
   kinds.push_back(CONCAT);
-  kinds.push_back(BVOR);
-  kinds.push_back(BVAND);
-  kinds.push_back(BVXOR);
-  kinds.push_back(BVXNOR);
-  kinds.push_back(BVNAND);
-  kinds.push_back(BVNOR);
-  kinds.push_back(BVNEG);
   kinds.push_back(EXTRACT);
+  kinds.push_back(BOOLEXTRACT);
   kinds.push_back(LEFTSHIFT);
   kinds.push_back(CONST_WIDTH_LEFTSHIFT);
   kinds.push_back(RIGHTSHIFT);
-  kinds.push_back(VARSHIFT);
-  kinds.push_back(BVPLUS);
-  kinds.push_back(BVMULT);
-  kinds.push_back(BVSUB);
-  kinds.push_back(BVUMINUS);
-  kinds.push_back(BOOLEXTRACT);
+  kinds.push_back(BVSHL);
+  kinds.push_back(BVLSHR);
+  kinds.push_back(BVASHR);
   kinds.push_back(SX);
-  kinds.push_back(SBVLT);
-  kinds.push_back(SBVLE);
-  kinds.push_back(SBVGT);
-  kinds.push_back(SBVGE);
+  kinds.push_back(BVREPEAT);
+  kinds.push_back(BVZEROEXTEND);
+  kinds.push_back(BVROTL);
+  kinds.push_back(BVROTR);
+  kinds.push_back(BVAND);
+  kinds.push_back(BVOR);
+  kinds.push_back(BVXOR);
+  kinds.push_back(BVXNOR);
+  kinds.push_back(BVNEG);
+  kinds.push_back(BVNAND);
+  kinds.push_back(BVNOR);
+  kinds.push_back(BVCOMP);
+  kinds.push_back(BVUMINUS);
+  kinds.push_back(BVPLUS);
+  kinds.push_back(BVSUB);
+  kinds.push_back(BVMULT);
+  kinds.push_back(BVUDIV);
+  kinds.push_back(BVSDIV);
+  kinds.push_back(BVUREM);
+  kinds.push_back(BVSREM);
+  kinds.push_back(BVSMOD);
   kinds.push_back(BVLT);
   kinds.push_back(BVLE);
   kinds.push_back(BVGT);
   kinds.push_back(BVGE);
+  kinds.push_back(BVSLT);
+  kinds.push_back(BVSLE);
+  kinds.push_back(BVSGT);
+  kinds.push_back(BVSGE);
   kinds.push_back(INTTOBV);
   kinds.push_back(BVTOINT);
   kinds.push_back(BVTYPEPRED);
-  kinds.push_back(BVPARAMOP);
 
   registerTheory(this, kinds);
  
@@ -2169,7 +2225,7 @@ void TheoryBitvector::checkType(const Expr& e)
       //TODO: check that this is a well-formed type
       break;
     default:
-      DebugAssert(false, "Unexpected kind in TheoryBitvector::checkType"
+      FatalAssert(false, "Unexpected kind in TheoryBitvector::checkType"
                   +getEM()->getKindName(e.getOpKind()));
   }
 }
@@ -2294,25 +2350,50 @@ void TheoryBitvector::computeType(const Expr& e)
           throw TypecheckException("Type Checking error:"\
                                    "non-bitvector \n"+ e.toString());
         int bvLength = getSXIndex(e);
-        if(!(0 <= bvLength))
+        if(!(1 <= bvLength))
           throw TypecheckException("Type Checking error: \n"
                                    "out of range\n"+ e.toString());
         Type bvType = newBitvectorType(bvLength);
         e.setType(bvType);
         break;
       }
-      case BVCONST:
-      case CONCAT:
-      case BVUMINUS:
-      case BVNEG:
-      case BVAND:
-      case BVOR:
-      case SBVLT:
-      case SBVLE:
-      case BVLT:
-      case BVLE:
+      case BVREPEAT: {
+        if(!(1 == e.arity() &&
+             BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
+          throw TypecheckException("Type Checking error:"\
+                                   "non-bitvector \n"+ e.toString());
+        int bvLength = getBVIndex(e) * BVSize(e[0]);
+        if(!(1 <= bvLength))
+          throw TypecheckException("Type Checking error: \n"
+                                   "out of range\n"+ e.toString());
+        Type bvType = newBitvectorType(bvLength);
+        e.setType(bvType);
+        break;
+      }
+      case BVZEROEXTEND: {
+        if(!(1 == e.arity() &&
+             BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
+          throw TypecheckException("Type Checking error:"\
+                                   "non-bitvector \n"+ e.toString());
+        int bvLength = getBVIndex(e) + BVSize(e[0]);
+        if(!(1 <= bvLength))
+          throw TypecheckException("Type Checking error: \n"
+                                   "out of range\n"+ e.toString());
+        Type bvType = newBitvectorType(bvLength);
+        e.setType(bvType);
+        break;
+      }
+      case BVROTL:
+      case BVROTR: {
+        if(!(1 == e.arity() &&
+             BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
+          throw TypecheckException("Type Checking error:"\
+                                   "non-bitvector \n"+ e.toString());
+        e.setType(getBaseType(e[0]));
+        break;
+      }
       default:
-        DebugAssert(false,
+        FatalAssert(false,
                     "TheoryBitvector::computeType: unexpected kind in application" +
                     int2string(e.getOpKind()));
         break;
@@ -2329,8 +2410,13 @@ void TheoryBitvector::computeType(const Expr& e)
       case RIGHTSHIFT:
       case BVTYPEPRED:
       case SX:
-        // These operators are polymorphic, so don't assign them a
-        // specific type.
+      case BVREPEAT:
+      case BVZEROEXTEND:
+      case BVROTL:
+      case BVROTR:
+        // These operators are handled above when applied to arguments, here we
+        // are dealing with the operators themselves which are polymorphic, so
+        // don't assign them a specific type.
         e.setType(Type::anyType(getEM()));
         break;
       case BVCONST: {
@@ -2357,28 +2443,15 @@ void TheoryBitvector::computeType(const Expr& e)
         e.setType(bvType);
         break;
       }
-      case BVUMINUS:{
-        Type bvType(getBaseType(e[0]));
-        if(!(1 == e.arity() &&
-             BITVECTOR == bvType.getExpr().getOpKind()))
-          throw TypecheckException
-            ("Not a bit-vector expression in BVUMINUS:\n\n  "
-             +e.toString());
-        e.setType(bvType);
-        break;
-      }
-      case BVNEG:{
-        if(!(1 == e.arity() && 
-             BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
-          throw TypecheckException
-            ("Not a bit-vector expression in bit-wise negation:\n\n  "
-             + e.toString());
-        e.setType(e[0].getType());
-        break;
-      }
       case BVAND:
-      case BVOR: {
-        string kindStr((e.getOpKind()==BVAND)? "AND" : "OR");
+      case BVOR:
+      case BVXOR:
+      case BVXNOR:
+      {
+        string kindStr((e.getOpKind()==BVAND)? "AND" :
+                       ((e.getOpKind()==BVOR)? "OR" :
+                        ((e.getOpKind()==BVXOR)? "BVXOR" : "BVXNOR")));
+          
         if(e.arity() < 2) 
           throw TypecheckException
             ("Bit-wise "+kindStr+" must have at least 2 bit-vectors:\n\n  "
@@ -2408,10 +2481,63 @@ void TheoryBitvector::computeType(const Expr& e)
         e.setType(newBitvectorType(bvLength));
         break;
       }
-      case SBVLT:
-      case SBVLE:
+      case BVNEG:{
+        if(!(1 == e.arity() && 
+             BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
+          throw TypecheckException
+            ("Not a bit-vector expression in bit-wise negation:\n\n  "
+             + e.toString());
+        e.setType(e[0].getType());
+        break;
+      }
+      case BVNAND:
+      case BVNOR:
+      case BVCOMP:
+      case BVSUB:
+      case BVUDIV:
+      case BVSDIV:
+      case BVUREM:
+      case BVSREM:
+      case BVSMOD:
+      case BVSHL:
+      case BVASHR:
+      case BVLSHR:
+        if(!(2 == e.arity() &&
+             BITVECTOR == getBaseType(e[0]).getExpr().getOpKind() &&
+             BITVECTOR == getBaseType(e[1]).getExpr().getOpKind()))
+          throw TypecheckException
+            ("Expressions must have arity=2, and"
+             "each subterm must be a bitvector term:\n"
+             "e = " +e.toString());
+        if (BVSize(e[0]) != BVSize(e[1]))
+          throw TypecheckException
+            ("Expected args of same size:\n"
+             "e = " +e.toString());
+        if (e.getKind() == BVCOMP) {
+          e.setType(newBitvectorTypeExpr(1));
+        }
+        else {
+          e.setType(getBaseType(e[0]));
+        }
+        break;
+      case BVUMINUS:{
+        Type bvType(getBaseType(e[0]));
+        if(!(1 == e.arity() &&
+             BITVECTOR == bvType.getExpr().getOpKind()))
+          throw TypecheckException
+            ("Not a bit-vector expression in BVUMINUS:\n\n  "
+             +e.toString());
+        e.setType(bvType);
+        break;
+      }
       case BVLT:
       case BVLE:
+      case BVGT:
+      case BVGE:
+      case BVSLT:
+      case BVSLE:
+      case BVSGT:
+      case BVSGE:
         if(!(2 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind() &&
              BITVECTOR == getBaseType(e[1]).getExpr().getOpKind()))
@@ -2422,7 +2548,7 @@ void TheoryBitvector::computeType(const Expr& e)
         e.setType(boolType());
         break;
       default:
-        DebugAssert(false,
+        FatalAssert(false,
                     "TheoryBitvector::computeType: wrong input" +
                     int2string(e.getOpKind()));
         break;
@@ -2448,24 +2574,20 @@ void TheoryBitvector::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
   case BVNAND:
   case BVNOR:
   case BVNEG:
-  case VARSHIFT:
   case CONCAT:
   case EXTRACT:
-  case SBVLT:
-  case SBVLE:
-  case SBVGT:
-  case SBVGE:
+  case BVSLT:
+  case BVSLE:
+  case BVSGT:
+  case BVSGE:
   case BVLT:
   case BVLE:
   case BVGT:
   case BVGE:
-  case INTTOBV:
-  case BVTOINT:
     for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)
       // getModelTerm(*i, v);
       v.push_back(*i);
     return;
-  case HEXBVCONST:
   case BVCONST: // No model variables here
     return;
   default: break; // It's a variable; continue processing
@@ -2501,27 +2623,23 @@ void TheoryBitvector::computeModel(const Expr& e, std::vector<Expr>& v) {
   case BVNAND:
   case BVNOR:
   case BVNEG:
-  case VARSHIFT:
   case CONCAT:
   case EXTRACT:
   case SX:
-  case SBVLT:
-  case SBVLE:
-  case SBVGT:
-  case SBVGE:
+  case BVSLT:
+  case BVSLE:
+  case BVSGT:
+  case BVSGE:
   case BVLT:
   case BVLE:
   case BVGT:
-  case BVGE:
-  case INTTOBV:
-  case BVTOINT: {
+  case BVGE: {
     // More primitive vars are kids, and they should have been
     // assigned concrete values
     assignValue(simplify(e));
     v.push_back(e);
     return;
   }
-  case HEXBVCONST:
   case BVCONST: // No model variables here
     return;
   default: break; // It's a variable; continue processing
@@ -2547,7 +2665,7 @@ void TheoryBitvector::computeModel(const Expr& e, std::vector<Expr>& v) {
     break;
   }
   default:
-    DebugAssert(false, "TheoryBitvector::computeModel[not BITVECTOR type]("
+    FatalAssert(false, "TheoryBitvector::computeModel[not BITVECTOR type]("
 		+e.toString()+")");
   }
 }
@@ -2584,6 +2702,12 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
   switch(os.lang()) {
   case PRESENTATION_LANG:
     switch(e.getOpKind()) {
+
+    case BITVECTOR: //printing type expression
+      os << "BITVECTOR(" << push
+	 << getBitvectorTypeParam(e) << push << ")";
+      break;
+
     case BVCONST: {
       std::ostringstream ss;
       ss << "0bin";
@@ -2592,6 +2716,7 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       os << ss.str();
       break;
     }
+
     case CONCAT:
       if(e.arity() <= 1) e.printAST(os);
       else {
@@ -2605,15 +2730,43 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
 	os << push << ")";
       }
       break;
-    case BVUMINUS:
-      os << "BVUMINUS(" << push << e[0] << push << ")";
+    case EXTRACT:
+      os << "(" << push << e[0] << push << ")" << pop << pop
+	 << "[" << push << getExtractHi(e) << ":";
+      os << getExtractLow(e) << push << "]";
       break;
-    case BVSUB:
+    case BOOLEXTRACT:
+      os << "BOOLEXTRACT(" << push  << e[0] << "," 
+	 << getBoolExtractIndex(e) << push << ")";
       break;
-    case BVMULT:
-      os << "BVMULT(" << push
-	 << getBVMultParam(e) << "," << e[0] << "," << e[1]<<push<<")"; 
+
+    case LEFTSHIFT:
+      os <<  "(" << push << e[0] << space << "<<" << space
+	 << getFixedLeftShiftParam(e) << push << ")";
       break;
+    case CONST_WIDTH_LEFTSHIFT:
+      os <<  "(" << push << e[0] << space << "<<" << space
+	 << getFixedLeftShiftParam(e) << push << ")";
+      os << "[" << push << BVSize(e)-1 << ":0]";
+      break;
+    case RIGHTSHIFT:
+      os <<  "(" << push << e[0] << space << ">>" << space
+	 << getFixedRightShiftParam(e) << push << ")";
+      break;
+    case BVSHL:
+    case BVLSHR:
+    case BVASHR:
+    case BVREPEAT:
+    case BVZEROEXTEND:
+    case BVROTL:
+    case BVROTR:
+      FatalAssert(false, "Operators not ipmlemented yet");
+      break;
+    case SX:
+      os << "SX(" << push  << e[0] << "," 
+	 << push <<  getSXIndex(e) << ")";
+      break;
+
     case BVAND:
       if(e.arity() <= 1) e.printAST(os);
       else {
@@ -2640,54 +2793,54 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
 	os << push << ")";
       }
       break;
+    case BVXOR:
+      DebugAssert(e.arity() > 0, "TheoryBitvector::print: BVXOR arity <= 0");
+      if (e.arity() == 1) os << e[0];
+      else {
+        int i;
+	for(i = 0; i < e.arity(); ++i) {
+          if ((i+1) == e.arity()) {
+            os << e[i];
+          }
+          else {
+            os << "BVXOR(" << push << e[i] << "," << push;
+          }
+	}
+        for (--i; i != 0; --i) os << push << ")";
+      }
+      break;
+    case BVXNOR:
+      DebugAssert(e.arity() > 0, "TheoryBitvector::print: BVXNOR arity <= 0");
+      if (e.arity() == 1) os << e[0];
+      else {
+        int i;
+	for(i = 0; i < e.arity(); ++i) {
+          if ((i+1) == e.arity()) {
+            os << e[i];
+          }
+          else {
+            os << "BVXNOR(" << push << e[i] << "," << push;
+          }
+	}
+        for (--i; i != 0; --i) os << push << ")";
+      }
+      break;
     case BVNEG:
       os << "(~(" << push << e[0] << push << "))";
       break;
-    case BVLT:
-      os << "BVLT(" << push << e[0] << "," << e[1] << push << ")";
+    case BVNAND:
+      os << "BVNAND(" << push << e[0] << "," << e[1] << push << ")";
       break;
-    case BVLE:
-      os << "BVLE(" << push << e[0] << "," << e[1] << push << ")";
+    case BVNOR:
+      os << "BVNAND(" << push << e[0] << "," << e[1] << push << ")";
       break;
-    case SBVLT:
-      os << "SBVLT(" << push << e[0] << "," << e[1] << push << ")";
+    case BVCOMP:
+      FatalAssert(false, "BVCOMP Pres Lang not implemented yet");
+      os << "BVCOMP(" << push << e[0] << "," << e[1] << push << ")";
       break;
-    case SBVLE:
-      os << "SBVLE(" << push << e[0] << "," << e[1] << push << ")";
-      break;
-    case EXTRACT:
-      os << "(" << push << e[0] << push << ")" << pop << pop
-	 << "[" << push << getExtractHi(e) << ":";
-      os << getExtractLow(e) << push << "]";
-      break;
-    case BOOLEXTRACT:
-      os << "BOOLEXTRACT(" << push  << e[0] << "," 
-	 << getBoolExtractIndex(e) << push << ")";
-      break;
-    case SX:
-      os << "SX(" << push  << e[0] << "," 
-	 << push <<  getSXIndex(e) << ")";
-      break;
-    case LEFTSHIFT:
-      os <<  "(" << push << e[0] << space << "<<" << space
-	 << getFixedLeftShiftParam(e) << push << ")";
-      break;
-    case CONST_WIDTH_LEFTSHIFT:
-      os <<  "(" << push << e[0] << space << "<<" << space
-	 << getFixedLeftShiftParam(e) << push << ")";
-      os << "[" << push << BVSize(e)-1 << ":0]";
-      break;
-    case RIGHTSHIFT:
-      os <<  "(" << push << e[0] << space << ">>" << space
-	 << getFixedRightShiftParam(e) << push << ")";
-      break;
-    case BITVECTOR: //printing type expression
-      os << "BITVECTOR(" << push
-	 << getBitvectorTypeParam(e) << push << ")";
-      break;
-    case INTTOBV:
-      break;
-    case BVTOINT:
+
+    case BVUMINUS:
+      os << "BVUMINUS(" << push << e[0] << push << ")";
       break;
     case BVPLUS:
       os << "BVPLUS(" << push << getBVPlusParam(e);
@@ -2696,6 +2849,53 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       }
       os << push << ")";
       break;
+    case BVSUB:
+      os << "BVSUB(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVMULT:
+      os << "BVMULT(" << push
+	 << getBVMultParam(e) << "," << e[0] << "," << e[1]<<push<<")"; 
+      break;
+    case BVUDIV:
+    case BVSDIV:
+    case BVUREM:
+    case BVSREM:
+    case BVSMOD:
+      FatalAssert(false, "Operators not implemented yet");
+      break;
+
+    case BVLT:
+      os << "BVLT(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVLE:
+      os << "BVLE(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVGT:
+      os << "BVGT(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVGE:
+      os << "BVGE(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVSLT:
+      os << "BVSLT(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVSLE:
+      os << "BVSLE(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVSGT:
+      os << "BVSGT(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+    case BVSGE:
+      os << "BVSGE(" << push << e[0] << "," << e[1] << push << ")";
+      break;
+
+    case INTTOBV:
+      FatalAssert(false, "INTTOBV not implemented yet");
+      break;
+    case BVTOINT:
+      FatalAssert(false, "BVTOINT not implemented yet");
+      break;
+
     case BVTYPEPRED:
       if(e.isApply()) {
 	os << "BVTYPEPRED[" << push << e.getOp().getExpr()
@@ -2704,20 +2904,29 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       } else
 	e.printAST(os);
       break;
+
     default:
+      FatalAssert(false, "Unknown BV kind");
       e.printAST(os);
       break;
     }
     break;
+
   case SMTLIB_LANG:
     d_theoryUsed = true;
     switch(e.getOpKind()) {
+
+    case BITVECTOR: //printing type expression
+      os << push << "BitVec[" << getBitvectorTypeParam(e) << "]";
+      break;
+
     case BVCONST: {
       Rational r = computeBVConst(e);
       DebugAssert(r.isInteger() && r >= 0, "Expected non-negative integer");
-      os << push << "(extract[" << BVSize(e)-1 << ":0]" << space << push << "bv" << r << ")";
+      os << push << "bv" << r << "[" << BVSize(e) << "]";
       break;
     }
+
     case CONCAT:
       if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: CONCAT arity = 0");
       else if (e.arity() == 1) os << e[0];
@@ -2734,20 +2943,68 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
         for (--i; i != 0; --i) os << push << ")";
       }
       break;
-    case BVUMINUS:
-      os << "(bvneg" << space << push << e[0] << push << ")";
+    case EXTRACT:
+      os << push << "(extract[" << getExtractHi(e) << ":" << getExtractLow(e) << "]";
+      os << space << push << e[0] << push << ")";
       break;
-    case BVSUB:
-      throw SmtlibException("TheoryBitvector::print: BVSUB, SMTLIB not supported");
+    case BOOLEXTRACT:
+      os << "(=" << space << push 
+         << "(extract[" << getBoolExtractIndex(e) << ":" << getBoolExtractIndex(e) << "]";
+      os << space << push << e[0] << push << ")" << space << "bit1" << push << ")";
       break;
-    case BVMULT: {
-      int length = getBVMultParam(e);
-      os << "(bvmul"
-         << space << push << pad(length, e[0])
-         << space << push << pad(length, e[1])
-         << push << ")";
+
+    case LEFTSHIFT: {
+      int bvLength = getFixedLeftShiftParam(e);
+      if (bvLength != 0) {
+        os << "(concat" << space << push << e[0] << space;
+        os << push << "bv0[" << bvLength << "]" << push << ")";
+        break;
+      }
+      // else fall-through
+    }
+    case CONST_WIDTH_LEFTSHIFT:
+      os << "(bvshl" << space << push << e[0] << space << push
+         << "bv" << getFixedLeftShiftParam(e) << "[" << BVSize(e[0]) << "]" << push << ")";
+      break;
+    case RIGHTSHIFT:
+      os << "(bvlshr" << space << push << e[0] << space << push
+         << "bv" << getFixedRightShiftParam(e) << "[" << BVSize(e[0]) << "]" << push << ")";
+      break;
+    case BVSHL:
+      os << "(bvshl" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVLSHR:
+      os << "(bvlshr" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVASHR:
+      os << "(bvashr" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case SX: {
+      int extend = getSXIndex(e) - BVSize(e[0]);
+      if (extend == 0) os << e[0];
+      else if (extend < 0)
+        throw SmtlibException("TheoryBitvector::print: SX: extension is shorter than argument");
+      else os << "(sign_extend[" << extend << "]" << space << push << e[0] << push << ")";
       break;
     }
+    case BVREPEAT:
+      os << "(repeat[" << getBVIndex(e) << "]" << space << push << e[0] << push << ")";
+      break;
+    case BVZEROEXTEND: {
+      int extend = getBVIndex(e);
+      if (extend == 0) os << e[0];
+      else if (extend < 0)
+        throw SmtlibException("TheoryBitvector::print: ZX: extension is less than zero");
+      else os << "(zero_extend[" << extend << "]" << space << push << e[0] << push << ")";
+      break;
+    }
+    case BVROTL:
+      os << "(rotate_left[" << getBVIndex(e) << "]" << space << push << e[0] << push << ")";
+      break;
+    case BVROTR:
+      os << "(rotate_right[" << getBVIndex(e) << "]" << space << push << e[0] << push << ")";
+      break;
+
     case BVAND:
       if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVAND arity = 0");
       else if (e.arity() == 1) os << e[0];
@@ -2780,64 +3037,53 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
         for (--i; i != 0; --i) os << push << ")";
       }
       break;
+    case BVXOR:
+      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVXOR arity = 0");
+      else if (e.arity() == 1) os << e[0];
+      else {
+        int i;
+	for(i = 0; i < e.arity(); ++i) {
+          if ((i+1) == e.arity()) {
+            os << e[i];
+          }
+          else {
+            os << "(bvxor" << space << push << e[i] << space << push;
+          }
+	}
+        for (--i; i != 0; --i) os << push << ")";
+      }
+      break;
+    case BVXNOR:
+      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVXNOR arity = 0");
+      else if (e.arity() == 1) os << e[0];
+      else {
+        int i;
+	for(i = 0; i < e.arity(); ++i) {
+          if ((i+1) == e.arity()) {
+            os << e[i];
+          }
+          else {
+            os << "(bvxnor" << space << push << e[i] << space << push;
+          }
+	}
+        for (--i; i != 0; --i) os << push << ")";
+      }
+      break;
     case BVNEG:
       os << "(bvnot" << space << push << e[0] << push << ")";
       break;
-    case BVLT:
-      os << "(bvlt" << space << push << e[0] << space << push << e[1] << push << ")";
+    case BVNAND:
+      os << "(bvnand" << space << push << e[0] << space << push << e[1] << push << ")";
       break;
-    case BVLE:
-      os << "(bvleq" << space << push << e[0] << space << push << e[1] << push << ")";
+    case BVNOR:
+      os << "(bvnor" << space << push << e[0] << space << push << e[1] << push << ")";
       break;
-    case SBVLT:
-      os << "(bvslt" << space << push << e[0] << space << push << e[1] << push << ")";
+    case BVCOMP:
+      os << "(bvcomp" << space << push << e[0] << space << push << e[1] << push << ")";
       break;
-    case SBVLE:
-      os << "(bvsleq" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BOOLEXTRACT:
-      os << "(=" << space << push 
-         << "(extract[" << getBoolExtractIndex(e) << ":" << getBoolExtractIndex(e) << "]";
-      os << space << push << e[0] << push << ")" << space << "bit1" << push << ")";
-      break;
-    case EXTRACT:
-      os << push << "(extract[" << getExtractHi(e) << ":" << getExtractLow(e) << "]";
-      os << space << push << e[0] << push << ")";
-      break;
-    case SX: {
-      int extend = getSXIndex(e) - BVSize(e[0]);
-      if (extend == 0) os << e[0];
-      else if (extend < 0)
-        throw SmtlibException("TheoryBitvector::print: SX: extension is shorter than argument");
-      else os << "(sign_extend" << space << push << e[0] << space << push << extend << push << ")";
-      break;
-    }
-    case LEFTSHIFT: {
-      int bvLength = getFixedLeftShiftParam(e);
-      if (bvLength != 0) {
-        os << "(concat" << space << push << e[0] << space;
-        os << push << "(extract[" << bvLength-1 << ":0]" << space << push << "bv0)";
-        os << push << ")";
-        break;
-      }
-      // else fall-through
-    }
-    case CONST_WIDTH_LEFTSHIFT:
-      os << "(shift_left0" << space << push << e[0] << space << push
-         << getFixedLeftShiftParam(e) << push << ")";
-      break;
-    case RIGHTSHIFT:
-      os << "(shift_right0" << space << push << e[0] << space << push
-         << getFixedRightShiftParam(e) << push << ")";
-      break;
-    case BITVECTOR: //printing type expression
-      os << push << "BitVec[" << getBitvectorTypeParam(e) << "]";
-      break;
-    case INTTOBV:
-      throw SmtlibException("TheoryBitvector::print: INTTOBV, SMTLIB not supported");
-      break;
-    case BVTOINT:
-      throw SmtlibException("TheoryBitvector::print: BVTOINT, SMTLIB not supported");
+
+    case BVUMINUS:
+      os << "(bvneg" << space << push << e[0] << push << ")";
       break;
     case BVPLUS:
       {
@@ -2855,6 +3101,65 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
         for (--i; i != 0; --i) os << push << ")";
       }
       break;
+    case BVSUB:
+      os << "(bvsub" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVMULT: {
+      int length = getBVMultParam(e);
+      os << "(bvmul"
+         << space << push << pad(length, e[0])
+         << space << push << pad(length, e[1])
+         << push << ")";
+      break;
+    }
+    case BVUDIV:
+      os << "(bvudiv" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSDIV:
+      os << "(bvsdiv" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVUREM:
+      os << "(bvurem" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSREM:
+      os << "(bvsrem" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSMOD:
+      os << "(bvsmod" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+
+    case BVLT:
+      os << "(bvult" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVLE:
+      os << "(bvule" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVGT:
+      os << "(bvugt" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVGE:
+      os << "(bvuge" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSLT:
+      os << "(bvslt" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSLE:
+      os << "(bvsle" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSGT:
+      os << "(bvsgt" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+    case BVSGE:
+      os << "(bvsge" << space << push << e[0] << space << push << e[1] << push << ")";
+      break;
+
+    case INTTOBV:
+      throw SmtlibException("TheoryBitvector::print: INTTOBV, SMTLIB not supported");
+      break;
+    case BVTOINT:
+      throw SmtlibException("TheoryBitvector::print: BVTOINT, SMTLIB not supported");
+      break;
+
     case BVTYPEPRED:
       throw SmtlibException("TheoryBitvector::print: BVTYPEPRED, SMTLIB not supported");
       if(e.isApply()) {
@@ -2864,12 +3169,14 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       } else
 	e.printAST(os);
       break;
+
     default:
-      throw SmtlibException("TheoryBitvector::print: default, SMTLIB not supported");
+      FatalAssert(false, "Unknown BV kind");
       e.printAST(os);
       break;
     }
     break;
+
   default:
     switch(e.getOpKind()) {
     case BVCONST: {
@@ -2907,6 +3214,7 @@ TheoryBitvector::parseExprOp(const Expr& e) {
   const Expr& c1 = e[0][0];
   int kind = getEM()->getKind(c1.getString());
   switch(kind) {
+
   case BITVECTOR:
     if(!(e.arity() == 2))
       throw ParserException("TheoryBitvector::parseExprOp: BITVECTOR" 
@@ -2921,178 +3229,7 @@ TheoryBitvector::parseExprOp(const Expr& e) {
 			    +e.toString());    
     return newBitvectorTypeExpr(e[1].getRational().getInt());
     break;
-  case CONCAT: {
-    if(!(e.arity() >= 3))
-      throw ParserException("TheoryBitvector::parseExprOp: CONCAT" 
-			    "kind should have at least 2 args:\n\n" 
-			    + e.toString());
-    vector<Expr> kids;
-    Expr::iterator i=e.begin(), iend=e.end();
-    DebugAssert(i!=iend, "TheoryBitvector::parseExprOp("+e.toString()+")");
-    ++i; // Skip the first element - the operator name
-    for(; i!=iend; ++i)
-      kids.push_back(parseExpr(*i));
-    return newConcatExpr(kids);
-    break;
-  }
-  case BVAND: {
-    if(!(e.arity() >= 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVAND " 
-			    "kind should have at least 2 arg:\n\n" 
-			    + e.toString());
-    vector<Expr> kids;
-    for(int i=1, iend=e.arity(); i<iend; ++i)
-      kids.push_back(parseExpr(e[i]));
-    return newBVAndExpr(kids);
-    break;
-  }
-  case BVOR: {
-    if(!(e.arity() >= 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVOR " 
-			    "kind should have at least 2 arg:\n\n" 
-			    + e.toString());
-    vector<Expr> kids;
-    for(int i=1, iend=e.arity(); i<iend; ++i)
-      kids.push_back(parseExpr(e[i]));
-    return newBVOrExpr(kids);
-    break;
-  }
-  case BVXOR: {
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVXOR " 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    Expr or1 = 
-      newBVAndExpr(newBVNegExpr(parseExpr(e[1])), parseExpr(e[2]));
-    or1 = rewriteBV(or1,3,false).getRHS();
-    Expr or2 = 
-      newBVAndExpr(parseExpr(e[1]), newBVNegExpr(parseExpr(e[2])));
-    or2 = rewriteBV(or2,3,false).getRHS();
-    return rewrite(newBVOrExpr(or1, or2)).getRHS();
-    break;
-  }
-  case BVXNOR: {
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
-    Expr or1 = 
-      newBVAndExpr(newBVNegExpr(parseExpr(e[1])), 
-		   newBVNegExpr(parseExpr(e[2])));
-    Expr or2 = newBVAndExpr(parseExpr(e[1]), parseExpr(e[2]));
-    return newBVOrExpr(or1, or2);
-    break;
-  }
-  case BVNAND:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVNAND" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
-    return newBVNegExpr(newBVAndExpr(parseExpr(e[1]),parseExpr(e[2])));
-    break;
-  case BVNOR:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVNOR" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newBVNegExpr(newBVOrExpr(parseExpr(e[1]),parseExpr(e[2])));    
-    break;
-  case BVLT:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newBVLTExpr(parseExpr(e[1]),parseExpr(e[2]));    
-    break;
-  case BVLE:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLE" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newBVLEExpr(parseExpr(e[1]),parseExpr(e[2]));    
-    break;
-  case BVGT:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newBVLTExpr(parseExpr(e[2]),parseExpr(e[1]));    
-    break;
-  case BVGE:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGE" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newBVLEExpr(parseExpr(e[2]),parseExpr(e[1]));    
-    break;
-  case SX:
-    // smtlib format interprets the integer argument as the number of bits to
-    // extend, while CVC format interprets it as the new total size.
-    // The smtlib parser inserts an extra argument "_smtlib" for this operator
-    // so that we can distinguish the two cases here.
-    if (e.arity() == 4 &&
-        e[1].getKind() == ID &&
-        e[1][0].getString() == "_smtlib") {
-      if(!e[3].isRational() || !e[3].getRational().isInteger())
-        throw ParserException("sign_extend must have an integer constant as its"
-                              " 2nd argument:\n\n"
-                              +e.toString());    
-      if(!(e[3].getRational().getInt() >=0 ))
-        throw ParserException("sign_extend must have an integer constant as its"
-                              " 2nd argument >= 0:\n\n"
-                              +e.toString());
-      Expr e2 = parseExpr(e[2]);
-      return newSXExpr(e2, BVSize(e2) + e[3].getRational().getInt());
-    }
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: SX" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
-    if(!e[2].isRational() || !e[2].getRational().isInteger())
-      throw ParserException("SX must have an integer constant as its"
-			    " 2nd argument:\n\n"
-			    +e.toString());    
-    if(!(e[2].getRational().getInt() >=0 ))
-      throw ParserException("SX must have an integer constant as its"
-			    " 2nd argument >= 0:\n\n"
-			    +e.toString());    
-    return newSXExpr(parseExpr(e[1]), e[2].getRational().getInt());
-    break;
-  case SBVLT:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newSBVLTExpr(parseExpr(e[1]),parseExpr(e[2]));    
-    break;
-  case SBVLE:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLE" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newSBVLEExpr(parseExpr(e[1]),parseExpr(e[2]));    
-    break;
-  case SBVGT:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newSBVLTExpr(parseExpr(e[2]),parseExpr(e[1]));    
-    break;
-  case SBVGE:
-    if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGE" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());
-    return newSBVLEExpr(parseExpr(e[2]),parseExpr(e[1]));    
-    break;
-  case BVNEG:
-    if(!(e.arity() == 2))
-      throw ParserException("TheoryBitvector::parseExprOp: BVNEG" 
-			    "kind should have exactly 1 arg:\n\n" 
-			    + e.toString());    
-    return newBVNegExpr(parseExpr(e[1]));
-    break;
+
   case BVCONST:
     if(!(e.arity() == 2 || e.arity() == 3))
       throw ParserException("TheoryBitvector::parseExprOp: BVCONST "
@@ -3122,20 +3259,78 @@ TheoryBitvector::parseExprOp(const Expr& e) {
 	return newBVConstExpr(e[1].getString());
     }
     break;
-  case HEXBVCONST:
-    if(!(e.arity() == 2))
-      throw ParserException("TheoryBitvector::parseExprOp: BVCONST" 
-			    "kind should have exactly 1 arg:\n\n" 
-			    + e.toString());    
-    if(!(e[1].isRational() || e[1].isString()))
-      throw ParserException("TheoryBitvector::parseExprOp: BVCONST" 
-			    "kind should have arg of type Rational" 
-			    "or String:\n\n" + e.toString());    
-    if(e[1].isRational()) 
-      return newBVConstExpr(e[1].getRational());
-    if(e[1].isString())
-      return newBVConstExpr(e[1].getString(),16);
+
+  case CONCAT: {
+    if(!(e.arity() >= 3))
+      throw ParserException("TheoryBitvector::parseExprOp: CONCAT" 
+			    "kind should have at least 2 args:\n\n" 
+			    + e.toString());
+    vector<Expr> kids;
+    Expr::iterator i=e.begin(), iend=e.end();
+    DebugAssert(i!=iend, "TheoryBitvector::parseExprOp("+e.toString()+")");
+    ++i; // Skip the first element - the operator name
+    for(; i!=iend; ++i)
+      kids.push_back(parseExpr(*i));
+    return newConcatExpr(kids);
     break;
+  }
+  case EXTRACT: {
+    if(!(e.arity() == 4))
+      throw ParserException("TheoryBitvector::parseExprOp: EXTRACT" 
+			    "kind should have exactly 3 arg:\n\n" 
+			    + e.toString());    
+    if(!e[1].isRational() || !e[1].getRational().isInteger())
+      throw ParserException("EXTRACT must have an integer constant as its "
+			    "1st argument:\n\n"
+			    +e.toString());    
+    if(!e[2].isRational() || !e[2].getRational().isInteger())
+      throw ParserException("EXTRACT must have an integer constant as its "
+			    "2nd argument:\n\n"
+			    +e.toString());    
+    int hi = e[1].getRational().getInt();
+    int lo = e[2].getRational().getInt();
+    if(!(hi >= lo && lo >=0))
+      throw ParserException("parameter must be an integer constant >= 0.\n"
+			    +e.toString());    
+
+    // Check for extract of left shift
+    Expr arg = e[3];
+    if (lo == 0 && arg.getKind() == RAW_LIST && arg[0].getKind() == ID &&
+        getEM()->getKind(arg[0][0].getString()) == LEFTSHIFT) {
+      if(!(arg.arity() == 3))
+        throw ParserException("TheoryBitvector::parseExprOp: LEFTSHIFT" 
+                              "kind should have exactly 2 arg:\n\n" 
+                              + arg.toString());    
+      if(!arg[2].isRational() || !arg[2].getRational().isInteger())
+        throw ParserException("LEFTSHIFT must have an integer constant as its "
+                              "2nd argument:\n\n"
+                              +arg.toString());    
+      if(!(arg[2].getRational().getInt() >=0 ))
+        throw ParserException("parameter must be an integer constant >= 0.\n"
+                              +arg.toString());
+      Expr ls_arg = parseExpr(arg[1]);
+      if (BVSize(ls_arg) == hi + 1) {
+        return newFixedConstWidthLeftShiftExpr(ls_arg, arg[2].getRational().getInt());
+      }
+    }
+    return newBVExtractExpr(parseExpr(arg), hi, lo);
+    break;
+  }
+  case BOOLEXTRACT:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BOOLEXTRACT" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());    
+    if(!e[2].isRational() || !e[2].getRational().isInteger())
+      throw ParserException("BOOLEXTRACT must have an integer constant as its"
+			    " 2nd argument:\n\n"
+			    +e.toString());    
+    if(!(e[2].getRational().getInt() >=0 ))
+      throw ParserException("parameter must be an integer constant >= 0.\n"
+			    +e.toString());    
+    return newBoolExtractExpr(parseExpr(e[1]), e[2].getRational().getInt());
+    break;
+
   case LEFTSHIFT:
     if(!(e.arity() == 3))
       throw ParserException("TheoryBitvector::parseExprOp: LEFTSHIFT" 
@@ -3178,63 +3373,131 @@ TheoryBitvector::parseExprOp(const Expr& e) {
 			    +e.toString());    
     return newFixedRightShiftExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
-  case BOOLEXTRACT:
+  // BVSHL, BVLSHR, BVASHR handled with arith operators below
+  case SX:
+    // smtlib format interprets the integer argument as the number of bits to
+    // extend, while CVC format interprets it as the new total size.
+    // The smtlib parser inserts an extra argument "_smtlib" for this operator
+    // so that we can distinguish the two cases here.
+    if (e.arity() == 4 &&
+        e[1].getKind() == ID &&
+        e[1][0].getString() == "_smtlib") {
+      if(!e[2].isRational() || !e[2].getRational().isInteger())
+        throw ParserException("sign_extend must have an integer constant as its"
+                              " 1st argument:\n\n"
+                              +e.toString());    
+      if(!(e[2].getRational().getInt() >=0 ))
+        throw ParserException("sign_extend must have an integer constant as its"
+                              " 1st argument >= 0:\n\n"
+                              +e.toString());
+      Expr e3 = parseExpr(e[3]);
+      return newSXExpr(e3, BVSize(e3) + e[2].getRational().getInt());
+    }
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BOOLEXTRACT" 
+      throw ParserException("TheoryBitvector::parseExprOp: SX" 
 			    "kind should have exactly 2 arg:\n\n" 
 			    + e.toString());    
     if(!e[2].isRational() || !e[2].getRational().isInteger())
-      throw ParserException("BOOLEXTRACT must have an integer constant as its"
+      throw ParserException("SX must have an integer constant as its"
 			    " 2nd argument:\n\n"
 			    +e.toString());    
     if(!(e[2].getRational().getInt() >=0 ))
-      throw ParserException("parameter must be an integer constant >= 0.\n"
+      throw ParserException("SX must have an integer constant as its"
+			    " 2nd argument >= 0:\n\n"
 			    +e.toString());    
-    return newBoolExtractExpr(parseExpr(e[1]), e[2].getRational().getInt());
+    return newSXExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
-  case EXTRACT:
-    if(!(e.arity() == 4))
-      throw ParserException("TheoryBitvector::parseExprOp: EXTRACT" 
-			    "kind should have exactly 3 arg:\n\n" 
+  case BVREPEAT:
+  case BVZEROEXTEND:
+  case BVROTL:
+  case BVROTR:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp:" 
+			    "kind should have exactly 2 arg:\n\n" 
 			    + e.toString());    
     if(!e[1].isRational() || !e[1].getRational().isInteger())
-      throw ParserException("EXTRACT must have an integer constant as its "
-			    "1st argument:\n\n"
+      throw ParserException("BVIndexExpr must have an integer constant as its"
+			    " 1st argument:\n\n"
 			    +e.toString());    
-    if(!e[2].isRational() || !e[2].getRational().isInteger())
-      throw ParserException("EXTRACT must have an integer constant as its "
-			    "2nd argument:\n\n"
+    if (kind == BVREPEAT && !(e[1].getRational().getInt() >0 ))
+      throw ParserException("BVREPEAT must have an integer constant as its"
+			    " 1st argument > 0:\n\n"
 			    +e.toString());    
-    if(!(e[1].getRational().getInt() >=0 && e[2].getRational().getInt() >=0))
-      throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
-    return newBVExtractExpr(parseExpr(e[3]), 
-			    e[1].getRational().getInt(), 
-			    e[2].getRational().getInt());
+    if(!(e[1].getRational().getInt() >=0 ))
+      throw ParserException("BVIndexExpr must have an integer constant as its"
+			    " 1st argument >= 0:\n\n"
+			    +e.toString());
+    return newBVIndexExpr(kind, parseExpr(e[2]), e[1].getRational().getInt());
     break;
-  case BVSUB: {
-    if(e.arity() != 4)
-      throw ParserException("BVSUB must have 3 arguments:\n\n"
-			    +e.toString());
-    if(!e[1].isRational() || !e[1].getRational().isInteger())
-      throw ParserException("BVSUB must have an integer constant as its "
-			    "first argument:\n\n"
-			    +e.toString());
-    if(!(e[1].getRational().getInt() > 0))
-      throw ParserException("parameter must be an integer constant > 0.\n"
-			    +e.toString());    
-    int bvsublength = e[1].getRational().getInt();
-    std::vector<Expr> k;
-    Expr summand1 = parseExpr(e[2]);
-    summand1 = pad(bvsublength, summand1);
-    k.push_back(summand1);    
-    Expr summand2 = parseExpr(e[3]);
-    summand2 = pad(bvsublength, summand2);
-    Expr bvuminus = newBVUminusExpr(summand2);
-    k.push_back(bvuminus);
-    return newBVPlusExpr(bvsublength, k);
+
+  case BVAND: {
+    if(!(e.arity() >= 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVAND " 
+			    "kind should have at least 2 arg:\n\n" 
+			    + e.toString());
+    vector<Expr> kids;
+    for(int i=1, iend=e.arity(); i<iend; ++i)
+      kids.push_back(parseExpr(e[i]));
+    return newBVAndExpr(kids);
     break;
   }
+  case BVOR: {
+    if(!(e.arity() >= 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVOR " 
+			    "kind should have at least 2 arg:\n\n" 
+			    + e.toString());
+    vector<Expr> kids;
+    for(int i=1, iend=e.arity(); i<iend; ++i)
+      kids.push_back(parseExpr(e[i]));
+    return newBVOrExpr(kids);
+    break;
+  }
+  case BVXOR: {
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVXOR " 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVXorExpr(parseExpr(e[1]), parseExpr(e[2]));
+    break;
+  }
+  case BVXNOR: {
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());    
+    return newBVXnorExpr(parseExpr(e[1]), parseExpr(e[2]));
+    break;
+  }
+  case BVNEG:
+    if(!(e.arity() == 2))
+      throw ParserException("TheoryBitvector::parseExprOp: BVNEG" 
+			    "kind should have exactly 1 arg:\n\n" 
+			    + e.toString());    
+    return newBVNegExpr(parseExpr(e[1]));
+    break;
+  case BVNAND:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVNAND" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVNandExpr(parseExpr(e[1]), parseExpr(e[2]));
+    break;
+  case BVNOR:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVNOR" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVNorExpr(parseExpr(e[1]), parseExpr(e[2]));
+    break;
+  case BVCOMP: {
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());    
+    return newBVCompExpr(parseExpr(e[1]), parseExpr(e[2]));
+    break;
+  }
+
   case BVUMINUS:
     if(!(e.arity() == 2))
       throw ParserException("TheoryBitvector::parseExprOp: BVUMINUS" 
@@ -3281,6 +3544,34 @@ TheoryBitvector::parseExprOp(const Expr& e) {
     }
     break;
   }
+  case BVSUB: {
+    if (e.arity() == 3) {
+      Expr summand1 = parseExpr(e[1]);
+      Expr summand2 = parseExpr(e[2]);
+      if (BVSize(summand1) != BVSize(summand2)) {
+        throw ParserException("BVSUB: expected same sized arguments"
+                              +e.toString());
+      }
+      return newBVSubExpr(summand1, summand2);
+    }
+    else if (e.arity() != 4)
+      throw ParserException("BVSUB: wrong number of arguments:\n\n"
+			    +e.toString());
+    if (!e[1].isRational() || !e[1].getRational().isInteger())
+      throw ParserException("BVSUB: expected an integer constant as "
+			    "first argument:\n\n"
+			    +e.toString());
+    if (!(e[1].getRational().getInt() > 0))
+      throw ParserException("parameter must be an integer constant > 0.\n"
+                            +e.toString());    
+    int bvsublength = e[1].getRational().getInt();
+    Expr summand1 = parseExpr(e[2]);
+    summand1 = pad(bvsublength, summand1);
+    Expr summand2 = parseExpr(e[3]);
+    summand2 = pad(bvsublength, summand2);
+    return newBVSubExpr(summand1, summand2);
+    break;
+  }
   case BVMULT: {
     vector<Expr> k;
     Expr::iterator i = e.begin(), iend=e.end();
@@ -3319,10 +3610,120 @@ TheoryBitvector::parseExprOp(const Expr& e) {
 			 parseExpr(e[2]), parseExpr(e[3]));
     break;
   }
+  case BVSHL:
+  case BVASHR:
+  case BVLSHR:
+  case BVUDIV:
+  case BVSDIV:
+  case BVUREM:
+  case BVSREM:
+  case BVSMOD: {
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp:"
+			    "kind should have exactly 2 args:\n\n"
+			    + e.toString());
+    Expr e1 = parseExpr(e[1]);
+    Expr e2 = parseExpr(e[2]);
+    if (e1.getType().getExpr().getOpKind() != BITVECTOR ||
+        e2.getType().getExpr().getOpKind() != BITVECTOR)
+      throw ParserException("TheoryBitvector::parseExprOp:"
+                            "Expected bitvector arguments:\n\n"
+                            + e.toString());
+//     if (BVSize(e1) > BVSize(e2)) {
+//       e2 = pad(BVSize(e1), e2);
+//     }
+//     else if (BVSize(e2) > BVSize(e1)) {
+//       e1 = pad(BVSize(e2), e1);
+//     }
+    if (BVSize(e1) != BVSize(e2))
+      throw ParserException("TheoryBitvector::parseExprOp:"
+                            "Expected bitvectors of same size:\n\n"
+                            + e.toString());
+    if (kind == BVSHL) {
+      if (e2.getKind() == BVCONST)
+        return newFixedConstWidthLeftShiftExpr(e1,
+                                               computeBVConst(e2).getInt());
+    }
+    else if (kind == BVLSHR) {
+      if (e2.getKind() == BVCONST)
+        return newFixedRightShiftExpr(e1, computeBVConst(e2).getInt());
+    }
+    return Expr(kind, e1, e2);
+    break;
+  }
+
+  case BVLT:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVLT" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVLTExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    break;
+  case BVLE:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVLE" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVLEExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    break;
+  case BVGT:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVGT" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVLTExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    break;
+  case BVGE:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVGE" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVLEExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    break;
+  case BVSLT:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVLT" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVSLTExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    break;
+  case BVSLE:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVLE" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVSLEExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    break;
+  case BVSGT:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVGT" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVSLTExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    break;
+  case BVSGE:
+    if(!(e.arity() == 3))
+      throw ParserException("TheoryBitvector::parseExprOp: BVGE" 
+			    "kind should have exactly 2 arg:\n\n" 
+			    + e.toString());
+    return newBVSLEExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    break;
+
+  case INTTOBV:
+    throw ParserException("INTTOBV not implemented");
+    break;
+  case BVTOINT:
+    throw ParserException("BVTOINT not implemented");
+    break;
+
+  case BVTYPEPRED:
+    throw ParserException("BVTYPEPRED is used internally");
+    break;
+    
   default:
-    DebugAssert(false,
-		"TheoryBitvector::parseExprOp: input must be either"\
-		"not be a bitvector:" + int2string(e.getKind()));
+    FatalAssert(false,
+		"TheoryBitvector::parseExprOp: unrecognized input operator"
+		+e.toString());
     break;
   }
   return e;
@@ -3425,24 +3826,6 @@ Expr TheoryBitvector::newBVNandExpr(const Expr& t1, const Expr& t2) {
   return Expr(CVC3::BVNAND, t1, t2);
 }
 
-Expr TheoryBitvector::newBVNandExpr(const vector<Expr>& kids) {
-  DebugAssert(kids.size() >= 2,
-	      "TheoryBitvector::newBVNandExpr:"
-	      "# of subterms must be at least 2");
-  for(unsigned int i=0; i<kids.size(); ++i) {
-    DebugAssert(BITVECTOR == kids[i].getType().getExpr().getOpKind(),
-		"TheoryBitvector::newBVNandExpr:"
-		"inputs must have type BITVECTOR:\n t1 = " +
-		kids[i].toString());
-    if(i < kids.size()-1) {
-      DebugAssert(BVSize(kids[i]) == BVSize(kids[i+1]),
-		  "TheoryBitvector::bitwise operator"
-		  "inputs must have same length:\n t1 = " + kids[i].toString()
-		  + "\n t2 = " + kids[i+1].toString());
-    }
-  }
-  return Expr(CVC3::BVNAND, kids, getEM());
-}
 
 Expr TheoryBitvector::newBVNorExpr(const Expr& t1, const Expr& t2) {
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
@@ -3457,24 +3840,6 @@ Expr TheoryBitvector::newBVNorExpr(const Expr& t1, const Expr& t2) {
   return Expr(CVC3::BVNOR, t1, t2);
 }
 
-Expr TheoryBitvector::newBVNorExpr(const vector<Expr>& kids) {
-  DebugAssert(kids.size() >= 2,
-	      "TheoryBitvector::newBVNorExpr:"
-	      "# of subterms must be at least 2");
-  for(unsigned int i=0; i<kids.size(); ++i) {
-    DebugAssert(BITVECTOR == kids[i].getType().getExpr().getOpKind(),
-		"TheoryBitvector::newBVNorExpr:"
-		"inputs must have type BITVECTOR:\n t1 = " +
-		kids[i].toString());
-    if(i < kids.size()-1) {
-      DebugAssert( BVSize(kids[i]) ==  BVSize(kids[i+1]),
-		  "TheoryBitvector::bitwise operator"
-		  "inputs must have same length:\n t1 = " + kids[i].toString()
-		  + "\n t2 = " + kids[i+1].toString());
-    }
-  }
-  return Expr(CVC3::BVNOR, kids, getEM());
-}
 
 Expr TheoryBitvector::newBVXorExpr(const Expr& t1, const Expr& t2) {
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
@@ -3519,6 +3884,19 @@ Expr TheoryBitvector::newBVXnorExpr(const Expr& t1, const Expr& t2) {
 	      "inputs must have same length:\n t1 = " + t1.toString()
 	      + "\n t2 = " + t2.toString());
   return Expr(CVC3::BVXNOR, t1, t2);
+}
+ 
+Expr TheoryBitvector::newBVCompExpr(const Expr& t1, const Expr& t2) {
+  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+	      BITVECTOR == t2.getType().getExpr().getOpKind(),
+	      "TheoryBitvector::newBVCompExpr:"
+	      "inputs must have type BITVECTOR:\n t1 = " +
+	      t1.toString() + "\n t2 = " +t2.toString());
+  DebugAssert(BVSize(t1) == BVSize(t2),
+	      "TheoryBitvector::bitwise operator"
+	      "inputs must have same length:\n t1 = " + t1.toString()
+	      + "\n t2 = " + t2.toString());
+  return Expr(CVC3::BVCOMP, t1, t2);
 }
  
 Expr TheoryBitvector::newBVXnorExpr(const vector<Expr>& kids) {
@@ -3571,22 +3949,36 @@ Expr TheoryBitvector::newSXExpr(const Expr& t1, int len) {
   return Expr(Expr(SX, getEM()->newRatExpr(len)).mkOp(), t1);
 }
 
-Expr TheoryBitvector::newSBVLTExpr(const Expr& t1, const Expr& t2) {
-  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
-	      BITVECTOR == t2.getType().getExpr().getOpKind(),
-	      "TheoryBitvector::newSBVLTExpr:"
+Expr TheoryBitvector::newBVIndexExpr(int kind, const Expr& t1, int len) {
+  DebugAssert(kind != BVREPEAT || len > 0,
+              "repeat requires index > 0");
+  DebugAssert(len >=0,
+	      "TheoryBitvector::newBVIndexExpr:" 
+	      "index must be a non-negative integer"+
+	      int2string(len));
+  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
+	      "TheoryBitvector::newBVIndexExpr:"
 	      "inputs must have type BITVECTOR:\n t1 = " +
-	      t1.toString() + "\n t2 = " +t2.toString());
-  return Expr(CVC3::SBVLT, t1, t2);
+	      t1.toString());
+  return Expr(Expr(kind, getEM()->newRatExpr(len)).mkOp(), t1);
 }
 
-Expr TheoryBitvector::newSBVLEExpr(const Expr& t1, const Expr& t2) {
+Expr TheoryBitvector::newBVSLTExpr(const Expr& t1, const Expr& t2) {
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
 	      BITVECTOR == t2.getType().getExpr().getOpKind(),
-	      "TheoryBitvector::newSBVLEExpr:"
+	      "TheoryBitvector::newBVSLTExpr:"
 	      "inputs must have type BITVECTOR:\n t1 = " +
 	      t1.toString() + "\n t2 = " +t2.toString());
-  return Expr(CVC3::SBVLE, t1, t2);
+  return Expr(CVC3::BVSLT, t1, t2);
+}
+
+Expr TheoryBitvector::newBVSLEExpr(const Expr& t1, const Expr& t2) {
+  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+	      BITVECTOR == t2.getType().getExpr().getOpKind(),
+	      "TheoryBitvector::newBVSLEExpr:"
+	      "inputs must have type BITVECTOR:\n t1 = " +
+	      t1.toString() + "\n t2 = " +t2.toString());
+  return Expr(CVC3::BVSLE, t1, t2);
 }
 
 Expr TheoryBitvector::newBVNegExpr(const Expr& t1) {
@@ -3807,6 +4199,22 @@ newBVExtractExpr(const Expr& e, int hi, int low){
                    getEM()->newRatExpr(low)).mkOp(), e);
 }
 
+
+Expr TheoryBitvector::newBVSubExpr(const Expr& t1, const Expr& t2)
+{
+  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+	      BITVECTOR == t2.getType().getExpr().getOpKind(),
+	      "TheoryBitvector::newBVSubExpr:"
+	      "inputs must have type BITVECTOR:\n t1 = " +
+	      t1.toString() + "\n t2 = " +t2.toString());
+  DebugAssert(BVSize(t1) == BVSize(t2),
+	      "TheoryBitvector::newBVSubExpr"
+	      "inputs must have same length:\n t1 = " + t1.toString()
+	      + "\n t2 = " + t2.toString());
+  return Expr(BVSUB, t1, t2);
+}
+
+
 Expr TheoryBitvector::newBVPlusExpr(int bvLength, 
 				    const std::vector<Expr>& k) {
   DebugAssert(bvLength > 0,
@@ -3887,6 +4295,16 @@ int TheoryBitvector::getBoolExtractIndex(const Expr& e) {
 int TheoryBitvector::getSXIndex(const Expr& e) {
   DebugAssert(SX == e.getOpKind() && e.isApply(),
 	      "TheoryBitvector::getSXIndex: wrong kind\n"+e.toString());
+  return e.getOpExpr()[0].getRational().getInt();
+}
+
+int TheoryBitvector::getBVIndex(const Expr& e) {
+  DebugAssert(e.isApply() &&
+              (e.getOpKind() == BVREPEAT ||
+               e.getOpKind() == BVROTL ||
+               e.getOpKind() == BVROTR ||
+               e.getOpKind() == BVZEROEXTEND),
+	      "TheoryBitvector::getBVIndex: wrong kind\n"+e.toString());
   return e.getOpExpr()[0].getRational().getInt();
 }
 

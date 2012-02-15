@@ -23,6 +23,8 @@
 #include "cnf_rules.h"
 #include "common_proof_rules.h"
 #include "theorem_manager.h"
+#include "vc.h"
+#include "command_line_flags.h"
 
 
 using namespace std;
@@ -30,23 +32,31 @@ using namespace CVC3;
 using namespace SAT;
 
 
-CNF_Manager::CNF_Manager(TheoremManager* tm)
-  : d_commonRules(tm->getRules()),
+CNF_Manager::CNF_Manager(TheoremManager* tm, Statistics& statistics, bool minimizeClauses)
+  : d_vc(NULL), d_minimizeClauses(minimizeClauses),
+    d_commonRules(tm->getRules()),
     //    d_theorems(tm->getCM()->getCurrentContext()),
     d_clauseIdNext(0),
     //    d_translated(tm->getCM()->getCurrentContext()),
     d_bottomScope(-1),
+    d_statistics(statistics),
     d_cnfCallback(NULL)
 {
   d_rules = createProofRules(tm);
   // Push dummy varinfo onto d_varInfo since Var's are indexed from 1 not 0
   Varinfo v;
   d_varInfo.push_back(v);
+  if (minimizeClauses) {
+    CLFlags flags = ValidityChecker::createFlags();
+    flags.setFlag("minimizeClauses",false);
+    d_vc = ValidityChecker::create(flags);
+  }
 }
 
 
 CNF_Manager::~CNF_Manager()
 {
+  if (d_vc) delete d_vc;
   delete d_rules;
 }
 
@@ -359,17 +369,89 @@ Lit CNF_Manager::translateExpr(const Theorem& thmIn, CNF_Formula& cnf)
 }
 
 
+void CNF_Manager::cons(unsigned lb, unsigned ub, const Expr& e2, vector<unsigned>& newLits)
+{
+  if (lb == ub) {
+    newLits.push_back(lb);
+    return;
+  }
+  unsigned new_lb = (ub-lb+1)/2 + lb;
+  unsigned index;
+  QueryResult res;
+  d_vc->push();
+  for (index = new_lb; index <= ub; ++index) {
+    d_vc->assertFormula(e2[index].negate());
+  }
+  res = d_vc->query(d_vc->falseExpr());
+  d_vc->pop();
+  if (res == VALID) {
+    cons(new_lb, ub, e2, newLits);
+    return;
+  }
+
+  unsigned new_ub = new_lb-1;
+  d_vc->push();
+  for (index = lb; index <= new_ub; ++index) {
+    d_vc->assertFormula(e2[index].negate());
+  }
+  res = d_vc->query(d_vc->falseExpr());
+  if (res == VALID) {
+    d_vc->pop();
+    cons(lb, new_ub, e2, newLits);
+    return;
+  }
+
+  cons(new_lb, ub, e2, newLits);
+  d_vc->pop();
+  d_vc->push();
+  for (index = 0; index < newLits.size(); ++index) {
+    d_vc->assertFormula(e2[newLits[index]].negate());
+  }
+  cons(lb, new_ub, e2, newLits);
+  d_vc->pop();
+}
+
+
 void CNF_Manager::convertLemma(const Theorem& thm, Clause& c)
 {
   DebugAssert(c.size() == 0, "Expected empty clause");
   Theorem clause = d_rules->learnedClause(thm);
 
-  const Expr& e = clause.getExpr();
+  Expr e = clause.getExpr();
   if (!e.isOr()) {
     DebugAssert(!getCNFLit(e).isNull(), "Unknown literal");
     c.addLiteral(getCNFLit(e));
   }
   else {
+
+    if (e.arity() > 3 && d_minimizeClauses) {
+
+      // Clause minimization
+      Expr e2 = d_vc->importExpr(e);
+      vector<unsigned> newLits;
+      DebugAssert(d_vc->scopeLevel() == 1, "expected scope level 1");
+      //      d_vc->push();
+      //      d_vc->assertFormula(e2[e.arity()-1].negate());
+      cons(0, e.arity()-1, e2, newLits);
+      //      d_vc->pop();
+      DebugAssert(d_vc->scopeLevel() == 1, "expected scope level 1");
+      d_statistics.counter("clauses processed")++;
+      if (newLits.size() < (unsigned)e.arity()) {
+        d_statistics.counter("clauses minimized")++;
+        vector<Expr> newKids;
+        for (unsigned index = 0; index < newLits.size(); ++index) {
+          newKids.push_back(e[newLits[index]]);
+        }
+        //        newKids.push_back(e[e.arity()-1]);
+        e = Expr(OR, newKids);
+        IF_DEBUG(
+                 d_vc->push();
+                 DebugAssert(d_vc->query(d_vc->importExpr(e)) == VALID, "expected valid");
+                 d_vc->pop();
+                 )
+      }
+    }
+
     Expr::iterator iend = e.end();
     for (Expr::iterator i = e.begin(); i != iend; ++i) {
       DebugAssert(!getCNFLit(*i).isNull(), "Unknown literal");

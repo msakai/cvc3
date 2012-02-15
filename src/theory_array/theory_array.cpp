@@ -59,10 +59,10 @@ TheoryArray::TheoryArray(TheoryCore* core)
   d_rules = createProofRules();
 
   // Register new local kinds with ExprManager
-  getEM()->newKind(ARRAY, "ARRAY", true);
-  getEM()->newKind(READ, "READ");
-  getEM()->newKind(WRITE, "WRITE");
-  getEM()->newKind(ARRAY_LITERAL, "ARRAY_LITERAL");
+  getEM()->newKind(ARRAY, "_ARRAY", true);
+  getEM()->newKind(READ, "_READ");
+  getEM()->newKind(WRITE, "_WRITE");
+  getEM()->newKind(ARRAY_LITERAL, "_ARRAY_LITERAL");
 
   vector<int> kinds;
   kinds.push_back(ARRAY);
@@ -333,7 +333,7 @@ void TheoryArray::computeType(const Expr& e)
 	   +arrType.toString()+"\n\nIn the expression:\n\n  "
 	   +e.toString());
       Type idxType = getBaseType(e[1]);
-      if(getBaseType(arrType[0]) != idxType) {
+      if(getBaseType(arrType[0]) != idxType && idxType != Type::anyType(getEM())) {
 	throw TypecheckException
 	  ("The type of index expression:\n\n  "
 	   +idxType.toString()
@@ -358,8 +358,8 @@ void TheoryArray::computeType(const Expr& e)
 	   +e[0].toString()+"\n\nBut received this:\n\n  "
 	   +arrType.toString()+"\n\nIn the expression:\n\n  "
 	   +e.toString());
-      bool idxCorrect = getBaseType(arrType[0]) == idxType;
-      bool valCorrect = getBaseType(arrType[1]) == valType;
+      bool idxCorrect = getBaseType(arrType[0]) == idxType || idxType == Type::anyType(getEM());
+      bool valCorrect = getBaseType(arrType[1]) == valType || valType == Type::anyType(getEM());;
       if(!idxCorrect) {
 	throw TypecheckException
 	  ("The type of index expression:\n\n  "
@@ -371,7 +371,7 @@ void TheoryArray::computeType(const Expr& e)
       if(!valCorrect) {
 	throw TypecheckException
 	  ("The type of value expression:\n\n  "
-	   +idxType.toString()
+	   +valType.toString()
 	   +"\n\nDoes not match the ARRAY's value type:\n\n  "
 	   +arrType[1].toString()
 	   +"\n\nIn the expression: "+e.toString());

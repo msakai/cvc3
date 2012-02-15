@@ -1587,7 +1587,7 @@ extern "C" Expr vc_bvPlusExpr(VC vc, int n_bits, Expr left, Expr right)
 extern "C" Expr vc_bvConcatExpr(VC vc,Expr left, Expr right) {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("CONCAT",fromExpr(left), fromExpr(right));
+  CVC3::Expr lExpr = cvc->listExpr("_CONCAT",fromExpr(left), fromExpr(right));
   return toExpr(cvc->parseExpr(lExpr));
   
   }catch(CVC3::Exception &ex){
@@ -1603,7 +1603,7 @@ extern "C" Expr vc_bvConcatExprN(VC vc, Expr* children, int numChildren) {
   for (int i = 0; i < numChildren; ++i) {
     cvcExprs.push_back(fromExpr(children[i]));
   }
-  CVC3::Expr lExpr = cvc->listExpr("CONCAT",cvcExprs);
+  CVC3::Expr lExpr = cvc->listExpr("_CONCAT",cvcExprs);
   return toExpr(cvc->parseExpr(lExpr));
   }catch(CVC3::Exception &ex){
     signal_error("vc_concatExprN",error_int,ex);
@@ -1672,15 +1672,15 @@ extern "C" Expr vc_bvLtExpr(VC vc, Expr left, Expr right)
 }
 
 
-extern "C" Expr vc_sbvLtExpr(VC vc, Expr left, Expr right)
+extern "C" Expr vc_bvSLtExpr(VC vc, Expr left, Expr right)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("SBVLT", fromExpr(left), fromExpr(right));
+  CVC3::Expr lExpr = cvc->listExpr("BVSLT", fromExpr(left), fromExpr(right));
   return toExpr(cvc->parseExpr(lExpr));
   
   }catch(CVC3::Exception ex){
-    signal_error("vc_sbvLtExpr",error_int,ex);
+    signal_error("vc_bvSLtExpr",error_int,ex);
     return NULL;
   }
 }
@@ -1700,15 +1700,15 @@ extern "C" Expr vc_bvLeExpr(VC vc, Expr left, Expr right)
 }
 
 
-extern "C" Expr vc_sbvLeExpr(VC vc, Expr left, Expr right)
+extern "C" Expr vc_bvSLeExpr(VC vc, Expr left, Expr right)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("SBVLE", fromExpr(left), fromExpr(right));
+  CVC3::Expr lExpr = cvc->listExpr("BVSLE", fromExpr(left), fromExpr(right));
   return toExpr(cvc->parseExpr(lExpr));
   
   }catch(CVC3::Exception ex){
-    signal_error("vc_sbvLeExpr",error_int,ex);
+    signal_error("vc_bvSLeExpr",error_int,ex);
     return NULL;
   }
 }
@@ -1728,15 +1728,15 @@ extern "C" Expr vc_bvGtExpr(VC vc, Expr left, Expr right)
 }
 
 
-extern "C" Expr vc_sbvGtExpr(VC vc, Expr left, Expr right)
+extern "C" Expr vc_bvSGtExpr(VC vc, Expr left, Expr right)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("SBVGT", fromExpr(left), fromExpr(right));
+  CVC3::Expr lExpr = cvc->listExpr("BVSGT", fromExpr(left), fromExpr(right));
   return toExpr(cvc->parseExpr(lExpr));
   
   }catch(CVC3::Exception ex){
-    signal_error("vc_sbvGtExpr",error_int,ex);
+    signal_error("vc_bvSGtExpr",error_int,ex);
     return NULL;
   }
 }
@@ -1756,15 +1756,15 @@ extern "C" Expr vc_bvGeExpr(VC vc, Expr left, Expr right)
 }
 
 
-extern "C" Expr vc_sbvGeExpr(VC vc, Expr left, Expr right)
+extern "C" Expr vc_bvSGeExpr(VC vc, Expr left, Expr right)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("SBVGE", fromExpr(left), fromExpr(right));
+  CVC3::Expr lExpr = cvc->listExpr("BVSGE", fromExpr(left), fromExpr(right));
   return toExpr(cvc->parseExpr(lExpr));
   
   }catch(CVC3::Exception ex){
-    signal_error("vc_sbvGeExpr",error_int,ex);
+    signal_error("vc_bvSGeExpr",error_int,ex);
     return NULL;
   }
 }

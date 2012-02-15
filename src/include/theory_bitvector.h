@@ -31,42 +31,57 @@ namespace CVC3 {
   
   typedef enum { //some new BV kinds
     BITVECTOR = 8000,
+
     BVCONST,
-    HEXBVCONST,
+
     CONCAT,
-    BVOR,
-    BVAND,
-    BVNEG,
-    BVXOR,
-    BVNAND,
-    BVNOR,
-    BVXNOR,
     EXTRACT,
+    BOOLEXTRACT,
+
     LEFTSHIFT,
     CONST_WIDTH_LEFTSHIFT,
     RIGHTSHIFT,
-    VARSHIFT,
+    BVSHL,
+    BVLSHR,
+    BVASHR,
+    SX,
+    BVREPEAT,
+    BVZEROEXTEND,
+    BVROTL,
+    BVROTR,
+
+    BVAND,
+    BVOR,
+    BVXOR,
+    BVXNOR,
+    BVNEG,
+    BVNAND,
+    BVNOR,
+    BVCOMP,
+
+    BVUMINUS,
     BVPLUS,
     BVSUB,
-    BVUMINUS,
     BVMULT,
-    BOOLEXTRACT,
+    BVUDIV,
+    BVSDIV,
+    BVUREM,
+    BVSREM,
+    BVSMOD,
+
     BVLT,
     BVLE,
     BVGT,
     BVGE,
-    SBVLT,
-    SBVLE,
-    SBVGT,
-    SBVGE,
-    SX,
-    SRIGHTSHIFT,
-    INTTOBV,
-    BVTOINT,
+    BVSLT,
+    BVSLE,
+    BVSGT,
+    BVSGE,
+
+    INTTOBV, // Not implemented yet
+    BVTOINT, // Not implemented yet
     // A wrapper for delaying the construction of type predicates
-    BVTYPEPRED,
-    // Internal kind for a bitvector operator
-    BVPARAMOP
+    BVTYPEPRED
   } BVKinds;
 
 /*****************************************************************************/
@@ -290,24 +305,26 @@ public:
 
   Expr newBVAndExpr(const Expr& t1, const Expr& t2);
   Expr newBVAndExpr(const std::vector<Expr>& kids);
-  Expr newBVNandExpr(const Expr& t1, const Expr& t2);
-  Expr newBVNandExpr(const std::vector<Expr>& kids);
 
   Expr newBVOrExpr(const Expr& t1, const Expr& t2);
   Expr newBVOrExpr(const std::vector<Expr>& kids);
-  Expr newBVNorExpr(const Expr& t1, const Expr& t2);
-  Expr newBVNorExpr(const std::vector<Expr>& kids);
 
   Expr newBVXorExpr(const Expr& t1, const Expr& t2);
   Expr newBVXorExpr(const std::vector<Expr>& kids);
+
   Expr newBVXnorExpr(const Expr& t1, const Expr& t2);
   Expr newBVXnorExpr(const std::vector<Expr>& kids);
+
+  Expr newBVNandExpr(const Expr& t1, const Expr& t2);
+  Expr newBVNorExpr(const Expr& t1, const Expr& t2);
+  Expr newBVCompExpr(const Expr& t1, const Expr& t2);
   
   Expr newBVLTExpr(const Expr& t1, const Expr& t2);
   Expr newBVLEExpr(const Expr& t1, const Expr& t2);  
   Expr newSXExpr(const Expr& t1, int len);
-  Expr newSBVLTExpr(const Expr& t1, const Expr& t2);
-  Expr newSBVLEExpr(const Expr& t1, const Expr& t2);
+  Expr newBVIndexExpr(int kind, const Expr& t1, int len);
+  Expr newBVSLTExpr(const Expr& t1, const Expr& t2);
+  Expr newBVSLEExpr(const Expr& t1, const Expr& t2);
 
   Expr newBVNegExpr(const Expr& t1);
   Expr newBVUminusExpr(const Expr& t1);
@@ -327,6 +344,7 @@ public:
   //! hi and low are bit indices
   Expr newBVExtractExpr(const Expr& e, 
 			int hi, int low);
+  Expr newBVSubExpr(const Expr& t1, const Expr& t2);
   //! 'numbits' is the number of bits in the result
   Expr newBVPlusExpr(int numbits, const std::vector<Expr>& k);
   //! accepts an integer, r, and bitvector, t1, and returns r.t1
@@ -340,6 +358,7 @@ public:
   Type getTypePredType(const Expr& tp);
   const Expr& getTypePredExpr(const Expr& tp);
   int getSXIndex(const Expr& e);
+  int getBVIndex(const Expr& e);
   int getBoolExtractIndex(const Expr& e);
   int getFixedLeftShiftParam(const Expr& e);
   int getFixedRightShiftParam(const Expr& e);
@@ -355,8 +374,6 @@ public:
   //!computes the integer value of ~c+1 or BVUMINUS(c)
   Rational computeNegBVConst(const Expr& e);
  
-  //FIXME: do the same for INTTOBV, BVTOINT
-
   int getMaxSize() { return d_maxLength; }
 
 }; //end of class TheoryBitvector

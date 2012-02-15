@@ -28,7 +28,8 @@ namespace CVC3 {
 
   class Theorem;
   class Expr;
-  
+  class Rational;
+
   class ArithProofRules {
   public:
     // Destructor
@@ -37,6 +38,9 @@ namespace CVC3 {
     ////////////////////////////////////////////////////////////////////
     // Canonization rules
     ////////////////////////////////////////////////////////////////////
+
+    //! ==> e = 1 * e
+    virtual Theorem varToMult(const Expr& e) = 0;
 
     //! ==> -(e) = (-1) * e
     virtual Theorem uMinusToMult(const Expr& e) = 0;
@@ -49,6 +53,15 @@ namespace CVC3 {
      * -1, the result is not yet canonical:
      */
     virtual Theorem canonUMinusToDivide(const Expr& e) = 0;
+
+    /**
+     * Transform e = (SUM r t1 ... tn) @ 0 into (SUM t1 ... tn) @ -r. The first 
+     * sum term (r) must be a rational and t1 ... tn terms must be canonised.
+     * 
+     * @param e the expression to transform
+     * @return rewrite theorem representing the transformation  
+     */
+    virtual Theorem moveSumConstantRight(const Expr& e) = 0;
 
     //! (c) / d ==> (c/d), takes c and d
     /*! Canon Rules for division by constant 'd' */
@@ -117,6 +130,9 @@ namespace CVC3 {
     //! e[0] @ e[1] <==> 0 @ e[1] - e[0], where @ is {=,<,<=,>,>=}
     virtual Theorem rightMinusLeft(const Expr& e) = 0;
 
+    //! e[0] @ e[1] <==> e[0] - e[1] @ 0, where @ is {=,<,<=,>,>=}
+    virtual Theorem leftMinusRight(const Expr& e) = 0;
+
     //! x @ y <==> x + z @ y + z, where @ is {=,<,<=,>,>=} (given as 'kind')
     virtual Theorem plusPredicate(const Expr& x, 
 				  const Expr& y, const Expr& z, int kind) = 0;
@@ -133,6 +149,9 @@ namespace CVC3 {
      * for @ in {<,<=,>,>=}:
      */
     virtual Theorem multIneqn(const Expr& e, const Expr& z) = 0;
+
+    //! x = y ==> x <= y and x >= y
+    virtual Theorem eqToIneq(const Expr& e) = 0;
 
     //! "op1 GE|GT op2" <==> op2 LE|LT op1
     virtual Theorem flipInequality(const Expr& e) = 0;
@@ -355,6 +374,24 @@ namespace CVC3 {
     //! x /= y  ==>  (x < y) OR (x > y)
     /*! Used in concrete model generation */
     virtual Theorem diseqToIneq(const Theorem& diseq) = 0;
+
+    virtual Theorem dummyTheorem(const Expr& e) = 0;
+      
+    virtual Theorem oneElimination(const Expr& x) = 0;
+    
+    virtual Theorem clashingBounds(const Theorem& lowerBound, const Theorem& upperBound) = 0;
+    
+    virtual Theorem addInequalities(const Theorem& thm1, const Theorem& thm2) = 0;
+    
+    virtual Theorem implyWeakerInequality(const Expr& expr1, const Expr& expr2) = 0;
+    
+    virtual Theorem implyNegatedInequality(const Expr& expr1, const Expr& expr2) = 0;
+
+    virtual Theorem integerSplit(const Expr& intVar, const Rational& intPoint) = 0;
+    
+    virtual Theorem trustedRewrite(const Expr& expr1, const Expr& expr2) = 0;
+    
+    virtual Theorem rafineStrictInteger(const Theorem& isIntConstrThm, const Expr& constr) = 0;
 
   }; // end of class ArithProofRules
 } // end of namespace CVC3

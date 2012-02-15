@@ -135,8 +135,8 @@ namespace CVC3 {
     //! Pad the kids of BVLT/BVLE to make their length equal
     Theorem padBVLTRule(const Expr& e, int len);
  
-    //! Sign Extend the kids of SBVLT/SBVLE to make their length equal
-    Theorem padSBVLTRule(const Expr& e, int len);
+    //! Sign Extend the kids of BVSLT/BVSLE to make their length equal
+    Theorem padBVSLTRule(const Expr& e, int len);
 
     /*! input: e0 <=(s) e1. output depends on whether the topbits(MSB) of
      *  e0 and e1 are constants. If they are constants then optimizations
@@ -306,6 +306,16 @@ namespace CVC3 {
     Theorem constWidthLeftShiftToConcat(const Expr& e);
     //! t>>m = 0bin00...00 @ t[bvlength-1:m], takes e == (t>>n)
     Theorem rightShiftToConcat(const Expr& e);
+    //! a XOR b <=> (a & ~b) | (~a & b)
+    Theorem rewriteXOR(const Expr& e);
+    //! a XNOR b <=> (~a & ~b) | (a & b)
+    Theorem rewriteXNOR(const Expr& e);
+    //! a NAND b <=> ~(a & b)
+    Theorem rewriteNAND(const Expr& e);
+    //! a NOR b <=> ~(a | b)
+    Theorem rewriteNOR(const Expr& e);
+    //! a - b <=> a + (-b)
+    Theorem rewriteBVSub(const Expr& e);
     //! k*t = BVPLUS(n, <sum of shifts of t>) -- translation of k*t to BVPLUS
     /*! If k = 2^m, return k*t = t\@0...0 */
     Theorem constMultToPlus(const Expr& e);
@@ -384,6 +394,10 @@ namespace CVC3 {
     Theorem negBVand(const Expr& e);
     //! ~(t1 | t2) <=> ~t1 & ~t2 -- DeMorgan's Laws
     Theorem negBVor(const Expr& e);
+    //! ~(t1 xor t2) = ~t1 xor t2
+    Theorem negBVxor(const Expr& e);
+    //! ~(t1 xnor t2) = t1 xor t2
+    Theorem negBVxnor(const Expr& e);
 
     // Bit-wise AND rules
     //! Auxiliary method for andConst() and orConst()

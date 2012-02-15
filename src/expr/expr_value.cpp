@@ -76,6 +76,25 @@ ExprValue* ExprValue::copy(ExprManager* em, ExprIndex idx) const {
 }
 
 
+bool ExprNodeTmp::operator==(const ExprValue& ev2) const {
+  return getMMIndex() == ev2.getMMIndex() &&
+    d_kind == ev2.getKind() &&
+    getKids() == ev2.getKids();
+}
+
+ExprValue* ExprNodeTmp::copy(ExprManager* em, ExprIndex idx) const {
+  if (d_em != em) {
+    vector<Expr> children;
+    vector<Expr>::const_iterator
+      i = d_children.begin(), iend = d_children.end();
+    for (; i != iend; ++i)
+      children.push_back(rebuild(*i, em));
+    return new(em->getMM(getMMIndex())) ExprNode(em, d_kind, children, idx);
+  }
+  return new(em->getMM(getMMIndex())) ExprNode(em, d_kind, d_children, idx);
+}
+
+
 ExprNode::~ExprNode()
 {
   // Be careful deleting the attributes: first set them to NULL, then
@@ -216,6 +235,30 @@ ExprValue* ExprApply::copy(ExprManager* em, ExprIndex idx) const {
   return new(em->getMM(getMMIndex()))
     ExprApply(em, Op(d_opExpr), d_children, idx);
 }
+
+
+bool ExprApplyTmp::operator==(const ExprValue& ev2) const {
+  if(getMMIndex() != ev2.getMMIndex())
+    return false;
+
+  return (getOp() == ev2.getOp())
+      && (getKids() == ev2.getKids());
+}
+
+ExprValue* ExprApplyTmp::copy(ExprManager* em, ExprIndex idx) const {
+  if (d_em != em) {
+    vector<Expr> children;
+    vector<Expr>::const_iterator
+      i = d_children.begin(), iend = d_children.end();
+    for (; i != iend; ++i)
+      children.push_back(rebuild(*i, em));
+    return new(em->getMM(getMMIndex()))
+      ExprApply(em, Op(rebuild(d_opExpr, em)), children, idx);
+  }
+  return new(em->getMM(getMMIndex()))
+    ExprApply(em, Op(d_opExpr), d_children, idx);
+}
+
 
 bool ExprClosure::operator==(const ExprValue& ev2) const {
   if(getMMIndex() != ev2.getMMIndex())

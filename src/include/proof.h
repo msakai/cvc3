@@ -61,5 +61,5 @@ namespace CVC3 {
     return pf1.getExpr() == pf2.getExpr();
   }
 
-}; // end of namespace CVC3
+} // end of namespace CVC3
 #endif

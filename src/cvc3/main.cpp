@@ -131,7 +131,7 @@ int main(int argc, char **argv)
     IF_DEBUG(CVC3::debugger.setCurrentTime(runtime));
     // Read the input file
     vc->loadFile(fileName, vc->getEM()->getInputLang(),
-		 flags["interactive"].getBool());
+                 flags["interactive"].getBool());
   } catch(Exception& e) {
     cerr << "*** Fatal exception: " << e << endl;
     exit(1);

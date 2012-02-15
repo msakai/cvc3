@@ -452,6 +452,9 @@ public:
 
   //! Return the theorem that e is equal to its find
   Theorem find(const Expr& e);
+  //! Return the find as a reference: expr must have a find
+  const Theorem& findRef(const Expr& e);
+
   //! Return true iff e is find-reduced
   bool findReduced(const Expr& e);
   //! Return the find of e, or e if it has no find
@@ -630,11 +633,23 @@ public:
 			     const std::vector<Theorem>& thms)
     { return d_commonRules->substitutivityRule(op, thms); }
 
+  //! Special case for binary operators
+  Theorem substitutivityRule(const Expr& e,
+                             const Theorem& t1,
+                             const Theorem& t2)
+    { return d_commonRules->substitutivityRule(e, t1, t2); }
+
   //! Optimized: only positions which changed are included
   Theorem substitutivityRule(const Expr& e,
 			     const std::vector<unsigned>& changed,
 			     const std::vector<Theorem>& thms)
     { return d_commonRules->substitutivityRule(e, changed, thms); }
+
+  //! Optimized: only a single position changed
+  Theorem substitutivityRule(const Expr& e,
+                             int changed,
+                             const Theorem& thm)
+    { return d_commonRules->substitutivityRule(e, changed, thm); }
 
   //! e1 AND (e1 IFF e2) ==> e2
   Theorem iffMP(const Theorem& e1, const Theorem& e1_iff_e2) {

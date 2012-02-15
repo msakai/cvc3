@@ -44,8 +44,6 @@ namespace CVC3 {
   class TheoryDatatype;
   class Translator;
 
-typedef std::map<const std::string, Expr, ltstr> Str_To_Expr; 
-  
 class VCL : public ValidityChecker {
 
   //! Pointers to main system components
@@ -75,9 +73,6 @@ class VCL : public ValidityChecker {
 
   //! User-level view of the scope stack
   CDO<int> *d_stackLevel;
-
-  //! Cache for printV method
-  Str_To_Expr d_vars;
 
   //! Run-time statistics
   Statistics d_statistics;
@@ -192,6 +187,7 @@ public:
                 const std::vector<std::vector<std::vector<Expr> > >& types,
                 std::vector<Type>& returnTypes);
   Type arrayType(const Type& typeIndex, const Type& typeData);
+  Type bitvecType(int n);  
   Type funType(const Type& typeDom, const Type& typeRan);
   Type funType(const std::vector<Type>& typeDom, const Type& typeRan);
   Type createType(const std::string& typeName);
@@ -275,6 +271,36 @@ public:
   Expr readExpr(const Expr& array, const Expr& index);
   Expr writeExpr(const Expr& array, const Expr& index, const Expr& newValue);
 
+  Expr newBVConstExpr(const std::string& s, int base);
+  Expr newBVConstExpr(const std::vector<bool>& bits);
+  Expr newBVConstExpr(const Rational& r, int len);
+  Expr newConcatExpr(const Expr& t1, const Expr& t2);
+  Expr newConcatExpr(const std::vector<Expr>& kids);
+  Expr newBVExtractExpr(const Expr& e, int hi, int low);
+  Expr newBVNegExpr(const Expr& t1);
+  Expr newBVAndExpr(const Expr& t1, const Expr& t2);
+  Expr newBVAndExpr(const std::vector<Expr>& kids);
+  Expr newBVOrExpr(const Expr& t1, const Expr& t2);
+  Expr newBVOrExpr(const std::vector<Expr>& kids);
+  Expr newBVXorExpr(const Expr& t1, const Expr& t2);
+  Expr newBVXorExpr(const std::vector<Expr>& kids);
+  Expr newBVXnorExpr(const Expr& t1, const Expr& t2);
+  Expr newBVXnorExpr(const std::vector<Expr>& kids);
+  Expr newBVNandExpr(const Expr& t1, const Expr& t2);
+  Expr newBVNorExpr(const Expr& t1, const Expr& t2);
+  Expr newBVLTExpr(const Expr& t1, const Expr& t2);
+  Expr newBVLEExpr(const Expr& t1, const Expr& t2);
+  Expr newBVSLTExpr(const Expr& t1, const Expr& t2);
+  Expr newBVSLEExpr(const Expr& t1, const Expr& t2);
+  Expr newSXExpr(const Expr& t1, int len);
+  Expr newBVUminusExpr(const Expr& t1);
+  Expr newBVSubExpr(const Expr& t1, const Expr& t2);
+  Expr newBVPlusExpr(int numbits, const std::vector<Expr>& k);
+  Expr newBVMultExpr(int numbits, const Expr& t1, const Expr& t2);
+  Expr newFixedLeftShiftExpr(const Expr& t1, int r);
+  Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r);
+  Expr newFixedRightShiftExpr(const Expr& t1, int r);
+
   Expr tupleExpr(const std::vector<Expr>& exprs);
   Expr tupleSelectExpr(const Expr& tuple, int index);
   Expr tupleUpdateExpr(const Expr& tuple, int index, const Expr& newValue);
@@ -334,6 +360,7 @@ public:
 
   Statistics& getStatistics() { return d_statistics; }
   void printStatistics() { std::cout << d_statistics << std::endl; }
+  unsigned long printMemory();
 
 };
 

@@ -96,15 +96,15 @@ TheoryRecords::TheoryRecords(TheoryCore* core)
   : Theory(core, "Records")
 {
 
-  getEM()->newKind(RECORD_TYPE, "RECORD_TYPE", true);
-  getEM()->newKind(TUPLE_TYPE, "TUPLE_TYPE", true);
+  getEM()->newKind(RECORD_TYPE, "_RECORD_TYPE", true);
+  getEM()->newKind(TUPLE_TYPE, "_TUPLE_TYPE", true);
 
-  getEM()->newKind(RECORD, "RECORD");
-  getEM()->newKind(RECORD_SELECT, "RECORD_SELECT");
-  getEM()->newKind(RECORD_UPDATE, "RECORD_UPDATE");
-  getEM()->newKind(TUPLE, "TUPLE");
-  getEM()->newKind(TUPLE_SELECT, "TUPLE_SELECT");
-  getEM()->newKind(TUPLE_UPDATE, "TUPLE_UPDATE");
+  getEM()->newKind(RECORD, "_RECORD");
+  getEM()->newKind(RECORD_SELECT, "_RECORD_SELECT");
+  getEM()->newKind(RECORD_UPDATE, "_RECORD_UPDATE");
+  getEM()->newKind(TUPLE, "_TUPLE");
+  getEM()->newKind(TUPLE_SELECT, "_TUPLE_SELECT");
+  getEM()->newKind(TUPLE_UPDATE, "_TUPLE_UPDATE");
 
   d_rules = createProofRules();
   vector<int> kinds;

@@ -25,17 +25,26 @@
 #include "expr.h"
 #include "expr_map.h"
 #include "cdmap.h"
+#include "statistics.h"
 
 namespace CVC3 {
 
 class CommonProofRules;
 class CNF_Rules;
+class ValidityChecker;
+class Statistics;
 
 }
 
 namespace SAT {
 
 class CNF_Manager {
+
+  //! For clause minimization
+  CVC3::ValidityChecker* d_vc;
+
+  //! Whether to use brute-force clause minimization
+  bool d_minimizeClauses;
 
   //! Common proof rules
   CVC3::CommonProofRules* d_commonRules;
@@ -81,6 +90,9 @@ class CNF_Manager {
 
   //! Whether thm to translate is "translate only"
   std::deque<bool> d_translateQueueFlags;
+
+  //! Reference to statistics object
+  CVC3::Statistics& d_statistics;
 
 public:
   //! Abstract class for callbacks
@@ -130,7 +142,7 @@ private:
 //     { d_translated.insert(e, false, d_bottomScope); }
 
 public:
-  CNF_Manager(CVC3::TheoremManager* tm);
+  CNF_Manager(CVC3::TheoremManager* tm, CVC3::Statistics& statistics, bool minimizeClauses);
   ~CNF_Manager();
 
   //! Register CNF callback
@@ -203,6 +215,8 @@ public:
     if (!e.isTranslated() || i == d_cnfVars.end()) return Lit();
     return Lit((*i).second);
   }
+
+  void CNF_Manager::cons(unsigned lb, unsigned ub, const CVC3::Expr& e2, std::vector<unsigned>& newLits);
 
   //! Convert thm A |- B (A is a set of literals) into a clause ~A \/ B
   /*! c should be an empty clause that will be filled with the result */

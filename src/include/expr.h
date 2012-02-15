@@ -749,29 +749,34 @@ inline Expr& Expr::operator=(const Expr& e) {
 }
 
 inline Expr::Expr(const Op& op, const Expr& child) {
-  std::vector<Expr> kids;
-  kids.push_back(child);
   ExprManager* em = child.getEM();
   if (op.getExpr().isNull()) {
-    ExprNode ev(em, op.getKind(), kids);
+    ExprNode ev(em, op.getKind());
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child);
     d_expr = em->newExprValue(&ev);
   } else {
-    ExprApply ev(em, op, kids);
+    ExprApply ev(em, op);
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child);
     d_expr = em->newExprValue(&ev);
   }
   d_expr->incRefcount();  
 }
  
 inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1) {
-  std::vector<Expr> kids;
-  kids.push_back(child0);
-  kids.push_back(child1);
   ExprManager* em = child0.getEM();
   if (op.getExpr().isNull()) {
-    ExprNode ev(em, op.getKind(), kids);
+    ExprNode ev(em, op.getKind());
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child0);
+    kids.push_back(child1);
     d_expr = em->newExprValue(&ev);
   } else {
-    ExprApply ev(em, op, kids);
+    ExprApply ev(em, op);
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child0);
+    kids.push_back(child1);
     d_expr = em->newExprValue(&ev);
   }
   d_expr->incRefcount();  
@@ -780,15 +785,19 @@ inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1) {
 inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
                   const Expr& child2) {
   ExprManager* em = child0.getEM();
-  std::vector<Expr> kids;
-  kids.push_back(child0);
-  kids.push_back(child1);
-  kids.push_back(child2);
   if (op.getExpr().isNull()) {
-    ExprNode ev(em, op.getKind(), kids);
+    ExprNode ev(em, op.getKind());
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child0);
+    kids.push_back(child1);
+    kids.push_back(child2);
     d_expr = em->newExprValue(&ev);
   } else {
-    ExprApply ev(em, op, kids);
+    ExprApply ev(em, op);
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child0);
+    kids.push_back(child1);
+    kids.push_back(child2);
     d_expr = em->newExprValue(&ev);
   }
   d_expr->incRefcount();  
@@ -797,16 +806,21 @@ inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
 inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
                   const Expr& child2, const Expr& child3) {
   ExprManager* em = child0.getEM();
-  std::vector<Expr> kids;
-  kids.push_back(child0);
-  kids.push_back(child1);
-  kids.push_back(child2);
-  kids.push_back(child3);
   if (op.getExpr().isNull()) {
-    ExprNode ev(em, op.getKind(), kids);
+    ExprNode ev(em, op.getKind());
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child0);
+    kids.push_back(child1);
+    kids.push_back(child2);
+    kids.push_back(child3);
     d_expr = em->newExprValue(&ev);
   } else {
-    ExprApply ev(em, op, kids);
+    ExprApply ev(em, op);
+    std::vector<Expr>& kids = ev.getKids1();
+    kids.push_back(child0);
+    kids.push_back(child1);
+    kids.push_back(child2);
+    kids.push_back(child3);
     d_expr = em->newExprValue(&ev);
   }
   d_expr->incRefcount();
@@ -824,10 +838,10 @@ inline Expr::Expr(const Op& op, const std::vector<Expr>& children,
     }
   }
   if (op.getExpr().isNull()) {
-    ExprNode ev(em, op.getKind(), children);
+    ExprNodeTmp ev(em, op.getKind(), children);
     d_expr = em->newExprValue(&ev);
   } else {
-    ExprApply ev(em, op, children);
+    ExprApplyTmp ev(em, op, children);
     d_expr = em->newExprValue(&ev);
   }
   d_expr->incRefcount();

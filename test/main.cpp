@@ -138,7 +138,7 @@ void test1()
     // Check f(x) = f(y) -> x = y
 
     e = vc->impliesExpr(vc->eqExpr(fx,fy),vc->eqExpr(x, y));
-    int scopeLevel = vc->scopeLevel();
+    IF_DEBUG(int scopeLevel = vc->scopeLevel();)
     vc->push();
     IF_DEBUG(b =) check(vc, e);
     DebugAssert(!b, "Should be invalid");
@@ -747,7 +747,7 @@ void test8() {
 }
 
 
-Expr halfadder(ValidityChecker* vc, const Expr& a, const Expr& b, const Expr& c)
+Expr adder(ValidityChecker* vc, const Expr& a, const Expr& b, const Expr& c)
 {
   return vc->notExpr(vc->iffExpr(vc->notExpr(vc->iffExpr(a,b)),c));
 }
@@ -755,7 +755,7 @@ Expr halfadder(ValidityChecker* vc, const Expr& a, const Expr& b, const Expr& c)
 
 Expr carry(ValidityChecker* vc, const Expr& a, const Expr& b, const Expr& c)
 {
-  return vc->orExpr(a, vc->orExpr(b,c));
+  return vc->orExpr(vc->andExpr(a,b), vc->orExpr(vc->andExpr(b,c),vc->andExpr(a,c)));
 }
 
 
@@ -766,7 +766,7 @@ void add(ValidityChecker* vc, vector<Expr> a, vector<Expr> b, vector<Expr>& sum)
 
   for (i=0; i < N; i++)
   {
-    sum.push_back(halfadder(vc,a[i],b[i],c));
+    sum.push_back(adder(vc,a[i],b[i],c));
     c = carry(vc,a[i],b[i],c);
   }
 }
@@ -783,10 +783,10 @@ Expr vectorEq(ValidityChecker* vc, vector<Expr> a, vector<Expr> b)
   return result;
 }
 
+
 void test9(int N) {
   CLFlags flags = ValidityChecker::createFlags();
   flags.setFlag("proofs",true);
-  flags.setFlag("dagify-exprs",false);
   ValidityChecker* vc = ValidityChecker::create(flags);
 
   try {
@@ -813,6 +813,80 @@ void test9(int N) {
   }
   delete vc;
 }
+
+
+Expr bvadder(ValidityChecker* vc, const Expr& a, const Expr& b, const Expr& c)
+{
+  return vc->newBVXorExpr(a, vc->newBVXorExpr(b, c));
+}
+
+
+Expr bvcarry(ValidityChecker* vc, const Expr& a, const Expr& b, const Expr& c)
+{
+  return vc->newBVOrExpr(vc->newBVAndExpr(a,b), vc->newBVOrExpr(vc->newBVAndExpr(b,c),vc->newBVAndExpr(a,c)));
+}
+
+
+void bvadd(ValidityChecker* vc, vector<Expr> a, vector<Expr> b, vector<Expr>& sum)
+{
+  int i,N=a.size();
+  Expr c = vc->newBVConstExpr(Rational(0), 1);
+
+  for (i=0; i < N; i++)
+  {
+    sum.push_back(bvadder(vc,a[i],b[i],c));
+    c = bvcarry(vc,a[i],b[i],c);
+  }
+}
+
+
+Expr bvvectorEq(ValidityChecker* vc, vector<Expr> a, vector<Expr> b)
+{
+  int i, N=a.size();
+  Expr result = vc->newBVConstExpr(string("1"));
+
+  for (i=0; i < N; i++) {
+    result = vc->newBVAndExpr(result, vc->newBVXnorExpr(a[i], b[i]));
+  }
+  return result;
+}
+
+
+void bvtest9(int N) {
+  CLFlags flags = ValidityChecker::createFlags();
+  ValidityChecker* vc = ValidityChecker::create(flags);
+
+  try {
+  int i;
+  vector<Expr> avec,bvec,sum1vec,sum2;
+
+  Expr a, b, sum1;
+  a = vc->varExpr("a", vc->bitvecType(N));
+  b = vc->varExpr("b", vc->bitvecType(N));
+  vector<Expr> kids;
+  kids.push_back(a);
+  kids.push_back(b);
+  sum1 = vc->newBVPlusExpr(N, kids);
+
+  for (i=0; i < N; i++) {
+    avec.push_back(vc->newBVExtractExpr(a, i, i));
+    bvec.push_back(vc->newBVExtractExpr(b, i, i));
+    sum1vec.push_back(vc->newBVExtractExpr(sum1, i, i));
+  }
+
+  bvadd(vc,avec,bvec,sum2);
+
+  Expr q = bvvectorEq(vc,sum1vec,sum2);
+
+  check(vc, vc->eqExpr(q,vc->newBVConstExpr(string("1"))));
+
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in bvtest9(): \n" << e << endl;
+  }
+  delete vc;
+}
+
 
 // Test for memory leaks (run silently)
 void test10()
@@ -1591,7 +1665,7 @@ void test19()
 
     cout<<"Checking formula "<<Q<<"\n in context "<<A<<"\n";
   
-    bool Succ = vc->query(Q);
+    IF_DEBUG(bool Succ =) vc->query(Q);
 
     DebugAssert(Succ, "Expected valid formula");
 
@@ -1631,6 +1705,8 @@ int main(int argc, char** argv)
     test8();
     cout << "\n}\n\ntest9(" << 10*regressLevel+10 << "): {" << endl;
     test9(10*regressLevel+10);
+    cout << "\nbvtest9(): {" << endl;
+    bvtest9(regressLevel*3+2);
     cout << "\n}" << endl;
 
     // Test for obvious memory leaks

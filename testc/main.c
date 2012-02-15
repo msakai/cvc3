@@ -539,7 +539,7 @@ int main(int argc, char** argv)
   printf("\n}\n\ntest5() {\n");
   test5();
   check_error("test5");
-  if (regressLevel > 2) {
+  if (regressLevel > 0) {
     printf("\n}\ntest6()\n");
     test6();
     check_error("test6");

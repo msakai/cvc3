@@ -1347,9 +1347,10 @@ echo "copyright is owned by Princeton University and is more restrictive."
 echo ""
 echo "Specifically, it may be used for internal, noncommercial, research purposes"
 echo "only.  See the copyright notice in the following files for more information."
-echo "To configure CVC3 to NOT use these files, please run:"
+echo "To build CVC3 without these files, please delete them and then run:"
 echo "<pre>"
 echo "   ./configure --disable-zchaff"
+echo "   make"
 echo "</pre>"
 echo ""
 echo "<pre>"
@@ -3930,6 +3931,7 @@ doc/Makefile"
 
 
                     ac_config_files="$ac_config_files $CVC_OUTPUT_FILES $OTHER_OUTPUT_FILES"
+
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure

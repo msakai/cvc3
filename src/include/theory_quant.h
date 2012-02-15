@@ -48,21 +48,26 @@ class QuantProofRules;
  typedef enum{ Ukn, Pos, Neg, PosNeg} Polarity;
 
  class Trigger {
+ public: 
    Expr trig;
    Polarity polarity;
-   CDO<int>* priority;
+   
+   std::vector<Expr> bvs;
    Expr head;
    bool hasRWOp;
    bool hasTrans;
    bool hasT2; //if has trans of 2,
    bool isSimple; //if of the form g(x,a);
- public: 
-   Trigger(TheoryCore* core, Expr e, Polarity pol, int pri);
+   bool isSuperSimple; //if of the form g(x,y);
+   bool isMulti;
+   size_t multiIndex; 
+   size_t multiId;
+
+   Trigger(TheoryCore* core, Expr e, Polarity pol, std::set<Expr>);
    bool  isPos();
    bool  isNeg();
-   int   getPri();
-   void  setPri(int pri);
    Expr  getEx();
+   std::vector<Expr> getBVs(); 
    void  setHead(Expr h);
    Expr  getHead();
    void  setRWOp(bool b);
@@ -73,9 +78,22 @@ class QuantProofRules;
    bool  hasTr2(); 
    void  setSimp();
    bool  isSimp(); 
+   void  setSuperSimp();
+   bool  isSuperSimp(); 
+   void  setMultiTrig();
+   bool  isMultiTrig(); 
+
+   
  };
 
-
+ typedef struct dynTrig{
+   Trigger trig;
+   size_t univ_id;
+   ExprMap<Expr> binds;
+   dynTrig(Trigger t, ExprMap<Expr> b, size_t id);
+ } dynTrig;
+ 
+ 
 class TheoryQuant :public Theory {
   
   class  TypeComp { //!< needed for typeMap
@@ -89,6 +107,11 @@ class TheoryQuant :public Theory {
 
   //! database of universally quantified theorems
   CDList<Theorem> d_univs; 
+
+  CDList<Theorem> d_rawUnivs; 
+
+  CDList<dynTrig> d_arrayTrigs; 
+  CDO<size_t> d_lastArrayPos;
 
   //! universally quantified formulas to be instantiated, the var bindings is in d_bingQueue and the ground term matched with the trigger is in d_gtermQueue 
   std::queue<Theorem> d_univsQueue;
@@ -122,6 +145,7 @@ class TheoryQuant :public Theory {
   CDO<size_t> d_savedTermsPos;
   //!tracks a possition in the database of universals
   CDO<size_t> d_univsSavedPos;
+  CDO<size_t> d_rawUnivsSavedPos;
   //!tracks a possition in the database of universals
   CDO<size_t> d_univsPosFull;
   //!tracks a possition in the database of universals if fulleffort mode, the d_univsSavedPos now uesed when fulleffort=0 only.
@@ -241,6 +265,8 @@ class TheoryQuant :public Theory {
 
   //  ExprMap<std::vector<Expr> > d_fullTriggers;
   //for multi-triggers, now we only have one set of multi-triggers.
+
+
   ExprMap<std::vector<Expr> > d_multTriggers;
   ExprMap<std::vector<Expr> > d_partTriggers;
 
@@ -266,36 +292,56 @@ class TheoryQuant :public Theory {
   int d_trans_num;
   int d_trans2_num;
 
+  typedef struct{
+    std::vector<std::vector<size_t> > common_pos;
+    std::vector<std::vector<size_t> > var_pos; 
+    
+    std::vector<CDMap<Expr, bool>* > var_binds_found;
+
+    std::vector<ExprMap<CDList<Expr>* >* > uncomm_list; //
+  } multTrigsInfo ;
+  
+  ExprMap<multTrigsInfo> d_multitrigs_maps;
+  std::vector<multTrigsInfo> d_all_multTrigsInfo;
+  
   ExprMap<CDList<Expr>* > d_trans_back;
   ExprMap<CDList<Expr>* > d_trans_forw;
   CDMap<Expr,bool > d_trans_found;
   CDMap<Expr,bool > d_trans2_found;
 
 
-  bool transFound(const Expr& comb);
+  inline  bool transFound(const Expr& comb);
+  
+  inline   void setTransFound(const Expr& comb);
 
-  void setTransFound(const Expr& comb);
+  inline  bool trans2Found(const Expr& comb);
 
-  bool trans2Found(const Expr& comb);
-
-  void setTrans2Found(const Expr& comb);
+  inline  void setTrans2Found(const Expr& comb);
 
  
-  CDList<Expr> & backList(const Expr& ex);
+  inline  CDList<Expr> & backList(const Expr& ex);
   
-  CDList<Expr> & forwList(const Expr& ex);
+  inline  CDList<Expr> & forwList(const Expr& ex);
 
   CDList<Expr> null_cdlist;
 
 
-  void  pushBackList(const Expr& node, Expr ex);
-  void  pushForwList(const Expr& node, Expr ex);
-
-
+  inline  void  pushBackList(const Expr& node, Expr ex);
+  inline  void  pushForwList(const Expr& node, Expr ex);
+  
+  
   ExprMap<CDList<std::vector<Expr> >* > d_mtrigs_inst; //map expr to bindings
   
   ExprMap<CDList<Expr>* > d_same_head_expr; //map an expr to a list of expres shard the same head
+  ExprMap<CDList<Expr>* > d_eq_list; //the equalities list
+  
+  CDList<Expr > d_eqs; //the equalities list
+  CDO<size_t > d_eqs_pos; //the equalities list
 
+  ExprMap<CDO<size_t>* > d_eq_pos;
+
+  ExprMap<CDList<Expr>* > d_parent_list; 
+  void  collectChangedTerms(CDList<Expr>& changed_terms);
   ExprMap<std::vector<Expr> > d_mtrigs_bvorder;
 
   int loc_gterm(const std::vector<Expr>& border,
@@ -331,6 +377,8 @@ class TheoryQuant :public Theory {
 
   CDMap<Expr, std::set<std::vector<Expr> > > d_instHistory;//the history of instantiations
   //map univ to the trig, gterm and result
+  
+  ExprMap<CDMap<Expr, bool>* > d_bindHistory; //the history of instantiations
 
   ExprMap<std::set<std::vector<Expr> > > d_instHistoryGlobal;//the history of instantiations
 
@@ -342,13 +390,14 @@ class TheoryQuant :public Theory {
   //ExprMap<int > d_thmTimes; 
   void enqueueInst(const Theorem, const Theorem); 
   void enqueueInst(const Theorem& univ, const std::vector<Expr>& bind, const Expr& gterm);
-
+  void enqueueInst(size_t univ_id , const std::vector<Expr>& bind, const Expr& gterm);
   void enqueueInst(const Theorem& univ, 
 		   Trigger& trig,
 		   const std::vector<Expr>& binds,  
 		   const Expr& gterm
 		   );
     
+  void synCheckSat(ExprMap<ExprMap<std::vector<dynTrig>* >* >& , bool);
   void synCheckSat(bool);
   void semCheckSat(bool);
   void naiveCheckSat(bool);
@@ -358,6 +407,10 @@ class TheoryQuant :public Theory {
 
   void synFullInst(const Theorem & univ,  const CDList<Expr>& allterms,	size_t tBegin);
 
+  void arrayHeuristic(const Trigger& trig, size_t univid);
+  
+
+  void synNewInst(size_t univ_id, const std::vector<Expr>& binds, const Expr& gterm, const Trigger& trig );
   void synMultInst(const Theorem & univ,  const CDList<Expr>& allterms,	 size_t tBegin);
 
   void synPartInst(const Theorem & univ,  const CDList<Expr>& allterms,	 size_t tBegin);
@@ -371,31 +424,58 @@ class TheoryQuant :public Theory {
 		    std::vector<Expr>& instGterm,
 		    const CDList<Expr>& allterms,		       
 		    size_t tBegin);
-  void goodSynMatchNewTrig(Trigger& trig,
+  void goodSynMatchNewTrig(const Trigger& trig,
 			   const std::vector<Expr> & boundVars,
 			   std::vector<std::vector<Expr> >& instBinds,
 			   std::vector<Expr>& instGterms,
 			   const CDList<Expr>& allterms,		       
 			   size_t tBegin);
 
-  bool goodSynMatchNewTrig(Trigger& trig,
+  bool goodSynMatchNewTrig(const Trigger& trig,
 			   const std::vector<Expr> & boundVars,
 			   std::vector<std::vector<Expr> >& instBinds,
 			   std::vector<Expr>& instGterms,
 			   const Expr& gterm);
+
+  void matchListOld(const CDList<Expr>& list, size_t gbegin, size_t gend);
+    //  void matchListOld(const Expr& gterm);
+  void matchListNew(ExprMap<ExprMap<std::vector<dynTrig>*>*>& new_trigs,
+		    const CDList<Expr>& list,
+		    size_t gbegin,
+		    size_t gend);
+  
+  void delNewTrigs(ExprMap<ExprMap<std::vector<dynTrig>*>*>& new_trigs);
+  void combineOldNewTrigs(ExprMap<ExprMap<std::vector<dynTrig>*>*>& new_trigs);
+
+  void newTopMatch(const Expr& gterm, 
+		   const Expr& vterm, 
+		   std::vector<ExprMap<Expr> >& binds, 
+		   const Trigger& trig);
     
 
   bool synMatchTopPred(const Expr& gterm, const Trigger trig, ExprMap<Expr>& env);
 
+  inline bool matchChild(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
+  inline void matchChild(const Expr& gterm, const Expr& vterm, std::vector<ExprMap<Expr> >& env);
+  inline void add_parent(const Expr& parent);
+
   bool recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
 
-  bool hasGoodSynInstNewTrig(Trigger& trig,
-			     std::vector<Expr> & boundVars,
-			     std::vector<std::vector<Expr> >& instBinds,
-			     std::vector<Expr>& instGterms,
-			     const CDList<Expr>& allterms,		       
-			     size_t tBegin);
-    
+  bool hasGoodSynInstNewTrigOld(Trigger& trig, 
+				std::vector<Expr> & boundVars, 
+				std::vector<std::vector<Expr> >& instBinds, 
+				std::vector<Expr>& instGterms, 
+				const CDList<Expr>& allterms,		       
+				size_t tBegin); 
+  
+  bool hasGoodSynInstNewTrig(Trigger& trig, 
+			     const std::vector<Expr> & boundVars, 
+   			     std::vector<std::vector<Expr> >& instBinds, 
+ 			     std::vector<Expr>& instGterms, 
+ 			     const CDList<Expr>& allterms,		       
+ 			     size_t tBegin); 
+
+
   bool hasGoodSynMultiInst(const Expr& e,
 			   std::vector<Expr>& bVars,
 			   std::vector<std::vector<Expr> >& instSet,
@@ -413,12 +493,34 @@ class TheoryQuant :public Theory {
 		   size_t tBegin);
 
   bool isTransLike (const std::vector<Expr>& cur_trig);
+  bool isTrans2Like (const std::vector<Expr>& all_terms, const Expr& tr2);
+  
+
+  static const size_t MAX_TRIG_BVS=15;
+  Expr d_mybvs[MAX_TRIG_BVS];
+ 
+  Expr recGeneralTrig(const Expr& trig, ExprMap<Expr>& bvs, size_t& mybvs_count);
+  Expr generalTrig(const Expr& trig, ExprMap<Expr>& bvs);
+
+  ExprMap<CDMap<Expr, CDList<dynTrig>* >* > d_allmap_trigs;
+  
+  CDList<Trigger> d_alltrig_list;
+
+  void registerTrig(ExprMap<ExprMap<std::vector<dynTrig>* >* >& cur_trig_map,
+		   Trigger trig, 
+		   const std::vector<Expr> thmBVs, 
+		   size_t univ_id);
+    
+  void registerTrigReal(Trigger trig, const std::vector<Expr>, size_t univ_id);
 
   bool canMatch(const Expr& t1, const Expr& t2, ExprMap<Expr>& env);
   void setGround(const Expr& gterm, const Expr& trig, const Theorem& univ, const std::vector<Expr>& subTerms) ;    
 
   //  std::string getHead(const Expr& e) ;
-  void setupTriggers(const Theorem& thm);
+  void setupTriggers(const Theorem& thm, size_t univ_id);
+  void setupTriggers(ExprMap<ExprMap<std::vector<dynTrig>* >*>& trig_maps,
+		     const Theorem& thm, 
+		     size_t univs_id);
 
   void saveContext();
 

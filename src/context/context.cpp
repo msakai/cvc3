@@ -21,6 +21,7 @@
 
 #include "context.h"
 
+
 using namespace CVC3;
 using namespace std;
 
@@ -88,23 +89,25 @@ ContextObjChain* ContextObjChain::restore(void)
   // Assign 'next' pointer only when the master object is restored,
   // since this may change our next pointer (master may have other
   // context objects removed).
-  if (d_master == NULL) return d_restoreChainNext;
+  DebugAssert(d_master != NULL, "How did this happen");
+  //  if (d_master == NULL) return d_restoreChainNext;
   ContextObjChain* next;
-  if (d_data == NULL) {
-    d_master->setNull();
-    d_master->d_scope = d_master->d_scope->prevScope();
-    DebugAssert(d_restore==NULL,"Expected NULL");
-    next = d_restoreChainNext;
-    d_master->d_scope->addToChain(this);
-  }
-  else {
+  DebugAssert(d_data != NULL, "Shouldn't happen");
+//   if (d_data == NULL) {
+//     d_master->setNull();
+//     d_master->d_scope = d_master->d_scope->prevScope();
+//     DebugAssert(d_restore==NULL,"Expected NULL");
+//     next = d_restoreChainNext;
+//     d_master->d_scope->addToChain(this);
+//   }
+//   else {
     d_master->restoreData(d_data);
     d_master->d_scope = d_data->d_scope;
     d_master->d_restore = d_restore;
     next = d_restoreChainNext;
     if (d_data != NULL) delete d_data;
     DebugAssert(d_master->d_restore != this, "points to self");
-  }
+//   }
   return next;
 }
 
@@ -157,11 +160,16 @@ ContextObj::~ContextObj()
   for(ContextObjChain* obj = d_restore; obj != NULL; ) {
     ContextObjChain* tmp = obj->d_restore;
     // Remove the object from the restore chain
-    //    if(obj->d_restoreChainNext != NULL)
-    //      obj->d_restoreChainNext->d_restoreChainPrev = obj->d_restoreChainPrev;
-    //    *(obj->d_restoreChainPrev) = obj->d_restoreChainNext;
-    if (obj->d_data != NULL) delete obj->d_data;
+    if(obj->d_restoreChainNext != NULL)
+      obj->d_restoreChainNext->d_restoreChainPrev = obj->d_restoreChainPrev;
+    *(obj->d_restoreChainPrev) = obj->d_restoreChainNext;
+    //    if (obj->d_data != NULL) delete obj->d_data;
     obj->d_master = NULL;
+    if (tmp == NULL) {
+      delete obj;
+      free(obj);
+      break;
+    }
     obj = tmp;
   }
   //  TRACE("context verbose", "~ContextObj()[", this, "] }");
@@ -277,6 +285,27 @@ void Context::deleteNotifyObj(ContextNotifyObj* obj) {
 }
 
 
+unsigned long Context::getMemory()
+{
+  Scope* scope = d_topScope;
+  unsigned long memory = ContextMemoryManager::getStaticMemory();
+  unsigned long mem = 0;
+  cout << "Static: " << memory << endl;
+  while (scope != NULL) {
+    mem = scope->getCMM()->getMemory();
+    cout << "Scope " << scope->level() << ": " << mem << endl;
+    memory += mem;
+    scope = scope->prevScope();
+  }
+  mem = 0;
+  for (unsigned long i = 0; i < d_cmmStack.size(); ++i) {
+    mem += d_cmmStack[i]->getMemory();
+  }
+  cout << "Stack: " << mem << endl;
+  return memory + mem;
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // ContextManager methods                                                    //
 ///////////////////////////////////////////////////////////////////////////////
@@ -313,4 +342,10 @@ Context* ContextManager::switchContext(Context* context)
   d_curContext = context;
   // TODO: Fix up all Context Objects
   return old;
+}
+
+
+unsigned long ContextManager::getMemory()
+{
+  return d_curContext->getMemory();
 }

@@ -222,6 +222,9 @@ public:
   //! Create an array type (ARRAY typeIndex OF typeData)
   virtual Type arrayType(const Type& typeIndex, const Type& typeData) = 0;
 
+  //! Create a bitvector type of length n
+  virtual Type bitvecType(int n) = 0;
+
   //! Create a function type typeDom -> typeRan
   virtual Type funType(const Type& typeDom, const Type& typeRan) = 0;
 
@@ -598,6 +601,73 @@ public:
 			 const Expr& newValue) = 0;
 
   /*@}*/ // End of Array expression methods
+
+  /***************************************************************************/
+  /*!
+   *\name Bitvector expression methods
+   * Methods for manipulating bitvector expressions
+   *@{
+   */
+  /***************************************************************************/
+
+  // Bitvector constants
+  // From a string of digits in a given base
+  virtual Expr newBVConstExpr(const std::string& s, int base = 2) = 0;
+  // From a vector of bools
+  virtual Expr newBVConstExpr(const std::vector<bool>& bits) = 0;
+  // From a rational: bitvector is of length 'len', or the min. needed length when len=0.
+  virtual Expr newBVConstExpr(const Rational& r, int len = 0) = 0;
+
+  // Concat and extract
+  virtual Expr newConcatExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newConcatExpr(const std::vector<Expr>& kids) = 0;
+  virtual Expr newBVExtractExpr(const Expr& e, int hi, int low) = 0;
+
+  // Bitwise Boolean operators: Negation, And, Nand, Or, Nor, Xor, Xnor
+  virtual Expr newBVNegExpr(const Expr& t1) = 0;
+
+  virtual Expr newBVAndExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVAndExpr(const std::vector<Expr>& kids) = 0;
+
+  virtual Expr newBVOrExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVOrExpr(const std::vector<Expr>& kids) = 0;
+
+  virtual Expr newBVXorExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVXorExpr(const std::vector<Expr>& kids) = 0;
+
+  virtual Expr newBVXnorExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVXnorExpr(const std::vector<Expr>& kids) = 0;
+
+  virtual Expr newBVNandExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVNorExpr(const Expr& t1, const Expr& t2) = 0;
+
+  // Unsigned bitvector inequalities
+  virtual Expr newBVLTExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVLEExpr(const Expr& t1, const Expr& t2) = 0;
+
+  // Signed bitvector inequalities
+  virtual Expr newBVSLTExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVSLEExpr(const Expr& t1, const Expr& t2) = 0;
+
+  // Sign-extend t1 to a total of len bits
+  virtual Expr newSXExpr(const Expr& t1, int len) = 0;
+
+  // Bitvector arithmetic: unary minus, plus, subtract, multiply
+  virtual Expr newBVUminusExpr(const Expr& t1) = 0;
+  virtual Expr newBVSubExpr(const Expr& t1, const Expr& t2) = 0;
+  //! 'numbits' is the number of bits in the result
+  virtual Expr newBVPlusExpr(int numbits, const std::vector<Expr>& k) = 0;
+  virtual Expr newBVMultExpr(int numbits,
+                             const Expr& t1, const Expr& t2) = 0;
+
+  // Left shift by r bits: result is old size + r bits
+  virtual Expr newFixedLeftShiftExpr(const Expr& t1, int r) = 0;
+  // Left shift by r bits: result is same size as t1
+  virtual Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r) = 0;
+  // Logical right shift by r bits: result is same size as t1
+  virtual Expr newFixedRightShiftExpr(const Expr& t1, int r) = 0;
+
+  /*@}*/ // End of Bitvector expression methods
 
   /***************************************************************************/
   /*!
