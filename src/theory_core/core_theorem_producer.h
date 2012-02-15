@@ -80,6 +80,7 @@ namespace CVC3 {
     Theorem iffAndDistrib(const Expr& iff);
     Theorem rewriteAndSubterms(const Expr& e, int idx);
     Theorem rewriteOrSubterms(const Expr& e, int idx);
+    Theorem dummyTheorem(const Expr& e);
 
   }; // end of class CoreTheoremProducer
 

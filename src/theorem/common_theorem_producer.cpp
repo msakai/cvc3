@@ -203,7 +203,7 @@ Theorem CommonTheoremProducer::symmetryRule(const Theorem& a1_eq_a2) {
   if(withProof()) {
     Type t = a1.getType();
     // Check the types
-    IF_DEBUG(a1_eq_a2.getExpr().getType());
+    IF_DEBUG(a1_eq_a2.getExpr().getType();)
     bool isEquality = !t.isBool();
     if(isEquality) {
       vector<Expr> args;
@@ -214,7 +214,7 @@ Theorem CommonTheoremProducer::symmetryRule(const Theorem& a1_eq_a2) {
     } else
       pf = newPf("iff_symm", a1, a2, a1_eq_a2.getProof());
   }
-  return newRWTheorem(a2, a1, a1_eq_a2.getAssumptionsRef(), pf);
+  return newRWTheorem(a2, a1, Assumptions(a1_eq_a2), pf);
 }
 
 
@@ -307,7 +307,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
      static DebugTimer tmpTimer(debugger.newTimer());
      static DebugCounter count(debugger.counter("substitutivityRule0 calls"));
      debugger.setCurrentTime(tmpTimer);
-     count++);
+     count++;)
 
   // Check that t is c == d or c IFF d
   if(CHECK_PROOFS) {
@@ -322,8 +322,10 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
   Expr e2(e.getOp(), thm.getRHS());
   Proof pf;
   if(withProof())
-    pf = newPf("basic_subst_op0",e,thm.getProof());
-  return newRWTheorem(e, e2, thm.getAssumptionsRef(), pf);
+    pf = newPf("basic_subst_op0",e, e2,thm.getProof());
+  Theorem res = newRWTheorem(e, e2, Assumptions(thm), pf);
+  res.setSubst();
+  return res;
 }
 
 
@@ -336,7 +338,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
      static DebugTimer tmpTimer(debugger.newTimer());
      static DebugCounter count(debugger.counter("substitutivityRule1 calls"));
      debugger.setCurrentTime(tmpTimer);
-     count++);
+     count++;)
 
   // Check that t is c == d or c IFF d
   if(CHECK_PROOFS) {
@@ -360,9 +362,11 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
     vector<Proof> pfs;
     pfs.push_back(thm1.getProof());
     pfs.push_back(thm2.getProof());
-    pf = newPf("basic_subst_op1", e, pfs);
+    pf = newPf("basic_subst_op1", e, e2, pfs);
   }
-  return newRWTheorem(e, e2, Assumptions(thm1, thm2), pf);
+  Theorem res = newRWTheorem(e, e2, Assumptions(thm1, thm2), pf);
+  res.setSubst();
+  return res;
 }
 
 
@@ -374,7 +378,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Op& op,
      static DebugTimer tmpTimer(debugger.newTimer());
      static DebugCounter count(debugger.counter("substitutivityRule calls"));
      debugger.setCurrentTime(tmpTimer);
-     count++);
+     count++;)
   // Check for trivial case: no theorems, return (op == op)
   unsigned size(thms.size());
   if(size == 0)
@@ -411,7 +415,8 @@ Theorem CommonTheoremProducer::substitutivityRule(const Op& op,
     pf = newPf("basic_subst_op",e1,e2,pfs);
   Theorem res = newRWTheorem(e1, e2, a, pf);
   IF_DEBUG(debugger.setElapsed(tmpTimer);
-	   accum0 += tmpTimer);
+	   accum0 += tmpTimer;)
+  res.setSubst();
   return res;
 }
 
@@ -425,7 +430,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
      static DebugTimer tmpTimer(debugger.newTimer());
      static DebugCounter count(debugger.counter("substitutivityRule2 calls"));
      debugger.setCurrentTime(tmpTimer);
-     count++);
+     count++;)
   DebugAssert(changed.size() > 0, "substitutivityRule2 should not be called");
   DebugAssert(changed.size() == thms.size(), "substitutivityRule2: wrong args");
 
@@ -471,7 +476,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
     for(unsigned j=0; j<changed.size(); j++)
       os << "  (" << changed[j] << ") " << thms[j] << "\n";
     os << "]\n";
-  });
+  })
   DebugAssert(e != e2,
 	      "substitutivityRule2 should not be called in this case:\n"
 	      "e = "+e.toString());
@@ -495,7 +500,8 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
   }
   Theorem res = newRWTheorem(e, e2, a, pf);
   IF_DEBUG(debugger.setElapsed(tmpTimer);
-	   accum0 += tmpTimer);
+	   accum0 += tmpTimer;)
+  res.setSubst();
   return res;
 }
 
@@ -529,7 +535,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
   IF_DEBUG(if(e == e2) {
     ostream& os = debugger.getOS();
     os << "substitutivityRule: e = " << e << "\n e2 = " << e2 << endl;
-  });
+  })
 
   // The new expressions must not be equal
   DebugAssert(e != e2, "substitutivityRule should not be called in this case:\ne = "+e.toString());
@@ -545,7 +551,9 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
   }
 
   // Return the resulting theorem 
-  return newRWTheorem(e, e2, a, pf);;
+  Theorem res = newRWTheorem(e, e2, a, pf);;
+  res.setSubst();
+  return res;
 }
 
 
@@ -586,7 +594,7 @@ Theorem CommonTheoremProducer::iffTrue(const Theorem& e)
   if(withProof()) {
     pf = newPf("iff_true", e.getExpr(), e.getProof());
   }
-  return newRWTheorem(e.getExpr(), d_em->trueExpr(), e.getAssumptionsRef(), pf);
+  return newRWTheorem(e.getExpr(), d_em->trueExpr(), Assumptions(e), pf);
 }
 
 
@@ -596,7 +604,7 @@ Theorem CommonTheoremProducer::iffNotFalse(const Theorem& e) {
   if(withProof()) {
     pf = newPf("iff_not_false", e.getExpr(), e.getProof());
   }
-  return newRWTheorem(!e.getExpr(), d_em->falseExpr(), e.getAssumptionsRef(), pf);
+  return newRWTheorem(!e.getExpr(), d_em->falseExpr(), Assumptions(e), pf);
 }
 
 
@@ -610,7 +618,7 @@ Theorem CommonTheoremProducer::iffTrueElim(const Theorem& e) {
   if(withProof()) {
     pf = newPf("iff_true_elim", e.getLHS(), e.getProof());
   }
-  return newTheorem(e.getLHS(), e.getAssumptionsRef(), pf);
+  return newTheorem(e.getLHS(), Assumptions(e), pf);
 }
 
 
@@ -625,7 +633,7 @@ Theorem CommonTheoremProducer::iffFalseElim(const Theorem& e) {
   if(withProof()) {
     pf = newPf("iff_false_elim", lhs, e.getProof());
   }
-  return newTheorem(!lhs, e.getAssumptionsRef(), pf);
+  return newTheorem(!lhs, Assumptions(e), pf);
 }
 
 
@@ -639,7 +647,7 @@ Theorem CommonTheoremProducer::iffContrapositive(const Theorem& e) {
   if(withProof()) {
     pf = newPf("iff_contrapositive", e.getExpr(), e.getProof());
   }
-  return newRWTheorem(e.getLHS().negate(),e.getRHS().negate(), e.getAssumptionsRef(), pf);
+  return newRWTheorem(e.getLHS().negate(),e.getRHS().negate(), Assumptions(e), pf);
 }
 
 
@@ -652,7 +660,7 @@ Theorem CommonTheoremProducer::notNotElim(const Theorem& not_not_e) {
   Proof pf;
   if(withProof())
     pf = newPf("not_not_elim", not_not_e.getExpr(), not_not_e.getProof());
-  return newTheorem(not_not_e.getExpr()[0][0], not_not_e.getAssumptionsRef(), pf);
+  return newTheorem(not_not_e.getExpr()[0][0], Assumptions(not_not_e), pf);
 }
 
 
@@ -717,7 +725,7 @@ Theorem CommonTheoremProducer::andElim(const Theorem& e, int i) {
   Proof pf;
   if(withProof())
     pf = newPf("andE", d_em->newRatExpr(i), e.getExpr(), e.getProof());
-  return newTheorem(e.getExpr()[i], e.getAssumptionsRef(), pf);
+  return newTheorem(e.getExpr()[i], Assumptions(e), pf);
 }
 
 
@@ -736,17 +744,27 @@ Theorem CommonTheoremProducer::andIntro(const vector<Theorem>& es) {
     CHECK_SOUND(es.size() > 0,
 		"andIntro(vector<Theorem>): vector must be non-empty");
   Assumptions a(es);
+  /*
   if(withProof()) {
     vector<Proof> pfs;
     for(vector<Theorem>::const_iterator i=es.begin(), iend=es.end();
 	i!=iend; ++i)
       pfs.push_back(i->getProof());
-    pf = newPf("andI", pfs);
+    //    pf = newPf("andI", andExpr(kids), pfs);
   }
+  */
   vector<Expr> kids;
   for(vector<Theorem>::const_iterator i=es.begin(), iend=es.end();
       i!=iend; ++i)
     kids.push_back(i->getExpr());
+
+  if(withProof()) {
+    vector<Proof> pfs;
+    for(vector<Theorem>::const_iterator i=es.begin(), iend=es.end();
+	i!=iend; ++i)
+      pfs.push_back(i->getProof());
+    pf = newPf("andI", andExpr(kids), pfs);
+  }
   return newTheorem(andExpr(kids), a, pf);
 }
 
@@ -814,7 +832,7 @@ Theorem CommonTheoremProducer::implContrapositive(const Theorem& thm) {
   Proof pf;
   if(withProof())
     pf = newPf("impl_contrapositive", impl, thm.getProof());
-  return newTheorem(impl[1].negate().impExpr(impl[0].negate()), thm.getAssumptionsRef(), pf);
+  return newTheorem(impl[1].negate().impExpr(impl[0].negate()), Assumptions(thm), pf);
 }
 
 
@@ -830,7 +848,7 @@ Theorem CommonTheoremProducer::notToIff(const Theorem& not_e)
   Proof pf;
   if(withProof())
     pf=newPf("not_to_iff", e, not_e.getProof());
-  return newRWTheorem(e, d_em->falseExpr(), not_e.getAssumptionsRef(), pf);
+  return newRWTheorem(e, d_em->falseExpr(), Assumptions(not_e), pf);
 }
 
 
@@ -1067,6 +1085,8 @@ Theorem CommonTheoremProducer::skolemizeRewrite(const Expr& e)
     pf = newLabel(rw);
   }
   TRACE("quantlevel", "skolemize ", skol, "");
+  TRACE("quantlevel sko", "skolemize ", skol, "");
+  TRACE("quantlevel sko", "skolemize from org ", e, "");
   return newRWTheorem(e, skol, Assumptions::emptyAssump(), pf);
 
 }
@@ -1148,7 +1168,8 @@ Theorem CommonTheoremProducer::skolemize(const Theorem& thm) {
     }
     d_skolem_axioms.push_back(skol);
     d_skolemized_thms.insert(e, skol, 0);//d_coreSatAPI->getBottomScope());
-    skol = iffMP(thm, skol);
+    skol = iffMP(thm, skol); 
+
     TRACE("skolem", "skolemized new theorem: ", skol, "}");
     return skol;
   }

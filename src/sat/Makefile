@@ -21,6 +21,7 @@ SRC = $(EXTRA_SAT_CPP) \
 HEADERS = $(EXTRA_SAT_HEADERS) \
           cnf_rules.h \
           cnf_theorem_producer.h \
+	  sat_proof.h \
           minisat_global.h \
           minisat_heap.h \
           minisat_types.h \

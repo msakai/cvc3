@@ -30,38 +30,31 @@ namespace MiniSat {
   Clause* Clause::s_decision = NULL;
   Clause* Clause::s_theoryImplication = NULL;
 
-  Clause* Clause_new(const vector<Lit>& ps, int id) {
-    DebugAssert(sizeof(Lit)   == sizeof(uint), "MiniSat::Types::Clause_new Lit");
-    DebugAssert(sizeof(float) == sizeof(uint), "MiniSat::Types::Clause_new float");
-    DebugAssert(sizeof(id)    == sizeof(uint), "MiniSat::Types::Clause_new id");
+  const int clause_mem_base =
+    sizeof(unsigned int)
+    + 2 * sizeof(int)
+    + sizeof(float)
+    + sizeof (CVC3::Theorem);
 
-    //   size_learnt
-    // + literals
-    // + id
-    void* mem = xmalloc<char>(sizeof(uint)*(ps.size() + 2));
-    return new (mem) Clause(false, ps, id);
+  void* malloc_clause(const vector<Lit>& ps) {
+    return xmalloc<char>
+      (clause_mem_base + sizeof(Lit) * (max(size_t(1), ps.size())));
+  }
+
+  Clause* Clause_new(const vector<Lit>& ps, CVC3::Theorem theorem, int id) {
+    void* mem = malloc_clause(ps);
+    return new (mem) Clause(false, ps, theorem, id, id);
   }
 
   Clause* Lemma_new(const vector<Lit>& ps, int id, int pushID) {
-    DebugAssert(sizeof(Lit)      == sizeof(uint), "MiniSat::Types::Lemma_new Lit");
-    DebugAssert(sizeof(float)    == sizeof(uint), "MiniSat::Types::Lemma_new float");
-    DebugAssert(sizeof(id)       == sizeof(uint), "MiniSat::Types::Lemma_new id");
-
-    //   size_learnt
-    // + literals
-    // + id
-    // + pushID
-    // + activity
-    void* mem = xmalloc<char>(sizeof(uint)*(ps.size() + 4));
-    Clause* clause = new (mem) Clause(true, ps, id);
-    clause->pushID() = pushID;
-    return clause;
+    void* mem = malloc_clause(ps);
+    return new (mem) Clause(true, ps, CVC3::Theorem(), id, pushID);
   }
 
   Clause* Clause::Decision() {
     if (s_decision == NULL) {
       vector<Lit> lits;
-      s_decision = Clause_new(lits, -1);
+      s_decision = Clause_new(lits, CVC3::Theorem(), -1);
     }
     
     return s_decision;
@@ -70,7 +63,7 @@ namespace MiniSat {
   Clause* Clause::TheoryImplication() {
     if (s_theoryImplication == NULL) {
       vector<Lit> lits;
-      s_theoryImplication = Clause_new(lits, -2);
+      s_theoryImplication = Clause_new(lits, CVC3::Theorem(), -2);
     }
     
     return s_theoryImplication;
@@ -78,7 +71,7 @@ namespace MiniSat {
 
   void Clause::toLit(vector<Lit>& literals) const {
     for (int i = 0; i < size(); ++i) {
-      literals.push_back(data[i]);
+      literals.push_back(d_data[i]);
     }
   }
 

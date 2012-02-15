@@ -364,9 +364,6 @@ CoreTheoremProducer::rewriteDistinct(const Expr& e) {
     CHECK_SOUND(e.getKind() == DISTINCT, "rewriteDistinct precondition violated");
     CHECK_SOUND(e.arity() > 0, "rewriteDistinct precondition violated");
   }
-  if(withProof()) {
-    pf = newPf("rewrite_distinct");
-  }
   Expr res;
   if (e.arity() == 1) {
     res = e.getEM()->trueExpr();
@@ -383,6 +380,10 @@ CoreTheoremProducer::rewriteDistinct(const Expr& e) {
     }
     res = Expr(AND, tmp);
   }
+  if(withProof()) {
+    pf = newPf("rewrite_distinct", e , res);
+  }
+
   return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
@@ -719,4 +720,11 @@ CoreTheoremProducer::rewriteOrSubterms(const Expr& e, int idx) {
   if(withProof())
     pf = newPf("rewrite_or_subterms", e, d_em->newRatExpr(idx));
   return newRWTheorem(e, Expr(e.getOp(), kids), Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem CoreTheoremProducer::dummyTheorem(const Expr& e)
+{
+  Proof pf;	
+  return newTheorem(e, Assumptions::emptyAssump(), pf);
 }

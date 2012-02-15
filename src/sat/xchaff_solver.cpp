@@ -663,9 +663,30 @@ bool CSolver::decide_next_branch(void)
     if (s_var < 2) done = true;
 
     if (_decision_hook) {
+    decide:
       s_var2 = (*_decision_hook)(_decision_hook_cookie, &done);
-      if (done || s_var2 >= 2)
-        s_var = s_var2;
+      if (done) {
+        if (s_var2 == -1) {
+          // No more decisions
+          return false;
+        }
+        else {
+          // check for more work
+          if (!_implication_queue.empty() ||
+              _conflicts.size() != 0)
+            return false;
+          else goto decide;
+        }
+      }
+      else {
+        if (s_var2 == -1) {
+          // use SAT choice
+        }
+        else {
+          // use decision
+          s_var = s_var2;
+        }
+      }
     }
 
     if (s_var<2) //no more free vars, solution found,  quit

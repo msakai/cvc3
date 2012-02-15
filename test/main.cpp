@@ -213,34 +213,48 @@ void test2()
   ValidityChecker* vc = ValidityChecker::create(flags);
 
   try {
-  // Check x = y -> g(x,y) = g(y,x)
 
-  Expr x = vc->varExpr("x", vc->realType());
-  Expr y = vc->varExpr("y", vc->realType());
+    Expr bexpr = vc->varExpr("b", vc->intType());
+    vc->assertFormula(vc->ltExpr(bexpr, vc->ratExpr(10)));
 
-  Type real = vc->realType();
-  vector<Type> RxR;
-  RxR.push_back(real);
-  RxR.push_back(real);
+    Expr c = vc->varExpr("c", vc->intType());
+    vc->assertFormula(c.eqExpr(vc->ratExpr(0)) || c.eqExpr(vc->ratExpr(1)));
 
-  Type realxreal2real = vc->funType(RxR, real);
-  Op g = vc->createOp("g", realxreal2real);
+    IF_DEBUG(bool b =) check(vc, vc->leExpr(bexpr, vc->ratExpr(10)));
+    DebugAssert(b, "Should be valid");
 
-  Expr gxy = vc->funExpr(g, x, y);
-  Expr gyx = vc->funExpr(g, y, x);
+    IF_DEBUG(b =) check(vc, vc->falseExpr());
+    DebugAssert(!b, "Should be invalid");
+    vc->returnFromCheck();
 
-  Expr e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(gxy, gyx));
-  IF_DEBUG(bool b =) check(vc, e);
-  DebugAssert(b, "Should be valid");
+    // Check x = y -> g(x,y) = g(y,x)
 
-  Op h = vc->createOp("h", realxreal2real);
+    Expr x = vc->varExpr("x", vc->realType());
+    Expr y = vc->varExpr("y", vc->realType());
 
-  Expr hxy = vc->funExpr(h, x, y);
-  Expr hyx = vc->funExpr(h, y, x);
+    Type real = vc->realType();
+    vector<Type> RxR;
+    RxR.push_back(real);
+    RxR.push_back(real);
 
-  e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(hxy, hyx));
-  IF_DEBUG(b =) check(vc, e);
-  DebugAssert(b, "Should be valid");
+    Type realxreal2real = vc->funType(RxR, real);
+    Op g = vc->createOp("g", realxreal2real);
+
+    Expr gxy = vc->funExpr(g, x, y);
+    Expr gyx = vc->funExpr(g, y, x);
+
+    Expr e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(gxy, gyx));
+    IF_DEBUG(b =) check(vc, e);
+    DebugAssert(b, "Should be valid");
+
+    Op h = vc->createOp("h", realxreal2real);
+
+    Expr hxy = vc->funExpr(h, x, y);
+    Expr hyx = vc->funExpr(h, y, x);
+
+    e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(hxy, hyx));
+    IF_DEBUG(b =) check(vc, e);
+    DebugAssert(b, "Should be valid");
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -786,7 +800,7 @@ Expr vectorEq(ValidityChecker* vc, vector<Expr> a, vector<Expr> b)
 
 void test9(int N) {
   CLFlags flags = ValidityChecker::createFlags();
-  flags.setFlag("proofs",true);
+  //  flags.setFlag("proofs",true);
   ValidityChecker* vc = ValidityChecker::create(flags);
 
   try {
@@ -805,7 +819,7 @@ void test9(int N) {
 
   check(vc, q);
 
-  Proof p = vc->getProof();
+  //  Proof p = vc->getProof();
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -1193,7 +1207,7 @@ void test15() {
 			     vc->readExpr(arr, vc->plusExpr(id, vc->ratExpr(1))));
   // forall expr
   Expr forall_expr = vc->forallExpr(vars, for_body);
-
+  
   vc->push();
   check(vc, forall_expr);
 
@@ -1206,7 +1220,7 @@ void test15() {
   }
   cout << "End of counter-example" << endl << endl;
   vc->pop();
-
+  
   /*****************************************************
    *            manual expansion                       *
    *****************************************************/
@@ -1243,20 +1257,22 @@ void test15() {
   /*****************************************************
    *            ???     forall <==> manual expansion   *
    *****************************************************/
+  
   cout << endl << "Checking forallExpr <==> manual expansion ..." << endl;
   if (vc->query(vc->iffExpr(forall_expr, manual_expr)))
     cout << "   -- yes." << endl;
   else {
     cout << "   -- no, with counter examples as " << endl;
- 
+    
     vector<Expr> assert1;
     vc->getCounterExample(assert1);
     for (unsigned int i = 0; i < assert1.size(); i ++)
       vc->printExpr(assert1[i]);
+    
   }
   cout << endl;
 
-
+  
 
   /*****************************************************
    *            ???     !forall <==> existsExpr        *

@@ -39,6 +39,8 @@
 #ifndef _cvc3__assumptions_h_
 #define _cvc3__assumptions_h_
 
+#include "theorem.h"
+
 namespace CVC3 {
 
   class Assumptions {

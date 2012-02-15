@@ -17,10 +17,13 @@
  * <hr>
  */
 /*****************************************************************************/
-
+//we need this to use newPf
+#define _CVC3_TRUSTED_ 
 
 #include "dpllt_minisat.h"
 #include "minisat_solver.h"
+#include "sat_proof.h"
+#include "theorem_producer.h"
 #include "exception.h"
 
 using namespace std;
@@ -28,10 +31,12 @@ using namespace CVC3;
 using namespace SAT;
 
 
-DPLLTMiniSat::DPLLTMiniSat(TheoryAPI* theoryAPI, Decider* decider, bool printStats)
-  : DPLLT(theoryAPI, decider), d_printStats(printStats) {
+DPLLTMiniSat::DPLLTMiniSat(TheoryAPI* theoryAPI, Decider* decider,
+			   bool printStats, bool createProof)
+  : DPLLT(theoryAPI, decider), d_printStats(printStats),
+    d_createProof(createProof), d_proof(NULL) {
   pushSolver();
-};
+}
 
 DPLLTMiniSat::~DPLLTMiniSat() {
   while (!d_solvers.empty()) {
@@ -39,17 +44,18 @@ DPLLTMiniSat::~DPLLTMiniSat() {
     delete (d_solvers.top());
     d_solvers.pop();
   }
+  delete d_proof;
 }
 
 MiniSat::Solver* DPLLTMiniSat::getActiveSolver() {
   DebugAssert(!d_solvers.empty(), "DPLLTMiniSat::getActiveSolver: no solver");
   return d_solvers.top();
-};
+}
 
 
 void DPLLTMiniSat::pushSolver() {
   if (d_solvers.empty()) {
-    d_solvers.push(new MiniSat::Solver(d_theoryAPI, d_decider));
+    d_solvers.push(new MiniSat::Solver(d_theoryAPI, d_decider, d_createProof));
   }
   else {
     d_solvers.push(MiniSat::Solver::createFrom(getActiveSolver()));
@@ -106,6 +112,14 @@ QueryResult DPLLTMiniSat::search()
   // the dpllt interface requires that for an unsat result
   // all theory pops are undone right away.
   if (result == UNSATISFIABLE) {
+    //    cout << "unsat" <<endl;
+    //    return result;
+    if (d_createProof ) {
+      delete d_proof;
+      //      cout<<"creating proof" << endl;
+      DebugAssert(d_solvers.top()->getDerivation() != NULL, "DplltMiniSat::search: no proof");
+      d_proof = d_solvers.top()->getDerivation()->createProof();
+    }
     d_solvers.top()->popTheories();
     d_theoryAPI->pop();
   }
@@ -198,6 +212,13 @@ void DPLLTMiniSat::pop() {
   d_theoryAPI->pop();
 }
 
+std::vector<SAT::Lit> DPLLTMiniSat::getCurAssignments(){
+  return getActiveSolver()->curAssigns();
+} 
+
+std::vector<std::vector<SAT::Lit> > DPLLTMiniSat::getCurClauses(){
+  return getActiveSolver()->curClauses();
+}
 
 void DPLLTMiniSat::addAssertion(const CNF_Formula& cnf) {
   // perform any requested solver pops
@@ -230,3 +251,136 @@ Var::Val DPLLTMiniSat::getValue(Var var) {
   else
     return Var::UNKNOWN;
 }
+
+
+CVC3::Proof generateSatProof(SAT::SatProofNode* node, CNF_Manager* cnfManager, TheoremProducer* thmProducer){
+  if(node->hasNodeProof())    { 
+    return node->getNodeProof();
+  }
+  if (node->isLeaf()){
+
+    /*
+//<<<<<<< dpllt_minisat.cpp
+
+    SAT::Clause curClause =  *(node->getLeaf());
+
+    DebugAssert(!curClause.isNull(), "Null clause found in generateSatProof");
+
+    cout << "get leaf clause " << curClause.getId() << endl; 
+
+    const CVC3::Theorem clauseThm = curClause.getClauseTheorem();
+//=======
+    */
+
+    const CVC3::Theorem clauseThm = node->getLeaf();
+
+    /*
+//>>>>>>> 1.14
+    */
+
+    DebugAssert(!clauseThm.isNull(), "Null thm found in generateSatProof");
+    node->setNodeProof(clauseThm.getProof());
+//     cout<<"set proof " << clauseThm.getProof() << endl;
+//     cout<<"set proof for theorem " << clauseThm << endl;
+    return clauseThm.getProof();
+  }
+  else{
+    CVC3::Proof leftProof = generateSatProof(node->getLeftParent(), cnfManager, thmProducer);
+    CVC3::Proof rightProof = generateSatProof(node->getRightParent(), cnfManager, thmProducer);
+
+    if(node->getLeftParent() == node->getRightParent() ) cout<<"***error ********"<<endl;
+    vector<Proof> pfs;
+    pfs.push_back(leftProof);
+    pfs.push_back(rightProof);
+    //    if(leftProof == rightProof) cout<<"***********"<<endl;
+
+    Lit lit = node->getLit();
+    Expr e = cnfManager->concreteLit(lit);
+    Expr e_trans = cnfManager->concreteLit(lit,false);
+//     cout<<"set lit "<<lit.getVar()<<endl << e_trans <<endl << e << endl;
+//     cout<<"set lit "<<lit.getVar()<<endl << e_trans.getIndex() <<endl ;
+     if(e != e_trans){
+//         cout<<"-diff e "<<e<<endl<<flush;
+//         cout<<"-diff e_trans " <<e_trans <<endl <<flush; 
+     }
+     //      {
+     //        cout<<"Lit "<<lit.getID() << " " ;
+     //        if (lit.isNull()) cout << "NULL";
+     //        else if (lit.isFalse()) cout << "F";
+     //        else if (lit.isTrue()) cout << "T";
+     //        else {
+     //  	if (!lit.isPositive()) cout << "-";
+     //  	cout << lit.getVar();
+     //        }
+     //        cout<<endl;
+     //      }
+     
+     //      cout<<"e "<<e<<endl<<flush;
+    Proof pf;
+    pf = thmProducer->newPf("bool_resolution", e_trans, pfs);
+    node->setNodeProof(pf);
+    return pf;
+
+  }
+  
+}
+
+void printSatProof(SAT::SatProofNode* node){
+  if (node->isLeaf()){
+    CVC3::Theorem theorem = node->getLeaf();
+    
+    if(theorem.isNull()){
+      cout<<"theorem null"<<endl;
+    }
+    else{
+      cout<<"====================" << endl;
+      /*
+//<<<<<<< dpllt_minisat.cpp
+      clause.print();
+      cout<<"--------------------" << endl;
+      */
+      /*      
+      const CVC3::Theorem clauseThm = clause.getClauseTheorem();
+      cout<<"====================" << endl;
+      clause.print();
+//=======
+      theorem.print();
+//>>>>>>> 1.14
+      cout<<"--------------------" << endl;
+//<<<<<<< dpllt_minisat.cpp
+      if(clauseThm.isNull()){
+	cout<<"leaf id " << clause.getId() << " # " <<  "NULL"  << endl;
+      }
+      else{
+	cout<<"leaf id " << clause.getId() << " # " <<  clauseThm << endl;
+	}
+      */
+      /*
+//=======
+//>>>>>>> 1.14
+	  */
+    }
+  }
+  else{
+    SAT::SatProofNode * leftNode = node->getLeftParent();
+    SAT::SatProofNode * rightNode = node->getRightParent();
+
+    printSatProof(leftNode);
+    printSatProof(rightNode);
+  }
+
+}
+
+
+
+CVC3::Proof DPLLTMiniSat::getSatProof(CNF_Manager* cnfManager, CVC3::TheoryCore* core){
+  SAT::SatProof* proof = getProof();
+  SAT::SatProofNode * rootNode = proof->getRoot();
+  
+  //printSatProof(rootNode);
+  
+  CVC3::TheoremProducer* thmProducer = new TheoremProducer(core->getTM());
+
+  return generateSatProof(rootNode, cnfManager, thmProducer);
+}
+

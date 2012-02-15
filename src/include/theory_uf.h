@@ -30,7 +30,7 @@ class UFProofRules;
   //! Local kinds for transitive closure of binary relations
  typedef enum {
    TRANS_CLOSURE = 500,
-   OLD_ARROW, // for backward compatibility with old function declarations
+   OLD_ARROW // for backward compatibility with old function declarations
  } UFKinds;
 
 /*****************************************************************************/

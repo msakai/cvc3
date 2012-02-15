@@ -28,6 +28,7 @@
 #include "command_line_flags.h"
 #include "statistics.h"
 #include "cdmap.h"
+#include "cdlist.h"
 
 namespace CVC3 {
 
@@ -75,7 +76,7 @@ class CVC_DLL VCL : public ValidityChecker {
   CDO<int> *d_stackLevel;
 
   //! Run-time statistics
-  Statistics d_statistics;
+  Statistics* d_statistics;
 
   //! Next index for user assertion
   size_t d_nextIdx;
@@ -105,6 +106,12 @@ class CVC_DLL VCL : public ValidityChecker {
 
   //! Backtracking map of user assertions
   CDMap<Expr,UserAssertion>* d_userAssertions;
+
+  //! Backtracking map of assertions when assertion batching is on
+  CDList<Expr>* d_batchedAssertions;
+
+  //! Index into batched Assertions
+  CDO<unsigned>* d_batchedAssertionsIdx;
 
   //! Result of the last query()
   /*! Saved for printing assumptions and proofs.  Normally it is
@@ -144,6 +151,11 @@ class CVC_DLL VCL : public ValidityChecker {
     //! Print an entry to the dump file: change of scope
     void dumpTrace(int scope);
 #endif
+
+  //! Initialize everything except flags
+  void init(void);
+  //! Destroy everything except flags
+  void destroy(void);
 
 public:
   // Takes the vector of command line flags.
@@ -197,8 +209,6 @@ public:
   ExprManager* getEM() { return d_em; }
   Expr varExpr(const std::string& name, const Type& type);
   Expr varExpr(const std::string& name, const Type& type, const Expr& def);
-  Expr boundVarExpr(const std::string& name, const std::string& uid,
-		    const Type& type);
   Expr lookupVar(const std::string& name, Type* type);
   Type getType(const Expr& e);
   Type getBaseType(const Expr& e);
@@ -288,6 +298,7 @@ public:
   Expr newBVXnorExpr(const std::vector<Expr>& kids);
   Expr newBVNandExpr(const Expr& t1, const Expr& t2);
   Expr newBVNorExpr(const Expr& t1, const Expr& t2);
+  Expr newBVCompExpr(const Expr& t1, const Expr& t2);
   Expr newBVLTExpr(const Expr& t1, const Expr& t2);
   Expr newBVLEExpr(const Expr& t1, const Expr& t2);
   Expr newBVSLTExpr(const Expr& t1, const Expr& t2);
@@ -300,6 +311,7 @@ public:
   Expr newFixedLeftShiftExpr(const Expr& t1, int r);
   Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r);
   Expr newFixedRightShiftExpr(const Expr& t1, int r);
+  Rational computeBVConst(const Expr& e);
 
   Expr tupleExpr(const std::vector<Expr>& exprs);
   Expr tupleSelectExpr(const Expr& tuple, int index);
@@ -308,7 +320,10 @@ public:
                         const std::vector<Expr>& args);
   Expr datatypeSelExpr(const std::string& selector, const Expr& arg);
   Expr datatypeTestExpr(const std::string& constructor, const Expr& arg);
+  Expr boundVarExpr(const std::string& name, const std::string& uid,
+		    const Type& type);
   Expr forallExpr(const std::vector<Expr>& vars, const Expr& body);
+  void setTriggers(const Expr& e, const std::vector<Expr>& triggers);
   Expr existsExpr(const std::vector<Expr>& vars, const Expr& body);
   Op lambdaExpr(const std::vector<Expr>& vars, const Expr& body);
   Expr simulateExpr(const Expr& f, const Expr& s0,
@@ -329,6 +344,7 @@ public:
   void getInternalAssumptions(std::vector<Expr>& assumptions);
   void getAssumptions(std::vector<Expr>& assumptions);
   void getAssumptionsUsed(std::vector<Expr>& assumptions);
+  Expr getProofQuery();
   void getCounterExample(std::vector<Expr>& assumptions, bool inOrder);
   void getConcreteModel(ExprMap<Expr> & m);
   bool inconsistent(std::vector<Expr>& assumptions);
@@ -350,16 +366,18 @@ public:
   void popScope();
   void poptoScope(int scopeLevel);
   Context* getCurrentContext();
+  void reset();
 
   void loadFile(const std::string& fileName,
 		InputLanguage lang = PRESENTATION_LANG,
-		bool interactive = false);
+		bool interactive = false,
+                bool calledFromParser = false);
   void loadFile(std::istream& is,
 		InputLanguage lang = PRESENTATION_LANG,
 		bool interactive = false);
 
-  Statistics& getStatistics() { return d_statistics; }
-  void printStatistics() { std::cout << d_statistics << std::endl; }
+  Statistics& getStatistics() { return *d_statistics; }
+  void printStatistics() { std::cout << *d_statistics << std::endl; }
   unsigned long printMemory();
 
 };

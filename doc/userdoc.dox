@@ -916,7 +916,7 @@ The index of the LSB in the bit vector is 0 and
 the index of the MSB is n-1 for an n-bit constant. 
 This convention extends to all bit vector expressions in the natural way. 
 
-Bit-vector operators are categorized into
+Bit vector operators are categorized into
 word-level, bitwise, arithmetic, and comparison operators.
 
 \verbatim

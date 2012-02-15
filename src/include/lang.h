@@ -40,6 +40,8 @@ namespace CVC3 {
        format; there is no such input language <em>per se</em> */
     SIMPLIFY_LANG,
     //! for output into Simplify format
+    TPTP_LANG
+    //! for output in TPTP format
   } InputLanguage;
   
   inline InputLanguage getLanguage(const std::string& lang) {
@@ -47,10 +49,12 @@ namespace CVC3 {
       if(lang[0] == 'p') return PRESENTATION_LANG;
       if(lang[0] == 'l') return LISP_LANG;
       if(lang[0] == 'a') return AST_LANG;
+      if(lang[0] == 't') return TPTP_LANG;
       if(lang[0] == 's') {
         if (lang.size() > 1 && lang[1] == 'i') return SIMPLIFY_LANG;
         else return SMTLIB_LANG;
       }
+      
     }
 
     throw Exception("Bad input language specified");

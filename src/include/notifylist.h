@@ -34,7 +34,7 @@ class NotifyList {
 
 public:
   NotifyList(Context* c) : d_tlist(c), d_elist(c) {
-    IF_DEBUG(d_elist.setName("CDList[NotifyList]"));
+    IF_DEBUG(d_elist.setName("CDList[NotifyList]");)
   }
   unsigned size() const { return d_tlist.size(); }
   void add(Theory* t, const Expr& e) { d_tlist.push_back(t); d_elist.push_back(e); }

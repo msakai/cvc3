@@ -88,7 +88,7 @@ public:
     : ContextObj(context, true /* use bottom scope */),
     d_key(key), d_inMap(false), d_cdmap(cdmap) {
     set(data, scope);
-    IF_DEBUG(setName("CDOmap"));
+    IF_DEBUG(setName("CDOmap");)
     CDOmap<Key, Data, HashFcn>*& first = d_cdmap->d_first;
     if (first == NULL) {
       first = d_next = d_prev = this;
@@ -165,13 +165,15 @@ class CDMap: public ContextObj {
 public:
   CDMap(Context* context, int scope = -1)
     : ContextObj(context), d_first(NULL), d_context(context) {
-    IF_DEBUG(setName("CDMap"));     
+    IF_DEBUG(setName("CDMap"));   ; 
   }
   ~CDMap() { setNull(); }
   // The usual operators of map
   size_t size() const { return d_map.size(); }
   size_t count(const Key& k) const { return d_map.count(k); }
 
+  typedef CDOmap<Key, Data, HashFcn>& ElementReference;
+  
   // If a key is not present, a new object is created and inserted
   CDOmap<Key, Data, HashFcn>& operator[](const Key& k) {
     emptyTrash();

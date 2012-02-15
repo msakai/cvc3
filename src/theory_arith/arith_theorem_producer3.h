@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*!
- * \file arith_theorem_producer.h
+ * \file arith_theorem_producer3.h
  * \brief TRUSTED implementation of arithmetic proof rules
  * 
  * Author: Vijay Ganesh, Sergey Berezin
@@ -19,8 +19,8 @@
  */
 /*****************************************************************************/
 
-#ifndef _cvc3__arith_theorem_producer_h_
-#define _cvc3__arith_theorem_producer_h_
+#ifndef _cvc3__arith_theorem_producer3_h_
+#define _cvc3__arith_theorem_producer3_h_
 
 #include "arith_proof_rules.h"
 #include "theorem_producer.h"
@@ -29,7 +29,7 @@
 namespace CVC3 {
   class TheoryArith;
   
-  class ArithTheoremProducer: public ArithProofRules, public TheoremProducer {
+  class ArithTheoremProducer3: public ArithProofRules, public TheoremProducer {
     TheoryArith* d_theoryArith;
   private:
     /*! \name Auxiliary functions for eqElimIntRule()
@@ -63,7 +63,7 @@ namespace CVC3 {
     /*@}*/
   public:
     //! Constructor
-    ArithTheoremProducer(TheoremManager* tm, TheoryArith* theoryArith):
+    ArithTheoremProducer3(TheoremManager* tm, TheoryArith* theoryArith):
       TheoremProducer(tm), d_theoryArith(theoryArith) { }
 
     //! Create Expr from Rational (for convenience)
@@ -312,7 +312,7 @@ namespace CVC3 {
     Theorem trustedRewrite(const Expr& expr1, const Expr& expr2);
 	
     Theorem rafineStrictInteger(const Theorem& isIntConstrThm, const Expr& constr);
-    
+
     Theorem simpleIneqInt(const Expr& ineq, const Theorem& isIntRHS);
     
     Theorem intEqualityRationalConstant(const Theorem& isIntConstrThm, const Expr& constr);
@@ -336,7 +336,7 @@ namespace CVC3 {
     
     Theorem powerOfOne(const Expr& e);
 
-  }; // end of class ArithTheoremProducer
+  }; // end of class ArithTheoremProducer3
 
 } // end of namespace CVC3
 

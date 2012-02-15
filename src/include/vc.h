@@ -238,7 +238,7 @@ public:
   //! Create named user-defined interpreted type (type abbreviation)
   virtual Type createType(const std::string& typeName, const Type& def) = 0;
 
-  //! Lookup a user-defined (uninterpreted) type by name
+  //! Lookup a user-defined (uninterpreted) type by name.  Returns Null if none.
   virtual Type lookupType(const std::string& typeName) = 0;
 
   /*@}*/ // End of Type-related methods
@@ -266,18 +266,6 @@ public:
   //! Create a variable with a given name, type, and value
   virtual Expr varExpr(const std::string& name, const Type& type,
 		       const Expr& def) = 0;
-
-  //! Create a bound variable with a given name, unique ID (uid) and type 
-  /*!
-    \param name is the name of the variable
-    \param uid is the unique ID (a string), which must be unique for
-    each variable
-    \param type is its type.  The type cannot be a function type.
-    \return an Expr representation of a new variable
-   */
-  virtual Expr boundVarExpr(const std::string& name,
-			    const std::string& uid,
-			    const Type& type) = 0;
 
   //! Get the variable associated with a name, and its type 
   /*!
@@ -641,6 +629,7 @@ public:
 
   virtual Expr newBVNandExpr(const Expr& t1, const Expr& t2) = 0;
   virtual Expr newBVNorExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVCompExpr(const Expr& t1, const Expr& t2) = 0;
 
   // Unsigned bitvector inequalities
   virtual Expr newBVLTExpr(const Expr& t1, const Expr& t2) = 0;
@@ -667,6 +656,8 @@ public:
   virtual Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r) = 0;
   // Logical right shift by r bits: result is same size as t1
   virtual Expr newFixedRightShiftExpr(const Expr& t1, int r) = 0;
+  // Get value of BV Constant
+  virtual Rational computeBVConst(const Expr& e) = 0;
 
   /*@}*/ // End of Bitvector expression methods
 
@@ -697,8 +688,30 @@ public:
   //! Datatype tester expression
   virtual Expr datatypeTestExpr(const std::string& constructor, const Expr& arg) = 0;
 
+  //! Create a bound variable with a given name, unique ID (uid) and type 
+  /*!
+    \param name is the name of the variable
+    \param uid is the unique ID (a string), which must be unique for
+    each variable
+    \param type is its type.  The type cannot be a function type.
+    \return an Expr representation of a new variable
+   */
+  virtual Expr boundVarExpr(const std::string& name,
+			    const std::string& uid,
+			    const Type& type) = 0;
+
   //! Universal quantifier
   virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body) = 0;
+
+  //! Set triggers for quantifier instantiation
+  /*!
+   * \param e is the expression for which triggers are being set.
+   * \param Each entry in triggers is a listExpr containing one or more patterns.
+   * A pattern is a term or Atomic predicate sub-expression of e.
+   * A list containing more than one pattern is treated as a multi-trigger.
+   * Patterns will be matched in the order they occur in the vector.
+  */
+  virtual void setTriggers(const Expr& e, const std::vector<Expr>& triggers) = 0;
 
   //! Existential quantifier
   virtual Expr existsExpr(const std::vector<Expr>& vars, const Expr& body) = 0;
@@ -810,6 +823,9 @@ public:
    *  \param assumptions should be empty on entry.
   */
   virtual void getAssumptionsUsed(std::vector<Expr>& assumptions) = 0;
+
+  virtual Expr getProofQuery() = 0;
+
 
   //! Return the internal assumptions that make the queried formula false.
   /*! This method should only be called after a query which returns
@@ -946,6 +962,9 @@ public:
   //! Get the current context
   virtual Context* getCurrentContext() = 0;
 
+  //! Destroy and recreate validity checker: resets everything except for flags
+  virtual void reset() = 0;
+
   /*@}*/ // End of Context methods
 
   /***************************************************************************/
@@ -959,7 +978,8 @@ public:
   //! Read and execute the commands from a file given by name ("" means stdin)
   virtual void loadFile(const std::string& fileName,
 			InputLanguage lang = PRESENTATION_LANG,
-			bool interactive = false) = 0;
+			bool interactive = false,
+                        bool calledFromParser = false) = 0;
 
   //! Read and execute the commands from a stream
   virtual void loadFile(std::istream& is,

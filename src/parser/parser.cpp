@@ -226,6 +226,10 @@ namespace CVC3 {
       out << d_data->temp.fileName << ":" << d_data->temp.lineNum;
   }
 
+  void Parser::reset()
+  {
+    d_data->temp.expr = Expr();
+  }
   
 
 } // end of namespace CVC3

@@ -33,6 +33,10 @@ namespace CVC3 {
     virtual ~QuantProofRules() { }
     
     virtual Theorem addNewConst(const Expr& e) =0;
+
+    virtual Theorem newRWThm(const Expr& e, const Expr& newE) = 0 ;
+
+    virtual Theorem normalizeQuant(const Expr& e) =0;
     
     //! ==> NOT EXISTS (vars): e  IFF FORALL (vars) NOT e
     virtual Theorem rewriteNotExists(const Expr& e) = 0;
@@ -50,6 +54,8 @@ namespace CVC3 {
      * \param terms are the terms to instantiate.
      * \param quantLevel is the quantification level for the theorem.
      */
+    virtual Theorem universalInst(const Theorem& t1,  const std::vector<Expr>& terms, int quantLevel, Expr gterm ) = 0 ;
+
     virtual Theorem universalInst(const Theorem& t1,
 				  const std::vector<Expr>& terms, int quantLevel) = 0;
 

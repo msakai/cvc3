@@ -38,6 +38,7 @@ namespace CVC3 {
   class Proof {
   private:
     Expr d_proof;
+    //    unsigned d_insts; //by yeting, this is to store the number of instantiations. debug only
   public:
     Proof(const Expr &e) : d_proof(e) { } // Constructor
     Proof(const Proof& p) : d_proof(p.d_proof) { } // Copy constructor

@@ -87,7 +87,7 @@ public:
     : ContextObj(context, true /* use bottom scope */),
     d_key(key), d_inMap(false), d_cdmap(cdmap) {
     set(data, scope);
-    IF_DEBUG(setName("CDOmapOrdered"));
+    IF_DEBUG(setName("CDOmapOrdered");)
     CDOmapOrdered<Key, Data>*& first = d_cdmap->d_first;
     if (first == NULL) {
       first = d_next = d_prev = this;
@@ -159,7 +159,7 @@ class CDMapOrdered: public ContextObj {
 public:
   CDMapOrdered(Context* context, int scope = -1)
     : ContextObj(context), d_first(NULL), d_context(context) {
-    IF_DEBUG(setName("CDMapOrdered"));     
+    IF_DEBUG(setName("CDMapOrdered"));   ; 
   }
   ~CDMapOrdered() { setNull(); }
   // The usual operators of map

@@ -148,6 +148,7 @@ Assumptions::Assumptions(const vector<Theorem>& v) {
 
 Assumptions::Assumptions(const Theorem& t1, const Theorem& t2)
 {
+    
   if (!t1.getAssumptionsRef().empty()) {
     if (!t2.getAssumptionsRef().empty()) {
       switch(compare(t1, t2)) {
@@ -167,6 +168,22 @@ Assumptions::Assumptions(const Theorem& t1, const Theorem& t2)
   } else if (!t2.getAssumptionsRef().empty()) {
     d_vector.push_back(t2);
   }
+  
+  /*
+  switch(compare(t1, t2)) {
+  case -1: // t1 < t2:
+    d_vector.push_back(t1);
+    d_vector.push_back(t2);
+    break;
+  case 0: // t1 == t2:
+    d_vector.push_back(t1);
+    break;
+  case 1: // t1 > t2:
+    d_vector.push_back(t2);
+    d_vector.push_back(t1);
+    break;
+  }
+  */
 }
 
 

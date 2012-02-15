@@ -27,6 +27,22 @@
 
 namespace CVC3 {
 
+inline std::string to_upper(const std::string & src){
+  std::string nameup; 
+  for(std::string::const_iterator i=src.begin(), iend = src.end(); i!=iend ; i++){
+    nameup.push_back(toupper(*i));
+  }
+  return nameup;
+}
+
+inline std::string to_lower(const std::string & src){
+  std::string nameup; 
+  for(std::string::const_iterator i=src.begin(), iend = src.end(); i!=iend ; i++){
+    nameup.push_back(tolower(*i));
+  }
+  return nameup;
+}
+
 inline std::string int2string(int n) {
   std::ostringstream ss;
   ss << n;

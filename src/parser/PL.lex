@@ -123,7 +123,7 @@ LETTER	([a-zA-Z])
 HEX     ([0-9a-fA-F])
 BITS    ([0-1])
 DIGIT	([0-9])
-OPCHAR	(['?\_$])
+OPCHAR	(['?\_$~])
 ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 
 %%
@@ -159,7 +159,6 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 
 ".."            { return DOTDOT_TOK; }
 ":="		{ return ASSIGN_TOK; }
-"=" 		{ return '='; }
 "/="		{ return NEQ_TOK; }
 "=>"		{ return IMPLIES_TOK; }
 "<=>"		{ return IFF_TOK; }
@@ -189,6 +188,7 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 "BVXOR"         { return BVXOR_TOK;}
 "BVNAND"        { return BVNAND_TOK;}
 "BVNOR"         { return BVNOR_TOK;}
+"BVCOMP"        { return BVCOMP_TOK;}
 "BVXNOR"        { return BVXNOR_TOK;}
 "<<"            { return LEFTSHIFT_TOK;}
 ">>"            { return RIGHTSHIFT_TOK;}
@@ -197,6 +197,10 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 "BVSLE"         { return BVSLE_TOK;}
 "BVSGE"         { return BVSGE_TOK;}
 "SX"            { return SX_TOK;} 
+"BVZEROEXTEND"  { return BVZEROEXTEND_TOK;} 
+"BVREPEAT"      { return BVREPEAT_TOK;} 
+"BVROTL"        { return BVROTL_TOK;} 
+"BVROTR"        { return BVROTR_TOK;} 
 "BVLT"          { return BVLT_TOK;}
 "BVGT"          { return BVGT_TOK;}
 "BVLE"          { return BVLE_TOK;}
@@ -212,9 +216,9 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 "BVUREM"        { return BVUREM_TOK;}
 "BVSREM"        { return BVSREM_TOK;}
 "BVSMOD"        { return BVSMOD_TOK;}
-"BVSHLx"         { return BVSHL_TOK;}
-"BVASHRx"        { return BVASHR_TOK;}
-"BVLSHRx"        { return BVLSHR_TOK;}
+"BVSHL"         { return BVSHL_TOK;}
+"BVASHR"        { return BVASHR_TOK;}
+"BVLSHR"        { return BVLSHR_TOK;}
 "BVSUB"         { return BVSUB_TOK;}
 "BVUMINUS"      { return BVUMINUS_TOK;}
 "BVMULT"        { return BVMULT_TOK;}

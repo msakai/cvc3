@@ -9,6 +9,8 @@
 
 #include "c_interface.h"
 #include <stdio.h>
+#include <stdlib.h>
+
 
 #define TRUE 1
 #define FALSE 0
@@ -23,19 +25,21 @@ if (!(b)) { \
 // Check whether e is valid
 
 void check_error(char* msg) {
-  if(get_error_status() < 0) {
+  if(vc_get_error_status() < 0) {
     fprintf(stderr, "%s\n", msg);
-    fprintf(stderr, "%s\n", get_error_string());
+    fprintf(stderr, "%s\n", vc_get_error_string());
     exit(1);
   }
 }
 
-void check(VC vc, Expr e)
+int check(VC vc, Expr e)
 {
+  int res;
   printf("Query: ");
   vc_printExpr(vc, e);
   check_error("Error occured during query");
-  switch (vc_query(vc, e)) {
+  res = vc_query(vc, e);
+  switch (res) {
     case 0:
       printf("Invalid\n\n");
       break;
@@ -43,6 +47,7 @@ void check(VC vc, Expr e)
       printf("Valid\n\n");
       break;
   }
+  return res;
 }
 
 
@@ -70,9 +75,11 @@ void test1()
     simp, simp2;
   Op f;
   Expr* assertions;
-  int i, size;
+  int i, size, res;
 
   vc_setStringFlag(flags, "dump-log", ".testc1.cvc");
+  vc_setStrSeqFlag(flags, "trace", "pushpop", 1);
+
   vc = vc_createValidityChecker(flags);
 
   // Check p OR ~p
@@ -82,7 +89,8 @@ void test1()
   np = vc_notExpr(vc, p);
   e = vc_orExpr(vc, p, np);
 
-  check(vc, e);
+  res = check(vc, e);
+  FatalAssert(res == 1, "Expected Valid");
 
   vc_deleteType(b);
   vc_deleteExpr(p);
@@ -106,31 +114,36 @@ void test1()
   fxeqfy = vc_eqExpr(vc, fx, fy);
 
   e = vc_impliesExpr(vc, xeqy, fxeqfy);
-  check(vc, e);
+  res = check(vc, e);
+  FatalAssert(res == 1, "Expected Valid");
+
   vc_deleteType(real2real);
   vc_deleteExpr(e);
 
   // Check f(x) = f(y) -> x = y
 
   e = vc_impliesExpr(vc, fxeqfy, xeqy);
-  check(vc, e);
+  vc_push(vc);
+  res = check(vc, e);
+  FatalAssert(res == 0, "Expected Invalid");
   vc_deleteExpr(e);
 
   // Get counter-example
 
-  printf("Scope level: %d\n", vc_scopeLevel(vc));
+  printf("Stack level: %d\n", vc_stackLevel(vc));
   printf("Counter-example:\n");
   assertions = vc_getCounterExample(vc, &size);
   
   for (i = 0; i < size; ++i) {
     vc_printExpr(vc, assertions[i]);
   }
+  vc_deleteVector(assertions);
   printf("End of counter-example\n\n");
 
   // Reset to initial scope
   printf("Resetting\n");
-  vc_popto(vc, 1);
-  printf("Scope level: %d\n\n", vc_scopeLevel(vc));
+  vc_pop(vc);
+  printf("Stack level: %d\n\n", vc_stackLevel(vc));
 
   // Check w = x & x = y & y = z & f(x) = f(y) & x = 1 & z = 2
 
@@ -159,8 +172,9 @@ void test1()
 
   simp = vc_simplify(vc, w);
 
-  vc_printExpr(vc, simp);
-  printf("\n");
+  char* str = vc_printExprString(vc, simp);
+  printf("%s\n", str);
+  vc_deleteString(str);
 
   printf("Inconsistent?: %d\n", vc_inconsistent(vc, &assertions, &size));
   check_error("Error occured during inconsistency check");
@@ -169,6 +183,7 @@ void test1()
   for (i = 0; i < size; ++i) {
     vc_printExpr(vc, assertions[i]);
   }
+  vc_deleteVector(assertions);
 
   printf("\nPop Scope\n\n");
   vc_pop(vc);
@@ -180,6 +195,7 @@ void test1()
   printf("\n");
 
   printf("Inconsistent?: %d\n", vc_inconsistent(vc, &assertions, &size));
+  vc_deleteVector(assertions);
 
   vc_deleteType(r);
   vc_deleteExpr(x);
@@ -229,8 +245,11 @@ void test2()
   Type v[2];
   Op h;
   Expr hxy, hyx, hxyeqhyx;
+  int res;
 
-  check(vc, e);
+  res = check(vc, e);
+  FatalAssert(res == 1, "Expected Valid");
+
   vc_deleteType(realxreal2real);
   vc_deleteOp(g);
   vc_deleteExpr(gxy);
@@ -249,7 +268,9 @@ void test2()
   hxyeqhyx = vc_eqExpr(vc, hxy, hyx);
 
   e = vc_impliesExpr(vc, xeqy, hxyeqhyx);
-  check(vc, e);
+  res = check(vc, e);
+  FatalAssert(res == 1, "Expected Valid");
+
   vc_deleteType(r);
   vc_deleteExpr(x);
   vc_deleteExpr(y);
@@ -364,7 +385,7 @@ void test5()
   Type r;
   Expr x, xEQx, p;
 
-  vc_setBoolFlag(flags, "proofs", TRUE);
+  //  vc_setBoolFlag(flags, "proofs", TRUE);
   vc = vc_createValidityChecker(flags);
 
   r = vc_realType(vc);
@@ -373,14 +394,14 @@ void test5()
 
   vc_query(vc, xEQx);
 
-  p = vc_getProof(vc);
+  //  p = vc_getProof(vc);
 
-   vc_printExpr(vc, p);
+  //  vc_printExpr(vc, p);
 
   vc_deleteType(r);
   vc_deleteExpr(x);
   vc_deleteExpr(xEQx);
-  vc_deleteExpr(p);
+  //  vc_deleteExpr(p);
 
   vc_destroyValidityChecker(vc);
   vc_deleteFlags(flags);
@@ -394,12 +415,17 @@ void test6()
   Expr p, p3, p32;
   char *x;
 
-  vc_setBoolFlag(flags, "proofs", 1);
+  //  vc_setBoolFlag(flags, "proofs", 1);
   vc_setBoolFlag(flags, "dagify-exprs", 0);
   vc = vc_createValidityChecker(flags);
 
-  p = vc_getProofOfFile(vc,"benchmarks/add1.cvc");
+  //  p = vc_getProofOfFile(vc,"benchmarks/add1.cvc");
   check_error("Failed to check file");
+
+  //  vc_deleteExpr(p);
+  vc_destroyValidityChecker(vc);
+  vc_deleteFlags(flags);
+
 /*   p3 = getChild(p,3); */
 /*   p32 = getChild(p3,2); */
 
@@ -520,6 +546,121 @@ void test7()
 }
 
 
+void test8 (void)
+{
+  VC vc = vc_createValidityChecker (((void *) 0));
+  Type bv32 = vc_bvType (vc, 32);
+  Expr zero = vc_bvConstExprFromInt (vc, 32, 0);
+  Expr one = vc_bvConstExprFromInt (vc, 32, 1);
+  Expr a = vc_varExpr (vc, "a", bv32);
+  Expr three = vc_bvConstExprFromInt (vc, 32, 3);
+  Expr prod = vc_bvMultExpr (vc, 32, a, three);
+  {
+    Expr a64 = vc_bvSignExtend (vc, a, 64);
+    Expr three64 = vc_bvSignExtend (vc, three, 64);
+    Expr prod64 = vc_bvMultExpr (vc, 64, a64, three64);
+    Expr max = vc_bvConstExprFromInt (vc, 32, 2147483647);
+    Expr min = vc_bvConstExprFromInt (vc, 32, (-2147483647 - 1));
+    Expr prod64_sge_min = vc_bvSGeExpr (vc, prod64, min);
+    Expr prod64_sle_max = vc_bvSLeExpr (vc, prod64, max);
+    Expr prod64_sge_min_and_sle_max =
+      vc_andExpr (vc, prod64_sge_min, prod64_sle_max);
+    vc_assertFormula (vc, prod64_sge_min_and_sle_max);
+  }
+  Expr D4 = vc_varExpr (vc, "D4", bv32);
+  {
+    Expr cond = vc_bvSLtExpr (vc, a, prod);
+    Expr test = vc_iteExpr (vc, cond, one, zero);
+    Expr D4_eq_test = vc_eqExpr (vc, D4, test);
+    vc_assertFormula (vc, D4_eq_test);
+  }
+  Expr D6 = vc_varExpr (vc, "D6", bv32);
+  {
+    Expr cond = vc_bvSLeExpr (vc, a, prod);
+    Expr test = vc_iteExpr (vc, cond, one, zero);
+    Expr D6_eq_test = vc_eqExpr (vc, D6, test);
+    vc_assertFormula (vc, D6_eq_test);
+  }
+  vc_push (vc);
+  vc_pop (vc);
+  vc_push (vc);
+  {
+    Expr cond = vc_bvSLtExpr (vc, a, zero);
+    Expr test = vc_iteExpr (vc, cond, one, zero);
+    Expr test_eq_one = vc_eqExpr (vc, test, one);
+    vc_assertFormula (vc, test_eq_one);
+    vc_push (vc);
+    {
+      Expr D4_eq_one = vc_eqExpr (vc, D4, one);
+      vc_query (vc, D4_eq_one);
+    }
+    vc_pop (vc);
+    vc_push (vc);
+    vc_pop (vc);
+    vc_push (vc);
+    vc_pop (vc);
+  }
+  vc_pop (vc);
+  {
+    Expr cond = vc_eqExpr (vc, a, zero);
+    Expr test = vc_iteExpr (vc, cond, one, zero);
+    Expr test_eq_one = vc_eqExpr (vc, test, one);
+    vc_assertFormula (vc, test_eq_one);
+    vc_push (vc);
+    vc_pop (vc);
+    {
+      Expr zero_eq_one = vc_eqExpr (vc, zero, one);
+      vc_query (vc, zero_eq_one);
+    }
+  }
+  vc_destroyValidityChecker(vc);
+}
+
+
+void test9 (void)
+{
+  VC vc = vc_createValidityChecker (((void *) 0));
+  Type bv32 = vc_bvType (vc, 32);
+  Expr zero = vc_bvConstExprFromInt (vc, 32, 0);
+  Expr one = vc_bvConstExprFromInt (vc, 32, 1);
+  Expr a = vc_varExpr (vc, "a", bv32);
+  Expr three = vc_bvConstExprFromInt (vc, 32, 3);
+  Expr three64 = vc_bvSignExtend (vc, three, 64);
+  Expr a64 = vc_bvSignExtend (vc, a, 64);
+  Expr prod64 = vc_bvMultExpr (vc, 64, a64, three64);
+  Expr min = vc_bvConstExprFromInt (vc, 32, (-2147483647 - 1));
+  Expr max = vc_bvConstExprFromInt (vc, 32, 2147483647);
+  Expr prod64_sge_min = vc_bvSGeExpr (vc, prod64, min);
+  Expr prod64_sle_max = vc_bvSLeExpr (vc, prod64, max);
+  Expr prod64_sge_min_and_sle_max =
+    vc_andExpr (vc, prod64_sge_min, prod64_sle_max);
+  vc_assertFormula (vc, prod64_sge_min_and_sle_max);
+  Expr D3 = vc_varExpr (vc, "D3", bv32);
+  Expr prod = vc_bvMultExpr (vc, 32, a, three);
+  Expr D3_eq_prod = vc_eqExpr (vc, D3, prod);
+  vc_assertFormula (vc, D3_eq_prod);
+  Expr D4 = vc_varExpr (vc, "D4", bv32);
+  Expr D3_sle_a_cond = vc_bvSLeExpr (vc, D3, a);
+  Expr D3_sle_a_expr = vc_iteExpr (vc, D3_sle_a_cond, one, zero);
+  Expr D4_eq_D3_sle_a_expr = vc_eqExpr (vc, D4, D3_sle_a_expr);
+  vc_assertFormula (vc, D4_eq_D3_sle_a_expr);
+  Expr D6 = vc_varExpr (vc, "D6", bv32);
+  Expr D3_slt_a_cond = vc_bvSLtExpr (vc, D3, a);
+  Expr D3_slt_a_expr = vc_iteExpr (vc, D3_slt_a_cond, one, zero);
+  Expr D6_eq_D3_slt_a_expr = vc_eqExpr (vc, D6, D3_slt_a_expr);
+  vc_assertFormula (vc, D6_eq_D3_slt_a_expr);
+  Expr zero_lt_a = vc_bvSLtExpr (vc, zero, a);
+  vc_assertFormula (vc, zero_lt_a);
+  Expr D4_eq_one = vc_eqExpr (vc, D4, one);
+  Expr not_D4_eq_one = vc_notExpr (vc, D4_eq_one);
+  vc_query (vc, not_D4_eq_one);
+  Expr D6_eq_one = vc_eqExpr (vc, D6, one);
+  Expr not_D6_eq_one = vc_notExpr (vc, D6_eq_one);
+  vc_query (vc, not_D6_eq_one);
+  vc_destroyValidityChecker(vc);
+}
+
+
 int main(int argc, char** argv)
 {
   int regressLevel = 2;
@@ -528,24 +669,35 @@ int main(int argc, char** argv)
   printf("\ntest1() {\n");
   test1();
   check_error("test1");
-  printf("\n}\n\ntest2() {\n");
+  printf("\n}\ntest2() {\n");
   test2();
   check_error("test2");
 /* TODO: implement parseExpr */
 /*   test3(); */
 /*   check_error("test3"); */
+
+  printf("\n}\ntest4() {\n");
   test4(regressLevel);
   check_error("test4");
-  printf("\n}\n\ntest5() {\n");
+  printf("\n}\ntest5() {\n");
   test5();
   check_error("test5");
   if (regressLevel > 0) {
-    printf("\n}\ntest6()\n");
+    printf("\n}\ntest6() {\n");
     test6();
     check_error("test6");
   }
-  printf("\n}\ntest7()\n");
+  printf("\n}\ntest7() {\n");
   test7();
   check_error("test7");
+  if (regressLevel > 0) {
+    printf("\n}\ntest8() {\n");
+    test8();
+    check_error("test8");
+    printf("\n}\ntest9() {\n");
+    test9();
+    check_error("test9");
+  }
+  printf("\n}");
   return 0;
 }

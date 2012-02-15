@@ -86,6 +86,9 @@ class ExprValue {
   //! The find attribute (may be NULL)
   CDO<Theorem>* d_find;
 
+  //! Equality between this term and next term in ring of all terms in the equivalence class
+  CDO<Theorem>* d_eqNext;
+
   //! The cached type of the expression (may be Null)
   Type d_type;
 
@@ -207,7 +210,7 @@ public:
   //! Constructor
   ExprValue(ExprManager* em, int kind, ExprIndex idx = 0)
     : d_index(idx), d_refcount(0),
-      d_hash(0), d_find(NULL), d_notifyList(NULL),
+      d_hash(0), d_find(NULL), d_eqNext(NULL), d_notifyList(NULL),
       d_simpCacheTag(0),
       d_dynamicFlags(em->getCurrentContext()),
       //      d_height(0), d_highestKid(-1),
@@ -350,6 +353,17 @@ public:
     static Expr null;
     return null;
   }
+
+  virtual void setTriggers(const std::vector<Expr>& triggers) {
+    DebugAssert(false, "setTriggers() is called on ExprValue");
+  }
+
+  virtual const std::vector<Expr>& getTrigs() const { //by yeting
+    DebugAssert(false, "getTrigs() is called on ExprValue");
+    static std::vector<Expr> null;
+    return null;
+  }
+
 
   virtual const Expr& getExistential() const {
     DebugAssert(false, "getExistential() is called on ExprValue");
@@ -869,13 +883,16 @@ private:
   std::vector<Expr> d_vars;
   //! The body of the quantifier/lambda
   Expr d_body;
-
+  //! Manual triggers. // added by yeting
+  // Note that due to expr caching, only the most recent triggers specified for a given formula will be used.
+  std::vector<Expr> d_manual_triggers;
   //! Tell ExprManager who we are
   virtual size_t getMMIndex() const { return EXPR_CLOSURE; }
 
   virtual const std::vector<Expr>& getVars() const { return d_vars; }
   virtual const Expr& getBody() const { return d_body; }
-
+  virtual void setTriggers(const std::vector<Expr>& triggers) { d_manual_triggers = triggers; }
+  virtual const std::vector<Expr>&  getTrigs() const { return d_manual_triggers; }
 
 protected:
 
@@ -888,6 +905,11 @@ public:
   ExprClosure(ExprManager *em, int kind, const std::vector<Expr>& vars,
               const Expr& body, ExprIndex idx = 0)
     : ExprValue(em, kind, idx), d_vars(vars), d_body(body) { }
+
+  ExprClosure(ExprManager *em, int kind, const std::vector<Expr>& vars, 
+              const Expr& body, const std::vector<Expr>& trigs, ExprIndex idx = 0)
+    : ExprValue(em, kind, idx), d_vars(vars), d_body(body),  d_manual_triggers(trigs) { }
+
   // Destructor
   virtual ~ExprClosure() { }
 

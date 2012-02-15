@@ -28,6 +28,7 @@
 #include "statistics.h"
 #include "theorem_manager.h"
 #include "expr_transform.h"
+#include "assumptions.h"
 
 
 using namespace std;
@@ -41,7 +42,8 @@ namespace CVC3 {
   public:
     CoreSatAPI_implBase(SearchImplBase* se) : d_se(se) {}
     virtual ~CoreSatAPI_implBase() {}
-    virtual void addLemma(const Theorem& thm) { d_se->addFact(thm); }
+    virtual void addLemma(const Theorem& thm, int priority, bool atBottomScope)
+      { d_se->addFact(thm); }
     virtual Theorem addAssumption(const Expr& assump)
       { return d_se->newIntAssumption(assump); }
     virtual void addSplitter(const Expr& e, int priority)
@@ -120,7 +122,7 @@ SearchImplBase::SearchImplBase(TheoryCore* core)
 {
   d_vm = new VariableManager(core->getCM(), d_rules,
 			     core->getFlags()["mm"].getString());
-  IF_DEBUG(d_assumptions.setName("CDList[SearchImplBase::d_assumptions]"));
+  IF_DEBUG(d_assumptions.setName("CDList[SearchImplBase::d_assumptions]");)
   d_coreSatAPI_implBase = new CoreSatAPI_implBase(this);
   core->registerCoreSatAPI(d_coreSatAPI_implBase);
 }
@@ -147,7 +149,7 @@ Theorem SearchImplBase::newUserAssumption(const Expr& e) {
       debugger.getOS() << "(" << (*i).first << " => " << (*i).second << "), ";
     }
     os << "]" << endl;
-  });
+  })
   if(i!=d_assumptions.end()) {
     TRACE("search verbose", "newUserAssumption(", e,
 	  "): assumption already exists");
@@ -756,7 +758,7 @@ SearchImplBase::findInCNFCache(const Expr& e) {
   }
   CDMap<Expr,Theorem>::iterator it = d_cnfCache.find(phi);
   if(it != d_cnfCache.end()) {
-    // IF_DEBUG(debugger.counter("CNF cache hits")++);
+    // IF_DEBUG(debugger.counter("CNF cache hits")++;)
     d_core->getStatistics().counter("CNF cache hits")++;
     Theorem thm = (*it).second;
     

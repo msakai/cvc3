@@ -71,7 +71,7 @@ void SearchEngine::getConcreteModel(ExprMap<Expr>& m)
     d_core->inconsistentThm().getLeafAssumptions(assump);
     Expr a = Expr(RAW_LIST, assump, d_core->getEM());
     pop();
-    throw EvalException
+    throw Exception
       ("Model Creation failed after refining counterexample\n"
        "due to the following assumptions:\n "
        +a.toString()       
@@ -94,7 +94,7 @@ void SearchEngine::getConcreteModel(ExprMap<Expr>& m)
     getAssumptions(assump);
     Expr a = Expr(RAW_LIST, assump, d_core->getEM());
     pop();
-    throw EvalException
+    throw Exception
       ("Model Creation failed due to the following assumptions:\n"
        +a.toString()
        +"\n\nYou might be using an incomplete fragment of the theory");

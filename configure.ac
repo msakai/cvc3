@@ -13,7 +13,6 @@ AC_SUBST(DPLL_BASIC)
 EXTRA_SAT_HEADERS=""
 EXTRA_SAT_CPP=""
 LICENSE_INFO=/dev/null
-LICENSE_INFO_FILE=""
 DPLL_BASIC=""
 #BEGIN zchaff
 cvc_use_zchaff="yes"
@@ -50,7 +49,6 @@ EOF
 EXTRA_SAT_HEADERS="xchaff.h xchaff_base.h xchaff_dbase.h xchaff_solver.h xchaff_utils.h"
 EXTRA_SAT_CPP="xchaff.cpp xchaff_dbase.cpp xchaff_solver.cpp xchaff_utils.cpp "
 LICENSE_INFO=.zchaff
-LICENSE_INFO_FILE=.zchaff
 DPLL_BASIC="-DDPLL_BASIC"
 fi
 #END zchaff
@@ -151,6 +149,14 @@ else
  MAC_OSX=""
 fi
 
+if test `uname -s` = "CYGWIN_NT-5.1"; then
+ CYGWIN=1
+elif test `uname -s` = "CYGWIN_NT-6.0"; then
+ CYGWIN=1
+else
+ CYGWIN=""
+fi
+
 # The standard macro does something stupid.  Check it explicitly.
 # AC_PROG_INSTALL
 
@@ -232,6 +238,9 @@ fi
 AC_SUBST(STATIC)
 STATIC="1"
 
+AC_SUBST(BUILD_SHARED_LIB)
+BUILD_SHARED_LIB="0"
+
 AC_SUBST(STATIC_FLAG)
 AC_SUBST(DYNAMIC_FLAG)
 AC_SUBST(SHARED)
@@ -245,6 +254,12 @@ if test -n "$MAC_OSX"; then
   SHARED="-dynamiclib -undefined dynamic_lookup"
   LD_SWITCHES_PRE=""
   LD_SWITCHES_POST=""
+elif test -n "$CYGWIN"; then
+  DYNAMIC_FLAG=""
+  STATIC_FLAG=""
+  SHARED="-shared"
+  LD_SWITCHES_PRE="-Wl,-static -Wl,--whole-archive"
+  LD_SWITCHES_POST="-Wl,--no-whole-archive -Wl,-call_shared"
 else
   DYNAMIC_FLAG=""
   STATIC_FLAG="-static"
@@ -269,6 +284,16 @@ AC_ARG_ENABLE(dynamic,
 if test "$enableval" = "yes"; then
   STATIC="0"
 fi)
+
+AC_ARG_ENABLE(sharedlibs,
+[  --enable-sharedlibs
+  --disable-sharedlibs    Enable building of individual shared libraries
+                          (default = yes).],
+# If option is given
+if test "$enableval" = "yes"; then
+  BUILD_SHARED_LIB="1"
+fi)
+
 
 AC_SUBST(STATIC_LIB_SUFFIX)
 STATIC_LIB_SUFFIX="a"

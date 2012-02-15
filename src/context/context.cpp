@@ -146,7 +146,7 @@ void ContextObj::update(int scope)
   data->d_scope = tmpScope;
   // The destructor of the copy should not destroy our older copies
   data->d_restore=NULL;
-  IF_DEBUG(data->setName(name()+" [copy]"));
+  IF_DEBUG(data->setName(name()+" [copy]");)
   d_restore = new(getCMM()) ContextObjChain(data, this, d_restore);
   d_scope->addToChain(d_restore);
 }
@@ -155,8 +155,8 @@ void ContextObj::update(int scope)
 ContextObj::~ContextObj()
 {
   // Delete our restore copies
-  IF_DEBUG(FatalAssert(d_active, "~ContextObj["+name()+"]"));
-  IF_DEBUG(d_active=false); 
+  IF_DEBUG(FatalAssert(d_active, "~ContextObj["+name()+"]");)
+  IF_DEBUG(d_active=false);;
   for(ContextObjChain* obj = d_restore; obj != NULL; ) {
     ContextObjChain* tmp = obj->d_restore;
     // Remove the object from the restore chain
@@ -234,8 +234,8 @@ void Context::push()
   cmm->push();
   d_topScope = new(cmm) Scope(this, cmm, d_topScope);
   //  TRACE("context", "*** [context] Pushing scope to level ", level(), " {");
-  IF_DEBUG(DebugCounter maxLevel(debugger.counter("max scope level")));
-  IF_DEBUG(if(maxLevel<level()) maxLevel=level());
+  IF_DEBUG(DebugCounter maxLevel(debugger.counter("max scope level"));)
+  IF_DEBUG(if(maxLevel<level()) maxLevel=level();)
 }
 
 
@@ -252,7 +252,7 @@ void Context::pop()
   // Pop the scope
   d_topScope = top->prevScope();
   top->restore();
-  IF_DEBUG(top->check());
+  IF_DEBUG(top->check();)
   ContextMemoryManager* cmm = top->getCMM();
   cmm->pop();
   d_cmmStack.push_back(cmm);

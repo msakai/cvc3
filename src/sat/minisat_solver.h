@@ -145,10 +145,6 @@ typedef std::vector<int>::size_type size_type;
   // converts cvc clause into MiniSat literal list
   // returns true on permanently satisfied clause, i.e. clause containing 'true'
   bool cvcToMiniSat(const SAT::Clause& clause, std::vector<Lit>& literals);
-  
-  // converts cvc clause into MiniSat clause with the given id.
-  // returns NULL on permanently satisfied clause, i.e. clause containing 'true'
-  Clause* cvcToMiniSat(const SAT::Clause& clause, int id);
 
 
 
@@ -348,7 +344,7 @@ protected:
   // probably not: d_trail_pos, d_analyze_seen
 
   // number of queued pop requests
-  uint d_popRequests;
+  unsigned int d_popRequests;
 
 
 
@@ -447,7 +443,7 @@ protected:
   void analyze_minimize(std::vector<Lit>& out_learnt, Inference* inference, int& pushID);
 
   // conflict analysis: conflict clause minimization (helper method for 'analyze()')
-  bool analyze_removable(Lit p, uint min_level, int pushID);
+  bool analyze_removable(Lit p, unsigned int min_level, int pushID);
 
   // backtrack to level, add conflict clause
   void backtrack(int level, Clause* clause);
@@ -499,7 +495,7 @@ protected:
 
   // creates/adds a clause or a lemma and returns it; registers all variables,
   // used by all other addClause methods
-  void addClause(std::vector<Lit>& literals, int clauseID);
+  void addClause(std::vector<Lit>& literals, CVC3::Theorem theorem, int clauseID);
 
   // adds a clause or a lemma to the solver, watched lists, and checks if it is unit/conflicting
   // clause activity heuristics are updated.
@@ -556,11 +552,18 @@ protected:
   void varRescaleActivity();
   void claDecayActivity() { d_cla_inc *= d_cla_decay; }
   void claRescaleActivity() ;
-  void claBumpActivity (Clause* c) { if ( (c->activity() += (float)d_cla_inc) > 1e20 ) claRescaleActivity(); }
+  void claBumpActivity (Clause* c) {
+    float act = c->activity() + (float)d_cla_inc;
+    c->setActivity(act);
+    if (act > 1e20) claRescaleActivity();
+  }
   
 
 
   /// debugging
+
+  // are all clauses (excluding lemmas) satisfied?
+  bool allClausesSatisfied();
 
   // checks that the first two literals of a clause are watched
   void checkWatched(const Clause& clause) const;
@@ -588,8 +591,13 @@ public:
 
   // assumes that this is the SAT solver in control of CVC theories,
   // so it immediately pushs a new theory context.
+  //
   // uses MiniSat's internal decision heuristics if decider is NULL
-  Solver(SAT::DPLLT::TheoryAPI* theoryAPI, SAT::DPLLT::Decider* decider);
+  //
+  // if logDerivation then the derivation will be logged in getDerivation(),
+  // which provides a prove if the empty clause is derived.
+  Solver(SAT::DPLLT::TheoryAPI* theoryAPI, SAT::DPLLT::Decider* decider,
+	 bool logDerivation);
 
   // copies clauses, assignment as unit clauses, and lemmas
   // will be in root level
@@ -604,8 +612,12 @@ public:
 
   /// problem specification
 
+  // converts cvc clause into MiniSat clause with the given id.
+  // returns NULL on permanently satisfied clause, i.e. clause containing 'true'
+  Clause* cvcToMiniSat(const SAT::Clause& clause, int id);
+
   // adds a unit clause given as a literal
-  void addClause(Lit p);
+  void addClause(Lit p, CVC3::Theorem theorem);
 
   // adds a (copy of) clause, uses original clause id if wished
   void addClause(const Clause& clause, bool keepClauseID);
@@ -641,6 +653,12 @@ public:
   // the prover becomes essentially unusable if unsatisfiability is detected,
   // only data may be retrieved (clauses, statistics, proof, ...)
   CVC3::QueryResult search();
+
+  // returns a resolution proof for unsatisfiability if
+  // - createProof was true in the call to the constructor
+  // - the last call to search returned status UNSATISFIABLE
+  // returns NULL otherwise
+  Derivation* getProof();
 
   // is the solver currently in a search state?
   // i.e. search() has been called and not been undone by a pop request.
@@ -709,7 +727,6 @@ public:
   // the derivation, logged if != NULL
   Derivation* getDerivation() { return d_derivation; }
 
-
   /// Statistics
 
   // derivation statistics
@@ -745,6 +762,9 @@ public:
 
   // output the clause set and context in DIMACS format
   void printDIMACS() const;
+
+  std::vector<SAT::Lit> curAssigns() ;
+  std::vector<std::vector<SAT::Lit> > curClauses();
 };
 
 }

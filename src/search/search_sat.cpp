@@ -30,11 +30,10 @@
 #include "expr_transform.h"
 #include "search_rules.h"
 #include "command_line_flags.h"
-#include "theory_bitvector.h"
-
 #include "theorem_manager.h"
 #include "theory.h"
 #include "debug.h"
+
 
 using namespace std;
 using namespace CVC3;
@@ -49,12 +48,14 @@ class SearchSatCoreSatAPI :public TheoryCore::CoreSatAPI {
 public:
   SearchSatCoreSatAPI(SearchSat* ss) : d_ss(ss) {}
   ~SearchSatCoreSatAPI() {}
-  void addLemma(const Theorem& thm) { d_ss->addLemma(thm); }
+  void addLemma(const Theorem& thm, int priority, bool atBottomScope)
+    { d_ss->addLemma(thm, priority, atBottomScope); }
   Theorem addAssumption(const Expr& assump)
   { return d_ss->newUserAssumption(assump); }
   void addSplitter(const Expr& e, int priority)
   { d_ss->addSplitter(e, priority); }
   bool check(const Expr& e);
+  
 };
 
 
@@ -78,11 +79,11 @@ public:
   void push() { return d_cm->push(); }
   void pop() { return d_cm->pop(); }
   void assertLit(Lit l) { d_ss->assertLit(l); }
-  SAT::DPLLT::ConsistentResult checkConsistent(Clause& c, bool fullEffort)
-    { return d_ss->checkConsistent(c, fullEffort); }
+  SAT::DPLLT::ConsistentResult checkConsistent(CNF_Formula& cnf, bool fullEffort)
+    { return d_ss->checkConsistent(cnf, fullEffort); }
   bool outOfResources() { return d_ss->theoryCore()->outOfResources(); }
   Lit getImplication() { return d_ss->getImplication(); }
-  void getExplanation(Lit l, Clause& c) { return d_ss->getExplanation(l, c); }
+  void getExplanation(Lit l, CNF_Formula& cnf) { return d_ss->getExplanation(l, cnf); }
   bool getNewClauses(CNF_Formula& cnf) { return d_ss->getNewClauses(cnf); }
 };
 
@@ -104,7 +105,7 @@ public:
   ~SearchSatCNFCallback() {}
 
   void registerAtom(const Expr& e, const Theorem& thm)
-    { d_ss->theoryCore()->registerAtom(e, thm); }
+  { d_ss->theoryCore()->theoryOf(e)->registerAtom(e, thm); }
 };
 
 
@@ -133,6 +134,7 @@ void SearchSat::restore()
   }
   while (d_pendingLemmasSize < d_pendingLemmas.size()) {
     d_pendingLemmas.pop_back();
+    d_pendingScopes.pop_back();
   }
   while (d_varsUndoListSize < d_varsUndoList.size()) {
     d_vars[d_varsUndoList.back()] = SAT::Var::UNKNOWN;
@@ -165,22 +167,25 @@ bool SearchSat::recordNewRootLit(Lit lit, int priority, bool atBottomScope)
 }
 
 
-void SearchSat::addLemma(const Theorem& thm, int priority)
+void SearchSat::addLemma(const Theorem& thm, int priority, bool atBottomScope)
 {
   IF_DEBUG(
   string indentStr(theoryCore()->getCM()->scopeLevel(), ' ');
   TRACE("addLemma", indentStr, "AddLemma: ", thm.getExpr().toString(PRESENTATION_LANG));
   )
-  DebugAssert(!thm.getExpr().isAbsLiteral(), "Expected non-literal");
+    //  DebugAssert(!thm.getExpr().isAbsLiteral(), "Expected non-literal");
   DebugAssert(d_pendingLemmasSize == d_pendingLemmas.size(), "Size mismatch");
+  DebugAssert(d_pendingLemmasSize == d_pendingScopes.size(), "Size mismatch");
   DebugAssert(d_pendingLemmasNext <= d_pendingLemmas.size(), "Size mismatch");
   d_pendingLemmas.push_back(pair<Theorem,int>(thm, priority));
+  d_pendingScopes.push_back(atBottomScope);
   d_pendingLemmasSize = d_pendingLemmasSize + 1;
 }
 
 
 void SearchSat::addSplitter(const Expr& e, int priority)
 {
+  DebugAssert(!e.isEq() || e[0] != e[1], "Expected non-trivial splitter");
   addLemma(d_commonRules->excludedMiddle(e), priority);
 }
 
@@ -218,6 +223,7 @@ void SearchSat::assertLit(Lit l)
     e = d_cnfManager->concreteLit(l, false);
     DebugAssert(!e.isNull(), "Expected known expr");
     isSATLemma = true;
+    TRACE("quant-level", "found null expr ",e, "");
   }
 
   DebugAssert(!e.isNull(), "Expected known expr");
@@ -234,30 +240,37 @@ void SearchSat::assertLit(Lit l)
     return;
   }
   if (!e.isAbsLiteral()) return;
-
   e.setIntAssumption();
+
   Theorem thm = d_commonRules->assumpRule(e);
   if (isSATLemma) {
     CNF_Formula_Impl cnf;
     d_cnfManager->addAssumption(thm, cnf);
   }
+
   thm.setQuantLevel(theoryCore()->getQuantLevelForTerm(e.isNot() ? e[0] : e));
   d_intAssumptions.push_back(thm);
   d_core->addFact(thm);
 }
 
 
-SAT::DPLLT::ConsistentResult SearchSat::checkConsistent(SAT::Clause& c, bool fullEffort)
+SAT::DPLLT::ConsistentResult SearchSat::checkConsistent(SAT::CNF_Formula& cnf, bool fullEffort)
 {
   DebugAssert(d_inCheckSat, "Should only be used as a call-back");
   if (d_core->inconsistent()) {
-    d_cnfManager->convertLemma(d_core->inconsistentThm(), c);
+    d_cnfManager->convertLemma(d_core->inconsistentThm(), cnf);
+    if (d_cnfManager->numVars() > d_vars.size()) {
+      d_vars.resize(d_cnfManager->numVars(), SAT::Var::UNKNOWN);
+    }
     return DPLLT::INCONSISTENT;
   }
   if (fullEffort) {
     if (d_core->checkSATCore() && d_pendingLemmasNext == d_pendingLemmas.size() && d_lemmasNext == d_lemmas.numClauses()) {
       if (d_core->inconsistent()) {
-        d_cnfManager->convertLemma(d_core->inconsistentThm(), c);
+        d_cnfManager->convertLemma(d_core->inconsistentThm(), cnf);
+        if (d_cnfManager->numVars() > d_vars.size()) {
+          d_vars.resize(d_cnfManager->numVars(), SAT::Var::UNKNOWN);
+        }
         return DPLLT::INCONSISTENT;
       }
       else return DPLLT::CONSISTENT;
@@ -287,34 +300,30 @@ Lit SearchSat::getImplication()
 }
 
 
-void SearchSat::getExplanation(Lit l, SAT::Clause& c)
+void SearchSat::getExplanation(Lit l, SAT::CNF_Formula& cnf)
 {
   //  DebugAssert(d_inCheckSat, "Should only be used as a call-back");
-  DebugAssert(c.size() == 0, "Expected size = 0");
+  DebugAssert(cnf.empty(), "Expected empty cnf");
   Expr e = d_cnfManager->concreteLit(l);
   CDMap<Expr, Theorem>::iterator i = d_theorems.find(e);
   DebugAssert(i != d_theorems.end(), "getExplanation: no explanation found");
-  d_cnfManager->convertLemma((*i).second, c);  
+  d_cnfManager->convertLemma((*i).second, cnf);  
+  if (d_cnfManager->numVars() > d_vars.size()) {
+    d_vars.resize(d_cnfManager->numVars(), SAT::Var::UNKNOWN);
+  }
 }
 
 
 bool SearchSat::getNewClauses(CNF_Formula& cnf)
 {
   unsigned i;
-  bool added = false;
 
   Lit l;
   for (i = d_pendingLemmasNext; i < d_pendingLemmas.size(); ++i) {
     l = d_cnfManager->addLemma(d_pendingLemmas[i].first, d_lemmas);
-    if (!recordNewRootLit(l, d_pendingLemmas[i].second)) {
+    if (!recordNewRootLit(l, d_pendingLemmas[i].second, d_pendingScopes[i])) {
       // Already have this lemma: delete it
       d_lemmas.deleteLast();
-    }
-    else {
-      if (!added && ((unsigned)l.getVar() >= d_vars.size() ||
-                     (l.isVar() && getValue(l) == SAT::Var::UNKNOWN))) {
-        added = true;
-      }
     }
   }
   d_pendingLemmasNext = d_pendingLemmas.size();
@@ -323,33 +332,23 @@ bool SearchSat::getNewClauses(CNF_Formula& cnf)
     d_vars.resize(d_cnfManager->numVars(), SAT::Var::UNKNOWN);
   }
 
-  //DebugAssert(d_inCheckSat, "Should only be used as a call-back");
-  while (d_lemmasNext < d_lemmas.numClauses()) {
+  DebugAssert(d_lemmasNext <= d_lemmas.numClauses(), "");
+  if (d_lemmasNext == d_lemmas.numClauses()) return false;
+  do {
     cnf += d_lemmas[d_lemmasNext];
     d_lemmasNext = d_lemmasNext + 1;
-  }
-  return added;
+  } while (d_lemmasNext < d_lemmas.numClauses());
+  return true;
 }
 
 
-// #include "vcl.h"
-
-// namespace CVC3 {
-// extern VCL* myvcl;
-// }
-
 Lit SearchSat::makeDecision()
 {
-//   static unsigned long numCalls = 0;
-//   if (numCalls++ % 1000 == 0) {
-//     myvcl->printMemory();
-//   }
   DebugAssert(d_inCheckSat, "Should only be used as a call-back");
   Lit litDecision;
 
   set<LitPriorityPair>::const_iterator i, iend;
   Lit lit;
-
   for (i = d_prioritySetStart, iend = d_prioritySet.end(); i != iend; ++i) {
     lit = (*i).getLit();
     if (findSplitterRec(lit, getValue(lit), &litDecision)) {
@@ -363,12 +362,13 @@ Lit SearchSat::makeDecision()
 
 bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 {
+  if (lit.isFalse() || lit.isTrue()) return false;
+
   unsigned i, n;
   Lit litTmp;
   bool ret;
   Var v = lit.getVar();
 
-  if (lit.isFalse() || lit.isTrue()) return false;
   DebugAssert(value != Var::UNKNOWN, "expected known value");
   DebugAssert(getValue(lit) == value || getValue(lit) == Var::UNKNOWN,
               "invariant violated");
@@ -534,6 +534,7 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 	}
 	if (value == Var::FALSE_VAL) val = Var::invertValue(val);
         litTmp = d_cnfManager->getFanin(lit, 1);
+
 	if (findSplitterRec(litTmp, val, litDecision)) {
 	  return true;
 	}
@@ -694,7 +695,13 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
 
   if (!isRestart && d_core->inconsistent()) {
     qres = UNSATISFIABLE;
-    d_lastValid = d_rules->proofByContradiction(e, d_core->inconsistentThm());
+    thm = d_rules->proofByContradiction(e, d_core->inconsistentThm());
+    pop();
+    d_lastValid = thm;
+    d_cnfManager->setBottomScope(-1);
+    d_inCheckSat = false;
+    result = d_lastValid;
+    return qres;
   }
   else {
     // Run DPLLT engine
@@ -706,8 +713,13 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
                 "Expected unchanged context after unsat");
     e2 = d_lastCheck;
     pop();
-    // TODO: Next line is a place-holder until we can actually get the proof
-    d_lastValid = d_commonRules->assumpRule(e2);
+    if (d_core->getTM()->withProof()) {
+      Proof pf = d_dpllt->getSatProof(d_cnfManager, d_core);
+      d_lastValid = d_rules->satProof(e2, pf);
+    }
+    else {
+      d_lastValid = d_commonRules->assumpRule(d_lastCheck);
+    }
   }
   else {
     DebugAssert(d_lemmasNext == d_lemmas.numClauses(),
@@ -717,6 +729,47 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
     if (qres == SATISFIABLE && d_core->incomplete()) qres = UNKNOWN;
 
 #ifdef DEBUG
+
+    if( CVC3::debugger.trace("quant debug")  ){
+      d_core->theoryOf(FORALL)->debug(1);
+    }
+
+
+    if( CVC3::debugger.trace("sat model unknown")  ){
+      std::vector<SAT::Lit> cur_assigns = d_dpllt->getCurAssignments();
+      cout<<"Current assignments"<<endl;
+      {
+	for(size_t i = 0 ; i < cur_assigns.size(); i++){
+	  Lit l = cur_assigns[i];
+	  Expr e = d_cnfManager->concreteLit(l);
+	  
+	  string val = " := ";
+	  
+	  if (l.isPositive()) val += "1"; else val += "0";
+	  cout<<l.getVar()<<val<<endl;
+	  //	  cout<<e<<endl;
+	  
+	}
+      }
+      
+      
+      std::vector< std::vector<SAT::Lit> > cur_clauses = d_dpllt->getCurClauses();
+      cout<<"Current Clauses"<<endl;
+      {
+	for(size_t i = 0 ; i < cur_clauses.size(); i++){
+	  //	cout<<"clause "<<i<<"================="<<endl;
+	  for(size_t j = 0; j < cur_clauses[i].size(); j++){
+	    
+	    Lit l = cur_clauses[i][j];
+	    string val ;
+	    if (l.isPositive()) val += "+"; else val += "-";
+	    cout<<val<<l.getVar()<<" ";
+	  }
+	  cout<<endl;
+	}
+      }
+    }
+    
     if( CVC3::debugger.trace("model unknown")  ){
       const CDList<Expr>& allterms = d_core->getTerms();
       cout<<"===========terms begin=========="<<endl;
@@ -792,6 +845,79 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
       cout<<"-----------end----------pred"<<endl;
     }
 
+    if( CVC3::debugger.trace("unknown state")  ){
+      const CDList<Expr>& allpreds = d_core->getPredicates();
+      cout<<"===========pred begin=========="<<endl;
+      
+      for (size_t i=0; i<allpreds.size(); i++){
+	if(allpreds[i].hasFind()){
+	  // 	  Expr cur(allpreds[i]);
+// 	  if(cur.isForall() || cur.isExists() || 
+// 	     (cur.isNot() && (cur[0].isForall()||cur[0].isExists()))
+// 	     ){
+// 	    continue;
+// 	  }
+	  
+	  if( (d_core->findExpr(allpreds[i])).isTrue()){
+	    cout<<":assumption "<< allpreds[i] <<"" <<endl;
+	  }
+	  else{
+	    cout<<":assumption(not "<< allpreds[i] <<")" <<endl;
+	  }
+	  //	  cout<<"i="<<i<<" :";
+	  //	  cout<<allpreds[i].getFindLevel();
+	  //	  cout<<":"<<d_core->findExpr(allpreds[i])<<"|"<<allpreds[i]<<endl;
+	}
+	//	else cout<<"U "<<endl;;
+	
+
+	//" and type is "<<allpreds[i].getType() 
+	//	    << " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
+      }
+      cout<<"-----------end----------pred"<<endl;
+    }
+
+    if( CVC3::debugger.trace("unknown state noforall")  ){
+      const CDList<Expr>& allpreds = d_core->getPredicates();
+      cout<<"===========pred begin=========="<<endl;
+      
+      for (size_t i=0; i<allpreds.size(); i++){
+	if(allpreds[i].hasFind()){
+  	  Expr cur(allpreds[i]);
+//   	  if(cur.isForall() || cur.isExists() || 
+//   	     (cur.isNot() && (cur[0].isForall()||cur[0].isExists()))
+//   	     ){
+//   	    continue;
+//   	  }
+
+	  if( (d_core->findExpr(allpreds[i])).isTrue()){
+	    if(cur.isExists()){
+ 	      continue;
+ 	    }
+	    cout<<":assumption "<< allpreds[i] <<"" <<endl;
+	  }
+	  else if ( (d_core->findExpr(allpreds[i])).isFalse()){
+// 	    if (cur.isForall()){
+// 	      continue;
+// 	    }
+	    cout<<":assumption(not "<< allpreds[i] <<")" <<endl;
+	  }
+	  else{
+	    cout<<"--ERROR"<<endl;
+	  }
+	  //	  cout<<"i="<<i<<" :";
+	  //	  cout<<allpreds[i].getFindLevel();
+	  //	  cout<<":"<<d_core->findExpr(allpreds[i])<<"|"<<allpreds[i]<<endl;
+	}
+	//	else cout<<"U "<<endl;;
+	
+
+	//" and type is "<<allpreds[i].getType() 
+	//	    << " and kind is" << allpreds[i].getEM()->getKindName(allpreds[i].getKind())<<endl;
+      }
+      cout<<"-----------end----------pred"<<endl;
+    }
+
 
 #endif
   }
@@ -829,7 +955,8 @@ SearchSat::SearchSat(TheoryCore* core, const string& name)
     d_restorer(core->getCM()->getCurrentContext(), this)
 {
   d_cnfManager = new CNF_Manager(core->getTM(), core->getStatistics(),
-                                 core->getFlags()["minimizeClauses"].getBool());
+                                 core->getFlags());
+
   d_cnfCallback = new SearchSatCNFCallback(this);
   d_cnfManager->registerCNFCallback(d_cnfCallback);
   d_coreSatAPI = new SearchSatCoreSatAPI(this);
@@ -845,7 +972,9 @@ SearchSat::SearchSat(TheoryCore* core, const string& name)
     throw CLException("SAT solver 'sat' not supported in this build");
 #endif
   } else if (core->getFlags()["sat"].getString() == "minisat") {
-    d_dpllt = new DPLLTMiniSat(d_theoryAPI, d_decider, core->getFlags()["stats"].getBool());
+    d_dpllt = new DPLLTMiniSat(d_theoryAPI, d_decider,
+                               core->getFlags()["stats"].getBool(),
+                               core->getTM()->withProof());
   } else {
     throw CLException("Unrecognized SAT solver name: " + (core->getFlags()["sat"].getString()));
   }
@@ -970,6 +1099,7 @@ void SearchSat::getInternalAssumptions(vector<Expr>& assumptions)
 }
 
 
+
 void SearchSat::getAssumptions(vector<Expr>& assumptions)
 {
   CDList<Theorem>::const_iterator iU=d_userAssumptions.begin(),
@@ -1029,5 +1159,5 @@ Proof SearchSat::getProof()
     throw EvalException
       ("getProof must be called only after a successful check");
   if(d_lastValid.get().isNull()) return Proof();
-  return d_lastValid.get().getProof();
+  else  return d_lastValid.get().getProof();
 }

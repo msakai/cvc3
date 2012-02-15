@@ -98,7 +98,7 @@ bool TheoryArithNew::kidsCanonical(const Expr& e) {
     Expr simp(canon(e[i]).getRHS());
     res = (e[i] == simp);
     IF_DEBUG(if(!res) debugger.getOS() << "\ne[" << i << "] = " << e[i]
-	     << "\nsimplified = " << simp << endl);
+	     << "\nsimplified = " << simp << endl;)
   }
   return res;
 }
@@ -365,16 +365,16 @@ Theorem TheoryArithNew::doSolve(const Theorem& thm)
     } catch(ArithException& e) {
       res = symmetryRule(eqnThm); // Flip to e' = 0
       TRACE("arith eq", "doSolve: failed to solve an equation: ", e, "");
-      IF_DEBUG(debugger.counter("FAILED to solve real equalities")++);
+      IF_DEBUG(debugger.counter("FAILED to solve real equalities")++;)
       setIncomplete("Non-linear arithmetic inequalities");
     }
-    IF_DEBUG(debugger.counter("solved real equalities")++);
+    IF_DEBUG(debugger.counter("solved real equalities")++;)
     TRACE("arith eq", "doSolve [real] => ", res, " }");
     return res;
   }
   else {
     Theorem res = processIntEq(eqnThm);
-    IF_DEBUG(debugger.counter("solved int equalities")++);
+    IF_DEBUG(debugger.counter("solved int equalities")++;)
     TRACE("arith eq", "doSolve [int] => ", res, " }");
     return res;
   }
@@ -688,7 +688,7 @@ TheoryArithNew::solvedForm(const vector<Theorem>& solvedEqs)
     for(vector<Theorem>::const_iterator j = solvedEqs.begin(),
 	  jend=solvedEqs.end(); j!=jend;++j)
       TRACE("arith eq", "", j->getExpr(), ",\n   ");
-  });
+  })
   TRACE_MSG("arith eq", "  ]) {");
   // End of Trace code
   
@@ -1070,9 +1070,9 @@ TheoryArithNew::TheoryArithNew(TheoryCore* core)
     assertedExprCount(core->getCM()->getCurrentContext()),
     integer_lemma(core->getCM()->getCurrentContext())
 {
-  IF_DEBUG(d_diseq.setName("CDList[TheoryArithNew::d_diseq]"));
-  IF_DEBUG(d_buffer.setName("CDList[TheoryArithNew::d_buffer]"));
-  IF_DEBUG(d_bufferIdx.setName("CDList[TheoryArithNew::d_bufferIdx]"));
+  IF_DEBUG(d_diseq.setName("CDList[TheoryArithNew::d_diseq]");)
+  IF_DEBUG(d_buffer.setName("CDList[TheoryArithNew::d_buffer]");)
+  IF_DEBUG(d_bufferIdx.setName("CDList[TheoryArithNew::d_bufferIdx]");)
 
   getEM()->newKind(REAL, "_REAL", true);
   getEM()->newKind(INT, "_INT", true);
@@ -1254,6 +1254,7 @@ TheoryArithNew::setupRec(const Expr& e) {
   }
   // Create a find pointer for e
   e.setFind(reflexivityRule(e));
+  e.setEqNext(reflexivityRule(e));
   // And call our own setup()   
   setup(e);
 }
@@ -1765,7 +1766,7 @@ void TheoryArithNew::setup(const Expr& e)
 void TheoryArithNew::update(const Theorem& e, const Expr& d)
 {
   if (inconsistent()) return;
-  IF_DEBUG(debugger.counter("arith update total")++);
+  IF_DEBUG(debugger.counter("arith update total")++;)
   if (!d.hasFind()) return;
   if (isIneq(d)) {
     // Substitute e[1] for e[0] in d and enqueue new inequality
@@ -1784,7 +1785,7 @@ void TheoryArithNew::update(const Theorem& e, const Expr& d)
       enqueueFact(getCommonRules()->iffFalseElim(
         transitivityRule(symmetryRule(thm2), thm)));
     }
-    IF_DEBUG(debugger.counter("arith update ineq")++);
+    IF_DEBUG(debugger.counter("arith update ineq")++;)
   }
   else if (find(d).getRHS() == d) {
     // Substitute e[1] for e[0] in d and assert the result equal to d
@@ -1793,7 +1794,7 @@ void TheoryArithNew::update(const Theorem& e, const Expr& d)
     DebugAssert(leavesAreSimp(thm.getRHS()), "updateHelper error: "
  		+thm.getExpr().toString());
     assertEqualities(transitivityRule(thm, rewrite(thm.getRHS())));
-    IF_DEBUG(debugger.counter("arith update find(d)=d")++);
+    IF_DEBUG(debugger.counter("arith update find(d)=d")++;)
   }
 }
 
@@ -1983,7 +1984,7 @@ void TheoryArithNew::computeType(const Expr& e)
 }
 
 Type TheoryArithNew::computeBaseType(const Type& t) {
-  IF_DEBUG(int kind = t.getExpr().getKind());
+  IF_DEBUG(int kind = t.getExpr().getKind();)
   DebugAssert(kind==INT || kind==REAL || kind==SUBRANGE,
 	      "TheoryArithNew::computeBaseType("+t.toString()+")");
   return realType();
@@ -2183,6 +2184,92 @@ ExprStream& TheoryArithNew::print(ExprStream& os, const Expr& e) {
           break;
       } 
       break; // end of case SIMPLIFY_LANG
+
+
+    case TPTP_LANG:
+      switch(e.getKind()) {
+      case RATIONAL_EXPR:
+	e.print(os);
+	break;
+      case SUBRANGE:
+	os <<"ERROR:SUBRANGE:not supported in TPTP\n";
+	break;
+      case IS_INTEGER:
+	os <<"ERROR:IS_INTEGER:not supported in TPTP\n";
+	break;
+      case PLUS:  {
+	if(!isInteger(e[0])){
+	  os<<"ERRPR:plus only supports inteters now in TPTP\n";
+	  break;
+	}
+	
+	int i=0, iend=e.arity();
+	if(iend <=1){
+	  os<<"ERROR,plus must have more than two numbers in TPTP\n";
+	  break;
+	}
+
+	for(i=0; i <= iend-2; ++i){
+	  os << "$plus_int("; 
+	  os << e[i] << ",";
+	}
+
+	os<< e[iend-1];
+
+	for(i=0 ; i <= iend-2; ++i){
+	  os << ")"; 
+	}
+
+	break;
+      }
+      case MINUS:
+	os << "(- " << e[0] << " " << e[1]<< ")";
+	break;
+      case UMINUS:
+	os << "-" << e[0] ;
+	break;
+      case MULT:  {
+	int i=0, iend=e.arity();
+	os << "(* " ;
+	if(i!=iend) os << e[i];
+	++i;
+	for(; i!=iend; ++i) os << " " << e[i];
+	os <<  ")";
+	break;
+      }
+      case POW:
+          os << "(" << push << e[1] << space << "^ " << e[0] << push << ")";
+          break;
+      case DIVIDE:
+	os << "(" << push << e[0] << space << "/ " << e[1] << push << ")";
+	break;
+      case LT:
+	if (isInt(e[0].getType()) || isInt(e[1].getType())) {
+	}
+	os << "(< " << e[0] << " " << e[1] <<")";
+	break;
+      case LE:
+          os << "(<= " << e[0]  << " " << e[1] << ")";
+          break;
+      case GT:
+	os << "(> " << e[0] << " " << e[1] << ")";
+	break;
+      case GE:
+	os << "(>= " << e[0] << " " << e[1]  << ")";
+	break;
+      case DARK_SHADOW:
+      case GRAY_SHADOW:
+	os <<"ERROR:SHADOW:not supported in TPTP\n";
+	break;
+      default:
+	// Print the top node in the default LISP format, continue with
+	// pretty-printing for children.
+          e.print(os);
+	  
+          break;
+      } 
+      break; // end of case TPTP_LANG
+
       
     case PRESENTATION_LANG:
       switch(e.getKind()) {

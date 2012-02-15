@@ -125,7 +125,7 @@ struct CSolverStats {
     long 	start_world_time;
     long 	finish_world_time;
 
-    long long 	total_bubble_move;
+    long  	total_bubble_move;
 
     int 	num_decisions;
     int		num_backtracks;
@@ -277,7 +277,7 @@ public:
     }
     int max_dlevel() 	{ return _stats.max_dlevel; }
     int num_implications() { return _stats.num_implications; }
-    long long total_bubble_move(void) {	return _stats.total_bubble_move; }
+    long total_bubble_move(void) {	return _stats.total_bubble_move; }
 
     char * version(void){ 
 	return "Z2001.2.17"; 

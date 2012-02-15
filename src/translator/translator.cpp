@@ -33,6 +33,7 @@
 #include "theory_datatype.h"
 #include "theory_datatype_lazy.h"
 #include "smtlib_exception.h"
+#include "command_line_flags.h"
 
 
 using namespace std;
@@ -100,6 +101,47 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
 
   Rational r;
   switch (e2.getKind()) {
+    case READ:
+      if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
+        if (e2[1].getKind() != UCONST) break;
+        map<string, Type>::iterator i = d_arrayConvertMap->find(e2[1].getName());
+        if (i == d_arrayConvertMap->end()) {
+          (*d_arrayConvertMap)[e2[1].getName()] = *d_indexType;
+        }
+        else {
+          if ((*i).second != (*d_indexType)) {
+            d_unknown = true;
+          }
+        }
+      }
+      break;
+    case WRITE:
+      if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
+        map<string, Type>::iterator i;
+        if (e2[1].getKind() == UCONST) {
+          i = d_arrayConvertMap->find(e2[1].getName());
+          if (i == d_arrayConvertMap->end()) {
+            (*d_arrayConvertMap)[e2[1].getName()] = *d_indexType;
+          }
+          else {
+            if ((*i).second != (*d_indexType)) {
+              d_unknown = true;
+              break;
+            }
+          }
+        }
+        if (e2[2].getKind() != UCONST) break;
+        i = d_arrayConvertMap->find(e2[2].getName());
+        if (i == d_arrayConvertMap->end()) {
+          (*d_arrayConvertMap)[e2[2].getName()] = *d_elementType;
+        }
+        else {
+          if ((*i).second != (*d_elementType)) {
+            d_unknown = true;
+          }
+        }
+      }
+      break;
     case APPLY:
       // Expand lambda applications
       if (e2.getOpKind() == LAMBDA) {
@@ -115,6 +157,13 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
     case EQ:
       if (d_theoryArith->getBaseType(e2[0]) != d_theoryArith->realType())
         break;
+      if (d_theoryCore->getFlags()["convert2array"].getBool() &&
+          (e2[0].getKind() == UCONST &&
+           d_arrayConvertMap->find(e2[0].getName()) == d_arrayConvertMap->end()) ||
+          (e2[1].getKind() == UCONST &&
+           d_arrayConvertMap->find(e2[1].getName()) == d_arrayConvertMap->end())) {
+        d_equalities.push_back(e2);
+      }
       goto arith_rewrites;
 
     case UMINUS:
@@ -139,11 +188,21 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       }
       goto arith_rewrites;
 
+    case MINUS:
+      if (d_convertArith) {
+        if (e2[0].isRational() && e2[1].isRational()) {
+          e2 = d_em->newRatExpr(e2[0].getRational() - e2[1].getRational());
+          break;
+        }
+      }
+      goto arith_rewrites;
+
     case PLUS:
       if (d_convertArith) {
         // Flatten and combine constants
         vector<Expr> terms;
         bool changed = false;
+        int numConst = 0;
         r = 0;
         Expr::iterator i = e2.begin(), iend = e2.end();
         for(; i!=iend; ++i) {
@@ -151,14 +210,18 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
             changed = true;
             Expr::iterator i2 = (*i).begin(), i2end = (*i).end();
             for (; i2 != i2end; ++i2) {
-              if ((*i2).isRational()) r += (*i2).getRational();
+              if ((*i2).isRational()) {
+                r += (*i2).getRational();
+                numConst++;
+              }
               else terms.push_back(*i2);
             }
           }
           else {
             if ((*i).isRational()) {
-              if (r != 0) changed = true;
               r += (*i).getRational();
+              numConst++;
+              if (numConst > 1) changed = true;
             }
             else terms.push_back(*i);
           }
@@ -185,6 +248,57 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       }
       goto arith_rewrites;
 
+    case MULT:
+      if (d_convertArith) {
+        // Flatten and combine constants
+        vector<Expr> terms;
+        bool changed = false;
+        int numConst = 0;
+        r = 1;
+        Expr::iterator i = e2.begin(), iend = e2.end();
+        for(; i!=iend; ++i) {
+          if ((*i).getKind() == MULT) {
+            changed = true;
+            Expr::iterator i2 = (*i).begin(), i2end = (*i).end();
+            for (; i2 != i2end; ++i2) {
+              if ((*i2).isRational()) {
+                r *= (*i2).getRational();
+                numConst++;
+              }
+              else terms.push_back(*i2);
+            }
+          }
+          else {
+            if ((*i).isRational()) {
+              r *= (*i).getRational();
+              numConst++;
+              if (numConst > 1) changed = true;
+            }
+            else terms.push_back(*i);
+          }
+        }
+        if (r == 0) {
+          e2 = preprocessRec(d_em->newRatExpr(0), cache);
+          break;
+        }
+        else if (terms.size() == 0) {
+          e2 = preprocessRec(d_em->newRatExpr(r), cache);
+          break;
+        }
+        else if (terms.size() == 1) {
+          if (r == 1) {
+            e2 = terms[0];
+            break;
+          }
+        }
+        if (changed) {
+          if (r != 1) terms.push_back(d_em->newRatExpr(r));
+          e2 = preprocessRec(Expr(MULT, terms), cache);
+          break;
+        }
+      }
+      goto arith_rewrites;
+
     case POW:
       if (d_convertArith && e2[0].isRational()) {
         r = e2[0].getRational();
@@ -199,8 +313,6 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
     case GT:
     case LE:
     case GE:
-    case MINUS:
-    case MULT:
     case INTDIV:
     case MOD:
 
@@ -312,7 +424,9 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       break;
 
     case EQ:
-      if (d_theoryArith->getBaseType(e2[0]) != d_theoryArith->realType())
+      if (d_theoryArith->getBaseType(e2[0]) != d_theoryArith->realType() ||
+          e2[0].getType() == d_theoryArith->intType() &&
+          d_theoryCore->getFlags()["convert2array"].getBool())
         break;
     case LT:
     case GT:
@@ -341,8 +455,16 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       break;
   }
 
-  d_theoryCore->theoryOf(e2)->setUsed();
-  
+  switch (e2.getKind()) {
+    case EQ:
+    case NOT:
+      break;
+    case UCONST:
+      if (e2.arity() == 0) break;
+    default:
+      d_theoryCore->theoryOf(e2)->setUsed();
+  }
+
   cache[e] = e2;
   return e2;
 }
@@ -522,7 +644,15 @@ Translator::Translator(ExprManager* em,
     d_realUsed(false), d_intUsed(false), d_intConstUsed(false),
     d_langUsed(NOT_USED), d_UFIDL_ok(true), d_arithUsed(false),
     d_zeroVar(NULL)
-{}
+{
+  d_arrayConvertMap = new map<string, Type>;
+}
+
+
+Translator::~Translator()
+{
+  delete d_arrayConvertMap;
+}
 
 
 bool Translator::start(const string& dumpFile)
@@ -680,7 +810,12 @@ void Translator::dumpQueryResult(QueryResult qres)
 Expr Translator::processType(const Expr& e)
 {
   switch (e.getKind()) {
+    case TYPEDECL:
+      return e;
     case INT:
+      if (d_theoryCore->getFlags()["convert2array"].getBool()) {
+        return d_elementType->getExpr();
+      }
       d_intUsed = true;
       break;
     case REAL:
@@ -695,6 +830,23 @@ Expr Translator::processType(const Expr& e)
     case SUBRANGE:
       d_unknown = true;
       break;
+    case ARRAY:
+      if (d_theoryCore->getFlags()["convert2array"].getBool()) {
+        d_ax = true;
+        return d_arrayType->getExpr();
+      }
+      if (e[0].getKind() == TYPEDECL) {
+        DebugAssert(e[0].arity() == 1, "expected arity 1");
+        if (e[0][0].getString() == "Index") {
+          if (e[1].getKind() == TYPEDECL) {
+            DebugAssert(e[1].arity() == 1, "expected arity 1");
+            if (e[1][0].getString() == "Element") {
+              d_ax = true;
+              return e;
+            }
+          }
+        }
+      }
     default:
       break;
   }
@@ -736,6 +888,13 @@ void Translator::finish()
     *d_osdump << "  :category { ";
     *d_osdump << d_category << " }" << endl;
 
+    // Create types for theory QF_AX if needed
+    if (d_theoryCore->getFlags()["convert2array"].getBool()) {
+      d_indexType = new Type(d_theoryCore->newTypeExpr("Index"));
+      d_elementType = new Type(d_theoryCore->newTypeExpr("Element"));
+      d_arrayType = new Type(arrayType(*d_indexType, *d_elementType));
+    }
+
     // Compute logic for smt-lib
     bool qf_uf = false;
     {
@@ -762,6 +921,7 @@ void Translator::finish()
             }
             case CONST: {
               DebugAssert(e.arity() == 2, "Expected CONST with arity 2");
+              if (d_theoryCore->getFlags()["convert2array"].getBool()) break;
               Expr e2 = processType(e[1]);
               if (e[1] == e2) break;
               *i = Expr(CONST, e[0], e2);
@@ -779,23 +939,77 @@ void Translator::finish()
                                 processType(d_zeroVar->getType().getExpr())));
       }
 
+      // Type inference over equality
+      if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
+        bool changed;
+        do {
+          changed = false;
+          unsigned i;
+          for (i = 0; i < d_equalities.size(); ++i) {
+            if (d_equalities[i][0].getKind() == UCONST &&
+                d_arrayConvertMap->find(d_equalities[i][0].getName()) == d_arrayConvertMap->end()) {
+              if (d_equalities[i][1].getKind() == READ) {
+                changed = true;
+                (*d_arrayConvertMap)[d_equalities[i][0].getName()] = *d_elementType;
+              }
+              else if (d_equalities[i][1].getKind() == UCONST) {
+                map<string, Type>::iterator it = d_arrayConvertMap->find(d_equalities[i][1].getName());
+                if (it != d_arrayConvertMap->end()) {
+                  changed = true;
+                  (*d_arrayConvertMap)[d_equalities[i][0].getName()] = (*it).second;
+                }
+              }
+            }
+            else if (d_equalities[i][1].getKind() == UCONST &&
+                     d_arrayConvertMap->find(d_equalities[i][1].getName()) == d_arrayConvertMap->end()) {
+              if (d_equalities[i][0].getKind() == READ) {
+                changed = true;
+                (*d_arrayConvertMap)[d_equalities[i][1].getName()] = *d_elementType;
+              }
+              else if (d_equalities[i][0].getKind() == UCONST) {
+                map<string, Type>::iterator it = d_arrayConvertMap->find(d_equalities[i][0].getName());
+                if (it != d_arrayConvertMap->end()) {
+                  changed = true;
+                  (*d_arrayConvertMap)[d_equalities[i][1].getName()] = (*it).second;
+                }
+              }
+            }
+          }
+        } while (changed);
+      }
+
       // Step 2: If both int and real are used, try to separate them
-      if (!d_unknown && d_intUsed && d_realUsed) {
+      if (!d_unknown && (d_intUsed && d_realUsed) || (d_theoryCore->getFlags()["convert2array"].getBool())) {
         ExprMap<Expr> cache;
         vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
         for (; i != iend; ++i) {
           Expr e = *i;
           switch (e.getKind()) {
             case ASSERT: {
+              if (d_theoryCore->getFlags()["convert2array"].getBool()) break;
               Expr e2 = preprocess2(e[0], cache);
               e2.getType();
               *i = Expr(ASSERT, e2);
               break;
             }
             case QUERY: {
+              if (d_theoryCore->getFlags()["convert2array"].getBool()) break;
               Expr e2 = preprocess2(e[0].negate(), cache);
               e2.getType();
               *i = Expr(QUERY, e2.negate());
+              break;
+            }
+            case CONST: {
+              if (!d_theoryCore->getFlags()["convert2array"].getBool()) break;
+              map<string, Type>::iterator it = d_arrayConvertMap->find(e[0][0].getString());
+              if (it != d_arrayConvertMap->end()) {
+                *i = Expr(CONST, e[0], (*it).second.getExpr());
+              }
+              else {
+                Expr e2 = processType(e[1]);
+                if (e[1] == e2) break;
+                *i = Expr(CONST, e[0], e2);
+              }
               break;
             }
             default:
@@ -1047,7 +1261,6 @@ bool Translator::printArrayExpr(ExprStream& os, const Expr& e)
         if (e[1].getKind() == TYPEDECL) {
           DebugAssert(e[1].arity() == 1, "expected arity 1");
           if (e[1][0].getString() == "Element") {
-            d_ax = true;
             os << "Array";
             return true;
           }

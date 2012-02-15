@@ -58,7 +58,7 @@ class CDList :public ContextObj {
 public:
   CDList(Context* context) : ContextObj(context), d_size(0) {
     d_list = new std::deque<T>();
-    IF_DEBUG(setName("CDList"));
+    IF_DEBUG(setName("CDList");)
   }
   virtual ~CDList() { if(d_list != NULL) delete d_list; }
   unsigned size() const { return d_size; }

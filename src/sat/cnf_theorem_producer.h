@@ -24,20 +24,39 @@
 
 #include "theorem_producer.h"
 #include "cnf_rules.h"
+#include "command_line_flags.h"
 
 namespace CVC3 {
 
   class CNF_TheoremProducer
     : public CNF_Rules,
       public TheoremProducer {
+    const CLFlags& d_flags;
+    const bool& d_smartClauses;
 
   public:
-    CNF_TheoremProducer(TheoremManager* tm): TheoremProducer(tm) { }
+    CNF_TheoremProducer(TheoremManager* tm, const CLFlags& flags)
+      : TheoremProducer(tm), d_flags(flags),
+        d_smartClauses(flags["smart-clauses"].getBool()) { }
     ~CNF_TheoremProducer() { }
 
-    Theorem learnedClause(const Theorem& thm);
-    Theorem ifLiftRule(const Expr& e, int itePos);
+    void getSmartClauses(const Theorem& thm, std::vector<Theorem>& clauses);
 
+    void learnedClauses(const Theorem& thm, std::vector<Theorem>& clauses,
+                        bool newLemma);
+    Theorem CNFAddUnit(const Theorem& thm);
+    Theorem CNFConvert(const Expr & e, const Theorem& thm);
+    Theorem ifLiftRule(const Expr& e, int itePos);
+    Theorem CNFtranslate(const Expr& before, 
+			 const Expr& after, 
+			 std::string reason, 
+			 int pos) ;
+    Theorem CNFITEtranslate(const Expr& before, 
+			    const std::vector<Expr>& after,
+			    const std::vector<Theorem>& thms,
+			    int pos) ;
+    
+    
   }; // end of class CNF_TheoremProducer
 } // end of namespace CVC3
 #endif

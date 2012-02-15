@@ -22,6 +22,8 @@
 #define _cvc3__sat__dpllt_minisat_h_
 
 #include "dpllt.h"
+#include "proof.h"
+#include "cnf_manager.h"
 #include <stack>
 
 
@@ -32,6 +34,8 @@ namespace MiniSat {
 
 namespace SAT {
 
+class SatProof;
+
 // an implementation of the DPLLT interface using an adapted MiniSat SAT solver
 class DPLLTMiniSat : public DPLLT {
 public:
@@ -41,6 +45,14 @@ protected:
   // is printed after the derivation terminates.
   // can only be set with the constructor
   bool d_printStats;
+
+  // if true then minisat will create a derivation
+  // of the empty clause for an unsatisfiable problem.
+  // see getProof().
+  bool d_createProof;
+
+  // if d_createProof, then the proof of the last unsatisfiable search
+  SatProof* d_proof;
 
   // the dpllt interface operates in a stack fashion via checkSat and push.
   // each stack's data is stored in a level, which is just an instance of MiniSat.
@@ -66,7 +78,8 @@ protected:
 
 
 public:
-  DPLLTMiniSat(TheoryAPI* theoryAPI, Decider* decider, bool printStats = false);
+  DPLLTMiniSat(TheoryAPI* theoryAPI, Decider* decider,
+	       bool printStats = false, bool createProof = false);
   virtual ~DPLLTMiniSat();
 
 
@@ -76,7 +89,19 @@ public:
   virtual void push();
   virtual void pop();
   virtual void addAssertion(const CNF_Formula& cnf);
+  virtual std::vector<SAT::Lit> getCurAssignments() ;
+  virtual std::vector<std::vector<SAT::Lit> > getCurClauses();
   virtual Var::Val getValue(Var v);
+
+  // if createProof was given returns a proof of the last unsatisfiable search,
+  // otherwise (or if there was no unsatisfiable search) NULL
+  // ownership remains with DPLLTMiniSat
+  SatProof* getProof() { 
+    DebugAssert((d_proof != NULL), "null proof foound") ;
+    return d_proof; 
+  };
+
+  CVC3::Proof getSatProof(CNF_Manager*, CVC3::TheoryCore*) ;
 };
 
 }

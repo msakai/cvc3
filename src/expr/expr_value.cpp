@@ -47,6 +47,12 @@ ExprValue::~ExprValue() {
     delete find;
     free(find);
   }
+  if (d_eqNext) {
+    CDO<Theorem>* eqNext = d_eqNext;
+    d_eqNext = NULL;
+    delete eqNext;
+    free(eqNext);
+  }
   if(d_notifyList != NULL) {
     NotifyList* nl = d_notifyList;
     d_notifyList = NULL;
@@ -275,11 +281,17 @@ ExprValue* ExprClosure::copy(ExprManager* em, ExprIndex idx) const {
     vector<Expr>::const_iterator i = d_vars.begin(), iend = d_vars.end();
     for (; i != iend; ++i)
       vars.push_back(rebuild(*i, em));
+
+    vector<Expr> manual_trigs;
+    vector<Expr>::const_iterator j = d_manual_triggers.begin(), jend = d_manual_triggers.end();
+    for (; j != jend; ++j)
+      manual_trigs.push_back(rebuild(*j, em));
+
     return new(em->getMM(getMMIndex()))
-      ExprClosure(em, d_kind, vars, rebuild(d_body, em), idx);
+      ExprClosure(em, d_kind, vars, rebuild(d_body, em), manual_trigs, idx);
   }
   return new(em->getMM(getMMIndex()))
-    ExprClosure(em, d_kind, d_vars, d_body, idx);
+    ExprClosure(em, d_kind, d_vars, d_body, d_manual_triggers, idx);
 }
 
 

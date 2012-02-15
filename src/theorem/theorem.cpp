@@ -114,7 +114,7 @@ namespace CVC3 {
                   + int2string(tv->d_refcount));
 
       //      IF_DEBUG(if((!isNull()) && tv->d_refcount == 1)
-      //               TRACE("theorem", "Delete ", *this, ""));
+      //               TRACE("theorem", "Delete ", *this, "");)
       if((!isNull()) && --(tv->d_refcount) == 0) {
         MemoryManager* mm = tv->getMM();
         delete tv;
@@ -132,8 +132,14 @@ namespace CVC3 {
 		   const Assumptions& assump, const Proof& pf, 
 		   bool isAssump, int scope) {
     TheoremValue* tv;
-    if(thm.isEq() || thm.isIff())
+    if (thm.isEq() || thm.isIff()) {
+      if (thm[0] == thm[1]) {
+        d_expr = thm[0].d_expr;
+        d_expr->incRefcount();
+        return;
+      }
       tv = new(tm->getRWMM()) RWTheoremValue(tm, thm, assump, pf, isAssump, scope);
+    }
     else
       tv = new(tm->getMM()) RegTheoremValue(tm, thm, assump, pf, isAssump, scope);
     tv->d_refcount++;
@@ -146,27 +152,15 @@ namespace CVC3 {
   Theorem::Theorem(TheoremManager* tm, const Expr& lhs, const Expr& rhs,
 		   const Assumptions& assump, const Proof& pf, bool isAssump,
                    int scope) {
+    if (lhs == rhs) {
+      d_expr = lhs.d_expr;
+      d_expr->incRefcount();
+      return;
+    }
     TheoremValue* tv = new(tm->getRWMM())
       RWTheoremValue(tm, lhs, rhs, assump, pf, isAssump, scope);
     tv->d_refcount++;
     d_thm = ((long)tv)|0x1;
-
-    // record that rhs was simplified from lhs, provided that both are
-    // atomic and rhs is a fresh expression, following SVC. We try to
-    // approximate this by seeing if the rhs was the last created
-    // expression (i.e. it has the last index handed out by the
-    // expression manager), but that's not reliable since the
-    // expressions may have been created in a different order than
-    // they are passed into Theorem().
-
-//     if (rhs.hasLastIndex() // FIXME: is this OK to comment out?
-// 	// && tm->getVCL()->theoryCore()->isAtomicFormula(rhs)
-// 	// && tm->getVCL()->theoryCore()->isAtomicFormula(lhs)
-// 	)
-//       ((Expr &)rhs).setSimpFrom(lhs.hasSimpFrom() ?
-// 				lhs.getSimpFrom() :
-// 				lhs);
-//    TRACE("theorem", "Theorem(lhs,rhs) => ", *this, "");
     DebugAssert(!withProof() || !pf.isNull(),
 		"Null proof in theorem:\n"+toString());
   }
@@ -197,7 +191,7 @@ namespace CVC3 {
       //      TRACE("theorem", "~Theorem(", *this, ") {");
       IF_DEBUG(FatalAssert(tv->d_refcount > 0,
                            "~Theorem(): refcount = "
-                           + int2string(tv->d_refcount)));
+                           + int2string(tv->d_refcount));)
       if((--tv->d_refcount) == 0) {
         //        TRACE_MSG("theorem", "~Theorem(): deleting");
         MemoryManager* mm = tv->getMM();
@@ -291,6 +285,103 @@ void Theorem::getLeafAssumptions(vector<Expr>& assumptions,
 }
 
 
+void Theorem::GetSatAssumptionsRec(vector<Theorem>& assumptions) const
+{
+  DebugAssert(!isRefl() && !isFlagged(), "Invariant violated");
+  setFlag();
+  Expr e = getExpr();
+  if (e.isAbsLiteral()) {
+    if (isAssump() ||
+        e.isRegisteredAtom() ||
+        (e.isNot() && e[0].isRegisteredAtom())) {
+      assumptions.push_back(*this);
+      return;
+    }
+  }
+  const Assumptions& a = getAssumptionsRef();
+  for (Assumptions::iterator i = a.begin(); i != a.end(); i++) {
+    if ((*i).isRefl() || (*i).isFlagged()) continue;
+    (*i).GetSatAssumptionsRec(assumptions);
+  }
+}
+
+
+void Theorem::GetSatAssumptions(vector<Theorem>& assumptions) const {
+  DebugAssert(!isRefl() && !isFlagged(), "Invariant violated");
+  setFlag();
+  const Assumptions& a = getAssumptionsRef();
+  for (Assumptions::iterator i = a.begin(); i != a.end(); i++) {
+    if ((*i).isRefl() || (*i).isFlagged()) continue;
+    (*i).GetSatAssumptionsRec(assumptions);
+  }
+}
+
+
+void Theorem::getAssumptionsAndCongRec(set<Expr>& assumptions,
+                                       vector<Expr>& congruences) const
+{
+  if (isRefl() || isFlagged()) return;
+  setFlag();
+  if(isAssump()) {
+    assumptions.insert(getExpr());
+  }
+  else {
+    const Assumptions& a = getAssumptionsRef();
+    if (isSubst() && a.size() == 1) {
+      vector<Expr> hyp;
+      const Theorem& thm = *(a.begin());
+      thm.getAssumptionsAndCongRec(assumptions, congruences);
+      if (thm.isRewrite() && thm.getLHS().isTerm()
+          && thm.getLHS().isAtomic() && thm.getRHS().isAtomic() &&
+          !thm.isRefl()) {
+        hyp.push_back(!thm.getExpr());
+      }
+      else return;
+      const Expr& e = getExpr();
+      if (e.isAtomicFormula()) {
+        if (e[0] < e[1]) {
+          hyp.push_back(e[1].eqExpr(e[0]));
+        }
+        else {
+          hyp.push_back(e);
+        }
+        congruences.push_back(Expr(OR, hyp));
+      }
+      else if (e[0].isAtomicFormula() && !e[0].isEq()) {
+        hyp.push_back(!e[0]);
+        hyp.push_back(e[1]);
+        congruences.push_back(Expr(OR, hyp));
+        hyp.pop_back();
+        hyp.pop_back();
+        hyp.push_back(e[0]);
+        hyp.push_back(!e[1]);
+        congruences.push_back(Expr(OR, hyp));
+      }
+    }
+    else {
+      Assumptions::iterator i=a.begin(), iend=a.end();
+      for(; i!=iend; ++i)
+        (*i).getAssumptionsAndCongRec(assumptions, congruences);
+    }
+  }
+}
+
+
+void Theorem::getAssumptionsAndCong(vector<Expr>& assumptions,
+                                    vector<Expr>& congruences,
+                                    bool negate) const
+{
+  if (isNull() || isRefl()) return;
+  set<Expr> assumpSet;
+  clearAllFlags();
+  getAssumptionsAndCongRec(assumpSet, congruences);
+  // Order assumptions by their creation time
+  for(set<Expr>::iterator i=assumpSet.begin(), iend=assumpSet.end();
+      i!=iend; ++i)
+    assumptions.push_back(negate ? (*i).negate() : *i);
+}
+
+
 const Assumptions& Theorem::getAssumptionsRef() const
 {
   DebugAssert(!isNull(), "CVC3::Theorem::getAssumptionsRef: we are Null");
@@ -353,6 +444,17 @@ const Assumptions& Theorem::getAssumptionsRef() const
     return thm()->getCachedValue();
   }
   
+  void Theorem::setSubst() const {
+    DebugAssert(!isNull() && !isRefl(), "CVC3::Theorem::setSubst: invalid thm");
+    thm()->setSubst();
+  }
+
+  bool Theorem::isSubst() const {
+    DebugAssert(!isNull(), "CVC3::Theorem::isSubst: we are Null");
+    if (isRefl()) return false;
+    return thm()->isSubst();
+  }
+
   void Theorem::setExpandFlag(bool val) const {
     DebugAssert(!isNull(), "CVC3::Theorem::setExpandFlag: we are Null");
     if (isRefl()) exprValue()->d_em->getTM()->setExpandFlag((long)d_expr, val);
@@ -388,12 +490,21 @@ const Assumptions& Theorem::getAssumptionsRef() const
 
   unsigned Theorem::getQuantLevel() const {
     DebugAssert(!isNull(), "CVC3::Theorem::getQuantLevel: we are Null");
+    TRACE("quant-level", "isRefl? ", isRefl(), "");
     return isRefl() ? 0 : thm()->getQuantLevel();
   }
+
+  unsigned Theorem::getQuantLevelDebug() const {
+    DebugAssert(!isNull(), "CVC3::Theorem::getQuantLevel: we are Null");
+    TRACE("quant-level", "isRefl? ", isRefl(), "");
+    return isRefl() ? 0 : thm()->getQuantLevelDebug();
+  }
+
 
   void Theorem::setQuantLevel(unsigned level) {
     DebugAssert(!isNull(), "CVC3::Theorem::setQuantLevel: we are Null");
     DebugAssert(!isRefl(), "CVC3::Theorem::setQuantLevel: we are Refl");
+    if (isRefl()) return;
     thm()->setQuantLevel(level);
   }
 
@@ -403,6 +514,17 @@ const Assumptions& Theorem::getAssumptionsRef() const
   }
 
   void Theorem::recursivePrint(int& i) const {
+    const Assumptions::iterator iend = getAssumptionsRef().end();
+    Assumptions::iterator it = getAssumptionsRef().begin();
+    if (!isAssump()) {
+      for (; it != iend; ++it) {
+        if (it->isFlagged()) continue;
+        it->recursivePrint(i);
+        it->setFlag();
+      }
+    }
+
+    setCachedValue(i++);
     cout << "[" << getCachedValue()
 	 << "]@" << getScope() << "\tTheorem: {";
 
@@ -413,22 +535,14 @@ const Assumptions& Theorem::getAssumptionsRef() const
       cout << "empty";
     }
     else {
-      const Assumptions::iterator iend = getAssumptionsRef().end();
-      for (Assumptions::iterator it = getAssumptionsRef().begin();
-	   it != iend; ++it) {
-	if (!it->isFlagged()) it->setCachedValue(i++);
-	cout << "[" << it->getCachedValue() << "], " ;
+      for (it = getAssumptionsRef().begin(); it != iend; ++it) {
+        if (it != getAssumptionsRef().begin()) cout << ", ";
+	cout << "[" << it->getCachedValue() << "]" ;
       }
-      cout << "}" << endl << "\t\t|- " << getExpr() << endl;
-      for (Assumptions::iterator it = getAssumptionsRef().begin();
-	   it != iend; ++it) {
-	if (it->isFlagged()) continue;
-	it->recursivePrint(i);
-	it->setFlag();
-      }
-      return;
     }
-    cout << "}" << endl << "\t\t|- " << getExpr() << endl;
+    cout << "}" << endl << "\t\t|- " << getExpr();
+    if (isSubst()) cout << " [[Subst]]";
+    cout << endl;
   }
 
 

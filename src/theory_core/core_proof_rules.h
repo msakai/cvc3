@@ -120,6 +120,9 @@ namespace CVC3 {
     /*! and rewrites all the other disjuncts. */
     virtual Theorem rewriteOrSubterms(const Expr& e, int idx) = 0;
 
+    //! Temporary cheat for building theorems
+    virtual Theorem dummyTheorem(const Expr& e) = 0;
+
   }; // end of class CoreProofRules
 
 } // end of namespace CVC3

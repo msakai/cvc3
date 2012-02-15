@@ -51,7 +51,7 @@ class CDFlags :public ContextObj {
 
 public:
   CDFlags(Context* context) : ContextObj(context), d_flags(0)
-    { IF_DEBUG(setName("CDFlags")); }
+    { IF_DEBUG(setName("CDFlags");) }
   ~CDFlags() {}
   void set(unsigned mask, int scope=-1) { update(mask, scope, true); }
   void clear(unsigned mask, int scope=-1) { update(mask, scope, false); }

@@ -197,7 +197,7 @@ public:
   virtual ~SearchImplBase();
 
   virtual void registerAtom(const Expr& e)
-    { d_core->registerAtom(e, Theorem()); }
+    { d_core->theoryOf(e)->registerAtom(e, Theorem()); }
   virtual Theorem getImpliedLiteral() { return d_core->getImpliedLiteral(); }
   virtual void push() { d_core->getCM()->push(); }
   virtual void pop() { d_core->getCM()->pop(); }

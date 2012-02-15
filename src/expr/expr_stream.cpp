@@ -20,6 +20,7 @@
 
 #include "pretty_printer.h"
 #include "expr_stream.h"
+#include "theory_core.h"
 
 using namespace std;
 
@@ -64,6 +65,11 @@ namespace CVC3 {
             s = "?" + s;
           }
         }
+        if (d_lang == TPTP_LANG) {
+	  
+	  s = to_upper( s);
+        }
+
 	d_dagMap[e] = s;
 	d_newDagMap[e] = s;
 	d_dagStack.push_back(e);

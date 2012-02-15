@@ -87,6 +87,12 @@ Expr Theory::computeTCC(const Expr& e) {
 }
 
 
+void Theory::registerAtom(const Expr& e, const Theorem& thm)
+{
+  d_theoryCore->registerAtom(e, thm);
+}
+
+
 bool Theory::inconsistent()
 {
   return d_theoryCore->inconsistent();
@@ -97,7 +103,7 @@ void Theory::setInconsistent(const Theorem& e)
 {
   //  TRACE("facts assertFact", ("setInconsistent[" + getName() + "->]("), e, ")");
   //  TRACE("conflict", ("setInconsistent[" + getName() + "->]("), e, ")");
-  IF_DEBUG(debugger.counter("conflicts from DPs")++);
+  IF_DEBUG(debugger.counter("conflicts from DPs")++;)
   d_theoryCore->setInconsistent(e);
 }
 
@@ -124,6 +130,13 @@ void Theory::enqueueFact(const Theorem& e)
   d_theoryCore->enqueueFact(e);
 }
 
+void Theory::enqueueSE(const Theorem& e)
+{
+  //  TRACE("facts assertFact", ("enqueueFact[" + getName() + "->]("), e, ")");
+  d_theoryCore->enqueueSE(e);
+}
+
+
 
 void Theory::assertEqualities(const Theorem& e)
 {
@@ -137,6 +150,11 @@ void Theory::addSplitter(const Expr& e, int priority) {
   //  DebugAssert(simplifyExpr(e) == e, "Expected splitter to be simplified");
   DebugAssert(e.isAbsLiteral() && !e.isBoolConst(), "Expected literal");
   d_theoryCore->d_coreSatAPI->addSplitter(e, priority);
+}
+
+
+void Theory::addGlobalLemma(const Theorem& thm, int priority) {
+  d_theoryCore->d_coreSatAPI->addLemma(thm, priority, true);
 }
 
 
@@ -168,14 +186,53 @@ void Theory::registerKinds(Theory* theory, vector<int>& kinds)
 }
 
 
+void Theory::unregisterKinds(Theory* theory, vector<int>& kinds)
+{
+  vector<int>::const_iterator k;
+  vector<int>::const_iterator kEnd;
+  for (k = kinds.begin(), kEnd = kinds.end(); k != kEnd; ++k) {
+    DebugAssert(d_theoryCore->d_theoryMap[*k] == theory,
+		"kind not registered: "+getEM()->getKindName(*k)
+		+" = "+int2string(*k));
+    d_theoryCore->d_theoryMap.erase(*k);
+  }
+}
+
+
 void Theory::registerTheory(Theory* theory, vector<int>& kinds,
 			    bool hasSolver)
 {
   registerKinds(theory, kinds);
-  d_theoryCore->d_theories.push_back(theory);
+  unsigned i = 0;
+  for (; i < d_theoryCore->d_theories.size(); ++i) {
+    if (d_theoryCore->d_theories[i] == NULL) {
+      d_theoryCore->d_theories[i] = theory;
+      break;
+    }
+  }
+  if (i == d_theoryCore->d_theories.size()) {
+    d_theoryCore->d_theories.push_back(theory);
+  }
   if (hasSolver) {
     DebugAssert(!d_theoryCore->d_solver,"Solver already registered");
     d_theoryCore->d_solver = theory;
+  }
+}
+
+
+void Theory::unregisterTheory(Theory* theory, vector<int>& kinds,
+                              bool hasSolver)
+{
+  unregisterKinds(theory, kinds);
+  unsigned i = 0;
+  for (; i < d_theoryCore->d_theories.size(); ++i) {
+    if (d_theoryCore->d_theories[i] == theory) {
+      d_theoryCore->d_theories[i] = NULL;
+    }
+  }
+  if (hasSolver) {
+    DebugAssert(d_theoryCore->d_solver == theory, "Solver not registered");
+    d_theoryCore->d_solver = NULL;
   }
 }
 
@@ -199,6 +256,17 @@ Theory* Theory::theoryOf(int kind)
 }
 
 
+Theory* Theory::theoryOf(const Type& e)
+{
+  const Expr& typeExpr = getBaseType(e).getExpr();
+  DebugAssert(!typeExpr.isNull(),"Null type");
+  int kind = typeExpr.getOpKind();
+  DebugAssert(d_theoryCore->d_theoryMap.count(kind) > 0,
+	      "Unknown operator: " + getEM()->getKindName(kind));
+  return d_theoryCore->d_theoryMap[kind];
+}
+
+
 Theory* Theory::theoryOf(const Expr& e)
 {
   Expr e2(e);
@@ -216,8 +284,7 @@ Theory* Theory::theoryOf(const Expr& e)
   // TheoryCore.
   const Expr& typeExpr = getBaseType(e2).getExpr();
   DebugAssert(!typeExpr.isNull(),"Null type");
-  int kind = typeExpr.getKind();
-  if (typeExpr.isApply()) kind = typeExpr.getOpKind();
+  int kind = typeExpr.getOpKind();
   DebugAssert(d_theoryCore->d_theoryMap.count(kind) > 0,
 	      "Unknown operator: " + getEM()->getKindName(kind));
   return d_theoryCore->d_theoryMap[kind];
@@ -667,6 +734,17 @@ Type Theory::newTypeExpr(const string& name)
 }
 
 
+Type Theory::lookupTypeExpr(const string& name)
+{
+  Expr res = resolveID(name);
+  if (res.isNull() ||
+      (res.getKind() != TYPEDECL && !res.isType())) {
+    return Type();
+  }
+  return Type(res);
+}
+
+
 Type Theory::newSubtypeExpr(const Expr& pred, const Expr& witness)
 {
   Type predTp(pred.getType());
@@ -772,3 +850,4 @@ void Theory::installID(const string& name, const Expr& e)
 Theorem Theory::typePred(const Expr& e) {
   return d_theoryCore->typePred(e);
 }
+

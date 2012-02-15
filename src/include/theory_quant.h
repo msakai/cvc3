@@ -95,12 +95,13 @@ class QuantProofRules;
  
  
 class TheoryQuant :public Theory {
-  
-  class  TypeComp { //!< needed for typeMap
-  public:
-    bool operator() (const Type t1, const Type t2) const
-      {return (t1.getExpr() < t2.getExpr()); }
-  };
+   Theorem rewrite(const Expr& e);
+
+   class  TypeComp { //!< needed for typeMap
+   public:
+     bool operator() (const Type t1, const Type t2) const
+     {return (t1.getExpr() < t2.getExpr()); }
+   };
 
   //! used to facilitate instantiation of universal quantifiers
   typedef std::map<Type, std::vector<size_t>, TypeComp > typeMap; 
@@ -117,6 +118,11 @@ class TheoryQuant :public Theory {
   std::queue<Theorem> d_univsQueue;
 
   std::queue<Theorem> d_simplifiedThmQueue;
+
+  std::queue<Theorem> d_gUnivQueue;
+  
+  std::queue<Expr> d_gBindQueue;
+
 
   ExprMap<std::set<std::vector<Expr> > >  d_tempBinds;
 
@@ -230,6 +236,7 @@ class TheoryQuant :public Theory {
   const bool* d_useInstEnd;
   const bool* d_useInstLCache;
   const bool* d_useInstGCache;
+  const bool* d_useInstThmCache;
   const bool* d_useInstTrue;
   const bool* d_usePullVar;
   const bool* d_useExprScore;
@@ -238,10 +245,15 @@ class TheoryQuant :public Theory {
   //  const int* d_maxUserScore;
   const bool* d_useTrans;
   const bool* d_useTrans2;
+  const bool* d_useManTrig;
+  const bool* d_useGFact;
+  const int* d_gfactLimit;
   const bool* d_useInstAll;
   const bool* d_usePolarity;
   const bool* d_useEqu;
+  const bool* d_useNewEqu;
   const int* d_maxNaiveCall;
+  const bool* d_useNaiveInst;
 
   CDO<int> d_curMaxExprScore;
 
@@ -299,6 +311,8 @@ class TheoryQuant :public Theory {
     std::vector<CDMap<Expr, bool>* > var_binds_found;
 
     std::vector<ExprMap<CDList<Expr>* >* > uncomm_list; //
+    Theorem univThm; // for test only
+    size_t univ_id; // for test only
   } multTrigsInfo ;
   
   ExprMap<multTrigsInfo> d_multitrigs_maps;
@@ -323,8 +337,12 @@ class TheoryQuant :public Theory {
   
   inline  CDList<Expr> & forwList(const Expr& ex);
 
+  void inline iterFWList(const Expr& sr, const Expr& dt, size_t univ_id, const Expr& gterm);
+  void inline iterBKList(const Expr& sr, const Expr& dt, size_t univ_id, const Expr& gterm);
+
   CDList<Expr> null_cdlist;
 
+  Theorem d_transThm;
 
   inline  void  pushBackList(const Expr& node, Expr ex);
   inline  void  pushForwList(const Expr& node, Expr ex);
@@ -334,7 +352,10 @@ class TheoryQuant :public Theory {
   
   ExprMap<CDList<Expr>* > d_same_head_expr; //map an expr to a list of expres shard the same head
   ExprMap<CDList<Expr>* > d_eq_list; //the equalities list
-  
+
+  CDList<Theorem> d_eqsUpdate; //the equalities list collected from update()
+  CDO<size_t> d_lastEqsUpdatePos;
+
   CDList<Expr > d_eqs; //the equalities list
   CDO<size_t > d_eqs_pos; //the equalities list
 
@@ -364,9 +385,17 @@ class TheoryQuant :public Theory {
   std::map<Type, std::vector<Expr>,TypeComp > d_typeExprMap;
   std::set<std::string> cacheHead;
 
-  StatCounter d_allInstCount ;
+  StatCounter d_allInstCount ; //the number instantiations asserted in SAT
+  StatCounter d_allInstCount2 ; 
+  StatCounter d_totalInstCount ;// the total number of instantiations.
+  StatCounter d_trueInstCount;//the number of instantiation simplified to be true.
+  StatCounter d_abInstCount;
 
-  CDO<bool> d_partCalled;;
+  //  size_t d_totalInstCount;
+  //  size_t d_trueInstCount;
+  //  size_t d_abInstCount;
+  
+  CDO<bool> d_partCalled;
 
   std::vector<Theorem> d_cacheTheorem;
   size_t d_cacheThmPos;
@@ -377,8 +406,14 @@ class TheoryQuant :public Theory {
 
   CDMap<Expr, std::set<std::vector<Expr> > > d_instHistory;//the history of instantiations
   //map univ to the trig, gterm and result
-  
+
+  ExprMap<int> d_thmCount; 
+  ExprMap<size_t> d_totalThmCount; 
+
   ExprMap<CDMap<Expr, bool>* > d_bindHistory; //the history of instantiations
+  ExprMap<std::hash_map<Expr, bool>* > d_bindGlobalHistory; //the history of instantiations
+
+  ExprMap<std::hash_map<Expr, Theorem>* > d_bindGlobalThmHistory; //the history of instantiations
 
   ExprMap<std::set<std::vector<Expr> > > d_instHistoryGlobal;//the history of instantiations
 
@@ -386,6 +421,13 @@ class TheoryQuant :public Theory {
   ExprMap<std::vector<Expr> > d_subTermsMap;
   //std::map<Expr, std::vector<Expr> > d_subTermsMap;
   const std::vector<Expr>& getSubTerms(const Expr& e);
+
+
+  void simplifyExprMap(ExprMap<Expr>& orgExprMap);
+  void simplifyVectorExprMap(std::vector<ExprMap<Expr> >& orgVectorExprMap);
+  std::string exprMap2string(const ExprMap<Expr>& vec);
+  std::string exprMap2stringSimplify(const ExprMap<Expr>& vec);
+  std::string exprMap2stringSig(const ExprMap<Expr>& vec);
 
   //ExprMap<int > d_thmTimes; 
   void enqueueInst(const Theorem, const Theorem); 
@@ -409,6 +451,7 @@ class TheoryQuant :public Theory {
 
   void arrayHeuristic(const Trigger& trig, size_t univid);
   
+  Expr simpRAWList(const Expr& org);
 
   void synNewInst(size_t univ_id, const std::vector<Expr>& binds, const Expr& gterm, const Trigger& trig );
   void synMultInst(const Theorem & univ,  const CDList<Expr>& allterms,	 size_t tBegin);
@@ -447,19 +490,48 @@ class TheoryQuant :public Theory {
   void delNewTrigs(ExprMap<ExprMap<std::vector<dynTrig>*>*>& new_trigs);
   void combineOldNewTrigs(ExprMap<ExprMap<std::vector<dynTrig>*>*>& new_trigs);
 
+  inline void add_parent(const Expr& parent);
+
   void newTopMatch(const Expr& gterm, 
 		   const Expr& vterm, 
 		   std::vector<ExprMap<Expr> >& binds, 
 		   const Trigger& trig);
-    
+
+  void newTopMatchSig(const Expr& gterm, 
+		      const Expr& vterm, 
+		      std::vector<ExprMap<Expr> >& binds, 
+		      const Trigger& trig);
+  
+  void newTopMatchNoSig(const Expr& gterm, 
+			const Expr& vterm, 
+			std::vector<ExprMap<Expr> >& binds, 
+			const Trigger& trig);
+
+
+
+  void newTopMatchBackupOnly(const Expr& gterm, 
+			     const Expr& vterm, 
+			     std::vector<ExprMap<Expr> >& binds, 
+			     const Trigger& trig);
+
 
   bool synMatchTopPred(const Expr& gterm, const Trigger trig, ExprMap<Expr>& env);
 
-  inline bool matchChild(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
-  inline void matchChild(const Expr& gterm, const Expr& vterm, std::vector<ExprMap<Expr> >& env);
-  inline void add_parent(const Expr& parent);
-
+  //  inline bool matchChild(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
+  //  inline void matchChild(const Expr& gterm, const Expr& vterm, std::vector<ExprMap<Expr> >& env);
+  
   bool recSynMatch(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
+
+  bool recMultMatch(const Expr& gterm,const Expr& vterm, std::vector<ExprMap<Expr> >& binds);
+  bool recMultMatchDebug(const Expr& gterm,const Expr& vterm, std::vector<ExprMap<Expr> >& binds);
+  bool recMultMatchNewWay(const Expr& gterm,const Expr& vterm, std::vector<ExprMap<Expr> >& binds);
+  bool recMultMatchOldWay(const Expr& gterm,const Expr& vterm, std::vector<ExprMap<Expr> >& binds);
+
+  inline bool multMatchChild(const Expr& gterm, const Expr& vterm, std::vector<ExprMap<Expr> >& binds, bool top=false);
+  inline bool multMatchTop(const Expr& gterm, const Expr& vterm, std::vector<ExprMap<Expr> >& binds);
+
+
+  bool recSynMatchBackupOnly(const Expr& gterm, const Expr& vterm, ExprMap<Expr>& env);
 
   bool hasGoodSynInstNewTrigOld(Trigger& trig, 
 				std::vector<Expr> & boundVars, 
@@ -517,7 +589,6 @@ class TheoryQuant :public Theory {
   void setGround(const Expr& gterm, const Expr& trig, const Theorem& univ, const std::vector<Expr>& subTerms) ;    
 
   //  std::string getHead(const Expr& e) ;
-  void setupTriggers(const Theorem& thm, size_t univ_id);
   void setupTriggers(ExprMap<ExprMap<std::vector<dynTrig>* >*>& trig_maps,
 		     const Theorem& thm, 
 		     size_t univs_id);
@@ -567,10 +638,14 @@ class TheoryQuant :public Theory {
    */
   void checkSat(bool fullEffort);
   void setup(const Expr& e); 
+  
+  int help(int i);
+  
   void update(const Theorem& e, const Expr& d);
   /*!\brief Used to notify the quantifier algorithm of possible 
    * instantiations that were used in proving a context inconsistent.
    */
+  void debug(int i);
   void notifyInconsistent(const Theorem& thm); 
   //! computes the type of a quantified term. Always a  boolean.
   void computeType(const Expr& e); 

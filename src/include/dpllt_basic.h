@@ -24,7 +24,9 @@
 #include "dpllt.h"
 #include "sat_api.h"
 #include "cdo.h"
-
+#include "proof.h" 
+#include "cnf_manager.h"
+ 
 namespace SAT {
 
 class DPLLTBasic :public DPLLT {
@@ -75,9 +77,14 @@ public:
   void push();
   void pop();
   void addAssertion(const CNF_Formula& cnf);
+  virtual std::vector<SAT::Lit> getCurAssignments() ;
+  virtual std::vector<std::vector<SAT::Lit> > getCurClauses();
+
   CVC3::QueryResult checkSat(const CNF_Formula& cnf);
   CVC3::QueryResult continueCheck(const CNF_Formula& cnf);
   Var::Val getValue(Var v) { return Var::Val(d_mng->GetVarAssignment(d_mng->GetVar(v))); }
+  
+  CVC3::Proof getSatProof(CNF_Manager*, CVC3::TheoryCore*);
 
 };
 

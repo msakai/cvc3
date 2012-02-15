@@ -122,6 +122,27 @@ namespace CVC3 {
     //! combine like terms. accepts a flattened PLUS expr
     virtual Theorem canonComboLikeTerms(const Expr& e) = 0;
     
+    // 0 = (* e1 e2 ...) <=> 0 = e1 OR 0 = e2 OR ...
+    virtual Theorem multEqZero(const Expr& expr) = 0;
+
+    // 0 = (^ c x) <=> false if c <=0
+    //             <=> 0 = x if c > 0
+    virtual Theorem powEqZero(const Expr& expr) = 0;
+
+    // x^n = y^n <=> x = y (if n is odd)
+    // x^n = y^n <=> x = y OR x = -y (if n is even)
+    virtual Theorem elimPower(const Expr& expr) = 0;
+
+    // x^n = c <=> x = root (if n is odd and root^n = c)
+    // x^n = c <=> x = root OR x = -root (if n is even and root^n = c)
+    virtual Theorem elimPowerConst(const Expr& expr, const Rational& root) = 0;
+
+    // x^n = c <=> false (if n is even and c is negative)
+    virtual Theorem evenPowerEqNegConst(const Expr& expr) = 0;
+
+    // x^n = c <=> false (if x is an integer and c is not a perfect n power)
+    virtual Theorem intEqIrrational(const Expr& expr, const Theorem& isInt) = 0;
+
     //! e0 \@ e1 <==> true | false, where \@ is {=,<,<=,>,>=}
     /*! \param e takes e is (e0\@e1) where e0 and e1 are constants
      */
@@ -139,6 +160,9 @@ namespace CVC3 {
 
     //! x = y <==> x * z = y * z, where z is a non-zero constant
     virtual Theorem multEqn(const Expr& x, const Expr& y, const Expr& z) = 0;
+
+    // x = y <==> z=0 OR x * 1/z = y * 1/z
+    virtual Theorem divideEqnNonConst(const Expr& x, const Expr& y, const Expr& z) = 0;
 
     //! Multiplying inequation by a non-zero constant
     /*!
@@ -222,6 +246,10 @@ namespace CVC3 {
      *   and  c = floor((c1+c2)/2).
      */
     virtual Theorem splitGrayShadow(const Theorem& g)=0;
+    
+    
+    virtual Theorem splitGrayShadowSmall(const Theorem& g)=0;
+        
     //! G(x, e, c1, c2) ==> e+c1 <= x AND x <= e+c2
     virtual Theorem expandGrayShadow(const Theorem& g)=0;
 
@@ -251,6 +279,10 @@ namespace CVC3 {
 				 const Theorem& isIntRHS,
 				 bool changeRight)=0;
 
+    virtual Theorem lessThanToLERewrite(const Expr& ineq, const Theorem& isIntLHS,
+    			 const Theorem& isIntRHS, bool changeRight) = 0;
+
+    
     /*! \param eqn is an equation 0 = a.x or 0 = c + a.x, where x is integer
      * \param isIntx is a proof of IS_INTEGER(x)
      *
@@ -382,6 +414,7 @@ namespace CVC3 {
     virtual Theorem clashingBounds(const Theorem& lowerBound, const Theorem& upperBound) = 0;
     
     virtual Theorem addInequalities(const Theorem& thm1, const Theorem& thm2) = 0;
+    virtual Theorem addInequalities(const std::vector<Theorem>& thms) = 0;
     
     virtual Theorem implyWeakerInequality(const Expr& expr1, const Expr& expr2) = 0;
     
@@ -393,6 +426,29 @@ namespace CVC3 {
     
     virtual Theorem rafineStrictInteger(const Theorem& isIntConstrThm, const Expr& constr) = 0;
 
+    virtual Theorem simpleIneqInt(const Expr& ineq, const Theorem& isIntRHS) = 0;
+    
+    virtual Theorem intEqualityRationalConstant(const Theorem& isIntConstrThm, const Expr& constr) = 0;
+    
+    virtual Theorem cycleConflict(const std::vector<Theorem>& inequalitites) = 0;
+
+    virtual Theorem implyEqualities(const std::vector<Theorem>& inequalities) = 0;
+    
+    virtual Theorem implyWeakerInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied) = 0;
+    
+    virtual Theorem implyNegatedInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied) = 0;
+            
+    virtual Theorem expandGrayShadowRewrite(const Expr& theShadow) = 0;
+    
+    virtual Theorem compactNonLinearTerm(const Expr& nonLinear) = 0;
+    
+    virtual Theorem nonLinearIneqSignSplit(const Theorem& ineqThm) = 0;
+    
+    virtual Theorem implyDiffLogicBothBounds(const Expr& x, std::vector<Theorem>& c1_le_x, Rational c1, 
+    										 std::vector<Theorem>& x_le_c2, Rational c2) = 0;
+    
+    virtual Theorem powerOfOne(const Expr& e) = 0;
+    
   }; // end of class ArithProofRules
 } // end of namespace CVC3
 

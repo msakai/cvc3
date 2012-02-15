@@ -248,9 +248,9 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %token  BVUREM_TOK              "BVUREM"
 %token  BVSREM_TOK              "BVSREM"
 %token  BVSMOD_TOK              "BVSMOD"
-%token  BVSHL_TOK               "BVSHLx"
-%token  BVASHR_TOK              "BVASHRx"
-%token  BVLSHR_TOK              "BVLSHRx"
+%token  BVSHL_TOK               "BVSHL"
+%token  BVASHR_TOK              "BVASHR"
+%token  BVLSHR_TOK              "BVLSHR"
 %token  BVUMINUS_TOK            "BVUMINUS"
 %token  BVMULT_TOK              "BVMULT"
 %token	SQHASH_TOK		"[#"
@@ -258,13 +258,14 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %token	PARENHASH_TOK		"(#"
 %token	HASHPAREN_TOK		"#)"
 %token	ARROW_TOK		"->"
-%token  BVNEG_TOK              "~"
-%token  BVAND_TOK              "&"
-%token  MID_TOK               "|"
-%token  BVXOR_TOK              "BVXOR"
-%token  BVNAND_TOK             "BVNAND"
-%token  BVNOR_TOK              "BVNOR"
-%token  BVXNOR_TOK             "BVXNOR"
+%token  BVNEG_TOK               "~"
+%token  BVAND_TOK               "&"
+%token  MID_TOK                 "|"
+%token  BVXOR_TOK               "BVXOR"
+%token  BVNAND_TOK              "BVNAND"
+%token  BVNOR_TOK               "BVNOR"
+%token  BVCOMP_TOK              "BVCOMP"
+%token  BVXNOR_TOK              "BVXNOR"
 %token  CONCAT_TOK              "@"
 %token  BVTOINT_TOK             "BVTOINT"
 %token  INTTOBV_TOK             "INTTOBV"
@@ -274,6 +275,10 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %token  BVLE_TOK                "BVLE"
 %token  BVGE_TOK                "BVGE"
 %token  SX_TOK                  "SX"
+%token  BVZEROEXTEND_TOK        "BVZEROEXTEND"
+%token  BVREPEAT_TOK            "BVREPEAT"
+%token  BVROTL_TOK              "BVROTL"
+%token  BVROTR_TOK              "BVROTR"
 %token  BVSLT_TOK               "BVSLT"
 %token  BVSGT_TOK               "BVSGT"
 %token  BVSLE_TOK               "BVSLE"
@@ -344,12 +349,12 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %left BVAND_TOK
 %left BVXOR_TOK
 %left BVNAND_TOK
-%left BVNOR_TOK
+%left BVNOR_TOK BVCOMP_TOK
 %left BVXNOR_TOK
 %left BVNEG_TOK
 %left BVUMINUS_TOK BVPLUS_TOK BVSUB_TOK 
 %left BVUDIV_TOK BVSDIV_TOK BVUREM_TOK BVSREM_TOK BVSMOD_TOK BVSHL_TOK BVASHR_TOK BVLSHR_TOK
-%left SX_TOK
+%left SX_TOK BVZEROEXTEND_TOK BVREPEAT_TOK BVROTL_TOK BVROTR_TOK
 %nonassoc BVLT_TOK BVLE_TOK BVGT_TOK BVGE_TOK 
 %nonassoc BVSLT_TOK BVSLE_TOK BVSGT_TOK BVSGE_TOK 
 %right IS_INTEGER_TOK
@@ -631,7 +636,7 @@ PopTo           :       POPTO_TOK Numeral {
                           $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_POPTO_SCOPE")));
 		        }
                 |       RESET_TOK {
-                          $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_POPTO_SCOPE")));
+                          $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_RESET")));
 		        }
                 ;
 Context         :       CONTEXT_TOK StringLiteral { 
@@ -1269,6 +1274,12 @@ Expr		:	Identifier { $$ = $1; }
 			  delete $3;
 			  delete $5;
 			}
+                |       BVCOMP_TOK '(' Expr ',' Expr ')'
+	                {
+			  $$ = new CVC3::Expr(VC->listExpr("_BVCOMP", *$3, *$5));
+			  delete $3;
+			  delete $5;
+			}
 	        |       BVXNOR_TOK '(' Expr ',' Expr ')'
 	                {
 			  $$ = new CVC3::Expr(VC->listExpr("_BVXNOR", *$3, *$5));
@@ -1281,6 +1292,30 @@ Expr		:	Identifier { $$ = $1; }
 			  delete $3;
   			  delete $5;
 		        }
+                |       BVZEROEXTEND_TOK '(' Expr ',' NUMERAL_TOK ')'
+                        {
+                          $$ = new CVC3::Expr(VC->listExpr("_BVZEROEXTEND",VC->ratExpr(*$5),*$3));
+			  delete $3;
+  			  delete $5;
+                        }
+                |       BVREPEAT_TOK '(' Expr ',' NUMERAL_TOK ')'
+                        {
+                          $$ = new CVC3::Expr(VC->listExpr("_BVREPEAT",VC->ratExpr(*$5),*$3));
+			  delete $3;
+  			  delete $5;
+                        }
+                |       BVROTL_TOK '(' Expr ',' NUMERAL_TOK ')'
+                        {
+                          $$ = new CVC3::Expr(VC->listExpr("_BVROTL",VC->ratExpr(*$5),*$3));
+			  delete $3;
+  			  delete $5;
+                        }
+                |       BVROTR_TOK '(' Expr ',' NUMERAL_TOK ')'
+                        {
+                          $$ = new CVC3::Expr(VC->listExpr("_BVROTR",VC->ratExpr(*$5),*$3));
+			  delete $3;
+  			  delete $5;
+                        }
 	        |       BVLT_TOK '(' Expr ',' Expr ')'
 	                {
 			  $$ = new CVC3::Expr(VC->listExpr("_BVLT", *$3, *$5));

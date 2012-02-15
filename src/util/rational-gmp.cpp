@@ -193,6 +193,20 @@ namespace CVC3 {
       return r;
     }
 
+    friend Impl intRoot(const Impl& x, unsigned long int y) {
+      DebugAssert(x.isInteger(),
+		  "Rational::Impl::intRoot(): x="+x.toString());
+      mpz_t res;
+      mpz_init(res);
+      int exact = mpz_root(res, mpq_numref(x.d_n), y);
+      if (!exact) {
+        mpz_set_ui(res, 0);
+      }
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
     friend Impl gcd(const Impl& x, const Impl& y) {
       DebugAssert(x.isInteger() && y.isInteger(),
 		  "Rational::Impl::gcd(): x="+x.toString()
@@ -462,6 +476,11 @@ namespace CVC3 {
     checkInt(y, "mod(x,*y*)");
     return(Rational(mod(*x.d_n, *y.d_n)));
   }
+
+  Rational intRoot(const Rational& base, unsigned long int n) {
+    checkInt(base, "intRoot(*x*,y)");
+    return Rational(intRoot(*base.d_n, n));
+  }
   
   string Rational::toString(int base) const {
     return(d_n->toString(base));
@@ -565,9 +584,9 @@ namespace CVC3 {
     }
 
     Rational operator%(const Rational &n1, const Rational &n2) {
-      return Rational((*n1.d_n) + (*n2.d_n));
+      return Rational((*n1.d_n) % (*n2.d_n));
     }
 
-}; /* close namespace */
+} /* close namespace */
 
 #endif

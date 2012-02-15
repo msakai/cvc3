@@ -370,7 +370,7 @@ namespace CVC3 {
     /////////////////////////////
 
     //! Go through all the clauses and check the watch pointers (for debugging)
-    IF_DEBUG(void fullCheck());
+    IF_DEBUG(void fullCheck();)
     //! Set up the watch pointers for the new clause
     void addNewClause(Clause &c);
     //! Process a new derived fact (auxiliary function)

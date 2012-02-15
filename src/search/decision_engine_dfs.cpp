@@ -78,7 +78,7 @@ Expr DecisionEngineDFS::findSplitter(const Expr& e) {
 // 		"findSplitter: can't find splitter in non-literal: "
 // 		+ e.toString());
     IF_DEBUG(if(!splitter.isNull())
-	     debugger.counter("splitters from decision engine")++);
+	     debugger.counter("splitters from decision engine")++;)
   }
   TRACE("splitters verbose", "findSplitter => ", splitter, " }");
   return splitter;

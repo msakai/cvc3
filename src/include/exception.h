@@ -35,7 +35,7 @@ namespace CVC3 {
     // Constructors
     Exception(): d_msg("Unknown exception") { }
     Exception(const std::string& msg): d_msg(msg) { }
-    Exception(char* msg): d_msg(msg) { }
+    Exception(const char* msg): d_msg(msg) { }
     // Destructor
     virtual ~Exception() { }
     // NON-VIRTUAL METHODs for setting and printing the error message

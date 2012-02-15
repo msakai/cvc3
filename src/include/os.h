@@ -50,7 +50,6 @@
 //  #ifdef _MANAGED
 
 // C99 stdint data types
-typedef unsigned int         uint;
 typedef signed __int8        int8_t;
 typedef signed __int16       int16_t;
 typedef signed __int32       int32_t;

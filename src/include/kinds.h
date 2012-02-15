@@ -117,6 +117,7 @@ typedef enum {
   PUSH_SCOPE,
   POP_SCOPE,
   POPTO_SCOPE,
+  RESET,
   CONTEXT,
   FORGET,
   GET_TYPE,

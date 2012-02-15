@@ -34,7 +34,7 @@ class DatatypeProofRules;
     DATATYPE = 600,
     CONSTRUCTOR,
     SELECTOR,
-    TESTER,
+    TESTER
   } DatatypeKinds;
 
 /*****************************************************************************/

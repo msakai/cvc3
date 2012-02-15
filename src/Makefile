@@ -74,6 +74,7 @@ HEADER_NAMES = \
   theory_arith.h \
   theory_arith_new.h \
   theory_arith_old.h \
+  theory_arith3.h \
   theory_array.h \
   theory_bitvector.h \
   theory_core.h \
@@ -167,7 +168,7 @@ $(LIB_STATIC): $(LIBS)
 
 $(LIB_SHARED): $(LIBS)
 	@echo $(CXX) $(SHARED) "-o" $@ "..."
-	@$(CXX) $(SHARED) -o $@ `$(TOP)/bin/unpack $(UNPACKTMPDIR) $(LIBS)`
+	@$(CXX) $(SHARED) -o $@ `$(TOP)/bin/unpack $(UNPACKTMPDIR) $(LIBS)` $(LD_LIBS)
 	@rm -rf $(UNPACKTMPDIR)
 
 # Standard make targets

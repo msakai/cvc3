@@ -181,7 +181,7 @@ Variable::deriveThmRec(bool checkAssump) const {
   else
     thm = d_val->d_vm->getRules()->conflictRule(thms, c.getTheorem());
   
-  IF_DEBUG(Expr e(thm.getExpr()));
+  IF_DEBUG(Expr e(thm.getExpr());)
   DebugAssert(e == getExpr()
 	      || (e.isNot() && e[0] == getExpr()),
 	      "Variable::deriveTheorem: bad theorem derived: expr ="
@@ -243,19 +243,19 @@ VariableValue::setValue(int val, const Clause& c, int idx) {
   if(d_val==NULL) {
     // Make sure d_val==0 all the way to scope 0
     d_val = new(true) CDO<int>(d_vm->getCM()->getCurrentContext(), 0, 0);
-    IF_DEBUG(d_val->setName("CDO[VariableValue::d_val]"));
+    IF_DEBUG(d_val->setName("CDO[VariableValue::d_val]");)
   }
   if(d_scope==NULL) {
     d_scope = new(true) CDO<int>(d_vm->getCM()->getCurrentContext());
-    IF_DEBUG(d_scope->setName("CDO[VariableValue::d_scope]"));
+    IF_DEBUG(d_scope->setName("CDO[VariableValue::d_scope]");)
   }
   if(d_ante==NULL) {
     d_ante = new(true) CDO<Clause>(d_vm->getCM()->getCurrentContext());
-    IF_DEBUG(d_ante->setName("CDO[VariableValue::d_ante]"));
+    IF_DEBUG(d_ante->setName("CDO[VariableValue::d_ante]");)
   }
   if(d_anteIdx==NULL) {
     d_anteIdx = new(true) CDO<int>(d_vm->getCM()->getCurrentContext());
-    IF_DEBUG(d_anteIdx->setName("CDO[VariableValue::d_anteIdx]"));
+    IF_DEBUG(d_anteIdx->setName("CDO[VariableValue::d_anteIdx]");)
   }
 
   // Compute the scope from the antecedent clause
@@ -280,7 +280,7 @@ VariableValue::setValue(int val, const Clause& c, int idx) {
   if(!getTheorem().isNull()) d_thm->set(Theorem(), scope);
 
   IF_DEBUG(Expr l((idx == -1)? getExpr().getEM()->falseExpr()
-		  : c[idx].getExpr()));
+		  : c[idx].getExpr());)
   DebugAssert((val > 0 && l == getExpr())
 	      || (val < 0 && l.isNot() && l[0] == getExpr()),
 	      "VariableValue::setValue(val = " + int2string(val)
@@ -296,15 +296,15 @@ VariableValue::setValue(const Theorem& thm, int scope) {
   if(d_val==NULL) {
     // Make sure d_val==0 all the way to scope 0
     d_val = new(true) CDO<int>(d_vm->getCM()->getCurrentContext(),0,0);
-    IF_DEBUG(d_val->setName("CDO[VariableValue::d_val]"));
+    IF_DEBUG(d_val->setName("CDO[VariableValue::d_val]");)
   }
   if(d_scope==NULL) {
     d_scope = new(true) CDO<int>(d_vm->getCM()->getCurrentContext());
-    IF_DEBUG(d_scope->setName("CDO[VariableValue::d_scope]"));
+    IF_DEBUG(d_scope->setName("CDO[VariableValue::d_scope]");)
   }
   if(d_thm==NULL) {
     d_thm = new(true) CDO<Theorem>(d_vm->getCM()->getCurrentContext());
-    IF_DEBUG(d_thm->setName("CDO[VariableValue::d_thm]"));
+    IF_DEBUG(d_thm->setName("CDO[VariableValue::d_thm]");)
   }
 
   Expr e(thm.getExpr());
@@ -329,7 +329,7 @@ VariableValue::setAssumpThm(const Theorem& thm, int scope) {
   if(d_assump==NULL) {
     // Make sure d_val==0 all the way to scope 0
     d_assump = new(true) CDO<Theorem>(d_vm->getCM()->getCurrentContext());
-    IF_DEBUG(d_val->setName("CDO[VariableValue::d_val]"));
+    IF_DEBUG(d_val->setName("CDO[VariableValue::d_val]");)
   }
   d_assump->set(thm, scope);
 }

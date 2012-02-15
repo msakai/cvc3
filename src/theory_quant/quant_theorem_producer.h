@@ -28,16 +28,20 @@ namespace CVC3 {
   
   class QuantTheoremProducer: public QuantProofRules, public TheoremProducer {
     TheoryQuant* d_theoryQuant;
+    std::map<Expr,int> d_typeFound;
   private:
+
     //! find all bound variables in e and maps them to true in boundVars
     void recFindBoundVars(const Expr& e, 
 			  ExprMap<bool> & boundVars, ExprMap<bool> &visited);
   public:
     //! Constructor
     QuantTheoremProducer(TheoremManager* tm, TheoryQuant* theoryQuant):
-      TheoremProducer(tm), d_theoryQuant(theoryQuant) {}
+      TheoremProducer(tm), d_theoryQuant(theoryQuant) { d_typeFound.clear(); }
 
     virtual Theorem addNewConst(const Expr& e) ;
+    virtual Theorem newRWThm(const Expr& e, const Expr& newE) ;
+    virtual Theorem normalizeQuant(const Expr& e) ;
 
     //! ==> NOT EXISTS (vars): e  IFF FORALL (vars) NOT e
     virtual Theorem rewriteNotExists(const Expr& e);
@@ -52,7 +56,13 @@ namespace CVC3 {
      * \param t1 is the quantifier (a Theorem)
      * \param terms are the terms to instantiate.
      * \param quantLevel the quantification level for the theorem.
+
      */
+
+    virtual Theorem universalInst(const Theorem& t1, 
+				  const std::vector<Expr>& terms, int quantLevel ,
+				  Expr gterm);
+
     virtual Theorem universalInst(const Theorem& t1,
 				  const std::vector<Expr>& terms, int quantLevel);
 

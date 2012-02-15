@@ -68,7 +68,7 @@ namespace CVC3 {
     // Marks the clause as deleted
     bool d_deleted;
     // Creation file and line number (for debugging)
-    IF_DEBUG(std::string d_file; int d_line);
+    IF_DEBUG(std::string d_file; int d_line;)
     // Constructor: takes the main clause theorem which must be a
     // disjunction of literals and have no assumptions.
     ClauseValue(TheoryCore* core, VariableManager* vm,
@@ -97,7 +97,7 @@ namespace CVC3 {
            int scope, const std::string& file = "", int line = 0)
       : d_clause(new ClauseValue(core, vm, clause, scope)) {
       d_clause->d_refcount++;
-      IF_DEBUG(d_clause->d_file = file; d_clause->d_line=line);
+      IF_DEBUG(d_clause->d_file = file; d_clause->d_line=line;)
     }
     // Copy constructor
     Clause(const Clause& c): d_clause(c.d_clause) {

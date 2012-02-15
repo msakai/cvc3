@@ -121,7 +121,6 @@ class TheoryBitvector :public Theory {
   //! counts bitblasted disequalities
   StatCounter d_bvBitBlastDiseq;
 
-
   //! boolean on the fly rewrite flag
   const bool* d_booleanRWFlag;
   //! bool extract cache flag
@@ -190,75 +189,109 @@ class TheoryBitvector :public Theory {
 
   //! Used in checkSat
   CDO<unsigned> d_index1;
+  CDO<unsigned> d_index2;
+
+  /*Beginning of Lorenzo PLatania's attributes*/
+
+  CDList<Theorem> d_bitblast;
+  // used to keep track of the equations in d_bitblast which have
+  // already been bitblasted
+  CDO<unsigned int> d_bb_index;
+  /*End of Lorenzo PLatania's attributes*/
 
   //! functions which implement the DP strategy for bitblasting
   Theorem bitBlastEqn(const Expr& e);
-  //! functions which implement the DP strategy for bitblasting
-  Theorem bitBlastDisEqn(const Theorem& e);
-  public:
-  //! functions which implement the DP strategy for bitblasting
-  Theorem bitBlastTerm(const Expr& t, int bitPosition);
-  private:
+  //! bitblast disequation
+  Theorem bitBlastDisEqn(const Theorem& notE);
   //! function which implements the DP strtagey to bitblast Inequations
   Theorem bitBlastIneqn(const Expr& e);
+  //! functions which implement the DP strategy for bitblasting
+  Theorem bitBlastTerm(const Expr& t, int bitPosition);
 
-  //! strategy fucntions for BVPLUS NORMAL FORM
-  Theorem padBVPlus(const Expr& e);
-  //! strategy fucntions for BVPLUS NORMAL FORM
-  Theorem flattenBVPlus(const Expr& e);
+//   //! strategy fucntions for BVPLUS NORMAL FORM
+//   Theorem padBVPlus(const Expr& e);
+//   //! strategy fucntions for BVPLUS NORMAL FORM
+//   Theorem flattenBVPlus(const Expr& e);
   
-  //! Implementation of the concatenation normal form
-  Theorem normalizeConcat(const Expr& e, bool useFind);
-  //! Implementation of the n-bit arithmetic normal form
-  Theorem normalizeBVArith(const Expr& e, bool useFind);
-  //! Helper method for composing normalizations
-  Theorem normalizeConcat(const Theorem& t, bool useFind) {
-    return transitivityRule(t, normalizeConcat(t.getRHS(), useFind));
-  }
-  //! Helper method for composing normalizations
-  Theorem normalizeBVArith(const Theorem& t, bool useFind) {
-    return transitivityRule(t, normalizeBVArith(t.getRHS(), useFind));
-  }
+//   //! Implementation of the concatenation normal form
+//   Theorem normalizeConcat(const Expr& e, bool useFind);
+//   //! Implementation of the n-bit arithmetic normal form
+//   Theorem normalizeBVArith(const Expr& e, bool useFind);
+//   //! Helper method for composing normalizations
+//   Theorem normalizeConcat(const Theorem& t, bool useFind) {
+//     return transitivityRule(t, normalizeConcat(t.getRHS(), useFind));
+//   }
+//   //! Helper method for composing normalizations
+//   Theorem normalizeBVArith(const Theorem& t, bool useFind) {
+//     return transitivityRule(t, normalizeBVArith(t.getRHS(), useFind));
+//   }
 
-  Theorem signExtendBVLT(const Expr& e, int len, bool useFind);
+//   Theorem signExtendBVLT(const Expr& e, int len, bool useFind);
 
+  public:
+  Theorem pushNegationRec(const Expr& e, bool neg);
+  private:
   Theorem pushNegationRec(const Theorem& thm, bool neg);
   Theorem pushNegation(const Expr& e);
 
   //! Top down simplifier
   virtual Theorem simplifyOp(const Expr& e);
 
-
   //! Internal rewrite method for constants
-  Theorem rewriteConst(const Expr& e);
-  //! Internal rewrite method
-  Theorem rewriteBV(const Expr& e, bool useFind);
+  //  Theorem rewriteConst(const Expr& e);
+
+  //! Main rewrite method (implements the actual rewrites)
+  Theorem rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n = 1);
+
   //! Rewrite children 'n' levels down (n==1 means "only the top level")
-  Theorem rewriteBV(const Expr& e, int n, bool useFind);
-  //! Rewrite children 'n' levels down (n==1 means "only the top level")
-  Theorem rewriteBV(const Theorem& t, int n, bool useFind) {
-    return transitivityRule(t, rewriteBV(t.getRHS(), n, useFind));
+  Theorem rewriteBV(const Expr& e, int n = 1);
+
+  // Shortcuts for theorems
+  Theorem rewriteBV(const Theorem& t, ExprMap<Theorem>& cache, int n = 1) {
+     return transitivityRule(t, rewriteBV(t.getRHS(), cache, n));
   }
-  //! Internal rewrite method (implements the actual rewrites)
-  Theorem rewriteBV(const Expr& e, ExprMap<Theorem>& cache, bool useFind);
-  //! Rewrite children 'n' levels down (n==1 means "only the top level")
-  Theorem rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n,
-		    bool useFind);
-  //! Rewrite children 'n' levels down (n==1 means "only the top level")
-  Theorem rewriteBV(const Theorem& t, ExprMap<Theorem>& cache, int n,
-		    bool useFind) {
-    return transitivityRule(t, rewriteBV(t.getRHS(), cache, n, useFind));
+  Theorem rewriteBV(const Theorem& t, int n = 1) {
+    return transitivityRule(t, rewriteBV(t.getRHS(), n));
   }
 
   //! rewrite input boolean expression e to a simpler form
   Theorem rewriteBoolean(const Expr& e);
   
-  //! Setup the NotifyList mechanism for the Expr e
-  void setupExpr(const Expr& e);
+/*Beginning of Lorenzo PLatania's methods*/
+  
+  Expr multiply_coeff( Rational mult_inv, const Expr& e);
+
+  // extract the min value from a Rational list
+  int min(std::vector<Rational> list);
+    
+  // evaluates the gcd of two integer coefficients
+  //  int gcd(int c1, int c2);
+  
+  // converts a bv constant to an integer
+  //  int bv2int(const Expr& e);
+  
+  // return the odd coefficient of a leaf for which we can solve the
+  // equation, or zero if no one has been found
+  Rational Odd_coeff( const Expr& e );
+
+
+  
+  // returns 1 if e is a linear term
+  int check_linear( const Expr &e );
+
+  bool isTermIn(const Expr& e1, const Expr& e2);
+
+  Theorem updateSubterms( const Expr& d );
+  
+  // returns how many times "term" appears in "e"
+  int countTermIn( const Expr& term, const Expr& e);
+
+  Theorem generalBitBlast( const Theorem& thm );
+/*End of Lorenzo PLatania's methods*/
+
 public:
   TheoryBitvector(TheoryCore* core);
   ~TheoryBitvector();
-
 
   ExprMap<Expr> d_bvPlusCarryCacheLeftBV;
   ExprMap<Expr> d_bvPlusCarryCacheRightBV;
@@ -266,7 +299,6 @@ public:
   // Trusted method that creates the proof rules class (used in constructor).
   // Implemented in bitvector_theorem_producer.cpp
   BitvectorProofRules* createProofRules();
-  Theorem pushNegationRec(const Expr& e, bool neg);
 
   // Theory interface
   void addSharedTerm(const Expr& e);
@@ -288,14 +320,15 @@ public:
   Expr parseExprOp(const Expr& e);
 
   //helper functions
+
+  //! Return the number of bits in the bitvector expression
+  int BVSize(const Expr& e);
+
   Expr rat(const Rational& r) { return getEM()->newRatExpr(r); }
   //!pads e to be of length len
   Expr pad(int len, const Expr& e);
 
   bool comparebv(const Expr& e1, const Expr& e2);
-
-  //! Return the number of bits in the bitvector expression
-  int BVSize(const Expr& e);
 
   //helper functions: functions to construct exprs
   Type newBitvectorType(int i) 
@@ -337,6 +370,12 @@ public:
   Expr newConcatExpr(const std::vector<Expr>& kids);
   Expr newBVConstExpr(const std::string& s, int base = 2);
   Expr newBVConstExpr(const std::vector<bool>& bits);
+  // Lorenzo's wrapper
+  // as computeBVConst can not give the BV expr of a negative rational,
+  // I use this wrapper to do that
+  Expr signed_newBVConstExpr( Rational c, int bv_size);
+  // end of Lorenzo's wrapper
+
   // Construct BVCONST of length 'len', or the min. needed length when len=0.
   Expr newBVConstExpr(const Rational& r, int len = 0);
   Expr newBVZeroString(int r);
@@ -346,10 +385,17 @@ public:
 			int hi, int low);
   Expr newBVSubExpr(const Expr& t1, const Expr& t2);
   //! 'numbits' is the number of bits in the result
+  Expr newBVPlusExpr(int numbits, const Expr& k1, const Expr& k2);
+  //! 'numbits' is the number of bits in the result
   Expr newBVPlusExpr(int numbits, const std::vector<Expr>& k);
-  //! accepts an integer, r, and bitvector, t1, and returns r.t1
+  //! pads children and then builds plus expr
+  Expr newBVPlusPadExpr(int bvLength, const std::vector<Expr>& k);
   Expr newBVMultExpr(int bvLength,
 		     const Expr& t1, const Expr& t2);
+  Expr newBVMultExpr(int bvLength, const std::vector<Expr>& kids);
+  Expr newBVMultPadExpr(int bvLength,
+                        const Expr& t1, const Expr& t2);
+  Expr newBVMultPadExpr(int bvLength, const std::vector<Expr>& kids);
 
   // Accessors for expression parameters
   int getBitvectorTypeParam(const Expr& e);
@@ -376,10 +422,21 @@ public:
  
   int getMaxSize() { return d_maxLength; }
 
+/*Beginning of Lorenzo PLatania's public methods*/
+
+  bool isLinearTerm( const Expr& e );
+  void extract_vars( const Expr& e, std::vector<Expr>& vars );
+  // checks whether e can be solved in term
+  bool canSolveFor( const Expr& term, const Expr& e );
+
+  // evaluates the multipicative inverse 
+  Rational multiplicative_inverse(Rational r, int n_bits);
+
+
+  /*End of Lorenzo PLatania's public methods*/
+
 }; //end of class TheoryBitvector
 
-  //!computes the integer value of a bitvector constant
-  Rational computeBVConst(const Expr& e);
 
 }//end of namespace CVC3
 #endif

@@ -18,7 +18,8 @@
  */
 /*****************************************************************************/
 
-
+#include <locale>
+#include <cctype>
 #include "command_line_flags.h"
 #include "expr.h"
 #include "notifylist.h"
@@ -33,7 +34,6 @@
 #include "core_proof_rules.h"
 #include "theorem_manager.h"
 #include "translator.h"
-
 
 using namespace std;
 
@@ -110,49 +110,6 @@ using namespace CVC3;
 /*****************************************************************************/
 
 
-IF_DEBUG(
-bool TheoryCore::isSorted(const vector<Expr>& v)
-{
-  Expr prev;
-  for(vector<Expr>::const_iterator i=v.begin(), iend=v.end(); i!=iend;
-      prev = *i, ++i) {
-    if(prev.isNull()) continue;
-    if(!(prev < *i)) return false;
-  }
-  return true;
-}
-)
-
-
-void TheoryCore::intersect(const vector<Expr>& a, const vector<Expr>& b,
-                           vector<Expr>& res)
-{
-  DebugAssert(isSorted(a) && isSorted(b), "intersect()");
-  size_t i(0), j(0), iend(a.size()), jend(b.size());
-  while(i<iend && j<jend) {
-    if(a[i] == b[j]) {
-      res.push_back(a[i]);
-      i++; j++;
-    } else if(a[i] < b[j]) i++;
-    else j++; // a[i] > b[j]
-  }
-}
-
-
-void TheoryCore::difference(const vector<Expr>& a, const vector<Expr>& b,
-                            vector<Expr>& res)
-{
-  DebugAssert(isSorted(a) && isSorted(b), "difference()");
-  size_t i(0), j(0), iend(a.size()), jend(b.size());
-  while(i < iend) {
-    if(j >= jend) { res.push_back(a[i]); i++; }
-    else if(a[i]==b[j]) { i++; j++; }
-    else if(a[i]<b[j]) { res.push_back(a[i]); i++; }
-    else j++; // a[i] > b[j]
-  }
-}
-
-
 bool TheoryCore::processFactQueue(EffortLevel effort)
 {
   Theorem thm;
@@ -164,49 +121,47 @@ bool TheoryCore::processFactQueue(EffortLevel effort)
       thm = d_queue.front();
       d_queue.pop();
       assertFactCore(thm);
-      if (d_inconsistent) {
-        d_update_thms.clear();
-        d_update_data.clear();
-        break;
-      }
       processUpdates();
+    };
+
+    if (d_inconsistent) break;
+
+    while (!d_queueSE.empty()) {
+      // Copy a Theorem by value, to guarantee valid reference down
+      // the call chain
+      lemmasAdded = true;
+      Theorem thm(d_queueSE.back());
+      d_queueSE.pop_back();
+      d_coreSatAPI->addLemma(thm);
     }
-    if (d_inconsistent) {
-      while(d_queue.size()) d_queue.pop();
-      d_queueSE.clear();
-      return false;
-    }
-    // Flush search engine queue inside the main loop; search engine
-    // may add new facts to d_queue in the process.
-    if(d_queue.empty()) {
-      // The queue may be emptied in the process due to
-      // setInconsistent() call from the SearchEngine.  Monitor it at
-      // every iteration.
-      while(!d_queueSE.empty()) {
-	// Copy a Theorem by value, to guarantee valid reference down
-	// the call chain
-        lemmasAdded = true;
-	Theorem thm(d_queueSE.back());
-	d_queueSE.pop_back();
-        d_coreSatAPI->addLemma(thm);
-      }
-      if (effort > LOW) {
-        for(i=0; d_queue.empty() && i<getNumTheories() && !d_inconsistent; ++i) {
-          d_theories[i]->checkSat(effort == FULL && !lemmasAdded);
-        }
+
+    if (effort > LOW) {
+      for(i=0; d_update_thms.empty() && d_queue.empty() && i<getNumTheories() && !d_inconsistent; ++i) {
+        d_theories[i]->checkSat(effort == FULL && !lemmasAdded);
       }
     }
-  } while (!d_queue.empty());
+  } while ((!d_queue.empty() || !d_update_thms.empty()) && !d_inconsistent);
+
+  if (d_inconsistent) {
+    d_update_thms.clear();
+    d_update_data.clear();
+    while(d_queue.size()) d_queue.pop();
+    d_queueSE.clear();
+    return false;
+  }
+
   return lemmasAdded;
 }
 
 
 void TheoryCore::processNotify(const Theorem& e, NotifyList *L)
 {
+  ++d_inUpdate;
   DebugAssert(L, "Expected non-NULL notify list");
   for(unsigned k = 0; k < L->size() && !d_inconsistent; ++k) {
     L->getTheory(k)->update(e, L->getExpr(k));
   }
+  --d_inUpdate;
 }
 
 
@@ -216,18 +171,18 @@ Theorem TheoryCore::simplify(const Expr& e)
 	      +e.toString());
   DebugAssert(d_simpStack.size() < 10000,
 	      "TheoryCore::simplify: too deep recursion depth");
-  IF_DEBUG(d_simpStack[e] = true);
+  IF_DEBUG(d_simpStack[e] = true;)
   if(e.hasFind()) {
     DebugAssert(find(e).getRHS().hasFind() &&
                 find(e).getRHS().isTerm() ||
                 find(e).getRHS().isTrue() ||
                 find(e).getRHS().isFalse(), "Unexpected find pointer");
-    IF_DEBUG(d_simpStack.erase(e));
+    IF_DEBUG(d_simpStack.erase(e);)
     return find(e);
   }
 
   if(e.validSimpCache()) {
-    IF_DEBUG(d_simpStack.erase(e));
+    IF_DEBUG(d_simpStack.erase(e);)
     return e.getSimpCache();
   }
 
@@ -261,7 +216,7 @@ Theorem TheoryCore::simplify(const Expr& e)
   if (e != e2 && !e2.hasFind()) {
     e2.setSimpCache(reflexivityRule(e2));
   }
-  IF_DEBUG(d_simpStack.erase(e));
+  IF_DEBUG(d_simpStack.erase(e);)
   return thm;
 }
 
@@ -306,12 +261,7 @@ void TheoryCore::processUpdates()
   Expr d;
   DebugAssert(d_update_thms.size() == d_update_data.size(),
               "Expected same size");
-  while (!d_update_thms.empty()) {
-    if (d_inconsistent) {
-      d_update_thms.clear();
-      d_update_data.clear();
-      break;
-    }
+  while (!d_inconsistent && !d_update_thms.empty()) {
     e = d_update_thms.back();
     d_update_thms.pop_back();
     d = d_update_data.back();
@@ -337,12 +287,12 @@ void TheoryCore::processUpdates()
 
 void TheoryCore::assertFactCore(const Theorem& e)
 {
-  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' ');)
   TRACE("assertFactCore", indentStr, "AssertFactCore: ", e.getExpr().toString(PRESENTATION_LANG));
 
   Theorem estarThm(e);
   Expr estar = e.getExpr();
-  IF_DEBUG(Expr e2 = estar);
+  IF_DEBUG(Expr e2 = estar;)
   Theorem equiv = simplify(estar);
   if (!equiv.isRefl()) {
     estarThm = iffMP(e, equiv);
@@ -352,19 +302,28 @@ void TheoryCore::assertFactCore(const Theorem& e)
     }
     estar = estarThm.getExpr();
   }
-
   if (estar.isAbsLiteral()) {
     if (estar.isEq()) {
       Theorem solvedThm(solve(estarThm));
       if(estar != solvedThm.getExpr()) setFindLiteral(estarThm);
-      assertEqualities(solvedThm);
+      if (!solvedThm.getExpr().isTrue())
+        assertEqualities(solvedThm);
     }
     else if (estar.isFalse()) {
-      IF_DEBUG(debugger.counter("conflicts from simplifier")++);
+      IF_DEBUG(debugger.counter("conflicts from simplifier")++;)
       setInconsistent(estarThm);
     }
     else if (!estar.isTrue()) {
       assertFormula(estarThm);
+    }
+    else {
+      // estar is true, nothing will be done
+      // Make sure equivalence classes of equations between two terms with finds get merged
+      if (e.isRewrite() &&
+          e.getLHS().hasFind() && e.getRHS().hasFind() &&
+          find(e.getLHS()).getRHS() != find(e.getRHS()).getRHS()) {
+        FatalAssert(false, "Equivalence classes didn't get merged");
+      }
     }
   } else if (estar.isAnd()) {
     for(int i=0,iend=estar.arity(); i<iend && !d_inconsistent; ++i)
@@ -390,17 +349,13 @@ void TheoryCore::assertFormula(const Theorem& thm)
   const Expr& e = thm.getExpr();
   DebugAssert(e.isAbsLiteral(),"assertFormula: nonliteral asserted:\n  "
               +thm.toString());
-  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' ');)
   TRACE("assertFormula",indentStr,"AssertFormula: ", e.toString(PRESENTATION_LANG));
+
   Theory* i = theoryOf(e);
-  // (Dis)equalities should also be asserted to the theories of
-  // their types for concrete model generation 
-  Theory* i2(NULL);
-  // Treat disequality as a separate theory, so that terms are
-  // reported as shared
-  //  if(e.isNot() && e[0].isEq())
-  //    setupTerm(e, this);
-  //  else
+  Theory* i2 = i;
+
+  // Recursively set up terms in this formula
   setupTerm(e,i,thm);
 
   // Use find to force af to rewrite to TRUE and NOT af to rewrite to FALSE,
@@ -409,45 +364,53 @@ void TheoryCore::assertFormula(const Theorem& thm)
   DebugAssert(!e.isNot() || (!e.hasFind() && !e[0].hasFind()),
               "Expected negated argument to assertFormula to not have find");
   setFindLiteral(thm);
-  Theorem thm2;
-  if (e.isNot() && e[0].isEq()) {
-    // Save the disequality for later processing
-    e[0][0].addToNotify(this, e);
-    e[0][1].addToNotify(this, e);
 
-    // For concrete model generation
-    i2 = theoryOf(getBaseType(e[0][0]).getExpr()); 
+  // Special processing for existentials, equalities, disequalities
+  switch (e.getKind()) {
+    case EXISTS:
+      // Do not send existential quantifiers to DPs; instead, skolemize them
+      enqueueFact(d_commonRules->skolemize(thm));
+      return;
+    case NOT:
+      if (e[0].isEq()) {
 
-    if(e[0][0] < e[0][1]) {
-      Expr e2 = e[0][1].eqExpr(e[0][0]);
-      DebugAssert(!e2.hasFind(), "already has find");
-      thm2 = transitivityRule(d_commonRules->rewriteUsingSymmetry(e2),
-                              d_commonRules->notToIff(thm));
-      setFindLiteral(d_commonRules->iffFalseElim(thm2));
-    }
-  }
-  else {
-    if(e.isEq() && e[0] < e[1]) {
-      Expr e2 = e[1].eqExpr(e[0]);
-      if (!e2.hasFind()) {
-        thm2 = transitivityRule(d_commonRules->rewriteUsingSymmetry(e2),
-                                d_commonRules->iffTrue(thm));
-        setFindLiteral(d_commonRules->iffTrueElim(thm2));
+        // Save the disequality for later processing
+        e[0][0].addToNotify(this, e);
+        e[0][1].addToNotify(this, e);
+        i2 = theoryOf(getBaseType(e[0][0]));
+        DebugAssert(e[0][0] > e[0][1], "Expected lhs of diseq to be greater");
+//     if(e[0][0] < e[0][1]) {
+//       Expr e2 = e[0][1].eqExpr(e[0][0]);
+//       DebugAssert(!e2.hasFind(), "already has find");
+//       thm2 = transitivityRule(d_commonRules->rewriteUsingSymmetry(e2),
+//                               d_commonRules->notToIff(thm));
+//       setFindLiteral(d_commonRules->iffFalseElim(thm2));
+//     }
       }
-    }
+      break;
+    case EQ:
+      i2 = theoryOf(getBaseType(e[0]));
+      if (e[0] < e[1]) {
+        // this can happen because of the solver
+        Expr e2 = e[1].eqExpr(e[0]);
+        if (!e2.hasFind()) {
+          Theorem thm2 =
+            transitivityRule(d_commonRules->rewriteUsingSymmetry(e2),
+                             d_commonRules->iffTrue(thm));
+          setFindLiteral(d_commonRules->iffTrueElim(thm2));
+        }
+      }
+      break;
+    default:
+      break;
   }
 
-  // Do not send existential quantifiers to DPs; skolemize them and
-  // notify the Search Engine about it.
-  if(thm.getExpr().isExists())
-    enqueueFact(d_commonRules->skolemize(thm));
-  else {
-    i->assertFact(thm);
-    if(i2 != NULL && i != i2) {
-      IF_DEBUG(debugger.counter("assertFact(diseq) by type")++);
-      i2->assertFact(thm);
-    }
-  }
+  // Send formula to the appropriate DP
+  i->assertFact(thm);
+
+  // Equalities and disequalities are also asserted to the theories of
+  // their types
+  if (i != i2) i2->assertFact(thm);
 }
 
 
@@ -504,7 +467,7 @@ void TheoryCore::setFindLiteral(const Theorem& thm)
   if (e.isNot()) {
     const Expr& e0 = e[0];
     if (!e0.hasFind()) {
-      IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+      IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' ');)
       TRACE("setFindLiteral", indentStr, "SFL: ", e.toString(PRESENTATION_LANG));
       Theorem findThm = d_commonRules->notToIff(thm);
       e0.setFind(findThm);
@@ -526,7 +489,7 @@ void TheoryCore::setFindLiteral(const Theorem& thm)
     }
   }
   else if (!e.hasFind()) {
-    IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+    IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' ');)
     TRACE("setFindLiteral", indentStr, "SFL: ", e.toString(PRESENTATION_LANG));
     Theorem findThm = d_commonRules->iffTrue(thm);
     e.setFind(findThm);
@@ -556,10 +519,6 @@ Theorem TheoryCore::rewriteIte(const Expr& e)
     return d_rules->rewriteIteFalse(e);
   if (e[1] == e[2])
     return d_rules->rewriteIteSame(e);
-  // This results in exponential blowup
-//   if(!isTerm(e1) && !isTerm(e2))
-//     return d_commonRules->rewriteIteBool(c, e1, e2);
-  // Default case: no rewrite
   return reflexivityRule(e);
 }
 
@@ -589,81 +548,6 @@ Theorem TheoryCore::rewriteLitCore(const Expr& e)
       break;
   }
   return reflexivityRule(e);
-}
-
-
-Theorem TheoryCore::rewriteN(const Expr& e, int n)
-{
-  if(n <= 0) return reflexivityRule(e);
-  if(theoryOf(e) != this) return reflexivityRule(e);
-  if(n==1) return rewrite(e);
-  vector<Theorem> thms;
-  vector<unsigned> changed;
-  for(int i=0; i<e.arity(); ++i) {
-    Theorem thm = rewriteN(e[i], n-1);
-    if(e[i] != thm.getRHS()) {
-      thms.push_back(thm);
-      changed.push_back(i);
-    }
-  }
-  Theorem res;
-  if(changed.size()>0) {
-    res = substitutivityRule(e, changed, thms);
-    res = transitivityRule(res, rewrite(res.getRHS()));
-  } else {
-    res = rewrite(e);
-  }
-  return res;
-}
-
-
-/*!
- * Fill in the copy of the equality queue with single equalities by
- * processing the input 'eq', which can be an equality, a conjunction
- * of equalities, or an existential quantifier of the above.
- */
-bool TheoryCore::processEquality(const Theorem& thm, ExprMap<Theorem>& q)
-{
-  const Expr& e = thm.getExpr();
-  bool res(false);
-
-  switch(e.getKind()) {
-  case FALSE_EXPR:
-    IF_DEBUG(debugger.counter("conflicts from solver")++);
-    setInconsistent(thm);
-    res = true;
-    break;
-  case EXISTS:
-    // Skolemize the quantifier and expect an equality or a
-    // conjunction of equalities inside
-    res = processEquality(d_commonRules->skolemize(thm), q);
-    break;
-  case AND: 
-    for(int i=0, iend=e.arity(); i!=iend; ++i)
-      if(res = processEquality(d_commonRules->andElim(thm, i), q)) break;
-    break;
-  case EQ:
-    // find(e0) != e1 && find(e1) != e0
-    if(find(e[0]).getRHS() != e[1] && e[0] != find(e[1]).getRHS()) {
-      DebugAssert(e[0] != e[1], "processEquality: e = "+e.toString());
-      DebugAssert(!e[1].hasFind() || find(e[1]).getRHS() == e[1],
-		  "processEquality: e = "+e.toString()
-		  +"\nfind(e[1]) = "+find(e[1]).getRHS().toString());
-//       DebugAssert(!e[0].subExprOf(e[1]), "processEquality: e = "+e.toString());
-      q[e] = thm;
-    } else if(find(e).getRHS().isFalse()) {
-      IF_DEBUG(debugger.counter("conflicts from find pointers")++);
-      setInconsistent(d_commonRules->contradictionRule(thm,
-                        d_commonRules->iffFalseElim(find(e))));
-      res = true;
-    }
-    break;
-  default:
-    DebugAssert(false,
-		"TheoryCore::processEquality(): bad input:\n "
-		+thm.toString());
-  }
-  return res;
 }
 
 
@@ -764,6 +648,7 @@ bool TheoryCore::isBasicKind(int kind)
     case PUSH_SCOPE:
     case POP_SCOPE:
     case POPTO_SCOPE:
+    case RESET:
     case LETDECL:
     case ELSE:
     case CONTEXT:
@@ -787,6 +672,7 @@ TheoryCore::TheoryCore(ContextManager* cm,
     d_incomplete(cm->getCurrentContext()),
     d_incThm(cm->getCurrentContext()),
     d_terms(cm->getCurrentContext()),
+    //    d_termTheorems(cm->getCurrentContext()),
     d_predicates(cm->getCurrentContext()),
     d_vars(cm->getCurrentContext()),
     d_solver(NULL),
@@ -800,6 +686,8 @@ TheoryCore::TheoryCore(ContextManager* cm,
     d_notifyObj(this, cm->getCurrentContext()),
     d_impliedLiterals(cm->getCurrentContext()),
     d_impliedLiteralsIdx(cm->getCurrentContext(), 0, 0),
+    d_notifyEq(cm->getCurrentContext()),
+    d_inUpdate(0),
     d_coreSatAPI(NULL)
 {
   d_em = em;
@@ -900,6 +788,7 @@ TheoryCore::TheoryCore(ContextManager* cm,
   kinds.push_back(PUSH_SCOPE);
   kinds.push_back(POP_SCOPE);
   kinds.push_back(POPTO_SCOPE);
+  kinds.push_back(RESET);
   kinds.push_back(CONTEXT);
   kinds.push_back(FORGET);
   kinds.push_back(GET_TYPE);
@@ -928,8 +817,8 @@ TheoryCore::~TheoryCore()
 }
 
 
-Theorem TheoryCore::getTheoremForTerm(const Expr& e)
-{
+Theorem TheoryCore::getTheoremForTerm(const Expr& e){
+
 // <<<<<<< theory_core_sat.cpp
 //   //  DebugAssert(e.hasFind(), "getTheoremForTerm called on term without find");
 //   CDMap<Expr, Theorem>::iterator i = d_termTheorems.find(e);
@@ -940,31 +829,78 @@ Theorem TheoryCore::getTheoremForTerm(const Expr& e)
 //   }
 //   //  DebugAssert(i != d_termTheorems.end(), "getTheoremForTerm: no theorem found");
 // =======
-  DebugAssert(e.hasFind() || e.isStoredPredicate(), "getTheoremForTerm called on invalid term");
+//  DebugAssert(e.hasFind() || e.isStoredPredicate(), "getTheoremForTerm called on invalid term");
+
   hash_map<Expr, Theorem>::iterator i = d_termTheorems.find(e);
-  DebugAssert(i != d_termTheorems.end(), "getTheoremForTerm: no theorem found");
-// >>>>>>> 1.19
-  return (*i).second;
+  // yeting, I think we should use CDMap here, but a static map works better.  
+  //  CDMap<Expr, Theorem>::iterator i = d_termTheorems.find(e);
+
+  //  DebugAssert(i != d_termTheorems.end(), "getTheoremForTerm: no theorem found");
+
+  if(i != d_termTheorems.end()){
+    return (*i).second;
+  }
+  else{
+    TRACE("quantlevel", "getTheoremForTerm: no theorem found: ", e , "");
+    Theorem x;
+    return x;
+  }
 }
 
+#ifdef DEBUG
+int TheoryCore::getCurQuantLevel(){
+  return theoryOf(FORALL)->help(1);
+}
+#endif
 
 unsigned TheoryCore::getQuantLevelForTerm(const Expr& e)
 {
-// <<<<<<< theory_core_sat.cpp
-//   //  if (!e.hasFind()) return 0;
-// =======
+
+
+/*
   if (!e.hasFind() && !e.isStoredPredicate()) {
     TRACE("quantlevel", "get 0 ", e , "");
     return 0;
   }
-// >>>>>>> 1.19
+*/
+  TRACE("quantlevel", "trying get level for (" + e.toString() + ") with index ", "", e.getIndex());
   Theorem thm = getTheoremForTerm(e);
   if (thm.isNull()) {
-    // Must be from user-registered atom
-    TRACE("quantlevel", "get 0-1 ", e , "");
-    return 0;
+    if(e.isNot()){
+      thm = getTheoremForTerm(e[0]);
+    }
   }
+  
+  if(thm.isNull()){
+    if (e.inUserAssumption())   {
+      return 0 ;
+    }
+    else{
+      TRACE("quantlevel", "expr get null :", e.getIndex(), "" );
+      if( ! (e.isNot() || e.isIff())){
+	TRACE("quantlevel", "cannot find expr: " , e, "");
+      }
+      return 0;
+    }
+  }
+
+  TRACE("quantlevel", "expr get level:", thm.getQuantLevel(), "");
+  
+  /*
+  if(thm.getQuantLevel() != thm.getQuantLevelDebug()){
+    cout << "theorem: " << thm.getExpr().toString() <<endl;
+    cout << "quant level : " << thm.getQuantLevel()<<endl;
+    cout << "debug quant level : " << thm.getQuantLevelDebug() <<endl;
+    cout << "the proof is " << thm.getProof() << endl;
+  }
+  */
+
   return thm.getQuantLevel();
+  /*
+  unsigned ql = thm.getQuantLevel();
+  unsigned qld = thm.getQuantLevelDebug();
+  return (ql > qld ? ql : qld);
+  */
 }
 
 
@@ -1203,6 +1139,43 @@ void TheoryCore::update(const Theorem& e, const Expr& d)
 }
 
 
+void TheoryCore::checkEquation(const Theorem& thm)
+{
+  Expr e2 = thm.getExpr();
+  DebugAssert(e2.isEq(), "Expected equation");
+  Expr solved;
+  if (d_solver) {
+    solved = d_solver->solve(thm).getExpr();
+    DebugAssert(solved == e2, "e2 = "+e2.toString()
+                +"\nsolved = "+solved.toString());
+  }
+  Theory* i = theoryOf(e2);
+  if (d_solver != i) {
+    solved = i->solve(thm).getExpr();
+    DebugAssert(solved == e2, "e2 = "+e2.toString()
+                +"\nsolved = "+solved.toString());
+  }
+  Theory* j = theoryOf(e2[0].getType());
+  if (d_solver != j && i != j) {
+    solved = j->solve(thm).getExpr();
+    DebugAssert(solved == e2, "e2 = "+e2.toString()
+                +"\nsolved = "+solved.toString());
+  }
+}
+
+
+void TheoryCore::checkSolved(const Theorem& thm)
+{
+  Expr e2 = thm.getExpr();
+  if (e2.isAnd()) {
+    for (int index = 0; index < e2.arity(); ++index) {
+      checkEquation(d_commonRules->andElim(thm, index));
+    }
+  }
+  else if (!e2.isBoolConst()) checkEquation(thm);
+}
+
+
 /*****************************************************************************/
 /*!
  * Function: TheoryCore::solve
@@ -1224,14 +1197,16 @@ Theorem TheoryCore::solve(const Theorem& eThm)
   const Expr& e = eThm.getExpr();
   Theorem thm;
   Expr e2;
+
+  DebugAssert(eThm.isRewrite() && eThm.getLHS().isTerm(), "Expected equation");
+
+  // Invoke the primary solver
   if (d_solver) {
     thm = d_solver->solve(eThm);
     e2 = thm.getExpr();
-    // FIXME: this stops other solvers from being run when arithmetic
-    // solves into a system of equations.  This results in
-    // INCOMPLETENESS.  In my opinion (Sergey), the correct fix is to
-    // allow multiple independent solvers, just like rewriters.
-    if (!e2.isEq() || theoryOf(e2) == d_solver) {
+    if (e2.isBoolConst() || e2.isAnd()) {
+      // We expect a conjunction of equations, each of which is terminally solved
+      IF_DEBUG(checkSolved(thm));
       return thm;
     }
   }
@@ -1239,21 +1214,25 @@ Theorem TheoryCore::solve(const Theorem& eThm)
     thm = eThm;
     e2 = e;
   }
+
+  // Invoke solver based on owner of equation
+  DebugAssert(e2.isEq(), "Expected equation");
   Theory* i = theoryOf(e2);
-  Theorem thm2 = i->solve(thm);
-  IF_DEBUG(
-    // Check that the result is in solved form according to the primary solver
-    if (d_solver) {
-      e2 = thm2.getExpr();
-      if(e2.isEq()) {
-	Expr solved(d_solver->solve(thm2).getExpr());
-	DebugAssert(solved == e2, "e2 = "+e2.toString()
-		    +"\nsolved = "+solved.toString());
-      }
-      // FIXME: how do we check it for AND and EXISTS?
-    }
-    );
-  return thm2;
+  if (d_solver != i) thm = i->solve(thm);
+  e2 = thm.getExpr();
+  if (e2.isBoolConst() || e2.isAnd()) {
+    // We expect a conjunction of equations, each of which is solved
+    IF_DEBUG(checkSolved(thm));
+    return thm;
+  }
+
+  // Invoke solver based on type of terms in equation
+  DebugAssert(e2.isEq(), "Expected equation");
+  Theory* j = theoryOf(getBaseType(e2[0]));
+  if (d_solver != j && i != j) thm = j->solve(thm);
+  
+  IF_DEBUG(checkSolved(thm));
+  return thm;
 }
 
 
@@ -1265,7 +1244,7 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
   case EQ:
   case IFF:
     if(e[0]==e[1]) {
-      IF_DEBUG(debugger.counter("simplified x=x")++);
+      IF_DEBUG(debugger.counter("simplified x=x")++;)
       return d_commonRules->iffTrue(reflexivityRule(e[0]));
     }
     return Theory::simplifyOp(e);
@@ -1279,7 +1258,7 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
     int l(0);
     for(; l<ar && e[l].getKind() != endKind; ++l);
     if(l < ar) { // Found TRUE or FALSE: e simplifies to a const
-      IF_DEBUG(debugger.counter("simplified AND/OR topdown")++);
+      IF_DEBUG(debugger.counter("simplified AND/OR topdown")++;)
       if(kind==AND)
 	return rewriteAnd(e);
       else
@@ -1303,7 +1282,7 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
 	  else
 	    thm = transitivityRule(thm, rewriteOr(thm.getRHS()));
 	  IF_DEBUG(debugger.counter("simplified AND/OR: skipped kids")
-		   += ar-k-1);
+		   += ar-k-1;)
 	  return thm;
 	} else { // Child simplified to something else
 	  newChildrenThm.push_back(thm);
@@ -1321,7 +1300,7 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
     // Optimization: check if the two branches are the same, so we
     // don't have to simplify the condition
     if(e[1]==e[2]) {
-      IF_DEBUG(debugger.counter("simplified ITE(c,e,e)")++);
+      IF_DEBUG(debugger.counter("simplified ITE(c,e,e)")++;)
       Theorem res = d_rules->rewriteIteSame(e);
       return transitivityRule(res, simplify(res.getRHS()));
     }
@@ -1338,7 +1317,7 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
       // If condition value is known, only the appropriate branch
       // needs to be simplified
       if((k==1 && cond.isFalse()) || (k==2 && cond.isTrue())) {
-	IF_DEBUG(debugger.counter("simplified ITE: skiped one branch")++);
+	IF_DEBUG(debugger.counter("simplified ITE: skiped one branch")++;)
 	continue;
       }
       thm = simplify(e[k]);
@@ -1351,28 +1330,11 @@ Theorem TheoryCore::simplifyOp(const Expr& e)
       return substitutivityRule(e, changed, newChildrenThm);
     break;
   }
-  case NOT: { // Push negation down
-//     if(!e.isAbsLiteral() && getFlags()["pushneg"].getBool()) {
-//       Theorem res = d_exprTrans->pushNegation1(e);
-//       if(res.getLHS() != res.getRHS())
-// 	// Recurse; there may be shortcuts to take advantage of
-// 	res = transitivityRule(res, simplifyOp(res.getRHS()));
-//       else {
-// 	res = Theory::simplifyOp(e);
-// 	// Try pushing negation once more
-// 	Theorem thm = d_exprTrans->pushNegation1(res.getRHS());
-// 	if(thm.getLHS() != thm.getRHS()) {
-// 	  thm = transitivityRule(thm, simplify(thm.getRHS()));
-// 	  res = transitivityRule(res, thm);
-// 	}
-//       }
-//       return res;
-//     } else {
-      Theorem res = simplify(e[0]);
-      if (res.getLHS() != res.getRHS()) {
-        return d_commonRules->substitutivityRule(e, res);
-      }
-//     }
+  case NOT: {
+    Theorem res = simplify(e[0]);
+    if (res.getLHS() != res.getRHS()) {
+      return d_commonRules->substitutivityRule(e, res);
+    }
     break;
   }
   case IMPLIES: {
@@ -1826,18 +1788,6 @@ Expr TheoryCore::parseExprOp(const Expr& e)
     // Parse the body recursively and return it (nuke the LET)
     return parseExpr(e2[2]);
   }
-//     {
-//     vector<Expr> letDecls, lvars;
-//     Expr letDeclsExpr;
-//     for(Expr::iterator i = e[1].begin(), iend=e[1].end(); i!=iend; ++i) {
-//       lvars = i->getKids();
-//       lvars.insert(lvars.begin(), Expr(e.getEM(), ID, Expr(e.getEM(), STRING_EXPR, "LETDECL")));
-//       letDecls.push_back(Expr(e.getEM(), RAW_LIST, lvars));
-//       }
-//     letDecls.insert(letDecls.begin(), Expr(e.getEM(), ID, Expr(e.getEM(), STRING_EXPR, "LETDECLS")));
-//     letDeclsExpr = Expr(e.getEM(), RAW_LIST, letDecls);
-//     return Expr(e.getEM(), kind, parseExpr(letDeclsExpr), parseExpr(e[2]));
-//   }
   case TRUE_EXPR:	{ return e.getEM()->trueExpr();	}
   case FALSE_EXPR:	{ return e.getEM()->falseExpr();}
   case BOOLEAN: 	{ return e.getEM()->boolExpr();	}
@@ -1855,8 +1805,8 @@ Expr TheoryCore::parseExprOp(const Expr& e)
 ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
 {
   switch(os.lang()) {
-    case SIMPLIFY_LANG:    
-   switch(e.getKind()) {
+  case SIMPLIFY_LANG:    
+    switch(e.getKind()) {
     case TRUE_EXPR: os << "TRUE"; break;
     case FALSE_EXPR: os << "FALSE"; break;
     case TYPE:
@@ -1895,9 +1845,6 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       break;
     case ITE:
       os<<"ERROR:ITE:not supported yet\n";
-      /* os <<  "(AND (IMPLIES "<< e[0] << " " << e[1]<<")"  
-	 <<  "(IMPLIES (NOT " <<e[0] << ")" << e[2] <<"))"; 
-      */
       break;
     case IFF:
       if(e.arity() == 2)
@@ -1939,6 +1886,7 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
     case PUSH_SCOPE:
     case POP_SCOPE:
     case POPTO_SCOPE:
+    case RESET:
       os << "ERROR:PUSH and POP:not supported in Simplify\n";
       break;
       //    case CONSTDEF:
@@ -1970,7 +1918,8 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       
     }
     case BOUND_VAR:
-      os << e.getName()+"_"+e.getUid();
+      //      os << e.getName()+"_"+e.getUid(); // by yeting for a neat output
+      os << e.getName();
       break;
     case SKOLEM_VAR:
       os << "SKOLEM_" + int2string((int)e.getIndex());
@@ -2013,13 +1962,275 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
     }
     break; // end of case simplify_LANG
 
+  case TPTP_LANG: {
+    static int axiom_counter =0;
+    switch(e.getKind()) {
+    case TRUE_EXPR: os << "$true"; break;
+    case FALSE_EXPR: os << "$false"; break;
+    case TYPE:
+      break;
+      if(e.arity() == 0) os << "TYPE";
+      else if(e.arity() == 1) {
+        for (int i=0; i < e[0].arity(); ++i) {
+          if (i != 0) os << endl;
+          os << e[0][i] << ": TYPE;";
+        }
+      }
+      else if(e.arity() == 2)
+	os << e[0] << ":" << push << " TYPE = " << e[1] << push << ";";
+      else e.printAST(os);
+      break;
+    case ID:
+      if(e.arity() == 1 && e[0].isString()) os << e[0].getString();
+      else e.print(os);
+      break;
+    case CONST:
+      if(e.arity() == 2) {
+	string ename = to_lower(e[0].toString());
+	os << "tff(" << ename << "_type, type,\n    " << ename;
+	os << ": " <<  e[1] << "). \n";
+      } 
+      else {
+	os << "ERROR: CONST's arity > 2";
+      }
+      break;
+
+    case SUBTYPE:
+      break;
+    case TYPEDEF: {
+      break;
+    }
+    case EQ:
+      os << e[0] << " = " << e[1];
+      break;
+
+    case DISTINCT: {
+      int i=0, iend=e.arity();
+      os << "$distinct(" ;
+      os << e[i] ;
+      i++;
+      for(; i!=iend; ++i) os  << ", " << e[i] ;
+      os <<  ")";
+      break;
+    }
+
+    case NOT: 
+      os << "~(" << e[0]<<")" ; 
+      break;
+
+   case AND: {
+      int i=0, iend=e.arity();
+      if(iend == 1) {
+	os << e[i];
+      }
+
+      else if(iend > 1) {
+	for(i=0 ; i < iend-1; i++) {
+	  os << "(" << e[i] << " \n& " ;
+	}
+	os << e[iend-1];
+	for(i=0 ; i < iend-1; i++) {
+	  os << ")";
+	}
+      }
+      else{
+	os <<"ERROR:AND has less than 1 parameter\n";
+      }
+      break;
+	}
+    case OR: {
+      int i=0, iend=e.arity();
+      if(iend == 1) {
+	os << e[i];
+      }
+
+      else if(iend > 1) {
+	for(i=0 ; i < iend-1; i++) {
+	  os << "(" << e[i] << " \n| " ;
+	}
+	os << e[iend-1];
+	for(i=0 ; i < iend-1; i++) {
+	  os << ")";
+	}
+      }
+      else{
+	os <<"ERROR:OR has less than 1 parameter\n";
+      }
+      break;
+	}
+    case ITE:
+      os<<"ERROR:ITE:not supported in TPTP yet\n";
+      /* os <<  "(AND (IMPLIES "<< e[0] << " " << e[1]<<")"  
+	 <<  "(IMPLIES (NOT " <<e[0] << ")" << e[2] <<"))"; 
+      */
+      break;
+    case IFF:
+      if(e.arity() == 2)
+	os << "(" <<  e[0]  << " \n<=> " << e[1] << ")" ;
+      else
+	e.print(os);
+      break;
+    case IMPLIES:
+      os << "(" << e[0] << " \n=> " << e[1] << ")"  ;
+      break;
+      // Commands
+    case ASSERT:
+      os << "tff(" << axiom_counter++ << ", axiom, \n    " <<e[0] <<  ").\n";
+    
+      break;
+    case TRANSFORM:
+      os << "ERROR:TRANSFORM:not supported in TPTP " << push << e[0] << push << "\n";
+      break;
+    case QUERY:
+      if(getFlags()["negate-query"].getBool() == true){
+	if (e[0].isNot()){
+	  os << "tff(" << axiom_counter++ << ", conjecture, \n    " <<e[0][0] <<  ").\n";
+	}
+	else{
+	  os << "tff(" << axiom_counter++ << ", conjecture, \n    ~(" << e[0] <<  ")).\n";
+	}
+      }
+      else{
+	os << "tff(" << axiom_counter++ << ", conjecture, \n    " <<e[0] <<  ").\n";
+      }
+      break;
+    case WHERE:
+      os << "ERROR:WHERE:not supported in TPTP\n";
+      break;
+    case ASSERTIONS:
+      os << "ERROR:ASSERTIONS:not supported in TPTP\n";
+      break;
+    case ASSUMPTIONS:
+      os << "ERROR:ASSUMPTIONS:not supported in TPTP\n";
+      break;
+    case COUNTEREXAMPLE:
+      os << "ERROR:COUNTEREXAMPLE:not supported in TPTP\n";
+      break;
+    case COUNTERMODEL:
+      os << "ERROR:COUNTERMODEL:not supported in TPTP\n";
+      break;
+    case PUSH:
+    case POP:
+    case POPTO:
+    case PUSH_SCOPE:
+    case POP_SCOPE:
+    case POPTO_SCOPE:
+    case RESET:
+      os << "ERROR:PUSH and POP:not supported in TPTP\n";
+      break;
+      //    case CONSTDEF:
+    case LETDECL:
+      os << "LETDECL not supported in Simplify\n";
+      break;
+    case LET: {
+      bool first(true);
+      os << " := [" ;
+      for(Expr::iterator i=e[0].begin(), iend=e[0].end(); i!=iend; ++i) {
+	if(!first) os << " , "  ;
+	else first = false;
+	if(i->arity() == 3) {
+	  os << (*i)[0] << ":" << (*i)[1]
+	     <<  " ERROR= " <<  nodag << (*i)[2] ;
+	} else {
+	  os << (*i)[0];
+	  os <<  " := " << nodag << (*i)[1] ;
+	}
+	os <<endl;
+      }
+      os <<  "] : " << endl << "(" <<  e[1] << ")";
+      break;
+      
+    }
+
+    case BOUND_VAR:{
+      //      os << e.getName()+"_"+e.getUid() ; // by yeting
+      os<< to_upper(e.getName());
+      break;
+    }
+    case SKOLEM_VAR:
+      os << "SKOLEM_VAR is not supported in TPTP\n";
+      break;
+
+    case PF_APPLY: // FIXME: this will eventually go to the "symsim" theory
+      /*      DebugAssert(e.arity() > 0, "TheoryCore::print(): "
+		  "Proof rule application must have at "
+		  "least one argument (rule name):\n "+e.toString());
+      os << e[0];
+      if(e.arity() > 1) { // Print the arguments
+	os << push << "(" << push;
+	bool first(true);
+	for(int i=1; i<e.arity(); i++) {
+	  if(first) first=false;
+	  else os << push << "," << pop << space;
+	  os << e[i];
+	}
+	os << push << ")";
+	}*/
+
+      os << "PR_APPLY not supported in TPTP\n";
+      break;
+    case RAW_LIST: {
+      /*      os << "[" << push;
+      bool firstTime(true);
+      for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i) {
+	if(firstTime) firstTime = false;
+	else os << push << "," << pop << space;
+	os << *i;
+      }
+      os << push << "]";*/
+      os << "RAW_LIST not supported in TPTP\n";
+      break;
+    }
+    case PF_HOLE: 
+      os << "PF_HOLE not supported in TPTP\n";
+      break;
+    case UCONST:
+      {string name = e.getName();
+      if(name.length() >= 5){
+	if ('C' == name[0] && 'V' == name[1] && 'C' == name[2] && '_' == name[3] && isdigit(name[4])){
+	  os << to_upper(name);
+	} 
+	else {
+	  os << to_lower(name);
+	}
+      }
+      else {
+	os<<to_lower(name);
+      }
+      //
+      //      e.print(os); break;
+      break;
+      }
+    case STRING_EXPR:
+      os <<"ERROR:STRING_EXPR is not suppoerted in TPTP\n";
+      e.print(os); break;
+    case BOOLEAN:
+      os << "$o";
+      break;
+    default:
+      // Print the top node in the default LISP format, continue with
+      // pretty-printing for children.
+      os<<"unknown ";
+      //      cout<<e.toString(PRESENTATION_LANG)<<endl;
+      //      cout<<getEM()->getKindName(e.getKind())<<endl;
+      e.print(os);
+    }
+    break; // end of case TPTP_LANG
+  }
+
 
   case PRESENTATION_LANG:
     switch(e.getKind()) {
     case TRUE_EXPR:
+      os << "TRUE";
+      break;
     case FALSE_EXPR:
-    case UCONST:
+      os << "FALSE";
+      break;
     case BOOLEAN:
+      os << "BOOLEAN";
+      break;
+    case UCONST:
     case STRING_EXPR:
       e.print(os); break;
     case TYPE:
@@ -2162,6 +2373,9 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       break;
     case POPTO_SCOPE:
       os << "POPTO_SCOPE" << space << e[0] << push << ";"; break;
+    case RESET:
+      os << "RESET;";
+      break;
     case LETDECL:
       if(e.arity() == 2) os << e[1];
       else e.printAST(os);
@@ -2188,7 +2402,8 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       break;
     }
     case BOUND_VAR:
-      os << e.getName()+"_"+e.getUid();
+      //      os << e.getName()+"_"+e.getUid();
+      os << e.getName(); //for better support of proof translation yeting
       break;
     case SKOLEM_VAR:
       os << "SKOLEM_" + int2string((int)e.getIndex());
@@ -2197,14 +2412,16 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       DebugAssert(e.arity() > 0, "TheoryCore::print(): "
 		  "Proof rule application must have at "
 		  "least one argument (rule name):\n "+e.toString());
-      os << e[0];
+      //      os << e[0]; by yeting
+      os << e[0] << "\n" ;
       if(e.arity() > 1) { // Print the arguments
 	os << push << "(" << push;
 	bool first(true);
 	for(int i=1; i<e.arity(); i++) {
 	  if(first) first=false;
 	  else os << push << "," << pop << space;
-	  os << e[i];
+	  //	  os << e[i]; by yeting
+	  os << e[i] << "\n";
 	}
 	os << push << ")";
       }
@@ -2375,7 +2592,8 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       break;
     }
     case BOUND_VAR:
-      os << push << "?" << e.getName()+"_"+e.getUid();
+      //      os << push << "?" << e.getName()+"_"+e.getUid();
+      os << push << "?" << e.getName(); //to better support for proof translation
       break;
     case SKOLEM_VAR:
       os << push << "SKOLEM_" + int2string((int)e.getIndex());
@@ -2447,6 +2665,10 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
     case POPTO_SCOPE:
       os << "  :cvc_command" << space;
       os << "\"POPTO_SCOPE" << space << e[0] << push << "\""; break;
+      break;
+    case RESET:
+      os << "  :cvc_command" << space;
+      os << "\"RESET\""; break;
       break;
     case PF_HOLE: // FIXME: implement this (now fall through to default)
     default:
@@ -2546,6 +2768,8 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       os << "(POP)"; break;
     case POPTO:
       os << "(" << push << "POPTO" << space << e[0] << push << ")"; break;
+    case RESET:
+      os << "(" << push << "RESET" << push << ")"; break;
     case LETDECL:
       if(e.arity() == 2) os << e[1];
       else if(e.arity()==3) // It's a declaration of a named Expr
@@ -2576,7 +2800,8 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       break;
     }
     case BOUND_VAR:
-      os << e.getName()+"_"+e.getUid();
+      //      os << e.getName()+"_"+e.getUid(); by yeting
+      os << e.getName();
       break;
     case SKOLEM_VAR:
       os << "SKOLEM_" + int2string((int)e.getIndex());
@@ -2668,22 +2893,26 @@ void TheoryCore::addFact(const Theorem& e)
 {
   //<<<<<<< theory_core_sat.cpp
   //  cout<<"theory_core_sat.cpp asserted fact:"<<e<<endl;
-  //  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+  //  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' ');)
   //  TRACE("addFact", indentStr, "Assert: ", e.getExpr().toString(PRESENTATION_LANG));
   //=======
-  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' '));
+  IF_DEBUG(string indentStr(getCM()->scopeLevel(), ' ');)
   TRACE("addFact", indentStr, "Assert: ", e.getExpr().toString(PRESENTATION_LANG));
   //>>>>>>> 1.7
   DebugAssert(!d_inAddFact, "Recursive call to addFact() is not allowed");
   DebugAssert(d_queue.empty(), "addFact[start]: Expected empty queue");
-  DebugAssert(d_queueSE.empty(), "addFact[start]: Expected empty queue");
+  //  DebugAssert(d_queueSE.empty(), "addFact[start]: Expected empty queue");
   DebugAssert(d_update_thms.empty() && d_update_data.empty(),
               "addFact[start]: Expected empty update list");
-  IF_DEBUG(ScopeWatcher sw(&d_inAddFact));
+  IF_DEBUG(ScopeWatcher sw(&d_inAddFact);)
 
   if(!d_inconsistent && !outOfResources()) {
     getResource();
     d_queue.push(e);
+
+    //    cout<<"queue pushed" <<e<<endl;
+    //    cout<<"queue pushed id" <<e.getQuantLevel()<<endl;
+
     if (outOfResources()) {
       // No more resources: ignore all the remaining facts and fail
       // gracefully
@@ -2694,6 +2923,8 @@ void TheoryCore::addFact(const Theorem& e)
 
   DebugAssert(d_queue.empty(), "addFact[end]: Expected empty queue");
   DebugAssert(d_queueSE.empty(), "addFact[end]: Expected empty queue");
+  DebugAssert(d_update_thms.empty() && d_update_data.empty(),
+              "addFact[end]: Expected empty update list");
 }
 
 
@@ -2702,13 +2933,17 @@ bool TheoryCore::checkSATCore()
   DebugAssert(d_queue.empty(), "checkSATCore[start]: Expected empty queue");
   DebugAssert(d_queueSE.empty(), "checkSATCore[start]: Expected empty queue");
   DebugAssert(!d_inCheckSATCore, "Recursive call to checkSATCore is not allowed!");
-  IF_DEBUG(ScopeWatcher sw(&d_inCheckSATCore));
-  IF_DEBUG(debugger.counter("DP checkSAT(fullEffort) calls")++);
+  IF_DEBUG(ScopeWatcher sw(&d_inCheckSATCore);)
+  IF_DEBUG(debugger.counter("DP checkSAT(fullEffort) calls")++;)
+  DebugAssert(d_update_thms.empty() && d_update_data.empty(),
+              "addFact[start]: Expected empty update list");
 
   bool lemmas = processFactQueue(FULL);
 
   DebugAssert(d_queue.empty(), "checkSATCore[start]: Expected empty queue");
   DebugAssert(d_queueSE.empty(), "checkSATCore[start]: Expected empty queue");
+  DebugAssert(d_update_thms.empty() && d_update_data.empty(),
+              "addFact[end]: Expected empty update list");
 
   return !lemmas;
 }
@@ -2729,12 +2964,17 @@ bool TheoryCore::incomplete(vector<string>& reasons)
 
 void TheoryCore::registerAtom(const Expr& e, const Theorem& thm)
 {
+  DebugAssert(!e.isEq() || e[0] != e[1], "expected non-reflexive");
   DebugAssert(!e.isRegisteredAtom(), "atom registered more than once");
   //  if (e.isQuantifier()) return;
   e.setRegisteredAtom();
+  if(d_termTheorems.find(e) != d_termTheorems.end()){
+    //    cout<<"found this before 1 : "<<e<<endl;
+  }
+  //  cout<<"#1# get into "<<e<<endl;
   d_termTheorems[e] = thm;  
   DebugAssert(e.isAbsAtomicFormula(), "Expected atomic formula");
-  IF_DEBUG(ScopeWatcher sw(&d_inRegisterAtom));
+  IF_DEBUG(ScopeWatcher sw(&d_inRegisterAtom);)
   Theorem thm2 = simplify(e);
   if (thm2.getRHS().isTrue()) {
     setFindLiteral(d_commonRules->iffTrueElim(thm2));
@@ -2777,7 +3017,6 @@ Expr TheoryCore::parseExpr(const Expr& e)
   if (iParseCache != d_parseCache.end()) {
     return (*iParseCache).second;
   }
-
   // Remember the current size of the bound variable stack
   size_t boundVarSize = d_boundVarStack.size();
 
@@ -2812,9 +3051,13 @@ Expr TheoryCore::parseExpr(const Expr& e)
       if(kind == NULL_KIND) {
 	// It's a named function application.  Resolve the ID.
 	res = resolveID(op[0].getString());
-	if(res.isNull())
+	if(res.isNull()){
+	  //	  cout<<"stop here: " << e << endl;
+	  //	  cout<<"stop here op: " << op << endl;
+	  //	  cout<<"stop here op[0]: " << op[0] << endl;
 	  throw ParserException("cannot resolve an identifier: "
 				+op[0].toString());
+	}
         if(e.arity() < 2)
           throw ParserException("Bad function application: "+e.toString());
         Expr::iterator i=e.begin(), iend=e.end();
@@ -2924,6 +3167,8 @@ void TheoryCore::collectBasicVars()
   // Clear caches
   d_varModelMap.clear();
   d_varAssignments.clear();
+  d_basicModelVars.clear();
+  d_simplifiedModelVars.clear();
   // Current stack of variables to process
   vector<Expr> stack(d_vars.begin(), d_vars.end());
   size_t lastSize(0);
@@ -3112,7 +3357,7 @@ void TheoryCore::collectModelValues(const Expr& e, ExprMap<Expr>& m)
 //       assignValue(thm);
 //     }
   }
-  IF_DEBUG(vector<Expr> res);
+  IF_DEBUG(vector<Expr> res;)
   if(gotAll) {
     vector<Expr> assigned; // What DP actually assigns
     Theory* th = theoryOf(getBaseType(e).getExpr());
@@ -3127,10 +3372,10 @@ void TheoryCore::collectModelValues(const Expr& e, ExprMap<Expr>& m)
 	  i!=iend; ++i) {
 	if(*i == e) continue; // Skip the original var
 	m[*i] = getModelValue(*i).getRHS();
-	IF_DEBUG(res.push_back(getModelValue(*i).getExpr()));
+	IF_DEBUG(res.push_back(getModelValue(*i).getExpr());)
       }
     } else {
-      IF_DEBUG(res.push_back(getModelValue(e).getExpr()));
+      IF_DEBUG(res.push_back(getModelValue(e).getExpr());)
     }
   }
   TRACE("model", "collectModelValues => ",
@@ -3180,22 +3425,30 @@ Theorem TheoryCore::rewriteLiteral(const Expr& e) {
 void TheoryCore::assertEqualities(const Theorem& e)
 {
   IF_DEBUG(
-  string indentStr(getCM()->scopeLevel(), ' ');
-  TRACE("facts", indentStr, "assertEqualities: ", e);
-  d_solver->checkAssertEqInvariant(e);
+    string indentStr(getCM()->scopeLevel(), ' ');
+    TRACE("facts", indentStr, "assertEqualities: ", e);
+    if (!incomplete()) d_solver->checkAssertEqInvariant(e);
   )
+  TRACE("quant update", "equs in core ", e.getExpr(), ""); 
+
   // fast case
   if (e.isRewrite()) {
-    DebugAssert(e.getLHS().isTerm(), "term expected");
-    DebugAssert(findReduced(e.getLHS()) &&
-                findReduced(e.getRHS()), "should be find-reduced");
-    DebugAssert(e.getLHS() != e.getRHS(), "expected different lhs and rhs");
+    const Expr& lhs = e.getLHS();
+    const Expr& rhs = e.getRHS();
+    DebugAssert(lhs.isTerm(), "term expected");
+    DebugAssert(findReduced(lhs) &&
+                findReduced(rhs), "should be find-reduced");
+    DebugAssert(lhs != rhs, "expected different lhs and rhs");
     assertFormula(e);
-    e.getLHS().setFind(e);
+    lhs.setFind(e);
+    Theorem tmp = lhs.getEqNext();
+    lhs.setEqNext(transitivityRule(e, rhs.getEqNext()));
+    rhs.setEqNext(transitivityRule(symmetryRule(e), tmp));
     d_em->invalidateSimpCache();
     NotifyList *L;
-    L = e.getLHS().getNotify();
+    L = lhs.getNotify();
     if (L) processNotify(e, L);
+    processNotify(e, &d_notifyEq);
   }
   else if (e.getExpr().isFalse()) {
     setInconsistent(e);
@@ -3226,25 +3479,31 @@ void TheoryCore::assertEqualities(const Theorem& e)
     vector<Theorem>::iterator i = eqs.begin(), iend = eqs.end();
     for(; i!=iend; ++i) {
       const Theorem& thm = *i;
-      DebugAssert(find(thm.getLHS()).getRHS() == thm.getLHS(),
+      const Expr& lhs = thm.getLHS();
+      const Expr& rhs = thm.getRHS();
+      DebugAssert(find(lhs).getRHS() == lhs,
 		  "find error: thm = "+thm.getExpr().toString()
-		  +"\n\n  find(thm.getLHS()) = "
-		  +find(thm.getLHS()).getRHS().toString());
-      DebugAssert(find(thm.getRHS()).getRHS() == thm.getRHS(),
+		  +"\n\n  find(lhs) = "
+		  +find(lhs).getRHS().toString());
+      DebugAssert(find(rhs).getRHS() == rhs,
 		  "find error: thm = "+thm.getExpr().toString()
-		  +"\n\n  find(thm.getRHS()) = "
-		  +find(thm.getRHS()).getRHS().toString());
-      thm.getLHS().setFind(thm);
+		  +"\n\n  find(rhs) = "
+		  +find(rhs).getRHS().toString());
+      lhs.setFind(thm);
+      Theorem tmp = lhs.getEqNext();
+      lhs.setEqNext(transitivityRule(thm, rhs.getEqNext()));
+      rhs.setEqNext(transitivityRule(symmetryRule(thm), tmp));
     }
 
     d_em->invalidateSimpCache();
-  
+
     // Call the update() functions (process NotifyLists).  
 
     for(i=eqs.begin(); i!=iend && !d_inconsistent; ++i) {
       const Theorem& thm = *i;
       NotifyList *L = thm.getLHS().getNotify();
       if (L) processNotify(thm, L);
+      processNotify(thm, &d_notifyEq);
     }
   }
 }
@@ -3316,6 +3575,9 @@ void TheoryCore::enqueueFact(const Theorem& e)
 void TheoryCore::setInconsistent(const Theorem& e)
 {
   d_inconsistent = true; d_incThm = e;
+  //  if(!d_queueSE.empty()){
+  //    cout<<"before SAT 1"<<endl;
+  //  }
   d_queueSE.clear();
   // Theory 0 is TheoryCore, skip it
   for(int i=1; i<getNumTheories(); ++i) {
@@ -3333,25 +3595,15 @@ void TheoryCore::setupTerm(const Expr& t, Theory* i, const Theorem& thm)
   if (!t.isTerm()) {
     if (!t.isStoredPredicate()) {
       DebugAssert(t.isAbsLiteral(), "Expected absliteral");
-      //    if(t.isAbsLiteral()) {
       for (k = 0; k < t.arity(); ++k) {
         setupTerm(t[k], i, thm);
       }
-
-      //<<<<<<< theory_core_sat.cpp
-      // Save a list of all non-equality predicates
-      //    if (t.isAtomicFormula() && !t.isEq() && !t.isStoredPredicate()) {
-      //    if (t.isAtomicFormula()  && !t.isStoredPredicate()) {
-      //    if (!t.isStoredPredicate()) {
-      //=======
-      // Save a list of all asserted predicates
       t.setStoredPredicate();
       d_predicates.push_back(t);
       d_termTheorems[t] = thm;
       theoryOf(t)->setup(t);
-      //      d_termTheorems[t] = thm;
-      TRACE("quantlevel","pushed pred ",t,thm);
-      TRACE("quantlevel","pushed pred quantlevel",thm.getQuantLevel(),"");
+      TRACE("quantlevel", "==========\npushed pred | ", t.getIndex(), "|" + t.toString()+"because : "+thm.toString() );
+      TRACE("quant","pushed pred ",t,thm);
     }
     return;
   }
@@ -3370,23 +3622,21 @@ void TheoryCore::setupTerm(const Expr& t, Theory* i, const Theorem& thm)
 
   // Add the term into the set of all terms
   d_terms.push_back(t);
-
   d_termTheorems[t] = thm;
-  TRACE("quantlevel","pushed term ",t,thm);
-  TRACE("quantlevel","pushed term quantlevel ",thm.getQuantLevel(),"");
-
-
+  TRACE("quantlevel","=========\npushed term ("+t.toString(), ") with quantlevel: ", thm.getQuantLevel());
+  
   for (k = 0; k < t.arity(); ++k) {
     setupTerm(t[k], j, thm);
   }
-  t.setFind(d_commonRules->reflexivityRule(t));
+  t.setFind(reflexivityRule(t));
+  t.setEqNext(reflexivityRule(t));
   j->setup(t);
 
   // Assert the subtyping predicate AFTER the setup is complete
   Theorem pred = d_rules->typePred(t);
   const Expr& predExpr = pred.getExpr();
   if(predExpr.isFalse()) {
-    IF_DEBUG(debugger.counter("conflicts from type preficate")++);
+    IF_DEBUG(debugger.counter("conflicts from type preficate")++;)
     setInconsistent(pred); 
   }
   else if(!predExpr.isTrue()) {

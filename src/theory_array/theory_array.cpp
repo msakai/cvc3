@@ -90,7 +90,7 @@ Theorem TheoryArray::rewrite(const Expr& e)
 	thm = d_rules->rewriteReadWrite(e);
 	return transitivityRule(thm, simplify(thm.getRHS()));
       case ARRAY_LITERAL: {
-	IF_DEBUG(debugger.counter("Read array literals")++);
+	IF_DEBUG(debugger.counter("Read array literals")++;)
 	thm = d_rules->readArrayLiteral(e);
 	return transitivityRule(thm, simplify(thm.getRHS()));
       }
@@ -595,7 +595,7 @@ ExprStream& TheoryArray::print(ExprStream& os, const Expr& e)
 	 << push << e[1] << "] := " << push << e[2] << push << ")";
       break;
     case ARRAY:
-      os << "ARRAY" << space << e[0] << space << "OF" << space << e[1];
+      os << "(ARRAY" << space << e[0] << space << "OF" << space << e[1] << ")";
       break;
     case ARRAY_LITERAL:
       if(e.isClosure()) {

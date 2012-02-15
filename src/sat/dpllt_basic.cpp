@@ -58,7 +58,6 @@ static SatSolver::Lit SATDecisionHook(void *cookie, bool *done)
     return SatSolver::Lit();
   }
 
-  decide:
   if (!db->decider()) {
     // Tell SAT solver to make its own choice
     if (!*done) return SatSolver::Lit();
@@ -73,19 +72,21 @@ static SatSolver::Lit SATDecisionHook(void *cookie, bool *done)
     }
   }
 
-  Clause c;
+  CNF_Formula_Impl cnf;
   DPLLT::ConsistentResult result;
-  result = db->theoryAPI()->checkConsistent(c, true);
+  result = db->theoryAPI()->checkConsistent(cnf, true);
 
   if (result == DPLLT::MAYBE_CONSISTENT) {
-    CNF_Formula_Impl cnf;
-    bool added = db->theoryAPI()->getNewClauses(cnf);
+    IF_DEBUG(bool added = ) db->theoryAPI()->getNewClauses(cnf);
+    DebugAssert(added, "Expected new clauses");
     db->addNewClauses(cnf);
-    if (!added) goto decide;
-    // Fall through: SAT solver will continue because clauses have been added
+    *done = true;
+    SatSolver::Lit l;
+    l.id = 0;
+    return l;
   }
   else if (result == DPLLT::INCONSISTENT) {
-    db->addNewClause(c);
+    db->addNewClauses(cnf);
   }
 
   // Tell SAT solver that we are done
@@ -104,11 +105,11 @@ static void SATAssignmentHook(void *cookie, SatSolver::Var var, int value)
   else if (value == 1)
     db->theoryAPI()->assertLit(Lit(db->satSolver()->GetVarIndex(var), true));
   else return;
-  Clause c;
+  CNF_Formula_Impl cnf;
   DPLLT::ConsistentResult result;
-  result = db->theoryAPI()->checkConsistent(c, false);
+  result = db->theoryAPI()->checkConsistent(cnf, false);
   if (result == DPLLT::INCONSISTENT) {
-    db->addNewClause(c);
+    db->addNewClauses(cnf);
   }
 }
 
@@ -119,13 +120,15 @@ static void SATDeductionHook(void *cookie)
   DPLLTBasic* db = static_cast<DPLLTBasic*>(cookie);
   Clause c;
   CNF_Formula_Impl cnf;
-  if (db->theoryAPI()->getNewClauses(cnf))
+  if (db->theoryAPI()->getNewClauses(cnf)) {
     db->addNewClauses(cnf);
+    cnf.reset();
+  }
   Lit l = db->theoryAPI()->getImplication();
   while (!l.isNull()) {
-    db->theoryAPI()->getExplanation(l, c);
-    db->addNewClause(c);
-    c.clear();
+    db->theoryAPI()->getExplanation(l, cnf);
+    db->addNewClauses(cnf);
+    cnf.reset();
     l = db->theoryAPI()->getImplication();
   }
 }
@@ -362,6 +365,16 @@ void DPLLTBasic::pop()
 
 }
 
+std::vector<SAT::Lit> DPLLTBasic::getCurAssignments(){
+  std::vector<SAT::Lit> nothing;
+  return nothing;
+} 
+
+std::vector<std::vector<SAT::Lit> > DPLLTBasic::getCurClauses(){
+  std::vector<std::vector<SAT::Lit> > nothing;
+  return nothing;
+}
+
 
 void DPLLTBasic::addAssertion(const CNF_Formula& cnf)
 {
@@ -505,3 +518,9 @@ QueryResult DPLLTBasic::continueCheck(const CNF_Formula& cnf)
           result == SatSolver::SATISFIABLE ? SATISFIABLE :
           ABORT);
 }
+
+CVC3::Proof  DPLLTBasic::getSatProof(CNF_Manager* cnfManager, CVC3::TheoryCore* core){
+  CVC3::Proof temp;
+  return temp;
+}
+

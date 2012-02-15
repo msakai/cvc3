@@ -49,10 +49,23 @@ namespace CVC3 {
      * Each \f$A_i\f$ and \f$B\f$ should be literals
      * \f$B\f$ can also be \f$\mathrm{FALSE}\f$
      */
-    virtual Theorem learnedClause(const Theorem& thm) = 0;
+    virtual void learnedClauses(const Theorem& thm,
+                                std::vector<Theorem>&,
+                                bool newLemma) = 0;
 
     //! |- P(_, ITE(cond,a,b), _) <=> ITE(cond,Pred(_, a, _),Pred(_, b, _))
     virtual Theorem ifLiftRule(const Expr& e, int itePos) = 0;
+    virtual Theorem CNFAddUnit(const Theorem& thm) = 0 ;
+    virtual Theorem CNFConvert(const Expr& e, const Theorem& thm) = 0 ;
+    virtual Theorem CNFtranslate(const Expr& before, 
+				 const Expr& after, 
+				 std::string reason, 
+				 int pos) = 0;
+
+    virtual Theorem CNFITEtranslate(const Expr& before, 
+				    const std::vector<Expr>& after,
+				    const std::vector<Theorem>& thms,
+				    int pos) = 0;
 
     /*! @} */ // end of CNF_Rules
   }; // end of class CNF_Rules

@@ -170,7 +170,7 @@ namespace CVC3 {
     std::vector<ExprValue*> d_postponed;
     //! Rebuild cache
     ExprHashMap<Expr> d_rebuildCache;
-    IF_DEBUG(bool d_inRebuild);
+    IF_DEBUG(bool d_inRebuild;)
 
   public:
     //! Abstract class for computing expr type
@@ -281,6 +281,9 @@ namespace CVC3 {
     Expr newBoundVarExpr(const Type& type);
     Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
                         const Expr& body);
+    Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
+                        const Expr& body, const std::vector<Expr>& trigs);
+
     Expr newTheoremExpr(const Theorem& thm);
 
     // Vector of children constructors (vector may be empty)
@@ -473,6 +476,13 @@ inline Expr ExprManager::newClosureExpr(int kind,
                                         const std::vector<Expr>& vars,
                                         const Expr& body)
   { ExprClosure ev(this, kind, vars, body); return newExpr(&ev); }
+
+inline Expr ExprManager::newClosureExpr(int kind,
+                                        const std::vector<Expr>& vars,
+                                        const Expr& body,
+                                        const std::vector<Expr>& trigs)
+  { ExprClosure ev(this, kind, vars, body);
+    Expr ret = newExpr(&ev); ret.setTriggers(trigs); return ret; }
 
 inline Expr ExprManager::newTheoremExpr(const Theorem& thm)
   { ExprTheorem ev(this, thm); return newExpr(&ev); }

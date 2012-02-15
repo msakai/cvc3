@@ -75,11 +75,20 @@ Theorem ExprTransform::smartSimplify(const Expr& e, ExprMap<bool>& cache)
 
 Theorem ExprTransform::preprocess(const Expr& e)
 {
+  if (!d_core->getFlags()["preprocess"].getBool())
+    return d_commonRules->reflexivityRule(e);
   Theorem thm1;
   if (d_core->getFlags()["pp-pushneg"].getBool())
     thm1 = pushNegation(e);
   else
     thm1 = d_commonRules->reflexivityRule(e);
+  {
+    ExprMap<bool> cache;
+    thm1 = d_commonRules->transitivityRule(thm1, smartSimplify(thm1.getRHS(), cache));
+  }
+  if (d_core->getFlags()["pp-bryant"].getBool())
+     thm1 = d_commonRules->transitivityRule(thm1, dobryant(thm1.getRHS()));
+ 
   ExprMap<bool> cache;
   thm1 = d_commonRules->transitivityRule(thm1, smartSimplify(thm1.getRHS(), cache));
   return thm1;

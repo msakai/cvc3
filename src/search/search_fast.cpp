@@ -28,6 +28,7 @@
 //#include "decision_engine_caching.h"
 //#include "decision_engine_mbtf.h"
 #include "expr_transform.h"
+#include "assumptions.h"
 
 
 using namespace CVC3;
@@ -93,7 +94,7 @@ SearchEngineFast::SearchEngineFast(TheoryCore* core)
     d_litsMaxScorePos(0),
     d_splitterCount(0),
     d_litSortCount(0),
-    d_berkminFlag(core->getFlags()["berkmin"].getBool())
+    d_berkminFlag(false)
 {
 //   if (core->getFlags()["de"].getString() == "caching")
 //     d_decisionEngine = new DecisionEngineCaching(core, this);
@@ -277,7 +278,7 @@ bool SearchEngineFast::split()
     simp = d_core->simplify(splitter);
     Expr e = simp.getRHS();
     if(e.isBoolConst()) {
-      IF_DEBUG(debugger.counter("splitter simplified to TRUE or FALSE")++);
+      IF_DEBUG(debugger.counter("splitter simplified to TRUE or FALSE")++;)
       if(e.isTrue()) simp = d_commonRules->iffTrueElim(simp);
       else {
 	if(splitter.isNot())
@@ -333,7 +334,7 @@ IF_DEBUG(static string lits2str(const vector<Literal>& lits) {
     ss << *i << "\n ";
   ss << "\n]";
   return ss.str();
-});
+})
 
 
 /*!
@@ -475,7 +476,7 @@ Expr SearchEngineFast::findSplitter()
       }
       if (bestLit != -1) {
 	splitter = topClause[bestLit].getExpr();
-        IF_DEBUG(debugger.counter("BerkMin heuristic")++); 
+        IF_DEBUG(debugger.counter("BerkMin heuristic")++;)
         TRACE("splitters", "SearchEngineFast::findSplitter()[berkmin] => ",
 	      splitter, " }"); 
         return splitter;
@@ -508,7 +509,7 @@ Expr SearchEngineFast::findSplitter()
     //            "findSplitter: can't find splitter in non-literal: "
     //            + e.toString());
     if (splitter.isNull()) continue;
-    IF_DEBUG(debugger.counter("splitters from non-literals")++);          
+    IF_DEBUG(debugger.counter("splitters from non-literals")++;)          
     TRACE("splitters", "SearchEngineFast::findSplitter()[non-lit] => ",
 	  splitter, " }"); 
     return splitter;
@@ -533,7 +534,7 @@ Expr SearchEngineFast::findSplitter()
     // Skip auxiliary CNF vars
     if(!isGoodSplitter(splitter)) continue;
     d_litsMaxScorePos = i+1;
-    IF_DEBUG(debugger.counter("splitters from literals")++);
+    IF_DEBUG(debugger.counter("splitters from literals")++;)
     TRACE("splitters", "d_litsMaxScorePos: ", d_litsMaxScorePos, "");
     TRACE("splitters", "SearchEngineFast::findSplitter()[lit] => ",
 	  splitter, " }"); 
@@ -550,12 +551,12 @@ void SearchEngineFast::recordFact(const Theorem& thm)
   Literal l(newLiteral(thm.getExpr()));
   if(l.getValue() == 0) {
     l.setValue(thm, thm.getScope());
-    IF_DEBUG(debugger.counter("recordFact adds unreported lit")++);
+    IF_DEBUG(debugger.counter("recordFact adds unreported lit")++;)
     d_unreportedLits.insert(l.getExpr(),thm,thm.getScope());
   } else if (l.getValue() == 1 && l.getScope() > thm.getScope()) {
     // Cannot do this, it will trigger DebugAssert
     // l.setValue(thm,thm.getScope());
-    IF_DEBUG(debugger.counter("recordFact adds unreported lit")++);
+    IF_DEBUG(debugger.counter("recordFact adds unreported lit")++;)
     d_unreportedLits.insert(l.getExpr(),thm,thm.getScope());
   } else if(l.getValue() < 0) { // Contradiction, bcp will die anyway
     if(l.isNegative())
@@ -640,7 +641,7 @@ bool SearchEngineFast::bcp()
   IF_DEBUG(TRACE_MSG("search bcp", "literals=[\n");
 	   for(size_t i=0,iend=d_literals.size(); i<iend; i++)
 	   TRACE("search bcp", "          ", d_literals[i], ",");
-	   TRACE_MSG("search bcp", "]"));
+	   TRACE_MSG("search bcp", "]");)
   DebugAssert(d_factQueue.empty(), "bcp(): start");
   bool newInfo = true;
   /*
@@ -653,7 +654,7 @@ bool SearchEngineFast::bcp()
     Literal l(newLiteral(thm.getExpr()));
     DebugAssert(l.getValue() != -1, "Bad unreported literal: "+l.toString());
     if(l.getValue() == 0) l.setValue(thm, scopeLevel());
-    IF_DEBUG(debugger.counter("re-assert unreported lits")++);
+    IF_DEBUG(debugger.counter("re-assert unreported lits")++;)
     DebugAssert(l.getExpr().isAbsLiteral(),
                 "bcp(): pushing non-literal to d_literals:\n "
                 +l.getExpr().toString());
@@ -666,7 +667,7 @@ bool SearchEngineFast::bcp()
   }
   */
   while (newInfo) {
-    IF_DEBUG(debugger.counter("BCP: while(newInfo)")++);
+    IF_DEBUG(debugger.counter("BCP: while(newInfo)")++;)
     TRACE_MSG("search bcp", "while(newInfo) {");
     newInfo = false;
     while(!d_core->inconsistent() && d_literals.size() > 0) {
@@ -739,7 +740,7 @@ bool SearchEngineFast::bcp()
     }
     else
       TRACE("search basic", "Processed ", d_literals.size(), " propagations");
-    IF_DEBUG(fullCheck());
+    IF_DEBUG(fullCheck();)
     clearLiterals();
 
     bool dfs_heuristic = (d_core->getFlags()["de"].getString() == "dfs");
@@ -760,15 +761,15 @@ bool SearchEngineFast::bcp()
       TRACE("search dfs", "Simplifying non-literal", e, "");
       if (e.isTrue()) {
         //      if (d_nonLiteralSimplified[thm.getExpr()]) {
-	IF_DEBUG(debugger.counter("BCP: simplified non-literals: skipped [stale]")++);
+	IF_DEBUG(debugger.counter("BCP: simplified non-literals: skipped [stale]")++;)
 	TRACE_MSG("search bcp", "}[continue]// end of while(newInfo)");
 	continue;
       }
-      IF_DEBUG(debugger.counter("BCP: simplified non-literals")++);
+      IF_DEBUG(debugger.counter("BCP: simplified non-literals")++;)
       Theorem simpThm = simplify(thm);
       Expr simp = simpThm.getExpr();
       if(simp != e) {
-	IF_DEBUG(debugger.counter("BCP: simplified non-literals: changed")++);
+	IF_DEBUG(debugger.counter("BCP: simplified non-literals: changed")++;)
         newInfo = true;
         //        d_nonLiteralSimplified[thm.getExpr()] = true;
         if (!simp.isFalse()) {
@@ -804,7 +805,7 @@ bool SearchEngineFast::bcp()
     }
     TRACE_MSG("search bcp", "}// end of while(newInfo)");
   }
-  IF_DEBUG(fullCheck());
+  IF_DEBUG(fullCheck();)
   DebugAssert(d_factQueue.empty(), "bcp(): end");
   TRACE_MSG("search bcp", "bcp => true }");
   return true;
@@ -943,7 +944,7 @@ bool SearchEngineFast::fixConflict()
   TRACE("conflicts", "found conflict # ", d_conflictCount, "");
   IF_DEBUG(if(debugger.trace("impl graph verbose")) {
     d_conflictTheorem.printDebug();
-  });
+  })
 
   if (scopeLevel() == d_bottomScope)
     return false;
@@ -969,7 +970,7 @@ bool SearchEngineFast::fixConflict()
     for (vector<Clause>::reverse_iterator i = d_unitConflictClauses.rbegin();
          i != d_unitConflictClauses.rend();
          ++i) {
-      //IF_DEBUG(checkAssumpDebug(i->getTheorem(), d_assumptions));
+      //IF_DEBUG(checkAssumpDebug(i->getTheorem(), d_assumptions);)
       // The theorem of *i is, most likely, (OR lit); rewrite it to just `lit'
       Theorem thm = i->getTheorem();
       if(thm.getExpr().isOr())
@@ -1042,7 +1043,7 @@ void SearchEngineFast::enqueueFact(const Theorem& thm) {
 void SearchEngineFast::setInconsistent(const Theorem& thm) {
   TRACE_MSG("search props", "SearchEngineFast::setInconsistent()");
   d_factQueue.clear();
-  IF_DEBUG(debugger.counter("conflicts from SAT solver")++);
+  IF_DEBUG(debugger.counter("conflicts from SAT solver")++;)
   d_core->setInconsistent(thm);
 }
 
@@ -1310,7 +1311,7 @@ void SearchEngineFast::analyzeUIPs(const Theorem &falseThm, int conflictScope)
 	for(size_t i=0; i<gamma.size(); i++)
 	  os << "    " << gamma[i].getExpr() << "\n";
 	os << "]" << endl;
-      });
+      })
       // Derive a theorem for the conflict clause
       Theorem clause = d_rules->conflictClause(start, lits, gamma);
       d_conflictClauseCount++;
@@ -1371,12 +1372,12 @@ void SearchEngineFast::analyzeUIPs(const Theorem &falseThm, int conflictScope)
           d_lastConflictClause = c;
 // 	  IF_DEBUG(for(unsigned i=0; i<c.size(); ++i)
 // 	    DebugAssert(c[i].getValue() == -1, "Bad conflict clause: "
-// 			+c.toString()));
+// 			+c.toString());)
 	}
       }
       if(fringe[curr].size() > 0) {
 	// This was a UIP.  Leave it in the fringe for later expansion.
-	IF_DEBUG(debugger.counter("UIPs")++);
+	IF_DEBUG(debugger.counter("UIPs")++;)
 	start = fringe[curr].back();
 	lits.clear();
 	gamma.clear();
@@ -1402,7 +1403,7 @@ void SearchEngineFast::analyzeUIPs(const Theorem &falseThm, int conflictScope)
     curr = 1 - curr;
     next = 1 - next;
     IF_DEBUG(if(pending > 0 && fringe[curr].size()==0)
-	     falseThm.printDebug());
+	     falseThm.printDebug();)
     DebugAssert(pending == 0 || fringe[curr].size() > 0,
 		"analyzeUIPs(scope = "
 		+int2string(conflictScope)+"): empty fringe");
@@ -1445,12 +1446,12 @@ SearchEngineFast::addNonLiteralFact(const Theorem& thm) {
   TRACE("search", "addNonLiteralFact(", thm, ") {");
   TRACE("search", "d_nonLiteralsSaved.size()=",d_nonLiteralsSaved.size(),
 	"@"+int2string(scopeLevel()));
-  //IF_DEBUG(checkAssumpDebug(thm, d_assumptions));
+  //IF_DEBUG(checkAssumpDebug(thm, d_assumptions);)
   const Expr& e(thm.getExpr());
   if(d_nonLiteralsSaved.count(e) > 0) {
     // We've seen this non-literal before.
     TRACE_MSG("search", "addNonLiteralFact[skipping] => }");
-    IF_DEBUG(debugger.counter("skipped repeated non-literals")++);
+    IF_DEBUG(debugger.counter("skipped repeated non-literals")++;)
     return;
   }
   // Save the non-literal
@@ -1508,13 +1509,13 @@ SearchEngineFast::addNonLiteralFact(const Theorem& thm) {
 	d_core->enqueueFact(d_rules->unitProp(thms, thm, unitLit));
       } else { // Wrap up the clause
 	Clause c(d_core, d_vm, thm, scopeLevel(), __FILE__, __LINE__);
-	IF_DEBUG(debugger.counter("CNF clauses added")++);
+	IF_DEBUG(debugger.counter("CNF clauses added")++;)
 	TRACE("search", "addNonLiteralFact: adding CNF: ", c, "");
 	addNewClause(c);
       }
     } else {
       TRACE("search", "addNonLiteralFact: adding non-literal: ", thm, "");
-      IF_DEBUG(debugger.counter("added non-literals")++);
+      IF_DEBUG(debugger.counter("added non-literals")++;)
       d_nonLiterals.push_back(SmartCDO<Theorem>(d_core->getCM()->getCurrentContext(), thm));
       //      d_nonLiteralSimplified[thm.getExpr()] = false;
     }
@@ -1534,7 +1535,7 @@ SearchEngineFast::addLiteralFact(const Theorem& thm) {
 
   DebugAssert(thm.isAbsLiteral(),
 	      "addLiteralFact: not a literal: " + thm.toString());
-  //IF_DEBUG(checkAssumpDebug(thm, d_assumptions));
+  //IF_DEBUG(checkAssumpDebug(thm, d_assumptions);)
   Literal l(newLiteral(thm.getExpr()));
   TRACE("search", "addLiteralFact: literal = ", l, "");
   // Only add the literal if it doesn't have any value; otherwise it's
@@ -1554,7 +1555,7 @@ SearchEngineFast::addLiteralFact(const Theorem& thm) {
     if(!d_inCheckSAT) bcp();
 
 //     if (thm.getScope() != scopeLevel()) {
-//       IF_DEBUG(debugger.counter("addLiteralFact adds unreported lit")++);
+//       IF_DEBUG(debugger.counter("addLiteralFact adds unreported lit")++;)
 //       d_unreportedLits.insert(l.getExpr(),thm,thm.getScope());
 //     }
   } else if(l.getValue() < 0) { // Contradiction, bcp will die anyway
@@ -1677,7 +1678,7 @@ QueryResult SearchEngineFast::checkValidMain(const Expr& e2)
     Theorem e_iff_e2(d_commonRules->iffContrapositive(d_simplifiedThm));
     d_lastValid =
       d_commonRules->iffMP(d_lastValid, d_commonRules->symmetryRule(e_iff_e2));
-    IF_DEBUG(checkAssumpDebug(d_lastValid, d_assumptions));
+    IF_DEBUG(checkAssumpDebug(d_lastValid, d_assumptions);)
     TRACE_MSG("search terse", "checkValid => true}");
     TRACE("search", "checkValid => true; theorem = ", d_lastValid, "}");
     d_core->getCM()->pop();
@@ -1858,7 +1859,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
   // Max assumption scope for the contradiction
   int maxScope(d_bottomScope);
   // Collect potential top-level splitters
-  IF_DEBUG(vector<Theorem> splitters);
+  IF_DEBUG(vector<Theorem> splitters;)
   TRACE("impl graph", "traceConflict: maxScope = ", maxScope, "");
 
   conflictThm.clearAllFlags();
@@ -1872,7 +1873,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
   }
 
   // Do the non-recursive DFS, mark up the assumption graph
-  IF_DEBUG(Literal maxScopeLit);
+  IF_DEBUG(Literal maxScopeLit;)
   while(stack.size() > 0) {
     Theorem thm(stack.back());
     stack.pop_back();
@@ -1900,7 +1901,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
 	}
 	// maxScope will be reset: clear the splitters
 	if(s > maxScope) splitters.clear();
-      });
+      })
 
       if(thm.isAbsLiteral()) {
 	Literal l(newLiteral(thm.getExpr()));
@@ -1909,7 +1910,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
 	if(!isAssump && (!isTrue || scope == scopeLevel()))
 	  expand=true;
 	else if(scope > d_bottomScope) {// Found a literal of a conflict clause
-	  IF_DEBUG(if(scope >= maxScope) splitters.push_back(thm));
+	  IF_DEBUG(if(scope >= maxScope) splitters.push_back(thm);)
 	  thm.setLitFlag(true);
 	}
       } else {
@@ -1922,7 +1923,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
 
       if(scope > maxScope) {
 	maxScope = scope;
-	IF_DEBUG(maxScopeLit = newLiteral(thm.getExpr()));
+	IF_DEBUG(maxScopeLit = newLiteral(thm.getExpr());)
 	TRACE("impl graph", "traceConflict: maxScope = ", maxScope, "");
       }
 
@@ -1941,7 +1942,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
     }
     TRACE_MSG("impl graph", "traceConflict: end of while() }");
   }
-  IF_DEBUG(if(maxScope != scopeLevel()) conflictThm.printDebug());
+  IF_DEBUG(if(maxScope != scopeLevel()) conflictThm.printDebug();)
   DebugAssert(maxScope == scopeLevel(), "maxScope="+int2string(maxScope)
 	      +", scopeLevel()="+int2string(scopeLevel())
 	      +"\n maxScopeLit = "+maxScopeLit.toString());
@@ -1954,7 +1955,7 @@ void SearchEngineFast::traceConflict(const Theorem& conflictThm) {
 	os << splitters[i] << "\n";
       os << "]" << endl;
     }
-    );
+    )
   DebugAssert(maxScope == d_bottomScope || splitters.size() == 1,
   	      "Wrong number of splitters found at maxScope="
   	      +int2string(maxScope)

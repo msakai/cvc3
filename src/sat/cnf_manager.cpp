@@ -32,21 +32,23 @@ using namespace CVC3;
 using namespace SAT;
 
 
-CNF_Manager::CNF_Manager(TheoremManager* tm, Statistics& statistics, bool minimizeClauses)
-  : d_vc(NULL), d_minimizeClauses(minimizeClauses),
+CNF_Manager::CNF_Manager(TheoremManager* tm, Statistics& statistics,
+                         const CLFlags& flags)
+  : d_vc(NULL),
     d_commonRules(tm->getRules()),
     //    d_theorems(tm->getCM()->getCurrentContext()),
     d_clauseIdNext(0),
     //    d_translated(tm->getCM()->getCurrentContext()),
     d_bottomScope(-1),
     d_statistics(statistics),
+    d_flags(flags),
     d_cnfCallback(NULL)
 {
-  d_rules = createProofRules(tm);
+  d_rules = createProofRules(tm, flags);
   // Push dummy varinfo onto d_varInfo since Var's are indexed from 1 not 0
   Varinfo v;
   d_varInfo.push_back(v);
-  if (minimizeClauses) {
+  if (flags["minimizeClauses"].getBool()) {
     CLFlags flags = ValidityChecker::createFlags();
     flags.setFlag("minimizeClauses",false);
     d_vc = ValidityChecker::create(flags);
@@ -125,6 +127,15 @@ Theorem CNF_Manager::replaceITErec(const Expr& e, Var v, bool translateOnly)
 }
 
 
+Expr CNF_Manager::concreteExpr(const CVC3::Expr& e, const Lit& literal){
+  if ( e.isTrue() || e.isFalse() || 
+       (e.isNot() && (e[0].isTrue() || e[0].isFalse()))) 
+    return e;
+  else 
+    return concreteLit(literal);
+}
+
+
 Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem& thmIn)
 {
   if (e.isFalse()) return Lit::getFalse();
@@ -165,130 +176,227 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       for (i = e.begin(), iend = e.end(); i != iend; ++i) {
         lits.push_back(translateExprRec(*i, cnf, thmIn));
       }
+
+      //      DebugAssert(concreteExpr(e,Lit(v)) == e,"why here");
+
       for (idx = 0; idx < lits.size(); ++idx) {
         cnf.newClause();
         cnf.addLiteral(Lit(v),isAnd);
         cnf.addLiteral(lits[idx], !isAnd);
+	
+	//	DebugAssert(concreteExpr(e[idx],lits[idx]) == e[idx], "why here");
+
+	std::string reasonStr = (isAnd ? "and_mid" : "or_mid");
+	Expr after = e[idx] ;
+	cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, idx)); // by yeting
       }
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),!isAnd);
       for (idx = 0; idx < lits.size(); ++idx) {
         cnf.addLiteral(lits[idx], isAnd);
       }
+
+      std::string reasonStr = (isAnd ? "and_final" : "or_final") ;   
+      Expr after = e ;
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, 0)); // by yeting
       break;
     }
     case IMPLIES: {
       Lit arg0 = translateExprRec(e[0], cnf, thmIn);
       Lit arg1 = translateExprRec(e[1], cnf, thmIn);
 
+      //      DebugAssert(concreteExpr(e, Lit(v)) == e, "why here");
+      //      DebugAssert(concreteExpr(e[0], arg0) == e[0], "why here");
+      //      DebugAssert(concreteExpr(e[1], arg1) == e[1], "why here");
+
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
+
+      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 0)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg1,true);
 
+      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 1)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
+
+      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 2)); // by yeting
+
       break;
     }
     case IFF: {
       Lit arg0 = translateExprRec(e[0], cnf, thmIn);
       Lit arg1 = translateExprRec(e[1], cnf, thmIn);
 
+      //      DebugAssert(concreteExpr(e, Lit(v)) == e, "why here");
+      //      DebugAssert(concreteExpr(e[0], arg0) == e[0], "why here");
+      //      DebugAssert(concreteExpr(e[1], arg1) == e[1], "why here");
+
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1);
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 0)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1,true);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 1)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 2)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1,true);
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 3)); // by yeting
       break;
     }
     case XOR: {
+
       Lit arg0 = translateExprRec(e[0], cnf, thmIn);
       Lit arg1 = translateExprRec(e[1], cnf, thmIn);
 
+      //      DebugAssert(concreteExpr(e, Lit(v)) == e, "why here");
+      //      DebugAssert(concreteExpr(e[0], arg0) == e[0], "why here");
+      //      DebugAssert(concreteExpr(e[1], arg1) == e[1], "why here");
+
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1);
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 0)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1,true);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 1)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 2)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1,true);
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 3)); // by yeting
       break;
     }
     case ITE:
     {
+
       Lit arg0 = translateExprRec(e[0], cnf, thmIn);
       Lit arg1 = translateExprRec(e[1], cnf, thmIn);
       Lit arg2 = translateExprRec(e[2], cnf, thmIn);
 
+
+      Expr aftere0 = concreteExpr(e[0], arg0);
+      Expr aftere1 = concreteExpr(e[1], arg1);
+      Expr aftere2 = concreteExpr(e[2], arg2);
+      
+      vector<Expr> after ;
+      after.push_back(aftere0);
+      after.push_back(aftere1);
+      after.push_back(aftere2);
+      
+      Theorem e0thm;
+      Theorem e1thm;
+      Theorem e2thm;
+
+      { e0thm = d_iteMap[e[0]];
+	if (e0thm.isNull()) e0thm = d_commonRules->reflexivityRule(e[0]);
+	e1thm = d_iteMap[e[1]];
+	if (e1thm.isNull()) e1thm = d_commonRules->reflexivityRule(e[1]);
+	e2thm = d_iteMap[e[2]];
+	if (e2thm.isNull()) e2thm = d_commonRules->reflexivityRule(e[2]);
+      }
+
+      vector<Theorem> thms ;
+      thms.push_back(e0thm);
+      thms.push_back(e1thm);      
+      thms.push_back(e2thm);
+
+ 
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg2);
+      
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 1)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg2,true);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 2)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1,true);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 3)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 4)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg1,true);
       cnf.addLiteral(arg2,true);
 
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 5)); // by yeting
+
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg1);
       cnf.addLiteral(arg2);
+
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 6)); // by yeting
+      
       break;
     }
     default:
+    {
       DebugAssert(!e.isAbsAtomicFormula() || d_varInfo[v].expr == e,
                   "Corrupted Varinfo");
       if (e.isAbsAtomicFormula()) {
         registerAtom(e, thmIn);
         return Lit(v);
       }
+
       Theorem thm = replaceITErec(e, v, translateOnly);
       const Expr& e2 = thm.getRHS();
       DebugAssert(e2.isAbsAtomicFormula(), "Expected AbsAtomicFormula");
@@ -318,13 +426,27 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
         e2.setTranslated(d_bottomScope);
         registerAtom(e2, thmIn);
         if (!translateOnly) {
-          DebugAssert(d_cnfVars.find(e2) == d_cnfVars.end(),
-                      "Expected new literal");
-          d_varInfo[v].expr = e2;
-          d_cnfVars[e2] = v;
+          if (d_cnfVars.find(e2) == d_cnfVars.end()) {
+            d_varInfo[v].expr = e2;
+            d_cnfVars[e2] = v;
+          }
+          else {
+            // Same corner case in an untranslated expr
+            d_varInfo.resize(v);
+            while (!d_translateQueueVars.empty() &&
+                   d_translateQueueVars.back() == v) {
+              d_translateQueueVars.pop_back();
+            }
+            v = d_cnfVars[e2];
+            d_cnfVars[e] = v;
+            while (d_translateQueueVars.size() < d_translateQueueThms.size()) {
+              d_translateQueueVars.push_back(v);
+            }
+          }
         }
       }
       return Lit(v);
+    }
   }
 
   // Record fanins / fanouts
@@ -359,9 +481,18 @@ Lit CNF_Manager::translateExpr(const Theorem& thmIn, CNF_Formula& cnf)
     cnf.newClause();
     cnf.addLiteral(l);
     cnf.registerUnit();
+
+    Theorem newThm = d_rules->CNFAddUnit(thm);
     //    d_theorems.insert(d_clauseIdNext, thm);
-    cnf.getCurrentClause().setId(d_clauseIdNext++);
-    FatalAssert(d_clauseIdNext != 0, "Overflow of clause id's");
+    //    cnf.getCurrentClause().setClauseTheorem(thmIn); // by yeting
+    cnf.getCurrentClause().setClauseTheorem(newThm); // by yeting
+
+    /*
+    cout<<"set clause theorem 1" << thm << endl;
+    cout<<"set clause theorem 2 " << thmIn << endl;
+    cout<<"set clause print" ;  cnf.getCurrentClause().print() ; cout<<endl;
+    cout<<"set clause id " << d_clauseIdNext << endl;
+    */
     if (!translateOnly) d_varInfo[v].fanins.push_back(l);
     d_varInfo[l.getVar()].fanouts.push_back(v);
   }
@@ -412,57 +543,32 @@ void CNF_Manager::cons(unsigned lb, unsigned ub, const Expr& e2, vector<unsigned
 }
 
 
-void CNF_Manager::convertLemma(const Theorem& thm, Clause& c)
+void CNF_Manager::convertLemma(const Theorem& thm, CNF_Formula& cnf)
 {
-  DebugAssert(c.size() == 0, "Expected empty clause");
-  Theorem clause = d_rules->learnedClause(thm);
+  DebugAssert(cnf.empty(), "Expected empty cnf");
+  vector<Theorem> clauses;
 
-  Expr e = clause.getExpr();
-  if (!e.isOr()) {
-    DebugAssert(!getCNFLit(e).isNull(), "Unknown literal");
-    c.addLiteral(getCNFLit(e));
-  }
-  else {
-
-    if (e.arity() > 3 && d_minimizeClauses) {
-
-      // Clause minimization
-      Expr e2 = d_vc->importExpr(e);
-      vector<unsigned> newLits;
-      DebugAssert(d_vc->scopeLevel() == 1, "expected scope level 1");
-      //      d_vc->push();
-      //      d_vc->assertFormula(e2[e.arity()-1].negate());
-      cons(0, e.arity()-1, e2, newLits);
-      //      d_vc->pop();
-      DebugAssert(d_vc->scopeLevel() == 1, "expected scope level 1");
-      d_statistics.counter("clauses processed")++;
-      if (newLits.size() < (unsigned)e.arity()) {
-        d_statistics.counter("clauses minimized")++;
-        vector<Expr> newKids;
-        for (unsigned index = 0; index < newLits.size(); ++index) {
-          newKids.push_back(e[newLits[index]]);
-        }
-        //        newKids.push_back(e[e.arity()-1]);
-        e = Expr(OR, newKids);
-        IF_DEBUG(
-                 d_vc->push();
-                 DebugAssert(d_vc->query(d_vc->importExpr(e)) == VALID, "expected valid");
-                 d_vc->pop();
-                 )
+  d_rules->learnedClauses(thm, clauses, false);
+  
+  vector<Theorem>::iterator i = clauses.begin(), iend = clauses.end();
+  for (; i < iend; ++i) {
+    cnf.newClause();
+    Expr e = (*i).getExpr();
+    if (!e.isOr()) {
+      DebugAssert(!getCNFLit(e).isNull(), "Unknown literal");
+      cnf.addLiteral(getCNFLit(e));
+      cnf.registerUnit();
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFAddUnit(*i));
+    }
+    else {
+      Expr::iterator jend = e.end();
+      for (Expr::iterator j = e.begin(); j != jend; ++j) {
+        DebugAssert(!getCNFLit(*j).isNull(), "Unknown literal");
+        cnf.addLiteral(getCNFLit(*j));
       }
-    }
-
-    Expr::iterator iend = e.end();
-    for (Expr::iterator i = e.begin(); i != iend; ++i) {
-      DebugAssert(!getCNFLit(*i).isNull(), "Unknown literal");
-      c.addLiteral(getCNFLit(*i));
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFConvert(e, *i));
     }
   }
-  if (c.size() == 1) c.setUnit();
-
-  //  d_theorems.insert(d_clauseIdNext, clause);
-  c.setId(d_clauseIdNext++);
-  FatalAssert(d_clauseIdNext != 0, "Overflow of clause id's");
 }
 
 
@@ -473,26 +579,52 @@ Lit CNF_Manager::addAssumption(const Theorem& thm, CNF_Formula& cnf)
   cnf.addLiteral(l);
   cnf.registerUnit();
 
-  //  d_theorems[d_clauseIdNext] = thm;
-  cnf.getCurrentClause().setId(d_clauseIdNext++);
-  FatalAssert(d_clauseIdNext != 0, "Overflow of clause id's");
 
+//   if(concreteLit(l) != thm.getExpr()){
+//     cout<<"fail addunit 3" << endl;
+//   }
+
+  Theorem newThm = d_rules->CNFAddUnit(thm);
+  //  d_theorems[d_clauseIdNext] = thm;
+  cnf.getCurrentClause().setClauseTheorem(newThm); // by yeting
+  /*
+  cout<<"set clause theorem  addassumption" << thm << endl;
+  cout<<"set clause print" ;  
+  cnf.getCurrentClause().print() ; 
+  cout<<endl;
+  cout<<"set clause id " << d_clauseIdNext << endl;
+  */
   return l;
 }
 
 
-Lit CNF_Manager::addLemma(const Theorem& thm, CNF_Formula& cnf)
+Lit CNF_Manager::addLemma(Theorem thm, CNF_Formula& cnf)
 {
-  Theorem clause = d_rules->learnedClause(thm);
+  vector<Theorem> clauses;
+  d_rules->learnedClauses(thm, clauses, true);
+  DebugAssert(clauses.size() == 1, "expected single clause");
 
-  Lit l = translateExpr(clause, cnf);
+  Lit l = translateExpr(clauses[0], cnf);
   cnf.newClause();
   cnf.addLiteral(l);
   cnf.registerUnit();
 
-  //  d_theorems.insert(d_clauseIdNext, clause);
-  cnf.getCurrentClause().setId(d_clauseIdNext++);
-  FatalAssert(d_clauseIdNext != 0, "Overflow of clause id's");
+ 
+//    if(concreteLit(l) != clauses[0].getExpr()){
+//     cout<<"fail addunit 4" << endl;
+//   }
 
+  Theorem newThm = d_rules->CNFAddUnit(clauses[0]); 
+  //  d_theorems.insert(d_clauseIdNext, clause);
+  cnf.getCurrentClause().setClauseTheorem(newThm); //by yeting
+
+  /*
+  cout<<"set clause theorem  addlemma" << thm << endl;
+  cout<<"set clause print" ;  
+  cnf.getCurrentClause().print() ; 
+  cout<<endl;
+  cout<<"set clause id " << d_clauseIdNext << endl;
+  */
   return l;
 }
+

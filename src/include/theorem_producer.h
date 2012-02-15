@@ -72,7 +72,7 @@
 #ifndef _cvc3__theorem_producer_h_
 #define _cvc3__theorem_producer_h_
 
-#include "theorem.h"
+#include "assumptions.h"
 #include "theorem_manager.h"
 #include "exception.h"
 
@@ -110,7 +110,7 @@ namespace CVC3 {
       IF_DEBUG(if(!thm.isEq() && !thm.isIff()) {
 	TRACE("newTheorem", "newTheorem(", thm, ")");
 	debugger.counter("newTheorem() called on equality")++;
-      });
+      })
       return Theorem(d_tm, thm, assump, pf);
     }
 
@@ -136,7 +136,7 @@ namespace CVC3 {
       IF_DEBUG(if(!thm.isEq() && !thm.isIff()) {
 	TRACE("newTheorem", "newTheorem3(", thm, ")");
 	debugger.counter("newTheorem3() called on equality")++;
-      });
+      })
       return Theorem3(d_tm, thm, assump, pf);
     }
 
@@ -226,5 +226,5 @@ namespace CVC3 {
 
   }; // end of Theorem_Producer class
 
-};  // end of namespace CVC3
+}  // end of namespace CVC3
 #endif

@@ -233,6 +233,10 @@ namespace CVC3 {
     return(Rational(Rational::Impl(r,1)));
   }
 
+  Rational intRoot(const Rational& base, unsigned long int n)
+  {
+    return Rational(Rational::Impl(0,1));
+  }
 
   string Rational::toString(int base) const {
     char *tmp = mpq_get_str(NULL, base, d_n->get_mpq_t());
@@ -250,6 +254,8 @@ namespace CVC3 {
   void Rational::print() const {
     cout << (*d_n) << endl;
   }
+
+
 
   // Unary minus
   Rational Rational::operator-() const {

@@ -246,10 +246,13 @@ Theorem TheoryArith::canonSimp(const Expr& e)
         changed.push_back(k);
       }
     }
-    if(changed.size() > 0)
-      return canonThm(substitutivityRule(e, changed, newChildrenThm));
+    if(changed.size() > 0) {
+      thm = canonThm(substitutivityRule(e, changed, newChildrenThm));
+      return transitivityRule(thm, find(thm.getRHS()));
+    }
+    else return find(e);
   }
-  return reflexivityRule(e);
+  return find(e);
 }
 
 

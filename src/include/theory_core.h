@@ -24,11 +24,14 @@
 #include <queue>
 #include "theory.h"
 #include "cdmap.h"
+#include "statistics.h"
+#include <string> 
+#include "notifylist.h"
 
 namespace CVC3 {
 
 class ExprTransform;
-class Statistics;
+// class Statistics;
 class CoreProofRules;
 class Translator;
 
@@ -89,7 +92,9 @@ class TheoryCore :public Theory {
   //! List of all active terms in the system (for quantifier instantiation)
   CDList<Expr> d_terms;
   //! Map from active terms to theorems that introduced those terms
+
   std::hash_map<Expr, Theorem> d_termTheorems;
+  //  CDMap<Expr, Theorem> d_termTheorems;
 
   //! List of all active non-equality atomic formulas in the system (for quantifier instantiation)
   CDList<Expr> d_predicates;
@@ -141,10 +146,10 @@ class TheoryCore :public Theory {
    */
   unsigned d_resourceLimit;
 
-  IF_DEBUG(bool d_inCheckSATCore);
-  IF_DEBUG(bool d_inAddFact);
-  IF_DEBUG(bool d_inRegisterAtom);
-  IF_DEBUG(ExprMap<bool> d_simpStack);
+  IF_DEBUG(bool d_inCheckSATCore;)
+  IF_DEBUG(bool d_inAddFact;)
+  IF_DEBUG(bool d_inRegisterAtom;)
+  IF_DEBUG(ExprMap<bool> d_simpStack;)
 
 
   //! So we get notified every time there's a pop
@@ -172,6 +177,12 @@ class TheoryCore :public Theory {
   //! List of data accompanying above theorems from calls to update()
   std::vector<Expr> d_update_data;
 
+  //! Notify list that gets processed on every equality
+  NotifyList d_notifyEq;
+
+  //! Whether we are in the middle of doing updates
+  unsigned d_inUpdate;
+
 public:
   /***************************************************************************/
   /*!
@@ -188,7 +199,8 @@ public:
     CoreSatAPI() {}
     virtual ~CoreSatAPI() {}
     //! Add a new lemma derived by theory core
-    virtual void addLemma(const Theorem& thm) = 0;
+    virtual void addLemma(const Theorem& thm, int priority = 0,
+                          bool atBottomScope = false) = 0;
     //! Add an assumption to the set of assumptions in the current context
     /*! Assumptions have the form e |- e */
     virtual Theorem addAssumption(const Expr& assump) = 0;
@@ -215,24 +227,6 @@ private:
   CoreProofRules* createProofRules(TheoremManager* tm);
 
   // Helper functions
-
-  //! Check if the vector<Expr> is sorted w.r.t. operator<
-  IF_DEBUG(bool isSorted(const std::vector<Expr>& v));
-
-  //! Intersection of sorted vectors of Exprs: res := \f$a \cap b\f$
-  //! Check if the vector<Expr> is sorted w.r.t. operator<
-  /*! ASSUMPTION: a and b are sorted in ascending order w.r.t. operator<
-   */
-  void intersect(const std::vector<Expr>& a,
-                             const std::vector<Expr>& b,
-                             std::vector<Expr>& res);
-
-  //! Set difference of sorted vectors of Exprs: res := a - b
-  /*! ASSUMPTION: a and b are sorted in ascending order w.r.t. operator<
-   */
-  void difference(const std::vector<Expr>& a,
-                              const std::vector<Expr>& b,
-                              std::vector<Expr>& res);
 
   //! Effort level for processFactQueue
   /*! LOW means just process facts, don't call theory checkSat methods
@@ -278,29 +272,21 @@ private:
   Theorem rewriteIte(const Expr& e);
   //! Core rewrites for literals (NOT and EQ)
   Theorem rewriteLitCore(const Expr& e);
-  //! Rewrite n levels deep.  WARNING: no caching here, be careful.
-  Theorem rewriteN(const Expr& e, int n);
-  /*! @brief An auxiliary function for assertEqualities(); return true
-   *  if inconsistency is derived.
-   */
-  bool processEquality(const Theorem& thm, ExprMap<Theorem>& q);
   //! Enqueue a fact to be sent to the SearchEngine
-  void enqueueSE(const Theorem& thm);
+  //  void enqueueSE(const Theorem& thm);//yeting
   //! Fetch the concrete assignment to the variable during model generation
   Theorem getModelValue(const Expr& e);
 
   //! An auxiliary recursive function to process COND expressions into ITE
   Expr processCond(const Expr& e, int i);
 
-  //! Request a unit of resource
-  /*! It will be subtracted from the resource limit. 
-   *
-   * \return true if resource unit is granted, false if no more
-   * resources available.
-   */
-  void getResource() { if (d_resourceLimit > 1) d_resourceLimit--; }
   //! Return true if no special parsing is required for this kind
   bool isBasicKind(int kind);
+
+  //! Helper check functions for solve
+  void checkEquation(const Theorem& thm);
+  //! Helper check functions for solve
+  void checkSolved(const Theorem& thm);
 
 public:
   //! Constructor
@@ -311,8 +297,22 @@ public:
   //! Destructor
   ~TheoryCore();
 
+  //! Request a unit of resource
+  /*! It will be subtracted from the resource limit. 
+   *
+   * \return true if resource unit is granted, false if no more
+   * resources available.
+   */
+  void getResource() {    
+      getStatistics().counter("resource")++;
+      if (d_resourceLimit > 1) d_resourceLimit--;
+  }
+
   //! Register a SatAPI for TheoryCore
   void registerCoreSatAPI(CoreSatAPI* coreSatAPI) { d_coreSatAPI = coreSatAPI; }
+
+  //! Register a callback for every equality
+  void addNotifyEq(Theory* t, const Expr& e) { d_notifyEq.add(t, e); }
 
   ContextManager* getCM() const { return d_cm; }
   TheoremManager* getTM() const { return d_tm; }
@@ -324,12 +324,17 @@ public:
 
   //! Get list of terms
   const CDList<Expr>& getTerms() { return d_terms; }
+
+  int getCurQuantLevel();
+
   //! Get theorem which was responsible for introducing this term
   Theorem getTheoremForTerm(const Expr& e);
   //! Get quantification level at which this term was introduced
   unsigned getQuantLevelForTerm(const Expr& e);
   //! Get list of predicates
   const CDList<Expr>& getPredicates() { return d_predicates; }
+  //! Whether updates are being processed
+  bool inUpdate() { return d_inUpdate > 0; }
 
   // Implementation of Theory API
   /*! Variables of uninterpreted types may be sent here, and they
@@ -353,6 +358,7 @@ public:
   Expr computeTypePred(const Type& t,const Expr& e);
   Expr parseExprOp(const Expr& e);
   ExprStream& print(ExprStream& os, const Expr& e);
+
   //! Calls for other theories to add facts to refine a coutnerexample.
   void refineCounterExample();
   void computeModelBasic(const std::vector<Expr>& v);
@@ -463,7 +469,7 @@ public:
   //! Enqueue a new fact
   /*! not private because used in search_fast.cpp */
   void enqueueFact(const Theorem& e);
-
+  void enqueueSE(const Theorem& thm);//yeting
   // Must provide proof of inconsistency
   /*! not private because used in search_fast.cpp */
   void setInconsistent(const Theorem& e);

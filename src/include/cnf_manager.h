@@ -68,9 +68,13 @@ class CNF_Manager {
   //! Cached translation of term-ite-containing expressions
   CVC3::ExprMap<CVC3::Theorem> d_iteMap;
 
+  //! Map of possibly useful lemmas
+  CVC3::ExprMap<int> d_usefulLemmas;
+
   //! Maps a clause id to the theorem justifying that clause
   /*! Note that clauses created by simple CNF translation are not given id's.
    *  This is because theorems for these clauses can be created lazily later. */
+  //  CVC3::CDMap<int, CVC3::Theorem> d_theorems;
   //  CVC3::CDMap<int, CVC3::Theorem> d_theorems;
 
   //! Next clause id
@@ -94,6 +98,9 @@ class CNF_Manager {
   //! Reference to statistics object
   CVC3::Statistics& d_statistics;
 
+  //! Reference to command-line flags
+  const CVC3::CLFlags& d_flags;
+
 public:
   //! Abstract class for callbacks
   class CNFCallback {
@@ -109,10 +116,13 @@ private:
   //! Instance of CNF_CallBack: must be registered
   CNFCallback* d_cnfCallback;
 
-  CVC3::CNF_Rules* createProofRules(CVC3::TheoremManager* tm);
+  CVC3::CNF_Rules* createProofRules(CVC3::TheoremManager* tm, const CVC3::CLFlags&);
 
   //! Register a new atomic formula
   void registerAtom(const CVC3::Expr& e, const CVC3::Theorem& thm);
+
+  //! Return the expr corresponding to the literal unless the expr is TRUE of FALSE
+  CVC3::Expr concreteExpr(const CVC3::Expr& e, const Lit& literal);
 
   //! Recursively translate e into cnf
   /*! A non-context dependent cache, d_cnfVars is used to remember translations
@@ -142,7 +152,8 @@ private:
 //     { d_translated.insert(e, false, d_bottomScope); }
 
 public:
-  CNF_Manager(CVC3::TheoremManager* tm, CVC3::Statistics& statistics, bool minimizeClauses);
+  CNF_Manager(CVC3::TheoremManager* tm, CVC3::Statistics& statistics,
+              const CVC3::CLFlags& flags);
   ~CNF_Manager();
 
   //! Register CNF callback
@@ -218,9 +229,9 @@ public:
 
   void cons(unsigned lb, unsigned ub, const CVC3::Expr& e2, std::vector<unsigned>& newLits);
 
-  //! Convert thm A |- B (A is a set of literals) into a clause ~A \/ B
-  /*! c should be an empty clause that will be filled with the result */
-  void convertLemma(const CVC3::Theorem& thm, Clause& c);
+  //! Convert thm A |- B (A is a set of literals) into one or more clauses
+  /*! cnf should be empty -- it will be filled with the result */
+  void convertLemma(const CVC3::Theorem& thm, CNF_Formula& cnf);
 
   //! Given thm of form A |- B, convert B to CNF and add it to cnf
   /*! Returns Lit corresponding to the root of the expression that was
@@ -232,7 +243,7 @@ public:
    * \param cnf the new clauses are added to cnf.
    * Returns Lit corresponding to the root of the expression that was
    * translated. */
-  Lit addLemma(const CVC3::Theorem& thm, CNF_Formula& cnf);
+  Lit addLemma(CVC3::Theorem thm, CNF_Formula& cnf);
 
 };
 

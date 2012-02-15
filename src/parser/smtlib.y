@@ -55,6 +55,8 @@ int smtliberror(char *s)
   return CVC3::parserTemp->error(ss.str());
 }
 
+
+
 #define YYLTYPE_IS_TRIVIAL 1
 #define YYMAXDEPTH 10485760
 
@@ -74,7 +76,8 @@ int smtliberror(char *s)
    "_TOK" is so macros don't conflict with kind names */
 
 %type <vec> bench_attributes sort_symbs fun_symb_decls pred_symb_decls
-%type <vec> an_formulas quant_vars an_terms fun_symb
+%type <vec> an_formulas quant_vars an_terms fun_symb patterns
+%type <node> pattern 
 %type <node> benchmark bench_name bench_attribute
 %type <node> status fun_symb_decl fun_sig pred_symb_decl pred_sig
 %type <node> an_formula quant_var an_atom prop_atom
@@ -114,6 +117,8 @@ int smtliberror(char *s)
 %token COLON_TOK
 %token LBRACKET_TOK
 %token RBRACKET_TOK
+%token LCURBRACK_TOK
+%token RCURBRACK_TOK
 %token LPAREN_TOK
 %token RPAREN_TOK
 %token SAT_TOK
@@ -132,7 +137,7 @@ int smtliberror(char *s)
 %token DISTINCT_TOK
 %token SEMICOLON_TOK
 %token EOF_TOK
-
+%token PAT_TOK
 %%
 
 cmd:
@@ -221,10 +226,13 @@ bench_attribute:
       else if (*$3 == "QF_AUFLIA" ||
                *$3 == "AUFLIA") {
         ARRAYSENABLED = true;
-        $$ = new CVC3::Expr(VC->listExpr("_TYPEDEF", VC->idExpr("Array"),
-                                         VC->listExpr("_ARRAY",
-                                                      VC->idExpr("_INT"),
-                                                      VC->idExpr("_INT"))));
+        std::vector<CVC3::Expr> tmp;
+        tmp.push_back(VC->listExpr("_OPTION", VC->stringExpr("arith3"), VC->ratExpr(1)));
+        tmp.push_back(VC->listExpr("_TYPEDEF", VC->idExpr("Array"),
+                                   VC->listExpr("_ARRAY",
+                                                VC->idExpr("_INT"),
+                                                VC->idExpr("_INT"))));
+        $$ = new CVC3::Expr(VC->listExpr("_SEQ", tmp));
       }
       else if (*$3 == "QF_AUFLIRA" ||
                *$3 == "AUFLIRA" ||
@@ -232,6 +240,7 @@ bench_attribute:
                *$3 == "AUFNIRA") {
         ARRAYSENABLED = true;
         std::vector<CVC3::Expr> tmp;
+        tmp.push_back(VC->listExpr("_OPTION", VC->stringExpr("arith3"), VC->ratExpr(1)));
         tmp.push_back(VC->listExpr("_TYPEDEF", VC->idExpr("Array1"),
                                    VC->listExpr("_ARRAY",
                                                 VC->idExpr("_INT"),
@@ -258,9 +267,12 @@ bench_attribute:
         $$ = NULL;
       }
 // This enables the new arith for QF_LRA, but this results in assertion failures in DEBUG mode
-//       else if (*$3 == "QF_LRA") {
-//         $$ = new CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("arith-new"), VC->ratExpr(1)));
-//       }
+      else if (*$3 == "QF_UFLRA") {
+         $$ = new CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("arith3"), VC->ratExpr(1)));
+       }
+      else if (*$3 == "QF_LRA") {
+         $$ = new CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("arith-new"), VC->ratExpr(1)));
+       }
       else {
         $$ = NULL;
       }
@@ -288,7 +300,7 @@ bench_attribute:
     }
   | COLON_TOK CVC_COMMAND_TOK STRING_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr(*$3)));
+      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_"+*$3)));
       delete $3;
     }
   | annotation
@@ -470,6 +482,16 @@ an_formula:
       delete $3;
       delete $4;
     }
+  | LPAREN_TOK quant_symb quant_vars an_formula patterns RPAREN_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr(*$2, VC->listExpr(*$3), *$4, VC->listExpr(*$5)));
+      delete $2;
+      delete $3;
+      delete $4;
+      delete $5;
+    }
+
+
   | LPAREN_TOK LET_TOK LPAREN_TOK var an_term RPAREN_TOK an_formula annotations RPAREN_TOK
     {
       CVC3::Expr e(VC->listExpr(VC->listExpr(*$4, *$5)));
@@ -505,6 +527,27 @@ an_formula:
       delete $7;
     }
 ;
+
+patterns:
+     pattern
+     {
+       $$ = new std::vector<CVC3::Expr >;
+       $$->push_back(*$1);
+       delete $1;
+     }
+    | patterns pattern
+     {
+       $1->push_back(*$2);
+       $$ = $1;
+       delete $2;
+     }
+
+pattern:
+     PAT_TOK LCURBRACK_TOK an_terms RCURBRACK_TOK
+     {
+       $$ = new CVC3::Expr(VC->listExpr(*$3));
+       delete $3;
+     }
 
 quant_vars:
     quant_var
@@ -748,10 +791,11 @@ annotations:
     }
   ;
   
+
 annotation:
-    attribute 
+    attribute
     { $$ = $1; }
-  | attribute user_value 
+  | attribute user_value
     { $$ = $1; }
 ;
 
@@ -762,6 +806,7 @@ user_value:
       delete $1;
     }
 ;
+
 
 sort_symb:
     SYM_TOK LBRACKET_TOK NUMERAL_TOK RBRACKET_TOK

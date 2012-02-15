@@ -25,10 +25,15 @@
 #include "minisat_types.h"
 #include <hash_map.h>
 #include <hash_set.h>
+#include <set>
 #include <vector>
 #include <deque>
 #include <algorithm>
 #include <string>
+
+namespace SAT {
+  class SatProof;
+}
 
 namespace MiniSat {
   // a resolution inference as a sequence of binary resolution steps
@@ -46,7 +51,9 @@ namespace MiniSat {
     TSteps d_steps;
 
   public:
-    Inference(int clauseID) : d_start(clauseID) {};
+    Inference(int clauseID) : d_start(clauseID) {
+      //      std::cout << "Start inference: " << clauseID << std::endl;
+    };
 
     void add(Lit lit, int clauseID) {
       d_steps.push_back(std::make_pair(lit, clauseID));
@@ -67,7 +74,6 @@ namespace MiniSat {
     // returns steps as a lits: clauseId0 literal0.toString clauseID1 ...
     std::string toString() const;
   };
-
 
 
   class Solver;
@@ -118,52 +124,51 @@ namespace MiniSat {
 
     // register a new clause
     void registerClause(Clause* clause) {
-      // if clause with id does already exist,
-      // then it must be the same clause wrt. its literals
-      IF_DEBUG (
+      //      std::cout << "register clause  : " << clause->id() << " : " << clause->toString() << std::endl;
+
+      //IF_DEBUG (
         if (d_clauses.contains(clause->id())) {
+	  // if clause with id does already exist,
+	  // then it must be a simplification of the original clause
 	  Clause* old = d_clauses[clause->id()];
-	  DebugAssert(old->size() == clause->size(),
-		      "MiniSat::Derivation::registerClause: two clauses of different size registered with same id");
+	  FatalAssert(old->size() == clause->size(),
+		      "MiniSat::Derivation::registerClause: new clause of different size than old clause of same id");
 
-	  std::vector<int> oldLiterals;
+	  std::set<Lit> oldS;
 	  for (int i = 0; i < old->size(); ++i) {
-	    oldLiterals.push_back((*old)[i].index());
+	    oldS.insert((*old)[i]);
 	  }
-	  
-	  std::vector<int> newLiterals;
+
 	  for (int i = 0; i < clause->size(); ++i) {
-	    newLiterals.push_back((*clause)[i].index());
+	    FatalAssert(oldS.find((*clause)[i]) != oldS.end(),
+			"MiniSat::Derivation::registerClause: new clause not subset of old clause of same id");
+	    oldS.erase((*clause)[i]);
 	  }
-
-	  std::sort(oldLiterals.begin(), oldLiterals.end());
-	  std::sort(newLiterals.begin(), newLiterals.end());
-	  for (std::vector<int>::size_type i = 0; i < oldLiterals.size(); ++i) {
-	    DebugAssert(oldLiterals[i] == newLiterals[i],
-			"MiniSat::Derivation::registerClause: two clauses with different literals registered with same id");
-	  }
-        }
-      )
-
+	  FatalAssert(oldS.empty(),
+		      "MiniSat::Derivation::registerClause: old clause not subset of new clause of same id");
+	}
+	//)
       d_clauses[clause->id()] = clause;
     };
 
     // mark clause as input clause, i.e. true without premises
     void registerInputClause(int clauseID) {
+      //      std::cout << "registerInputClause: " << clauseID << std::endl;
       d_inputClauses.insert(clauseID);
     };
 
     // clause has been removed from the solver or created internally in Derivation,
     // so store it here for later garbage collection.
     void removedClause(Clause* clause) {
-      DebugAssert(clause != NULL, "MiniSat::derivation:removedClause: NULL");
+      FatalAssert(clause != NULL, "MiniSat::derivation:removedClause: NULL");
       d_removedClauses.push_back(clause);
     };
 
     // register the inference of a clause; takes ownership of inference
     void registerInference(int clauseID, Inference* inference) {
-      DebugAssert(!d_inferences.contains(clauseID),
+      FatalAssert(!d_inferences.contains(clauseID),
 		  "MiniSat::Derivation::registerInference: inference for clauseID already registered");
+      //      std::cout << "Register inference: " << clauseID << " : " << inference->toString() << std::endl;
       d_inferences[clauseID] = inference;
     };
 
@@ -206,10 +211,17 @@ namespace MiniSat {
     // for example, 1 may be the clause +12 +10 -2, and 2 may be -10 -2 -33,
     // which resolved on +10 yield the clause +12 -2 -2 -33,
     // which after factoring simplified to +12 -2 -33.
-    void printProof(Clause* clause);
+    void printDerivation(Clause* clause);
 
     // print the derivation of the empty clause.
-    void printProof();
+    void printDerivation();
+
+    // for debugging only
+    void checkDerivation(Clause* clause);
+
+    // creates a new proof; ownership transferred to caller
+    SAT::SatProof* createProof();
+    SAT::SatProof* createProof(Clause* clause);
 
     // see Solver::push - clauseID is the highest currently used clause id
     void push(int clauseID);

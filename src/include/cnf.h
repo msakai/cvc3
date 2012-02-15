@@ -26,6 +26,8 @@
 #include "cvc_util.h"
 #include "cdo.h"
 #include "cdlist.h"
+#include "theorem.h"
+
 
 namespace SAT {
 
@@ -73,34 +75,36 @@ public:
 };
 
 class Clause {
-  /*! If d_id is 0 then the clause is a translation clause and its theorem
-   *  can be figured out lazily.  Otherwise, d_id gives the index into
-   *  d_theorems for the theorem justifying this clause. */
-  int d_id:30;
   int d_satisfied:1;
   int d_unit:1;
-  std::vector<Lit> d_lits;
-public:
-  Clause() : d_id(0), d_satisfied(0), d_unit(0) {}
+  std::vector<Lit> d_lits; 
+  CVC3::Theorem d_reason; //the theorem for the clause, used in proofs. by yeting
+
+ public:
+
+  Clause(): d_satisfied(0), d_unit(0) { };
+    
+  Clause(const Clause& clause)
+    : d_satisfied(clause.d_satisfied), d_unit(clause.d_unit),
+      d_lits(clause.d_lits), d_reason(clause.d_reason) { };
 
   typedef std::vector<Lit>::const_iterator const_iterator;
   const_iterator begin() const { return d_lits.begin(); }
   const_iterator end() const { return d_lits.end(); }
 
-  void clear() { d_id = d_satisfied = d_unit = 0; d_lits.clear(); }
+  void clear() { d_satisfied = d_unit = 0; d_lits.clear(); }
   unsigned size() const { return d_lits.size(); }
   void addLiteral(Lit l) { if (!d_satisfied) d_lits.push_back(l); }
   unsigned getMaxVar() const;
-
-  int getId() const { return d_id; }
   bool isSatisfied() const { return d_satisfied != 0; }
   bool isUnit() const { return d_unit != 0; }
   bool isNull() const { return d_lits.size() == 0; }
-  void setId(int id)
-    { d_id = id; FatalAssert(int(d_id) == id, "clause id overflow"); }
   void setSatisfied() { d_satisfied = 1; }
   void setUnit() { d_unit = 1; }
   void print() const;
+  void setClauseTheorem(CVC3::Theorem thm){ d_reason = thm;}
+
+  CVC3::Theorem getClauseTheorem() const { return d_reason;}
 };
 
 

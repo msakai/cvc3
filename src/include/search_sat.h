@@ -92,6 +92,9 @@ class SearchSat :public SearchEngine {
   //! Lemmas waiting to be translated since last call to getNewClauses()
   std::vector<std::pair<Theorem, int> > d_pendingLemmas;
 
+  //! Scope parameter for lemmas waiting to be translated since last call to getNewClauses()
+  std::vector<bool> d_pendingScopes;
+
   //! Backtracking size of d_pendingLemmas
   CDO<unsigned> d_pendingLemmasSize;
 
@@ -175,7 +178,7 @@ private:
   friend class SearchSatCoreSatAPI;
   friend class SearchSatCNFCallback;
   //! Core theory callback which adds a new lemma from the core theory
-  void addLemma(const Theorem& thm, int priority = 0);
+  void addLemma(const Theorem& thm, int priority = 0, bool atBotomScope = false);
   //! Core theory callback which asks for the bottom scope for current query
   int getBottomScope() { return d_bottomScope; }
   //! Core theory callback which suggests a splitter
@@ -185,11 +188,11 @@ private:
   //! DPLLT callback to inform theory that a literal has been assigned
   void assertLit(SAT::Lit l);
   //! DPLLT callback to ask if theory has detected inconsistency.
-  SAT::DPLLT::ConsistentResult checkConsistent(SAT::Clause& c,bool fullEffort);
+  SAT::DPLLT::ConsistentResult checkConsistent(SAT::CNF_Formula& cnf, bool fullEffort);
   //! DPLLT callback to get theory propagations.
   SAT::Lit getImplication();
   //! DPLLT callback to explain a theory propagation.
-  void getExplanation(SAT::Lit l, SAT::Clause& c);
+  void getExplanation(SAT::Lit l, SAT::CNF_Formula& cnf);
   //! DPLLT callback to get more general theory clauses.
   bool getNewClauses(SAT::CNF_Formula& cnf);
 
@@ -278,9 +281,9 @@ inline bool operator<(const SearchSat::LitPriorityPair& p1,
 {
   if (p1.d_priority > p2.d_priority) return true;
   if (p1.d_priority < p2.d_priority) return false;
-  return p1.d_lit.getVar() < p2.d_lit.getVar() ||
-    (p1.d_lit.getVar() == p2.d_lit.getVar() &&
-     p1.d_lit.isPositive() && !p2.d_lit.isPositive());
+  return abs(p1.d_lit.getID()) < abs(p2.d_lit.getID()) ||
+    abs(p1.d_lit.getID()) == abs(p2.d_lit.getID()) &&
+    p1.d_lit.getID() > 0 && (!(p2.d_lit.getID() > 0));
 }
 
 }

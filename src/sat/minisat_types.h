@@ -44,6 +44,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 // Variables, literals, clause IDs:
 
 #include "minisat_global.h"
+#include "theorem.h"
 #include <vector>
 
 namespace MiniSat {
@@ -76,7 +77,7 @@ namespace MiniSat {
     // '<' guarantees that p, ~p are adjacent in the ordering.;
     bool operator <  (const Lit q) const { return index() < q.index(); }
 
-    uint hash() const { return (uint)x; }
+    unsigned int hash() const { return (unsigned int)x; }
 
     std::string toString() const {
       std::ostringstream buffer;
@@ -98,55 +99,58 @@ namespace MiniSat {
 
   // Clause -- a simple class for representing a clause:
   class Clause {
-    uint    size_learnt;
-    Lit     data[1];
+    unsigned int   d_size_learnt;
+    int            d_id;
+    int            d_pushID;
+    float          d_activity;
+    // The derivation of this SAT clause
+    CVC3::Theorem  d_theorem;
+    Lit            d_data[1];
 
     static Clause* s_decision;
     static Clause* s_theoryImplication;
   public:
-    // NOTE: This constructor cannot be used directly (doesn't allocate enough memory).
-    // actual layout is:
-    // uint size_learnt : learnt in lowest bit, size * 2 in other bits
-    // Lit data[size]
-    // int id
-    // int pushID (lemma only)
-    // float activity (lemma only)
+    // NOTE: This constructor cannot be used directly,
+    // it doesn't allocate enough memory for d_data[].
     //
     // using the hand-made allocator allows to allocate the data[]
     // like a static array within clause instead of as a pointer to the array.
     // this shows significant performance improvements
-    Clause(bool learnt, const std::vector<Lit>& ps, int id_) {
-        size_learnt = (ps.size() << 1) | (int)learnt;
-        for (std::vector<Lit>::size_type i = 0; i < ps.size(); i++) data[i] = ps[i];
-	id() = id_;
-        if (learnt) activity() = 0;
+    Clause(bool learnt, const std::vector<Lit>& ps, CVC3::Theorem theorem,
+	   int id, int pushID) {
+      d_size_learnt = (ps.size() << 1) | (int)learnt;
+      d_id = id;
+      d_pushID = pushID;
+      d_activity = 0;
+      d_theorem = theorem;
+      for (std::vector<Lit>::size_type i = 0; i < ps.size(); i++) d_data[i] = ps[i];
     }
 
     // -- use this function instead:
-    friend Clause* Clause_new(const std::vector<Lit>& ps, int id);
+    friend Clause* Clause_new(const std::vector<Lit>& ps, CVC3::Theorem theorem, int id);
     friend Clause* Lemma_new(const std::vector<Lit>& ps, int id, int pushID);
 
-    int       size        ()      const { return size_learnt >> 1; }
-    bool      learnt      ()      const { return size_learnt & 1; }
-    Lit       operator [] (int i) const { return data[i]; }
-    Lit&      operator [] (int i)       { return data[i]; }
+    int       size        ()      const { return d_size_learnt >> 1; }
+    bool      learnt      ()      const { return d_size_learnt & 1; }
+    Lit       operator [] (int i) const { return d_data[i]; }
+    Lit&      operator [] (int i)       { return d_data[i]; }
     // intended to be unique id per clause, > 0, or clauseIDNull
-    int&      id          ()      const { return *((int*)&data[size()]); }
+    int       id          ()      const { return d_id; }
     
     // used with Solver::push/pop:
     // this is the highest id of all clauses used in the regression /
     // resolution / creation of this lemma
-    int&      pushID      ()      const {
-      if (learnt())
-	return *((int*)&data[size() + 2]);
-      else
-	return id();
-    }
-    float&    activity    ()      const {
+    int      pushID      ()      const  { return d_pushID; }
+    float    activity    ()      const {
       DebugAssert(learnt(), "MiniSat::Types:activity: not a lemma");
-      return *((float*)&data[size() + 1]);
+      return d_activity;
+    }
+    void     setActivity (float activity) {
+      DebugAssert(learnt(), "MiniSat::Types:setActivity: not a lemma");
+      d_activity = activity;
     }
     void      toLit       (std::vector<Lit>& literals) const;
+    CVC3::Theorem getTheorem() const { return d_theorem; };
 
     static int ClauseIDNull() { return 0; }
 
@@ -160,15 +164,22 @@ namespace MiniSat {
       if (size() == 0) return "";
 
       std::ostringstream buffer;
-      buffer << data[0].toString();
+      buffer << d_data[0].toString();
       for (int j = 1; j < size(); ++j) {
-	buffer << " " << data[j].toString();
+	buffer << " " << d_data[j].toString();
       }
       return buffer.str();
     }
+
+    bool contains(Lit l) {
+      for (int i = 0; i < size(); ++i) {
+	if (d_data[i] == l) return true;
+      }
+      return false;
+    }
   };
 
-  Clause* Clause_new(const std::vector<Lit>& ps, int id);
+  Clause* Clause_new(const std::vector<Lit>& ps, CVC3::Theorem theorem, int id);
   Clause* Lemma_new(const std::vector<Lit>& ps, int id, int pushID);
 
 }

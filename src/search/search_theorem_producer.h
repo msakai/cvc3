@@ -186,6 +186,9 @@ class CommonProofRules;
     Theorem iteToClauses(const Theorem& ite);
     Theorem iffToClauses(const Theorem& iff);
 
+    //theorrm for minisat proofs, by yeting
+    Theorem satProof(const Expr& queryExpr, const Proof& satProof);
+
     /////////////////////////////////////////////////////////////////////////
     //// helper functions for CNF (Conjunctive Normal Form) conversion
     /////////////////////////////////////////////////////////////////////////

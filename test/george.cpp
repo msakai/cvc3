@@ -13,6 +13,7 @@ extern int exitStatus;
 
 void testgeorge1() {
   CLFlags flags = ValidityChecker::createFlags();
+  flags.setFlag("arith3", true);
   ValidityChecker *vc = ValidityChecker::create(flags);
   try {
 /*************/
@@ -3784,6 +3785,7 @@ vc->query(id10044);
 
 void testgeorge2() {
   CLFlags flags = ValidityChecker::createFlags();
+  flags.setFlag("arith3", true);
   ValidityChecker *vc = ValidityChecker::create(flags);
   try {
 /*************/
@@ -6981,6 +6983,7 @@ vc->query(id2248);
 
 void testgeorge3() {
   CLFlags flags = ValidityChecker::createFlags();
+  flags.setFlag("arith3", true);
   ValidityChecker *vc = ValidityChecker::create(flags);
   try {
 /*************/
@@ -11693,6 +11696,7 @@ vc->query(id3328);
 
 void testgeorge4() {
   CLFlags flags = ValidityChecker::createFlags();
+  flags.setFlag("arith3", true);
   ValidityChecker *vc = ValidityChecker::create(flags);
   try {
 /*************/
@@ -11903,6 +11907,7 @@ vc->query(id2008);
 
 void testgeorge5() {
   CLFlags flags = ValidityChecker::createFlags();
+  flags.setFlag("arith3", true);
   ValidityChecker *vc = ValidityChecker::create(flags);
   try {
 /*************/

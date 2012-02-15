@@ -14,6 +14,9 @@
 
 #include "queryresult.h"
 #include "cnf.h"
+#include "cnf_manager.h"
+#include "proof.h" 
+#include "theory_core.h"
 
 namespace SAT {
 
@@ -42,12 +45,12 @@ public:
      * check, set fullEffort to true.  When fullEffort is set to true, the
      * only way the result can be MAYBE_CONSISTENT is if there are new clauses
      * to get (via getNewClauses).
-     * \param c should be empty initially.  If INCONSISTENT is returned,
-     * then c will contain a conflict clause when it returns.  Otherwise, c is
-     * unchanged.
+     * \param cnf should be empty initially.  If INCONSISTENT is returned,
+     * then cnf will contain one or more clauses ruling out the current
+     * assignment when it returns.  Otherwise, cnf is unchanged.
      * \param fullEffort true for a full check, false for a fast check
      */
-    virtual ConsistentResult checkConsistent(Clause& c, bool fullEffort) = 0;
+    virtual ConsistentResult checkConsistent(CNF_Formula& cnf, bool fullEffort) = 0;
 
 
     //! Check if the work budget has been exceeded
@@ -65,14 +68,14 @@ public:
 
     //! Get an explanation for a literal that was implied
     /*! Given a literal l that is true in the current assignment as a result of
-     * an earlier call to getImplication(), this method returns a clause which
-     * justifies the propagation of that literal.  The clause will contain the
+     * an earlier call to getImplication(), this method returns a set of clauses which
+     * justifies the propagation of that literal.  The clauses will contain the
      * literal l as well as other literals that are in the current assignment.
-     * The clause is such that it would have caused a unit propagation at the
-     * time getImplication() was called.
+     * The clauses are such that they would have propagated l via unit
+     * propagation at the time getImplication() was called.
      * \param l the literal
      * \param c should be empty initially. */
-    virtual void getExplanation(Lit l, Clause& c) = 0;
+    virtual void getExplanation(Lit l, CNF_Formula& c) = 0;
 
     //! Get new clauses from the theory.
     /*! This is extended theory learning.  Returns false if there are no new
@@ -137,6 +140,9 @@ public:
    */
   virtual void addAssertion(const CNF_Formula& cnf) = 0;
 
+  virtual std::vector<SAT::Lit> getCurAssignments() =0 ;
+  virtual std::vector<std::vector<SAT::Lit> > getCurClauses() =0 ;
+
   //! Check the satisfiability of a set of clauses in the current context
   /*! If the result is SATISFIABLE, UNKNOWN, or ABORT, the DPLLT engine should
    * remain in the state it is in until pop() is called.  If the result is
@@ -161,6 +167,9 @@ public:
 
   //! Get value of variable: unassigned, false, or true
   virtual Var::Val getValue(Var v) = 0;
+
+  //! Get the proof from SAT engine. 
+  virtual CVC3::Proof getSatProof(CNF_Manager*, CVC3::TheoryCore*) = 0 ; 
 
 };
 

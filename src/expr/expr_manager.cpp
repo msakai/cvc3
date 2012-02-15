@@ -87,7 +87,7 @@ ExprManager::ExprManager(ContextManager* cm, const CLFlags& flags)
   d_true = newLeafExpr(TRUE_EXPR);
   d_true.setType(Type::typeBool(this));
 
-  IF_DEBUG(d_inRebuild = false);
+  IF_DEBUG(d_inRebuild = false;)
 }
 
 // Destructor
@@ -129,7 +129,7 @@ void ExprManager::clear() {
   vector<ExprValue*> exprs;
   exprs.reserve(d_exprSet.size());
   TRACE_MSG("delete", "clear:() collecting exprs { ");
-  IF_DEBUG(int n(0));
+  IF_DEBUG(int n(0);)
   for(ExprValueSet::iterator i=d_exprSet.begin(), iend=d_exprSet.end();
       i!=iend; ++i) {
     TRACE("delete", "expr[", n++, "]");
@@ -195,7 +195,7 @@ Expr ExprManager::rebuild(const Expr& e) {
   }
   // Gotta rebuild
   DebugAssert(!d_inRebuild, "ExprManager::rebuild()");
-  IF_DEBUG(ScopeWatcher sw(&d_inRebuild));
+  IF_DEBUG(ScopeWatcher sw(&d_inRebuild);)
   // First, clear the cache
   if(d_rebuildCache.size() > 0) d_rebuildCache.clear();
   Expr res = rebuildRec(e);
@@ -271,7 +271,7 @@ ExprValue* ExprManager::newExprValue(ExprValue* ev) {
 // 		  " from a wrong instance of ExprManager/ValidityChecker,"
 // 		  "call importExpr() first:\n"
 // 		  +i->toString());
-//     );
+//     )
 //   ExprValue* res = op.d_expr->copy(this, kids);
 //   ExprValueSet::iterator i(d_exprSet.find(res)), iend(d_exprSet.end());
 //   if(i != iend) {
@@ -515,6 +515,7 @@ static void registerKinds(ExprManager& em) {
   em.newKind(PUSH_SCOPE, "_PUSH_SCOPE");
   em.newKind(POP_SCOPE, "_POP_SCOPE");
   em.newKind(POPTO_SCOPE, "_POPTO_SCOPE");
+  em.newKind(RESET, "_RESET");
   em.newKind(CONTEXT, "_CONTEXT");
   em.newKind(FORGET, "_FORGET");
   em.newKind(GET_TYPE, "_GET_TYPE");

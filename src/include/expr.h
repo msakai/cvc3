@@ -78,7 +78,7 @@ namespace CVC3 {
   } ExprValueType;
 
   //! Expression index type
-  typedef long long unsigned ExprIndex;
+  typedef long unsigned ExprIndex;
 
   /**************************************************************************/
   /*! \defgroup ExprPkg Expression Package
@@ -189,6 +189,9 @@ class CVC_DLL Expr {
   Expr(ExprValue* expr);
 
   Expr recursiveSubst(const ExprHashMap<Expr>& subst,
+                      ExprHashMap<Expr>& visited) const;
+
+  Expr recursiveQuantSubst(const ExprHashMap<Expr>& subst,
                       ExprHashMap<Expr>& visited) const;
 public:
   /////////////////////////////////////////////////////////////////////////////
@@ -307,6 +310,11 @@ public:
                  const std::vector<Expr>& newTerms) const;
   Expr substExpr(const ExprHashMap<Expr>& oldToNew) const;
 
+// by yeting, a special subst function for TheoryQuant
+  Expr substExprQuant(const std::vector<Expr>& oldTerms,
+		      const std::vector<Expr>& newTerms) const;
+
+
   Expr operator!() const { return notExpr(); }
   Expr operator&&(const Expr& right) const { return andExpr(right); }
   Expr operator||(const Expr& right) const { return orExpr(right); }
@@ -415,6 +423,13 @@ public:
  
   //! Get the body of the closure Expr
   const Expr& getBody() const;
+
+  //! Set the triggers for a closure Expr
+  void setTriggers(const std::vector<Expr>& triggers) const;
+
+  //! Get the manual triggers of the closure Expr
+  const std::vector<Expr>& getTrigs() const; //by yeting
+
   //! Get the Rational value out of RATIONAL_EXPR
   const Rational& getRational() const; 
   //! Get theorem from THEOREM_EXPR
@@ -483,8 +498,8 @@ public:
   // must be called repeatedly to get the root of the union-find tree.
   // Should only be called if hasFind is true.
   const Theorem& getFind() const;
-
   int getFindLevel() const;
+  const Theorem& getEqNext() const;
 
   // Return the notify list
   NotifyList* getNotify() const;
@@ -605,6 +620,9 @@ public:
 
   //! Set the find attribute to e
   void setFind(const Theorem& e) const;
+
+  //! Set the eqNext attribute to e
+  void setEqNext(const Theorem& e) const;
 
   //! Add (e,i) to the notify list of this expression
   void addToNotify(Theory* i, const Expr& e) const;
@@ -981,6 +999,20 @@ inline const Expr& Expr::getBody() const {
        	+ toString(AST_LANG));
    return d_expr->getBody();
 }
+ 
+inline void Expr::setTriggers(const std::vector<Expr>& triggers) const {
+  DebugAssert(isClosure(),
+	      "CVC3::Expr::setTriggers(): not a closure Expr:\n  "
+	      + toString(AST_LANG));
+  d_expr->setTriggers(triggers);
+}
+
+inline const std::vector<Expr>& Expr::getTrigs() const { //by yeting
+  DebugAssert(isClosure(),
+	      "CVC3::Expr::getTrigs(): not a closure Expr:\n  "
+	      + toString(AST_LANG));
+  return d_expr->getTrigs();
+}
 
 inline const Expr& Expr::getExistential() const {
   DebugAssert(isSkolem(),
@@ -1106,6 +1138,13 @@ inline int  Expr::getFindLevel() const {
   return d_expr->d_find->level();
 }
 
+inline const Theorem& Expr::getEqNext() const {
+  DebugAssert(!isNull(), "getEqNext called on NULL Expr");
+  DebugAssert(hasFind(), "Should only be called if find is valid");
+  DebugAssert(d_expr->d_eqNext, "getEqNext: d_eqNext is NULL");
+  return d_expr->d_eqNext->get();
+}
+
 inline NotifyList* Expr::getNotify() const {
   if(isNull()) return NULL;
   else return d_expr->d_notifyList;
@@ -1224,7 +1263,18 @@ inline void Expr::setFind(const Theorem& e) const {
   else {
     CDO<Theorem>* tmp = new(true) CDO<Theorem>(getEM()->getCurrentContext(), e);
     d_expr->d_find = tmp;
-    IF_DEBUG(tmp->setName("CDO[Expr.find]"));
+    IF_DEBUG(tmp->setName("CDO[Expr.find]");)
+  }
+}
+
+inline void Expr::setEqNext(const Theorem& e) const {
+  DebugAssert(!isNull(), "Expr::setEqNext() on Null expr");
+  DebugAssert(e.getLHS() == *this, "bad call to setEqNext");
+  if (d_expr->d_eqNext) d_expr->d_eqNext->set(e);
+  else {
+    CDO<Theorem>* tmp = new(true) CDO<Theorem>(getEM()->getCurrentContext(), e);
+    d_expr->d_eqNext = tmp;
+    IF_DEBUG(tmp->setName("CDO[Expr.eqNext]");)
   }
 }
 
@@ -1369,7 +1419,7 @@ inline void Expr::setSig(const Theorem& e) const {
   else {
     CDO<Theorem>* tmp = new(true) CDO<Theorem>(getEM()->getCurrentContext(), e);
     d_expr->setSig(tmp);
-    IF_DEBUG(tmp->setName("CDO[Expr.sig] in "+toString()));
+    IF_DEBUG(tmp->setName("CDO[Expr.sig] in "+toString());)
   }
 }
 
@@ -1380,7 +1430,7 @@ inline void Expr::setRep(const Theorem& e) const {
   else {
     CDO<Theorem>* tmp = new(true) CDO<Theorem>(getEM()->getCurrentContext(), e);
     d_expr->setRep(tmp);
-    IF_DEBUG(tmp->setName("CDO[Expr.rep] in "+toString()));
+    IF_DEBUG(tmp->setName("CDO[Expr.rep] in "+toString());)
   }
 }
  

@@ -109,10 +109,10 @@ Theorem RecordsTheoremProducer::rewriteUpdateSelect(const Expr& e) {
     if(CHECK_PROOFS)
       CHECK_SOUND(false, "expected RECORD_SELECT or TUPLE_SELECT kind"
 		  + e.toString());
-    //to avoid warnings
-    return newRWTheorem(e, e, Assumptions::emptyAssump(), pf);
+    break;
   }
-  
+  //to avoid warnings
+  return newRWTheorem(e, e, Assumptions::emptyAssump(), pf);
 }
 
 

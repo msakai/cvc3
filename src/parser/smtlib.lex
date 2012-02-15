@@ -119,6 +119,7 @@ static std::string _string_lit;
 %x	COMMENT
 %x	STRING_LITERAL
 %x      USER_VALUE
+%s      PAT_MODE
 
 LETTER	([a-zA-Z])
 DIGIT	([0-9])
@@ -149,7 +150,10 @@ IDCHAR  ({LETTER}|{DIGIT}|{OPCHAR})
                           return STRING_TOK; }
 <STRING_LITERAL>.	{ _string_lit.insert(_string_lit.end(),*smtlibtext); }
 
-
+<INITIAL>":pat"		{ BEGIN PAT_MODE;
+                          return PAT_TOK;}
+<PAT_MODE>"}"	        { BEGIN INITIAL; 
+                          return RCURBRACK_TOK; }
 <INITIAL>"{"		{ BEGIN USER_VALUE;
                           _string_lit.erase(_string_lit.begin(),
                                             _string_lit.end()); }
@@ -199,16 +203,19 @@ IDCHAR  ({LETTER}|{DIGIT}|{OPCHAR})
 "extrapreds"    { return EXTRAPREDS_TOK; }
 "language"      { return LANGUAGE_TOK; }
 "distinct"      { return DISTINCT_TOK; }
+":pattern"          { return PAT_TOK; } 
 ":"             { return COLON_TOK; }
-"\["             { return LBRACKET_TOK; }
-"\]"             { return RBRACKET_TOK; }
+"\["            { return LBRACKET_TOK; }
+"\]"            { return RBRACKET_TOK; }
+"{"             { return LCURBRACK_TOK;}
+"}"             { return RCURBRACK_TOK;}
 "("             { return LPAREN_TOK; }
 ")"             { return RPAREN_TOK; }
 "$"             { return DOLLAR_TOK; }
 "?"             { return QUESTION_TOK; }
+
 [=<>&@#+\-*/%|~]+ { smtliblval.str = new std::string(smtlibtext); return AR_SYMB; }
 ({LETTER})({IDCHAR})* {smtliblval.str = new std::string(smtlibtext); return SYM_TOK; }
-
 
 <<EOF>>         { return EOF_TOK; }
 

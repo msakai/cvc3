@@ -25,6 +25,7 @@
 #include <string>
 #include <fstream>
 #include <vector>
+#include <map>
 #include "queryresult.h"
 
 namespace CVC3 {
@@ -94,6 +95,12 @@ class Translator {
 
   std::vector<Expr> d_dumpExprs;
 
+  std::map<std::string, Type>* d_arrayConvertMap;
+  Type* d_indexType;
+  Type* d_elementType;
+  Type* d_arrayType;
+  std::vector<Expr> d_equalities;
+
   std::string fileToSMTLIBIdentifier(const std::string& filename);
   Expr preprocessRec(const Expr& e, ExprMap<Expr>& cache);
   Expr preprocess(const Expr& e, ExprMap<Expr>& cache);
@@ -114,6 +121,7 @@ public:
              const std::string& category,
              bool convertArray,
              bool combineAssump);
+  ~Translator();
 
   bool start(const std::string& dumpFile);
   void dump(const Expr& e, bool dumpOnly = false);
@@ -138,9 +146,6 @@ public:
   bool printArrayExpr(ExprStream& os, const Expr& e);
 
   Expr zeroVar();
-
-  // Destructor
-  virtual ~Translator() { }
 
 }; // end of class Translator
 

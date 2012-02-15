@@ -353,6 +353,8 @@ public:
    */
   virtual void notifyInconsistent(const Theorem& thm) { }
 
+  virtual void registerAtom(const Expr& e, const Theorem& thm);
+
   //! Theory-specific registration of atoms
   /*!
    * If a theory wants to implement its own theory propagation, it
@@ -361,6 +363,14 @@ public:
    * or its negation, it should do so (using enqueueFact).
    */
   virtual void registerAtom(const Expr& e) { }
+
+
+#ifdef DEBUG
+  //! Theory-specific debug function
+  virtual void debug(int i) { }
+  //! help function, as debug(int i). yeting
+  virtual int help(int i) { return 9999 ;} ;
+#endif
 
   /*@}*/ // End of Theory_API group
 
@@ -402,6 +412,7 @@ public:
   /*! \param e is the Theorem for the new fact 
    */
   virtual void enqueueFact(const Theorem& e);
+  virtual void enqueueSE(const Theorem& e);
 
   //! Handle new equalities (usually asserted through addFact)
   /*!
@@ -436,9 +447,14 @@ public:
 
   //! Register new kinds with the given theory
   void registerKinds(Theory* theory, std::vector<int>& kinds);
+  //! Unregister kinds for a theory
+  void unregisterKinds(Theory* theory, std::vector<int>& kinds);
   //! Register a new theory
   void registerTheory(Theory* theory, std::vector<int>& kinds,
 		      bool hasSolver=false);
+  //! Unregister a theory
+  void unregisterTheory(Theory* theory, std::vector<int>& kinds,
+                        bool hasSolver);
 
   //! Return the number of registered theories
   int getNumTheories();
@@ -447,6 +463,8 @@ public:
   bool hasTheory(int kind);
   //! Return the theory associated with a kind
   Theory* theoryOf(int kind);
+  //! Return the theory associated with a type
+  Theory* theoryOf(const Type& e);
   //! Return the theory associated with an Expr
   Theory* theoryOf(const Expr& e);
 
@@ -492,6 +510,9 @@ public:
 
   //! Suggest a splitter to the SearchEngine
   void addSplitter(const Expr& e, int priority = 0);
+
+  //! Add a global lemma
+  void addGlobalLemma(const Theorem& thm, int priority = 0);
 
   /*@}*/ // End of Theory Helper Methods
 
@@ -584,6 +605,8 @@ public:
   /*! Add the name to the global variable database d_globals
    */
   Type newTypeExpr(const std::string& name);
+  //! Lookup type by name.  Return Null if no such type exists.
+  Type lookupTypeExpr(const std::string& name);
   //! Create a new type abbreviation with the given name 
   Type newTypeExpr(const std::string& name, const Type& def);
 
@@ -632,6 +655,11 @@ public:
   Theorem substitutivityRule(const Op& op,
 			     const std::vector<Theorem>& thms)
     { return d_commonRules->substitutivityRule(op, thms); }
+
+  //! Special case for unary operators
+  Theorem substitutivityRule(const Expr& e,
+                             const Theorem& t)
+    { return d_commonRules->substitutivityRule(e, t); }
 
   //! Special case for binary operators
   Theorem substitutivityRule(const Expr& e,

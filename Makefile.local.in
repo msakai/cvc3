@@ -45,7 +45,11 @@ LDFLAGS = @LDFLAGS@
 #LIBS
 LD_LIBS += @LIBS@
 
+#Whether to build individual shared libraries
+BUILD_SHARED_LIB = @BUILD_SHARED_LIB@
+
 #Installation directories
+datarootdir = @datarootdir@
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 libdir=@libdir@
@@ -115,7 +119,6 @@ endif
 DPLL_BASIC = @DPLL_BASIC@
 EXTRA_SAT_CPP = @EXTRA_SAT_CPP@
 EXTRA_SAT_HEADERS = @EXTRA_SAT_HEADERS@
-LICENSE_INFO_FILE = @LICENSE_INFO_FILE@
 
 ##################################################
 # Include generic Makefile

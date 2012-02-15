@@ -69,6 +69,12 @@ void CNF_Formula::copy(const CNF_Formula& cnf)
     for (j = cnf[i].begin(), jend = cnf[i].end(); j != jend; ++j) {
       addLiteral(*j);
     }
+    
+    Clause oldClause = cnf[i];
+    //    CVC3::Theorem clauseThm = oldClause.getClauseTheorem();
+    CVC3::Theorem clauseThm = cnf[i].getClauseTheorem();
+    getCurrentClause().setClauseTheorem(clauseThm);//by yeting
+    
     if (cnf[i].isUnit()) registerUnit();
     if (&(cnf[i]) == cnf.d_current) c = d_current;
   }
@@ -96,6 +102,11 @@ const CNF_Formula& CNF_Formula::operator+=(const CNF_Formula& cnf)
     for (j = cnf[i].begin(), jend = cnf[i].end(); j != jend; ++j) {
       addLiteral(*j);
     }
+
+    Clause oldClause = cnf[i];
+    CVC3::Theorem clauseThm = oldClause.getClauseTheorem();
+    getCurrentClause().setClauseTheorem(clauseThm);//by yeting
+
     if (cnf[i].isUnit()) registerUnit();
   }
   d_current = c;
@@ -111,8 +122,14 @@ const CNF_Formula& CNF_Formula::operator+=(const Clause& c)
   for (j=c.begin(), jend = c.end(); j != jend; ++j) {
     addLiteral(*j);
   }
+
+  Clause oldClause = c;
+  CVC3::Theorem clauseThm = oldClause.getClauseTheorem();
+  getCurrentClause().setClauseTheorem(clauseThm);//by yeting
+    
+
   if (c.isUnit()) registerUnit();
-  d_current = cur;
+  d_current = cur; 
   return *this;
 }
 

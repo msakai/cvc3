@@ -59,7 +59,7 @@ ClauseValue::ClauseValue(TheoryCore* core, VariableManager* vm,
     // Update the literal's count for splitter heuristics
     l.count()++;
   }
-  IF_DEBUG(d_sat.setName("CDO[Clause.d_sat]"));
+  IF_DEBUG(d_sat.setName("CDO[Clause.d_sat]");)
 }
 
 ClauseValue::~ClauseValue() {
@@ -71,7 +71,7 @@ ClauseValue::~ClauseValue() {
 	  iend=d_literals.end(); i!=iend; ++i) {
       i->count()--;
       IF_DEBUG(if(i->count() == 0)
-	       TRACE("search literals", "Null count for ", *i, ""));
+	       TRACE("search literals", "Null count for ", *i, "");)
     }
   }
   TRACE_MSG("search literals", "~ClauseValue() => }");
@@ -104,7 +104,7 @@ Clause::markDeleted() const {
 	  iend=d_clause->d_literals.end(); i!=iend; ++i) {
       i->count()--;
       IF_DEBUG(if(i->count() == 0)
-	       TRACE("search literals", "Null count for ", *i, ""));
+	       TRACE("search literals", "Null count for ", *i, "");)
     }
   }
   TRACE_MSG("search literals", "Clause::markDeleted => }");
@@ -138,7 +138,7 @@ ostream& operator<<(ostream& os, const Clause& c) {
   if(c.deleted()) os << "DELETED ";
   os << c.id();
   IF_DEBUG(if(c.getFile() != "")
-	   os << ", " << c.getFile() << ":" << c.getLine());
+	   os << ", " << c.getFile() << ":" << c.getLine();)
   os << "](" << c.getTheorem()
      << ";\n";
   if(c.wp(0) == c.wp(1)) os << "WARNING: wp[0] = wp[1]\n";

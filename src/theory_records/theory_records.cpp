@@ -22,6 +22,7 @@
 #include "parser_exception.h"
 #include "smtlib_exception.h"
 #include "records_proof_rules.h"
+#include "theory_core.h"
 
 
 using namespace std;
@@ -538,8 +539,8 @@ TheoryRecords::setup(const Expr& e) {
 	if(lit.hasFind()) {
 	  enqueueFact(transitivityRule(thm, find(lit)));
 	} else {
-	  setup(lit);
-	  lit.setFind(symmetryRule(thm));
+	  theoryCore()->setupTerm(lit, this, thm);
+	  assertEqualities(symmetryRule(thm));
 	}
       }
     }
@@ -608,12 +609,12 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
        }
        os << "(# " << push;
        if(i!=iend) {
-	 os <<  fields[i] << space 
+	 os <<  fields[i].getString() << space 
 	    << ":="<< space << push << e[i] << pop;
 	 ++i;
        }
        for(; i!=iend; ++i)
-	 os << push << "," << pop << space <<  fields[i] 
+	 os << push << "," << pop << space <<  fields[i].getString()
 	    << space 
 	    << ":="<< space << push << e[i] << pop;
        os << push << space << "#)";
@@ -632,11 +633,11 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
        }
        os << "[# " << push;
        if(i!=iend) {
-	 os <<  fields[i] << ":"<< space << push << e[i] << pop;
+	 os <<  fields[i].getString() << ":"<< space << push << e[i] << pop;
 	 ++i;
        }
        for(; i!=iend; ++i)
-	 os << push << "," << pop << space <<  fields[i] 
+	 os << push << "," << pop << space <<  fields[i].getString()
 	    << ":"<< space << push << e[i] << pop;
        os << push << space << "#]";
        break;
@@ -708,7 +709,7 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
        }
        os << "(" << push << "RECORD";
        for(; i!=iend; ++i)
-	 os <<  space << "(" << push << fields[i] << space 
+	 os <<  space << "(" << push << fields[i].getString() << space 
 	    << e[i] << push << ")" << pop << pop;
        os << push << ")";
        break;
@@ -726,7 +727,7 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
        }
        os << "(" << push << "RECORD_TYPE";
        for(; i!=iend; ++i)
-	 os << space << "(" << push <<  fields[i] 
+	 os << space << "(" << push <<  fields[i].getString()
 	    << space << e[i] << push << ")" << pop << pop;
        os << push << space << ")";
        break;
@@ -796,7 +797,7 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
        }
        os << "(" << push << "RECORD";
        for(; i!=iend; ++i)
-	 os <<  space << "(" << push << fields[i] << space 
+	 os <<  space << "(" << push << fields[i].getString() << space 
 	    << e[i] << push << ")" << pop << pop;
        os << push << ")";
        break;
@@ -814,7 +815,7 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
        }
        os << "(" << push << "RECORD_TYPE";
        for(; i!=iend; ++i)
-	 os << space << "(" << push <<  fields[i] 
+	 os << space << "(" << push <<  fields[i].getString()
 	    << space << e[i] << push << ")" << pop << pop;
        os << push << space << ")";
        break;

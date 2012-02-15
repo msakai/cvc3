@@ -60,6 +60,7 @@ Proof TheoremProducer::newLabel(const Expr& e)
   //TODO: Get rid of hack storing expr in Type field
   Expr var = d_tm->getEM()->newBoundVarExpr(s_prefix, ss.str(), Type(e, true));
   return Proof(var);
+  //  return newPf("assumptions", var , e);
 }
 
 
@@ -225,7 +226,7 @@ Proof TheoremProducer::newPf(const string& name,
 Proof TheoremProducer::newPf(const Proof& label, const Expr& frm,
 			     const Proof& pf) {
   Expr v(label.getExpr());
-  IF_DEBUG(Type tp(frm, true));
+  IF_DEBUG(Type tp(frm, true);)
   DebugAssert(v.isVar() && v.getType() == tp,
 	      "TheoremProducer::newPf: bad variable in LAMBDA expression: "
 	      +v.toString());
@@ -252,7 +253,7 @@ Proof TheoremProducer::newPf(const std::vector<Proof>& labels,
   std::vector<Expr> u;
   for(unsigned i=0; i<labels.size(); i++) {
     const Expr& v = labels[i].getExpr();
-    IF_DEBUG(Type tp(frms[i], true));
+    IF_DEBUG(Type tp(frms[i], true);)
     DebugAssert(v.isVar(),
 		"TheoremProducer::newPf: bad variable in LAMBDA expression: "
 		+v.toString());

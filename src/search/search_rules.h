@@ -254,6 +254,8 @@ namespace CVC3 {
     //! e1 <=> e2 |- (NOT e1 OR e2) AND (e1 OR NOT e2)
     virtual Theorem iffToClauses(const Theorem& iff) = 0;
 
+    virtual Theorem satProof(const Expr& queryExpr, const Proof& satProof) = 0;
+
     /*! @} */ // end of SE_Rules
   }; // end of class SearchEngineRules
 

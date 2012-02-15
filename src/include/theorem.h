@@ -53,7 +53,6 @@
 
 #include "os.h"
 #include "proof.h"
-#include "assumptions.h"
 
 namespace CVC3 {
 
@@ -126,6 +125,9 @@ namespace CVC3 {
 
     void recursivePrint(int& i) const;
     void getAssumptionsRec(std::set<Expr>& assumptions) const;
+    void getAssumptionsAndCongRec(std::set<Expr>& assumptions,
+                                  std::vector<Expr>& congruences) const;
+    void GetSatAssumptionsRec(std::vector<Theorem>& assumptions) const;
 
     ExprValue* exprValue() const { return d_expr; }
     TheoremValue* thm() const { return (TheoremValue*)(d_thm & (~(0x1))); }
@@ -173,11 +175,19 @@ namespace CVC3 {
     const Expr& getLHS() const;
     const Expr& getRHS() const;
 
+    void GetSatAssumptions(std::vector<Theorem>& assumptions) const;
+
+
     // Return the assumptions.  a should be empty and uninitialized
     //    void getAssumptions(Assumptions& a) const;
     // Recurse to get actual assumptions
+    
     void getLeafAssumptions(std::vector<Expr>& assumptions,
                             bool negate = false) const;
+    // Same as above but also collects congruences in the proof tree
+    void getAssumptionsAndCong(std::vector<Expr>& assumptions,
+                               std::vector<Expr>& congruences,
+                               bool negate = false) const;
     const Assumptions& getAssumptionsRef() const;
     // Return the proof of the theorem.  If running without proofs,
     // return the Null proof.
@@ -187,6 +197,9 @@ namespace CVC3 {
     int getScope() const;
     //! Return quantification level for this theorem
     unsigned getQuantLevel() const;
+
+    unsigned getQuantLevelDebug() const;
+
     //! Set the quantification level for this theorem
     void setQuantLevel(unsigned level);
 
@@ -217,6 +230,10 @@ namespace CVC3 {
     //! Set the flag attribute
     void setFlag() const;
 
+    //! Set flag stating that theorem is an instance of substitution
+    void setSubst() const;
+    //! Is theorem an instance of substitution
+    bool isSubst() const;
     //! Set the "expand" attribute
     void setExpandFlag(bool val) const;
     //! Check the "expand" attribute

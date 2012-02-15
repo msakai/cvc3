@@ -69,7 +69,10 @@ GMP
 </h3>
 
 One of the components CVC3 depends on is the GNU Multiple Precision (GMP)
-library.  If you do not have GMP installed, we recommend that you do so:
+library.  Many Unix-like distributions include gmp packages.
+
+If you do not have GMP installed or your installation does not work, we
+recommend that you install it manually:
 
 1. Download the GMP source code from http://swox.com/gmp/
 
@@ -105,6 +108,28 @@ native arithmetic by running:
 If you compile CVC3 with native arithmetic, it is possible that CVC3 may fail
 as the result of arithmetic overflow.  If an overflow occurs, you will get
 an error message and CVC3 will abort.
+
+<h3>
+Platforms
+</h3>
+
+CVC3 should run on most Unix-like platforms including Linux, MacOS, and
+Cygwin.  Some platform-specific issues are documented here.
+
+<h4>
+Mac OS
+</h4>
+
+If you want to build shared libraries on Mac OS, you may need to set
+MACOSX_DEPLOYMENT_TARGET to 10.3 or higher.
+
+<h4>
+Cygwin
+</h4>
+
+In order to use GMP on Cygwin, make sure the following packages are installed:
+gmp, libgmp-devel, and libgmp3.
+
 
 <h3>
 Other Configuration Options
@@ -154,7 +179,7 @@ current configuration, type:
 </pre>
 
 To remove all files that are not part of the distribution (including all
-object, library, ane executables built for any configuration or platform),
+object, library, and executables built for any configuration or platform),
 type:
 
 <pre>
@@ -172,8 +197,7 @@ To build a tarball distribution of the currenct source tree, type:
 Installing CVC3
 </h2>
 
-To install CVC3 system-wide, (assuming you have already run autoconf and
-configure) run:
+To install CVC3 system-wide, (assuming you have already run configure) run:
 
 <pre>
 
@@ -187,8 +211,8 @@ the correct arguments to configure or by editing Makefile.local.
 
 Installation copies all necessary header files to &lt;prefix&gt;/include/cvc3.  It
 installs the library libcvc3 in &lt;exec_prefix&gt;/lib and the executable cvc3 in
-&lt;exec_prefix&gt;/bin.  By default, a shared library and executable are installed.
-If you want to install static versions, configure for a static build as
+&lt;exec_prefix&gt;/bin.  By default, a static library and executable are installed.
+If you want to install shared library versions, configure for shared librareis as
 described above.
 
 <h2>

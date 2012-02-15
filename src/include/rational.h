@@ -141,6 +141,8 @@ namespace CVC3 {
     friend Rational ceil(const Rational &x);
     //! Compute non-negative remainder for *integer* x,y.
     friend Rational mod(const Rational &x, const Rational &y);
+    //! nth root: return 0 if no exact answer (base should be nonzero)
+    friend Rational intRoot(const Rational& base, unsigned long int n);
 
     // For debugging, to be able to print in gdb
     void print() const;
@@ -159,7 +161,22 @@ namespace CVC3 {
     if(neg) res = 1/res;
     return res;
   }
-
+  //! take nth root of base, return result if it is exact, 0 otherwise
+  // base should not be 0
+  inline Rational ratRoot(const Rational& base, unsigned long int n)
+  {
+    DebugAssert(base != 0, "Expected nonzero base");
+    Rational num = base.getNumerator();
+    num = intRoot(num, n);
+    if (num != 0) {
+      Rational den = base.getDenominator();
+      den = intRoot(den, n);
+      if (den != 0) {
+        return num / den;
+      }
+    }
+    return 0;
+  }
   
   // Methods creating new Rational values, similar to the
   // constructors, but can be nested

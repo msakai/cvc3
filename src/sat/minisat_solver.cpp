@@ -103,6 +103,8 @@ const vector<Var>::size_type prop_lookahead = 1;
 
 // print the derivation
 const bool protocol = false;
+//const bool protocol = true;
+
 
 
 
@@ -134,10 +136,13 @@ bool MiniSat::cvcToMiniSat(const SAT::Clause& clause, std::vector<Lit>& literals
   return true;
 }
 
-Clause* MiniSat::cvcToMiniSat(const SAT::Clause& clause, int id) {
+Clause* Solver::cvcToMiniSat(const SAT::Clause& clause, int id) {
   vector<MiniSat::Lit> literals;
-  if (cvcToMiniSat(clause, literals)) {
-    return Clause_new(literals, id);
+  if (MiniSat::cvcToMiniSat(clause, literals)) {
+    if (getDerivation() != NULL)
+      return Clause_new(literals, clause.getClauseTheorem(), id);
+    else
+      return Clause_new(literals, CVC3::Theorem(), id);
   }
   else {
     return NULL;
@@ -150,7 +155,8 @@ Clause* MiniSat::cvcToMiniSat(const SAT::Clause& clause, int id) {
 
 /// Initialization
 
-Solver::Solver(SAT::DPLLT::TheoryAPI* theoryAPI, SAT::DPLLT::Decider* decider) :
+Solver::Solver(SAT::DPLLT::TheoryAPI* theoryAPI, SAT::DPLLT::Decider* decider,
+	       bool logDerivation) :
   d_inSearch(false),
   d_ok(true),
   d_conflict(NULL),
@@ -171,28 +177,51 @@ Solver::Solver(SAT::DPLLT::TheoryAPI* theoryAPI, SAT::DPLLT::Decider* decider) :
   d_simpRD_learnts   (0),
   d_theoryAPI(theoryAPI),
   d_decider(decider),
-  d_derivation(NULL/*new Derivation()*/),
+  d_derivation(NULL),
   d_default_params(SearchParams(0.95, 0.999, 0.02)),
   d_expensive_ccmin(true)
-{ }
+{ 
+  if (logDerivation) d_derivation = new Derivation();
+}
 
 
 // add a lemma which has not been computed just now (see push(), createFrom()),
-// so it is not necessary propagating
+// so it is not necessarily propagating
 void Solver::insertLemma(const Clause* lemma, int clauseID, int pushID) {
   // need to add lemmas manually,
   // as addClause/insertClause assume that the lemma has just been computed and is propagating,
   // and as we want to keep the activity.
   vector<Lit> literals;
   lemma->toLit(literals);
-  // just ignore lemma if already satisfied by clauses
-  if (!simplifyClause(literals, clauseID)) {
+
+  // If a lemma is based purely on theory lemmas (i.e. theory clauses),
+  // then in backtracking those theory lemmas might be retracted,
+  // and literals occurring in the lemma might not occur in any remaining clauses.
+  // When creating a new solver based on an existing instance
+  // (i.e. in continuing the search after finding a model),
+  // then those literals have to be registered here.
+  for (vector<Lit>::const_iterator i = literals.begin(); i != literals.end(); ++i) {
+    registerVar(i->var());
+  }
+
+  // While lemma simplification might be nice to have,
+  // this poses a problem with derivation recording,
+  // as we would also have to modify the derivation of the original
+  // lemma towards a derivation of the new lemma.
+  // In the case of a new solver inheriting the lemmas of the previous solver 
+  // the lemma is registered for the first time in the derivation.
+  // In the case where the lemma was kept over a push the old lemma
+  // is registered with the derivation, but about to be removed from memory (xfree).
+  // So the simplest thing is to just replace any previous registration of the
+  // lemma with a new identical lemma, and not do any simplification at all.
+  //if (!simplifyClause(literals, clauseID)) {
     // ensure that order is appropriate for watched literals
     orderClause(literals);
    
     Clause* newLemma = Lemma_new(literals, clauseID, pushID);
-    
-    newLemma->activity() = lemma->activity();
+    if (getDerivation() != NULL) getDerivation()->registerClause(newLemma);
+
+    newLemma->setActivity(lemma->activity());
     
     // add to watches and lemmas
     if (newLemma->size() >= 2) {
@@ -212,12 +241,13 @@ void Solver::insertLemma(const Clause* lemma, int clauseID, int pushID) {
 	DebugAssert(false, "MiniSat::Solver::insertLemma: conflicting/implying lemma");
       }
     }
-  }
+    //}
 }
 
 
 Solver* Solver::createFrom(const Solver* oldSolver) {
-  Solver* solver = new MiniSat::Solver(oldSolver->d_theoryAPI, oldSolver->d_decider);
+  Solver* solver = new MiniSat::Solver(oldSolver->d_theoryAPI,
+				       oldSolver->d_decider, oldSolver->d_derivation);
     
   // reuse literal activity
   // assigning d_activity before the clauses are added
@@ -236,7 +266,8 @@ Solver* Solver::createFrom(const Solver* oldSolver) {
   // get the old assignment
   const vector<MiniSat::Lit>& trail = oldSolver->getTrail();
   for (vector<MiniSat::Lit>::const_iterator i = trail.begin(); i != trail.end(); ++i) {
-    solver->addClause(*i);
+    //:TODO: use special clause as reason instead of NULL
+    solver->addClause(*i, CVC3::Theorem());
   }
       
   // get the old clause set
@@ -316,6 +347,31 @@ std::string Solver::toString(const Clause& clause, bool showAssignment) const {
   return toString(literals, showAssignment);
 }
 
+
+std::vector<SAT::Lit> Solver::curAssigns(){
+  vector<SAT::Lit> res;
+  cout << "current Assignment: " << endl;
+  for (size_type i = 0; i < d_trail.size(); ++i) {
+    res.push_back(miniSatToCVC(d_trail[i]));
+  }
+  return res;
+}
+ 
+std::vector<std::vector<SAT::Lit> > Solver::curClauses(){
+  std::vector<std::vector< SAT::Lit> > res;
+  cout << "current Clauses: " << endl;
+  for (size_t i = 0; i < d_clauses.size(); ++i) {
+    std::vector<SAT::Lit> oneClause;
+    oneClause.clear();
+    for (int j = 0; j < (*d_clauses[i]).size(); ++j) {
+      oneClause.push_back(miniSatToCVC((*d_clauses[i])[j]));
+    }
+    res.push_back(oneClause);
+  }
+  return res;
+}
+
+
 void Solver::printState() const {
   cout << "Lemmas: " << endl;
   for (size_type i = 0; i < d_learnts.size(); ++i) {
@@ -332,7 +388,8 @@ void Solver::printState() const {
   cout << endl;
 
   cout << "Assignment: " << endl;
-  for (size_type i = 0; i < d_qhead; ++i) {
+  //  for (size_type i = 0; i < d_qhead; ++i) {
+  for (size_type i = 0; i < d_trail.size(); ++i) {
     string split = "";
     if (getReason(d_trail[i].var()) == Clause::Decision()) {
       split = "(S)";
@@ -341,6 +398,8 @@ void Solver::printState() const {
   }
   cout << endl;
 }
+
+
 
 
 void Solver::printDIMACS() const {
@@ -398,6 +457,7 @@ bool Solver::isRegistered(Var var) {
 void Solver::registerVar(Var index) {
   if (isRegistered(index)) return;
 
+  // register variables to all data structures
   if (nVars() <= index) {
     // 2 * index + 1 will be accessed for neg. literal,
     // so we need + 1 fiels for 0 field
@@ -408,28 +468,35 @@ void Solver::registerVar(Var index) {
     d_activity    .resize(index + 1, 0);
     d_analyze_seen.resize(index + 1, 0);
     d_pushIDs     .resize(index + 1, -1);
-    d_order       .newVar(index);
     if (d_derivation != NULL) d_trail_pos.resize(index + 1, d_trail.max_size());
   }
 
+  // register with internal variable selection heuristics
+  d_order       .newVar(index);
+
+  // marks as registered
   DebugAssert(!d_registeredVars.empty(), "MiniSat::Solver::registerVar: d_registeredVars is empty");
   d_registeredVars.back().insert(index);
 }
 
-void Solver::addClause(Lit p) {
+void Solver::addClause(Lit p, CVC3::Theorem theorem) {
   vector<Lit> literals;
   literals.push_back(p);
-  addClause(literals, nextClauseID());
+  addClause(literals, theorem, nextClauseID());
 }
 
 void Solver::addClause(const SAT::Clause& clause, bool isTheoryClause) {
   vector<MiniSat::Lit> literals;
-  if (cvcToMiniSat(clause, literals)) {
+  if (MiniSat::cvcToMiniSat(clause, literals)) {
     int clauseID = nextClauseID();
     // theory clauses have negative ids:
     if (isTheoryClause) clauseID = -clauseID;
-    if (getDerivation() != NULL) getDerivation()->registerInputClause(clauseID);
-    addClause(literals, clauseID);
+    CVC3::Theorem theorem;
+    if (getDerivation() != NULL) {
+      getDerivation()->registerInputClause(clauseID);
+      theorem = clause.getClauseTheorem();
+    }
+    addClause(literals, theorem, clauseID);
   }
   else {
     // ignore tautologies
@@ -443,9 +510,9 @@ void Solver::addClause(const Clause& clause, bool keepClauseID) {
     literals.push_back(clause[i]);
   }
   if (keepClauseID) {
-    addClause(literals, clause.id());
+    addClause(literals, clause.getTheorem(), clause.id());
   } else {
-    addClause(literals, nextClauseID());
+    addClause(literals, clause.getTheorem(), nextClauseID());
   }
 }
 
@@ -464,6 +531,9 @@ void Solver::addFormula(const SAT::CNF_Formula& cnf, bool isTheoryClause) {
   // for comparison: this is the order used by xchaff
   //for (i = cnf.end()-1, iend = cnf.begin()-1; i != iend; --i) {
   for (i = cnf.begin(), iend = cnf.end(); i != iend; i++) {
+//     if(i->d_reason.isNull()){
+//       cout<<"found null thm in Solver::addFormula"<<endl<<flush;
+//     }
     addClause(*i, isTheoryClause);
   }
 }
@@ -475,25 +545,30 @@ void Solver::addFormula(const SAT::CNF_Formula& cnf, bool isTheoryClause) {
 bool Solver::simplifyClause(vector<Lit>& literals, int clausePushID) const {
   // Check if clause is a tautology: p \/ -p \/ C:
   for (size_type i = 1; i < literals.size(); i++){
-    if (literals[i-1] == ~literals[i])
+    if (literals[i-1] == ~literals[i]){
       return true;
+    }
   }
 
   // Remove permanently satisfied clauses and falsified literals:
   size_type i, j;
   for (i = j = 0; i < literals.size(); i++) {
-    bool rootAssign =
+    bool rootAssign = (
       getLevel(literals[i]) == d_rootLevel
-      && isImpliedAt(literals[i], clausePushID);
-    if (rootAssign && (getValue(literals[i]) == l_True))
+      && isImpliedAt(literals[i], clausePushID) );
+    
+    if (rootAssign && (getValue(literals[i]) == l_True)){
       return true;
-    else if (rootAssign && (getValue(literals[i]) == l_False))
+    }
+    else if (rootAssign && (getValue(literals[i]) == l_False)){
+
       ;
-    else
+    }
+    else{
       literals[j++] = literals[i];
+    }
   }
   literals.resize(j);
-
   return false;
 }
 
@@ -593,7 +668,7 @@ void Solver::orderClause(vector<Lit>& literals) const {
 }
 
 
-void Solver::addClause(vector<Lit>& literals, int clauseID) {
+void Solver::addClause(vector<Lit>& literals, CVC3::Theorem theorem, int clauseID) {
   // sort clause
   std::sort(literals.begin(), literals.end());
 
@@ -608,6 +683,7 @@ void Solver::addClause(vector<Lit>& literals, int clauseID) {
 
   // simplify clause
   vector<Lit> simplified(literals);
+
   bool replaceReason = false;
   if (simplifyClause(simplified, clauseID)) {
     // it can happen that a unit clause was contradictory when it was added (in a non-root state).
@@ -628,7 +704,7 @@ void Solver::addClause(vector<Lit>& literals, int clauseID) {
   // record derivation for a simplified clause
   if (getDerivation() != NULL && simplified.size() < literals.size()) {
     // register original clause as start of simplification
-    Clause* c = Clause_new(literals, clauseID);
+    Clause* c = Clause_new(literals, theorem, clauseID);
     getDerivation()->registerClause(c);
     getDerivation()->removedClause(c);
 
@@ -653,12 +729,21 @@ void Solver::addClause(vector<Lit>& literals, int clauseID) {
 
   // insert simplified clause
   orderClause(simplified);
-  Clause* c = Clause_new(simplified, clauseID);
-  insertClause(c);
+  Clause* c;
+  if (simplified.size() < literals.size()) {
+    c = Clause_new(simplified, CVC3::Theorem(), clauseID);
+  } else {
+    c = Clause_new(simplified, theorem, clauseID);
+  }
+  
+  //  cout<<"clause size" << c->size() << endl << flush;
 
+  insertClause(c);
+  //  cout<<"after clause size" << c->size() << endl << flush;
   if (replaceReason) {
     d_reason[literals[0].var()] = c;
   }
+//  cout<<"after after clause size" << c->size() << endl << flush;
 }
 
 
@@ -928,7 +1013,8 @@ void Solver::resolveTheoryImplication(Lit literal) {
       DebugAssert(getValue(literal) == l_True,
 		  "MiniSat::Solver::resolveTheoryImplication: literal is not true");
       toRegress.pop();
-      d_theoryAPI->getExplanation(miniSatToCVC(literal), clauseCVC);
+      FatalAssert(false, "Not implemented yet");
+      //      d_theoryAPI->getExplanation(miniSatToCVC(literal), clauseCVC);
       Clause* explanation = cvcToMiniSat(clauseCVC, nextClauseID());
 
       // must ensure that propagated literal is at first position
@@ -1081,16 +1167,19 @@ Clause* Solver::analyze(int& out_btlevel) {
   // compute pushID as max pushID of all regressed clauses
   int pushID = confl->pushID();
 
-  // leave room for the asserting literal
-  if (UIPLevel != d_rootLevel) out_learnt.push_back(lit_Undef);    
   // do until pathC == 1, i.e. UIP found
   if (confl->size() == 1) {
-    p = ~(*confl)[0];
-  } else do {
+    out_learnt.push_back((*confl)[0]);
+  } else {
+    // leave room for the asserting literal -
+    // we might get an empty lemma if a new clause is conflicting at the root level.
+    if (UIPLevel != d_rootLevel) out_learnt.push_back(lit_Undef);
+
+    do {
     DebugAssert (confl != Clause::Decision(), "MiniSat::Solver::analyze: no reason for conflict");
     DebugAssert (confl != Clause::TheoryImplication(), "MiniSat::Solver::analyze: theory implication not resolved");
 
-    if (confl->learnt())  claBumpActivity(confl);
+    if (confl->learnt()) claBumpActivity(confl);
 
     // regress p
     for (int j = (p == lit_Undef) ? 0 : 1; j < confl->size(); j++){
@@ -1147,7 +1236,9 @@ Clause* Solver::analyze(int& out_btlevel) {
     pushID = max(pushID, confl->pushID());
     if (getDerivation() != NULL && pathC > 0) inference->add(~p, confl);
   } while (pathC > 0);
-  if (UIPLevel != d_rootLevel) out_learnt[0] = ~p;
+    // add the UIP - except in root level, here all literals have been resolved.
+    if (UIPLevel != d_rootLevel) out_learnt[0] = ~p;
+  }
 
   // check that the UIP has been found
   IF_DEBUG (
@@ -1198,7 +1289,7 @@ void Solver::analyze_minimize(vector<Lit>& out_learnt, Inference* inference, int
   // for the implying clause, and their reasone, and so on into consideration.
   if (d_expensive_ccmin){
     // (maintain an abstraction of levels involved in conflict)
-    uint min_level = 0;
+    unsigned int min_level = 0;
     for (i = 1; i < out_learnt.size(); i++)
       min_level |= 1 << (getLevel(out_learnt[i]) & 31);
     
@@ -1301,7 +1392,7 @@ void Solver::analyze_minimize(vector<Lit>& out_learnt, Inference* inference, int
 //
 // 'p' can be removed if it depends only on literals
 // on which they other conflict clause literals do depend as well.
-bool Solver::analyze_removable(Lit p, uint min_level, int pushID) {
+bool Solver::analyze_removable(Lit p, unsigned int min_level, int pushID) {
   DebugAssert(getReason(p) != Clause::Decision(), "MiniSat::Solver::analyze_removable: p is a decision.");
 
   d_analyze_stack.clear();
@@ -1422,7 +1513,6 @@ void Solver::backtrack(int toLevel, Clause* learnt_clause) {
   d_qhead = trail_jump;
   d_thead = d_qhead;
 
-
   // insert lemma
   // we want to insert the lemma before the original conflicting clause,
   // so that propagation is done on the lemma instead of that clause.
@@ -1436,6 +1526,7 @@ void Solver::backtrack(int toLevel, Clause* learnt_clause) {
     Clause* c = d_pendingClauses.front();
     d_pendingClauses.pop();
     addClause(*c, true);
+    xfree(c);
   }
 
 
@@ -1651,7 +1742,7 @@ void Solver::propagate() {
 	  DebugAssert(getValue(c[z]) == l_False,
 		      "MiniSat::Solver:::propagate: Unit Propagation");
 	}
-      );
+      )
 
       *j = &c; ++j;
       if (!enqueue(first, getImplicationLevel(c), &c)){
@@ -1933,7 +2024,6 @@ CVC3::QueryResult Solver::search() {
 
   // main search loop
   SAT::Lit literal;
-  SAT::Clause clause;
   SAT::CNF_Formula_Impl clauses;
   for (;;){
     //    if (d_learnts.size() == 1 && decisionLevel() == 3) printState();
@@ -1983,14 +2073,19 @@ CVC3::QueryResult Solver::search() {
     }
 
     // 4. theory conflict - cheap theory consistency check
-    else if (d_theoryAPI->checkConsistent(clause, false) == SAT::DPLLT::INCONSISTENT) {
+    else if (d_theoryAPI->checkConsistent(clauses, false) == SAT::DPLLT::INCONSISTENT) {
       if (protocol) {
 	cout << "theory inconsistency: " << endl;
-	clause.print();
+	clauses.print();
       }      
       d_stats.theory_conflicts++;
-      addClause(clause, true);
-      clause.clear();
+      addFormula(clauses, true);
+      clauses.reset();
+      while (!isConflicting() && d_ok && d_qhead < d_trail.size() && !isConflicting()) {
+        protocolPropagation();
+        propagate();
+      }
+      DebugAssert(isConflicting(), "expected conflict");
     }
     
     // 5. boolean propagation
@@ -2030,7 +2125,9 @@ CVC3::QueryResult Solver::search() {
 	if (protocol) {
 	  cout << "theory clauses: " << endl;
 	  clauses.print();
+	  printState();   
 	}
+	
 	addFormula(clauses, true);
 	clauses.reset();
 	continue;
@@ -2039,7 +2136,7 @@ CVC3::QueryResult Solver::search() {
       // 7. theory implication
       literal = d_theoryAPI->getImplication();
       if (!literal.isNull()) {
-	Lit lit = cvcToMiniSat(literal);
+	Lit lit = MiniSat::cvcToMiniSat(literal);
 	if (protocol) {
 	  cout << "theory implication: " << lit.index() << endl;
 	}
@@ -2051,13 +2148,13 @@ CVC3::QueryResult Solver::search() {
 	    // only if this implication is responsible for a conflict.
 	    !enqueue(lit, decisionLevel(), Clause::TheoryImplication())
 	    ) {
-	  d_theoryAPI->getExplanation(literal, clause);
+	  d_theoryAPI->getExplanation(literal, clauses);
 	  if (protocol) {
 	    cout << "theory implication reason: " << endl;
-	    clause.print();
+	    clauses.print();
 	  }
-	  addClause(clause, true);
-	  clause.clear();
+	  addFormula(clauses, true);
+	  clauses.reset();
 	}
 	continue;
       }
@@ -2072,11 +2169,13 @@ CVC3::QueryResult Solver::search() {
 
       // 9. boolean split
       Lit next = lit_Undef;
+
+      
       // use CVC decider
       if (d_decider != NULL) {
 	literal = d_decider->makeDecision();
 	if (!literal.isNull()) {
-	  next = cvcToMiniSat(literal);
+	  next = MiniSat::cvcToMiniSat(literal);
 	}
       }
       // use MiniSat's decision heuristic
@@ -2118,7 +2217,7 @@ CVC3::QueryResult Solver::search() {
 	}
 
 	// do lookahead based on MiniSat's decision heuristic
-	propLookahead(params);
+	if (d_decider != NULL) propLookahead(params);
 	if (isConflicting()) {
 	  ++d_stats.debug;
 	  continue;
@@ -2132,16 +2231,22 @@ CVC3::QueryResult Solver::search() {
       }
 
       // 10. full theory consistency check
-      SAT::DPLLT::ConsistentResult result = d_theoryAPI->checkConsistent(clause, true);
+      SAT::DPLLT::ConsistentResult result = d_theoryAPI->checkConsistent(clauses, true);
       // inconsistency detected
       if (result == SAT::DPLLT::INCONSISTENT) {
 	if (protocol) {
 	  cout << "theory conflict (FULL): " << endl;
-	  clause.print();
+	  clauses.print();
+	  printState();
 	}
 	d_stats.theory_conflicts++;
-	addClause(clause, true);
-	clause.clear();
+	addFormula(clauses, true);
+	clauses.reset();
+        while (!isConflicting() && d_ok && d_qhead < d_trail.size() && !isConflicting()) {
+          protocolPropagation();
+          propagate();
+        }
+        DebugAssert(isConflicting(), "expected conflict");
 	continue;
       }
       // perhaps consistent, new clauses added by theory propagation
@@ -2161,6 +2266,10 @@ CVC3::QueryResult Solver::search() {
       }
       // consistent
       if (result == SAT::DPLLT::CONSISTENT) {
+	DebugAssert(d_decider == NULL || d_decider->makeDecision().isNull(),
+		    "DPLLTMiniSat::search: consistent result, but decider not done yet.");
+	DebugAssert(allClausesSatisfied(),
+		    "DPLLTMiniSat::search: consistent result, but not all clauses satisfied.");
 	return CVC3::SATISFIABLE;
       }
 
@@ -2188,8 +2297,9 @@ void Solver::varRescaleActivity() {
 // Divide all constraint activities by 1e100.
 //
 void Solver::claRescaleActivity() {
-  for (vector<Clause*>::const_iterator i = d_learnts.begin(); i != d_learnts.end(); i++)
-    (*i)->activity() *= (float)1e-20;
+  for (vector<Clause*>::const_iterator i = d_learnts.begin(); i != d_learnts.end(); i++) {
+    (*i)->setActivity((*i)->activity() * (float)1e-20);
+  }
   d_cla_inc *= 1e-20;
 }
 
@@ -2199,6 +2309,52 @@ void Solver::claRescaleActivity() {
 ///
 /// expensive debug checks
 ///
+
+bool Solver::allClausesSatisfied() {
+  if (!debug_full) return true;
+
+  for (size_type i = 0; i < d_clauses.size(); ++i) {
+    Clause& clause = *d_clauses[i];
+    int size = clause.size();
+    bool satisfied = false;
+    for (int j = 0; j < size; ++j) {
+      if (getValue(clause[j]) == l_True) {
+	satisfied = true;
+	break;
+      }
+    }
+    if (!satisfied) {
+      cout << "Clause not satisfied:" << endl;
+      cout << toString(clause, true);
+
+      for (int j = 0; j < size; ++j) {
+	Lit lit = clause[j];
+	bool found = false;
+	const vector<Clause*>& ws  = getWatches(~lit);
+	if (getLevel(lit) == d_rootLevel) {
+	  found = true;
+	} else {
+	  for (size_type j = 0; !found && j < ws.size(); ++j) {
+	    if (ws[j] == &clause) {
+	      found = true;
+	      break;
+	    }
+	  }
+	}
+
+	if (found) {
+	  cout << "    watched: " << toString(lit, true) << endl;
+	} else {
+	  cout << "not watched: " << toString(lit, true) << endl;
+	}
+      }
+
+      return false;
+    }
+  }
+  return true;
+}
+
 
 void Solver::checkWatched(const Clause& clause) const {
   // unary clauses are not watched
@@ -2398,7 +2554,7 @@ void Solver::push() {
       if (push_theory_implication) {
 	literal = d_theoryAPI->getImplication();
 	if (!literal.isNull()) {
-	  Lit lit = cvcToMiniSat(literal);
+	  Lit lit = MiniSat::cvcToMiniSat(literal);
 	  if (protocol) {
 	    cout << "theory implication: " << lit.index() << endl;
 	  }
@@ -2410,27 +2566,33 @@ void Solver::push() {
 	      // only if this implication is responsible for a conflict.
 	      !enqueue(lit, decisionLevel(), Clause::TheoryImplication())
 	    ) {
-	    d_theoryAPI->getExplanation(literal, clause);
+	    d_theoryAPI->getExplanation(literal, clauses);
 	    if (protocol) {
 	      cout << "theory implication reason: " << endl;
-	      clause.print();
+	      clauses.print();
 	    }
-	    addClause(clause, false);
-	    clause.clear();
+	    addFormula(clauses, false);
+	    clauses.reset();
 	  }
 	  continue;
 	}
       }
 
       // add a theory clause
-      if (push_theory_clause && d_theoryAPI->getNewClauses(clauses)) {
-	if (protocol) {
-	  cout << "theory clauses: " << endl;
-	  clauses.print();
+
+      //      if (push_theory_clause && d_theoryAPI->getNewClauses(clauses)) {
+      if (push_theory_clause ) {
+	bool hasNewClauses = d_theoryAPI->getNewClauses(clauses);
+	if(hasNewClauses){
+	  if (protocol) {
+	    cout << "theory clauses: " << endl;
+	    clauses.print();
+	    printState();
+	  }
+	  addFormula(clauses, false);
+	  clauses.reset();
+	  continue;
 	}
-	addFormula(clauses, false);
-	clauses.reset();
-	continue;
       }
     }
   }
@@ -2449,9 +2611,9 @@ void Solver::push() {
   // but d_ok is not immediately set to false
   if (isConflicting()) d_ok = false;
 
-  if (d_derivation != NULL) d_derivation->push(d_clauseIDCounter);
+  if (d_derivation != NULL) d_derivation->push(d_clauseIDCounter - 1);
   d_pushes.push_back(PushEntry(d_clauseIDCounter - 1, d_trail.size(), d_qhead, d_thead));
-};
+}
 
 
 
@@ -2488,10 +2650,13 @@ void Solver::popClauses(const PushEntry& pushEntry, vector<Clause*>& clauses) {
     if (clauses[i]->pushID() >= 0
 	&&
 	clauses[i]->pushID() <= pushEntry.d_clauseID) {
+      //      cout << "solver keep : " << clauses[i]->id() << endl;
+      //      cout << "solver keep2 : " << clauses[i]->pushID() << endl;
       ++i;
     }
     // remove clause
     else {
+      //      cout << "solver pop : " << clauses[i]->id() << endl;
       remove(clauses[i]);
       clauses[i] = clauses.back();
       clauses.pop_back();
@@ -2556,6 +2721,8 @@ void Solver::pop() {
     Clause* lemma = d_learnts[i];
     // lemma is propagating, so it was already present before the push
     if (isReason(lemma)) {
+      //      cout << "solver keep lemma reason : " << lemma->id() << endl;
+      //      cout << "solver keep lemma reason2 : " << lemma->pushID() << endl;
       ++i;
     }
     // keep lemma?
@@ -2563,6 +2730,8 @@ void Solver::pop() {
       d_stats.learnts_literals -= lemma->size();
       // lemma ok after push, mark it for reinsertion in the next push
       if (lemma->pushID() <= pushEntry.d_clauseID) {
+	//      cout << "solver keep lemma : " << lemma->id() << endl;
+      //      cout << "solver keep lemma2 : " << lemma->pushID() << endl;
 	if (lemma->size() >= 2) {
 	  removeWatch(getWatches(~(*lemma)[0]), lemma);
 	  removeWatch(getWatches(~(*lemma)[1]), lemma);
@@ -2571,6 +2740,7 @@ void Solver::pop() {
       }
       // lemma needs to be removed
       else {
+	//      cout << "solver pop lemma : " << lemma->id() << endl;
 	remove(lemma);
       }
 
@@ -2603,4 +2773,4 @@ void Solver::pop() {
   d_conflict = NULL;
   d_ok = true;
   d_inSearch = false;
-};
+}

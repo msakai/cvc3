@@ -156,7 +156,7 @@ void TheoryUF::checkSat(bool fullEffort)
       d_funApplicationsIdx = d_funApplicationsIdx + 1) {
     const Expr& e = d_funApplications[d_funApplicationsIdx];
     if(e.getOp().getExpr().isLambda()) {
-      IF_DEBUG(debugger.counter("Expanded lambdas (checkSat)")++);
+      IF_DEBUG(debugger.counter("Expanded lambdas (checkSat)")++;)
       enqueueFact(d_rules->applyLambda(e));
     }
   }
@@ -173,7 +173,7 @@ Theorem TheoryUF::rewrite(const Expr& e)
         Theorem res = d_rules->applyLambda(e);
         // Simplify recursively
         res = transitivityRule(res, simplify(res.getRHS()));
-        IF_DEBUG(debugger.counter("Expanded lambdas")++);
+        IF_DEBUG(debugger.counter("Expanded lambdas")++;)
         return res;
       }
       default: // A truly uninterpreted function
@@ -593,6 +593,61 @@ ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
     }
     }
     break; // end of case SIMPLIFY_LANGUAGE
+
+  case TPTP_LANG:
+    switch(e.getKind()) {
+    case OLD_ARROW:
+    case ARROW:
+      if(e.arity() < 2) e.printAST(os);
+      else {
+	os << "(" << push;
+	bool first(true);
+	for(int i=0, iend=e.arity()-1; i<iend; ++i) {
+	  if(first) first=false;
+	  else os << " * " ;
+	  os << e[i];
+	}
+	os << ")" ;
+	os <<  " > "  << e[e.arity()-1];
+      }
+      break;
+
+    case LAMBDA: {
+      os<<"ERROR:LAMBDA:unsupported in TPTP\n";
+      break;
+    }
+    case TRANS_CLOSURE:
+      os<<"ERROR:TRANS_CLOSURE:unsupported in TPTP\n";
+      break;
+    case TYPEDECL:
+      if(e.arity() != 1) e.printAST(os);
+      else os << e[0].getString();
+      break;
+
+    case UFUNC:
+      DebugAssert(e.isSymbol(), "Expected symbol");
+      os << to_lower(e.getName());
+      break;
+
+    case APPLY:
+      if(e.isApply()) os <<e.getOpExpr()<<"(";
+      if(e.arity() > 0) {
+	bool first(true);
+	for (Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i) {
+	  if(first) first = false;
+	  else os << "," ;
+	  os << *i;
+	}
+      os <<  ")";
+      }
+      break;
+    default: {
+      DebugAssert(false, "TheoryUF::print: Unexpected expression: "
+		  +getEM()->getKindName(e.getKind()));
+    }
+    }
+    break; // end of case TPTP_LANGUAGE
+
 
   case PRESENTATION_LANG:
     switch(e.getKind()) {

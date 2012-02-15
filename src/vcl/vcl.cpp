@@ -30,6 +30,7 @@
 #include "theory_uf.h"
 #include "theory_arith_old.h"
 #include "theory_arith_new.h"
+#include "theory_arith3.h"
 #include "theory_bitvector.h"
 #include "theory_array.h"
 #include "theory_quant.h"
@@ -42,15 +43,15 @@
 #include "eval_exception.h"
 #include "expr_transform.h"
 #include "theorem_manager.h"
+#include "assumptions.h"
 
-
-namespace CVC3{
-  VCL* myvcl;
-}
 
 using namespace std;
 using namespace CVC3;
 
+//namespace CVC3{
+//  VCL* myvcl;
+//}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Static ValidityChecker methods
@@ -96,6 +97,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("iteLiftArith", CLFlag(false, "For translation.  If true, ite's are lifted out of arith exprs."));
   flags.addFlag("convertArray", CLFlag(false, "For translation.  If true, arrays are converted to uninterpreted functions if possible."));
   flags.addFlag("combineAssump", CLFlag(false, "For translation.  If true, assumptions are combined into the query."));
+  flags.addFlag("convert2array", CLFlag(false, "For translation. If true, try to convert to array-only theory"));
 
   // Parser related flags
   flags.addFlag("old-func-syntax",CLFlag(false, "Enable parsing of old-style function syntax"));
@@ -106,7 +108,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("lang", CLFlag("presentation", "Input language "
 			       "(presentation, smtlib, internal)"));
   flags.addFlag("output-lang", CLFlag("", "Output language "
-				      "(presentation, smtlib, simplify, internal, lisp)"));
+				      "(presentation, smtlib, simplify, internal, lisp, tptp)"));
   flags.addFlag("indent", CLFlag(false, "Print expressions with indentation"));
   flags.addFlag("width", CLFlag(80, "Suggested line width for printing"));
   flags.addFlag("print-depth", CLFlag(-1, "Max. depth to print expressions "));
@@ -123,6 +125,9 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("check-proofs",
 		CLFlag(IF_DEBUG(true ||) false, "Check proofs on-the-fly"));
   flags.addFlag("minimizeClauses", CLFlag(false, "Use brute-force minimization of clauses"));
+  flags.addFlag("dynack", CLFlag(false, "Use dynamic Ackermannization"));
+  flags.addFlag("smart-clauses", CLFlag(true, "Learn multiple clauses per conflict"));
+
 
   // Core framework switches
   flags.addFlag("tcc", CLFlag(false, "Check TCCs for each ASSERT and QUERY"));
@@ -134,10 +139,13 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("un-ite-ify", CLFlag(false, "Unconvert ITE expressions"));
   flags.addFlag("ite-cond-simp",
 		CLFlag(false, "Replace ITE condition by TRUE/FALSE in subexprs"));
+  flags.addFlag("preprocess", CLFlag(true, "Preprocess queries"));
   flags.addFlag("pp-pushneg", CLFlag(false, "Push negation in preprocessor"));
+  flags.addFlag("pp-bryant", CLFlag(false, "Enable Bryant algorithm for UF"));
   flags.addFlag("pushneg", CLFlag(true, "Push negation while simplifying"));
   flags.addFlag("simp-and", CLFlag(false, "Rewrite x&y to x&y[x/true]"));
   flags.addFlag("simp-or", CLFlag(false, "Rewrite x|y to x|y[x/false]"));
+  flags.addFlag("pp-batch", CLFlag(false, "Ignore assumptions until query, then process all at once"));
   // Concrete model generation (counterexamples) flags
   flags.addFlag("applications", CLFlag(true, "Add relevant function applications and array accesses to the concrete countermodel"));
   // Debugging flags (only for the debug build)
@@ -151,13 +159,20 @@ CLFlags ValidityChecker::createFlags() {
 
   // Arithmetic
   flags.addFlag("arith-new",CLFlag(false, "Use new arithmetic dp"));
+  flags.addFlag("arith3",CLFlag(false, "Use old arithmetic dp that works well with combined theories"));
   flags.addFlag("var-order",
 		CLFlag(false, "Use simple variable order in arith"));
   flags.addFlag("ineq-delay", CLFlag(10, "Accumulate this many inequalities "
 				     "before processing"));
 
+  flags.addFlag("grayshadow-threshold", CLFlag(-1, "Ignore gray shadows bigger than this (makes solver incomplete)"));
+  flags.addFlag("pathlength-threshold", CLFlag(-1, "Ignore gray shadows bigger than this (makes solver incomplete)"));
+  
   // Arrays
   flags.addFlag("liftReadIte", CLFlag(true, "Lift read of ite"));
+
+  // Negate the query when translate into tptp
+  flags.addFlag("negate-query", CLFlag(true, "Negate the query when translate into TPTP format"));;
 
   // Quantifiers
   flags.addFlag("max-quant-inst", CLFlag(200, "The maximum number of"
@@ -198,6 +213,10 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("quant-inst-gcache", 
                 CLFlag(false, "Cache instantiations"));
 
+  flags.addFlag("quant-inst-tcache", 
+                CLFlag(false, "Cache instantiations"));
+
+
   flags.addFlag("quant-inst-true", 
                 CLFlag(true, "Ignore true instantiations"));
 
@@ -211,10 +230,13 @@ CLFlags ValidityChecker::createFlags() {
                 CLFlag(true, "Use instantiation level"));
 
   flags.addFlag("quant-polarity", 
-                CLFlag(true, "Use polarity "));
+                CLFlag(false, "Use polarity "));
 
   flags.addFlag("quant-equ", 
                 CLFlag(true, "Use equality matching"));
+  flags.addFlag("quant-newequ", 
+                CLFlag(true, "Use new equality matching"));
+
 
   flags.addFlag("quant-max-score", 
                 CLFlag(0, "Maximum initial dynamic score"));
@@ -229,7 +251,20 @@ CLFlags ValidityChecker::createFlags() {
                 CLFlag(true, "Use trans2 heuristic"));
 
   flags.addFlag("quant-naive-num", 
-                CLFlag(100, "Maximum number to call niave instantiation"));
+                CLFlag(1000, "Maximum number to call naive instantiation"));
+
+  flags.addFlag("quant-naive-inst", 
+                CLFlag(true, "Use naive instantiation"));
+
+
+  flags.addFlag("quant-man-trig", 
+                CLFlag(true, "Use manual triggers"));
+
+  flags.addFlag("quant-gfact", 
+                CLFlag(false, "Send facts to core directly"));
+
+  flags.addFlag("quant-glimit", 
+                CLFlag(1000, "Limit for gfacts"));
 
   
   //Bitvectors
@@ -375,23 +410,40 @@ void VCL::dumpTrace(int scope) {
 
 
 VCL::VCL(const CLFlags& flags)
-  : d_flags(new CLFlags(flags)), d_nextIdx(0)
+  : d_flags(new CLFlags(flags))
 {
   // Set the dependent flags so that they are consistent
 
-  if ((*d_flags)["translate"].getBool())
+  if ((*d_flags)["translate"].getBool()) {
     d_flags->setFlag("printResults", false);
+  }
+
+  if ((*d_flags)["pp-bryant"].getBool()) {
+    d_flags->setFlag("pp-batch", true);
+  }    
+
 
   IF_DEBUG( // Initialize the global debugger
 	   CVC3::debugger.init(&((*d_flags)["trace"].getStrVec()),
-                               &((*d_flags)["dump-trace"].getString()))
-  );
+                               &((*d_flags)["dump-trace"].getString()));
+  )
+  init();
+}
+
+
+void VCL::init()
+{
+  d_nextIdx = 0;
+
+  d_statistics = new Statistics();
 
   d_cm = new ContextManager();
 
   // Initialize the database of user assertions.  It has to be
   // initialized after d_cm.
   d_userAssertions = new(true) CDMap<Expr,UserAssertion>(getCurrentContext());
+  d_batchedAssertions = new(true) CDList<Expr>(getCurrentContext());
+  d_batchedAssertionsIdx = new(true) CDO<unsigned>(getCurrentContext(), 0);
 
   d_em = new ExprManager(d_cm, *d_flags);
 
@@ -411,7 +463,9 @@ VCL::VCL(const CLFlags& flags)
 
   d_dump = d_translator->start((*d_flags)["dump-log"].getString());
 
-  d_theoryCore = new TheoryCore(d_cm, d_em, d_tm, d_translator, *d_flags, d_statistics);
+  d_theoryCore = new TheoryCore(d_cm, d_em, d_tm, d_translator, *d_flags, *d_statistics);
+
+  DebugAssert(d_theories.size() == 0, "Expected empty theories array");
   d_theories.push_back(d_theoryCore);
 
   // Fast rewriting of literals is done by setting their find to true or false.
@@ -422,6 +476,9 @@ VCL::VCL(const CLFlags& flags)
 
   if ((*d_flags)["arith-new"].getBool()) {
     d_theories.push_back(d_theoryArith = new TheoryArithNew(d_theoryCore));
+  }
+  else if ((*d_flags)["arith3"].getBool()) {
+    d_theories.push_back(d_theoryArith = new TheoryArith3(d_theoryCore));
   }
   else {
     d_theories.push_back(d_theoryArith = new TheoryArithOld(d_theoryCore));
@@ -468,12 +525,12 @@ VCL::VCL(const CLFlags& flags)
   d_stackLevel = new(true) CDO<int>(d_cm->getCurrentContext(), 0);
 
   d_theoryCore->setResourceLimit((unsigned)((*d_flags)["resource"].getInt()));
-
-  myvcl = this;
+  
+  //  myvcl = this; 
 }
 
 
-VCL::~VCL()
+void VCL::destroy()
 {
   popto(0);
   d_cm->popto(0);
@@ -488,6 +545,10 @@ VCL::~VCL()
   // This map contains expressions and theorems; delete it before
   // d_em, d_tm, and d_cm.
   TRACE_MSG("delete", "Deleting d_userAssertions {");
+  delete d_batchedAssertionsIdx;
+  free(d_batchedAssertionsIdx);
+  delete d_batchedAssertions;
+  free(d_batchedAssertions);
   delete d_userAssertions;
   free(d_userAssertions);
   TRACE_MSG("delete", "Finished deleting d_userAssertions }");
@@ -500,16 +561,16 @@ VCL::~VCL()
   d_em->clear();
   d_tm->clear();
   TRACE_MSG("delete", "Finished clearing d_em }");
-  TRACE_MSG("delete", "Deleting d_cm {");
-  delete d_cm;
-  TRACE_MSG("delete", "Finished deleting d_cm }");
 
-  for(size_t i=0; i<d_theories.size(); ++i) {
+  for(size_t i=d_theories.size(); i!= 0; ) {
+    --i;
     string name(d_theories[i]->getName());
     TRACE("delete", "Deleting Theory[", name, "] {");
     delete d_theories[i];
     TRACE("delete", "Finished deleting Theory[", name, "] }");
   }
+  d_theories.clear();
+
   // TheoremManager does not call ~Theorem() destructors, and only
   // releases memory.  At worst, we'll lose some Assumptions.
   TRACE_MSG("delete", "Deleting d_tm {");
@@ -520,6 +581,17 @@ VCL::~VCL()
   delete d_em;
   TRACE_MSG("delete", "Finished deleting d_em }");
 
+  TRACE_MSG("delete", "Deleting d_cm {");
+  delete d_cm;
+  TRACE_MSG("delete", "Finished deleting d_cm }");
+  delete d_statistics;
+  TRACE_MSG("delete", "Finished deleting d_statistics }");
+}
+
+
+VCL::~VCL()
+{
+  destroy();
   TRACE_MSG("delete", "Deleting d_flags [end of ~VCL()]");
   delete d_flags;
   // No more TRACE-ing after this point (it needs d_flags)
@@ -541,20 +613,39 @@ void VCL::reprocessFlags() {
                         +(*d_flags)["sat"].getString());
   }
 
-  if (d_theoryArith->getName() == "ArithmeticOld" &&
-      (*d_flags)["arith-new"].getBool()) {
+  int arithCur;
+  if (d_theoryArith->getName() == "ArithmeticOld") arithCur = 1;
+  else if (d_theoryArith->getName() == "ArithmeticNew") arithCur = 2;
+  else {
+    DebugAssert(d_theoryArith->getName() == "Arithmetic3", "unexpected name");
+    arithCur = 3;
+  }
+
+  int arithNext;
+  if ((*d_flags)["arith-new"].getBool()) arithNext = 2;
+  else if ((*d_flags)["arith3"].getBool()) arithNext = 3;
+  else arithNext = 1;
+
+  if (arithCur != arithNext) {
     delete d_theoryArith;
-    d_theoryArith = new TheoryArithNew(d_theoryCore);
+    switch (arithNext) {
+      case 1:
+        d_theoryArith = new TheoryArithOld(d_theoryCore);
+        break;
+      case 2:
+        d_theoryArith = new TheoryArithNew(d_theoryCore);
+        break;
+      case 3:
+        d_theoryArith = new TheoryArith3(d_theoryCore);
+        break;
+    }
     d_theories[2] = d_theoryArith;
     d_translator->setTheoryArith(d_theoryArith);
   }
-  else if (d_theoryArith->getName() == "ArithmeticNew" &&
-           !(*d_flags)["arith-new"].getBool()) {
-    delete d_theoryArith;
-    d_theoryArith = new TheoryArithOld(d_theoryCore);
-    d_theories[2] = d_theoryArith;
-    d_translator->setTheoryArith(d_theoryArith);
-  }
+
+  if ((*d_flags)["pp-bryant"].getBool()) {
+    d_flags->setFlag("pp-batch", true);
+  }    
 
   //TODO: handle more flags
 }
@@ -749,8 +840,7 @@ Type VCL::createType(const string& typeName, const Type& def)
 
 Type VCL::lookupType(const string& typeName)
 {
-  // TODO: check if it already exists
-  return d_theoryCore->newTypeExpr(typeName);
+  return d_theoryCore->lookupTypeExpr(typeName);
 }
 
 
@@ -806,12 +896,6 @@ Expr VCL::varExpr(const string& name, const Type& type, const Expr& def)
     }
   }
   return d_theoryCore->newVar(name, type, def);
-}
-
-
-Expr VCL::boundVarExpr(const string& name, const string& uid, 
-		       const Type& type) {
-  return d_em->newBoundVarExpr(name, uid, type);
 }
 
 
@@ -1377,6 +1461,12 @@ Expr VCL::newBVNorExpr(const Expr& t1, const Expr& t2)
 }
 
 
+Expr VCL::newBVCompExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVCompExpr(t1, t2);
+}
+
+
 Expr VCL::newBVLTExpr(const Expr& t1, const Expr& t2)
 {
   return d_theoryBitvector->newBVLTExpr(t1, t2);
@@ -1421,13 +1511,13 @@ Expr VCL::newBVSubExpr(const Expr& t1, const Expr& t2)
 
 Expr VCL::newBVPlusExpr(int numbits, const std::vector<Expr>& k)
 {
-  return d_theoryBitvector->newBVPlusExpr(numbits, k);
+  return d_theoryBitvector->newBVPlusPadExpr(numbits, k);
 }
 
 
 Expr VCL::newBVMultExpr(int numbits, const Expr& t1, const Expr& t2)
 {
-  return d_theoryBitvector->newBVMultExpr(numbits, t1, t2);
+  return d_theoryBitvector->newBVMultPadExpr(numbits, t1, t2);
 }
 
 
@@ -1446,6 +1536,12 @@ Expr VCL::newFixedConstWidthLeftShiftExpr(const Expr& t1, int r)
 Expr VCL::newFixedRightShiftExpr(const Expr& t1, int r)
 {
   return d_theoryBitvector->newFixedRightShiftExpr(t1, r);
+}
+
+
+Rational VCL::computeBVConst(const Expr& e)
+{
+  return d_theoryBitvector->computeBVConst(e);
 }
 
 
@@ -1485,9 +1581,20 @@ Expr VCL::datatypeTestExpr(const string& constructor, const Expr& arg)
 }
 
 
+Expr VCL::boundVarExpr(const string& name, const string& uid, 
+		       const Type& type) {
+  return d_em->newBoundVarExpr(name, uid, type);
+}
+
+
 Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body) {
   DebugAssert(vars.size() > 0, "VCL::andExpr()");
   return d_em->newClosureExpr(FORALL, vars, body);
+}
+
+
+void VCL::setTriggers(const Expr& e, const std::vector<Expr>& triggers) {
+  e.setTriggers(triggers);
 }
 
 
@@ -1572,20 +1679,26 @@ void VCL::assertFormula(const Expr& e)
   }
 
   TRACE("assetFormula", "VCL::assertFormula(", e, ") {");
-  // See if e was already asserted before
-  if(d_userAssertions->count(e) > 0) {
-    TRACE_MSG("assertFormula", "VCL::assertFormula[repeated assertion] => }");
-    return;
-  }
-  // Check the validity of the TCC
-  Theorem tccThm;
-  if(getFlags()["tcc"].getBool()) {
-    Expr tcc(d_theoryCore->getTCC(e));
-    tccThm = checkTCC(tcc);
-  }
 
-  Theorem thm = d_se->newUserAssumption(e);
-  (*d_userAssertions)[e] = UserAssertion(thm, tccThm, d_nextIdx++);
+  if (getFlags()["pp-batch"].getBool()) {
+    d_batchedAssertions->push_back(e);
+  }
+  else {
+    // See if e was already asserted before
+    if(d_userAssertions->count(e) > 0) {
+      TRACE_MSG("assertFormula", "VCL::assertFormula[repeated assertion] => }");
+      return;
+    }
+    // Check the validity of the TCC
+    Theorem tccThm;
+    if(getFlags()["tcc"].getBool()) {
+      Expr tcc(d_theoryCore->getTCC(e));
+      tccThm = checkTCC(tcc);
+    }
+
+    Theorem thm = d_se->newUserAssumption(e);
+    (*d_userAssertions)[e] = UserAssertion(thm, tccThm, d_nextIdx++);
+  }
   TRACE_MSG("assertFormula", "VCL::assertFormula => }");
 }
 
@@ -1637,15 +1750,29 @@ QueryResult VCL::query(const Expr& e)
     if (d_translator->dumpQuery(e)) return UNKNOWN;
   }
 
+  Expr qExpr = e;
+  if (getFlags()["pp-batch"].getBool()) {
+    // Add batched assertions
+    vector<Expr> kids;
+    for (; (*d_batchedAssertionsIdx) < d_batchedAssertions->size();
+         (*d_batchedAssertionsIdx) = (*d_batchedAssertionsIdx) + 1) {
+      kids.push_back((*d_batchedAssertions)[(*d_batchedAssertionsIdx)]);
+    }
+    if (kids.size() > 0) {
+      qExpr = Expr(AND, kids);
+      qExpr = qExpr.impExpr(e);
+    }
+  }
+
   // Check the validity of the TCC
   Theorem tccThm = d_se->getCommonRules()->trueTheorem();
   if(getFlags()["tcc"].getBool()) {
-    Expr tcc(d_theoryCore->getTCC(e));
+    Expr tcc(d_theoryCore->getTCC(qExpr));
     // FIXME: we have to guarantee that the TCC of 'tcc' is always valid
     tccThm = checkTCC(tcc);
   }
   Theorem res;
-  QueryResult qres = d_se->checkValid(e, res);
+  QueryResult qres = d_se->checkValid(qExpr, res);
   switch (qres) {
     case VALID:
       d_lastQuery = d_se->getCommonRules()->queryTCC(res, tccThm);
@@ -1725,6 +1852,21 @@ void VCL::getAssumptions(vector<Expr>& assumptions)
     d_translator->dump(d_em->newLeafExpr(ASSUMPTIONS), true);
   }
   d_se->getAssumptions(assumptions);
+}
+
+
+//yeting, for proof translation
+Expr VCL::getProofQuery()
+{
+  if (d_lastQuery.isNull()){
+    throw EvalException
+      ("Invalid Query,n");
+  }
+  return d_lastQuery.getExpr();
+
+  //  Theorem thm = d_se->lastThm();
+  //  if (thm.isNull()) return;
+  //  thm.getLeafAssumptions(assumptions);
 }
 
 
@@ -1919,7 +2061,7 @@ void VCL::pushScope()
     d_translator->dump(d_em->newLeafExpr(PUSH_SCOPE), true);
   }
   IF_DEBUG(if((*d_flags)["dump-trace"].getString() != "")
-	   dumpTrace(scopeLevel()));
+	   dumpTrace(scopeLevel());)
 }
 
 
@@ -1934,7 +2076,7 @@ void VCL::popScope()
   }
   else d_cm->pop();
   IF_DEBUG(if((*d_flags)["dump-trace"].getString() != "")
-	   dumpTrace(scopeLevel()));
+	   dumpTrace(scopeLevel());)
 }
 
 
@@ -1950,7 +2092,7 @@ void VCL::poptoScope(int toLevel)
   }
   else d_cm->popto(toLevel);
   IF_DEBUG(if((*d_flags)["dump-trace"].getString() != "")
-	   dumpTrace(scopeLevel()));
+	   dumpTrace(scopeLevel());)
 }
 
 
@@ -1960,11 +2102,17 @@ Context* VCL::getCurrentContext()
 }
 
 
+void VCL::reset()
+{
+  destroy();
+  init();
+}
+
 void VCL::loadFile(const string& fileName, InputLanguage lang,
-		   bool interactive) {
+		   bool interactive, bool calledFromParser) {
   // TODO: move these?
   Parser parser(this, lang, interactive, fileName);
-  VCCmd cmd(this, &parser);
+  VCCmd cmd(this, &parser, calledFromParser);
   cmd.processCommands();
 }
 

@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sstream>
+#include <math.h>
 
 #define OVERFLOW_MSG "\nThis is NOT a bug, but an explicit feature to preserve soundness\nwhen CVC3 uses native computer arithmetic (finite precision).  To\navoid this type of errors, please recompile CVC3 with GMP library."
 
@@ -476,6 +477,20 @@ namespace CVC3 {
     return(Rational(Rational::Impl(r,1)));
   }
   
+  Rational intRoot(const Rational& base, unsigned long int n) {
+    checkInt(base, "intRoot(*x*,y)");
+    checkInt(n, "intRoot(x,*y*)");
+    double b = base.d_n->getNum();
+    double root = n;
+    root = 1/root;
+    b = ::pow(b, root);
+    long res = (long) ::floor(b);
+    if (res ^ ((long)n) == base.d_n->getNum()) {
+      return Rational(Rational::Impl(res,1));
+    }
+    return Rational(Rational::Impl((long)0,(long)1));
+  }
+
   string Rational::toString(int base) const {
     return(d_n->toString(base));
   }
@@ -587,6 +602,6 @@ namespace CVC3 {
       return Rational(Rational::Impl(*n1.d_n + *n2.d_n));
     }
 
-}; /* close namespace */
+} /* close namespace */
 
 #endif

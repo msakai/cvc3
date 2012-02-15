@@ -1,5 +1,7 @@
-include Makefile.local
+SHELL = /bin/bash
 
+include Makefile.local
+ 
 # The list of Makefiles and other important script sources which must
 # be included in any distribution.
 DISTFILES = \

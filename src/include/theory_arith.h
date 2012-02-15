@@ -69,6 +69,7 @@ class TheoryArith :public Theory {
  protected:
   Type d_realType;
   Type d_intType;
+  std::vector<int> d_kinds;
 
  protected:
 

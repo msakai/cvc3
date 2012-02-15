@@ -53,10 +53,10 @@ class CDO :public ContextObj {
 
 public:
   CDO(Context* context) : ContextObj(context)
-    { IF_DEBUG(setName("CDO")); }
+    { IF_DEBUG(setName("CDO");) }
   CDO(Context* context, const T& data, int scope = -1)
     : ContextObj(context) {
-    IF_DEBUG(setName("CDO"));     
+    IF_DEBUG(setName("CDO"));   ; 
     set(data, scope);
   }
   ~CDO() {}

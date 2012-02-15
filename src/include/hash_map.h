@@ -198,6 +198,11 @@ namespace Hash {
       return d_table.erase(key);
     }
 
+    // removes element pointed to by iter,
+    // returns element after iter.
+    const_iterator erase(const const_iterator& i) {
+      return d_table.erase(i);
+    }
 
 
     /// status

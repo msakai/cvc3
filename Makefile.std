@@ -67,10 +67,10 @@ ifeq ($(OPTGDB),1)
   DEBUG_PLATFORM =
 else
 ifeq ($(OPTIMIZED),1)
-  LOCAL_CXXFLAGS = -O2
+  LOCAL_CXXFLAGS = -O9 -funroll-all-loops -fexpensive-optimizations
   DEBUG_PLATFORM =
 else
-  LOCAL_CXXFLAGS = -DDEBUG -g
+  LOCAL_CXXFLAGS = -DDEBUG -g -O0
   DEBUG_PLATFORM = -debug
 endif
 endif
@@ -145,6 +145,11 @@ ifndef TRANSIENT
   TRANSIENT=
 endif
 
+#Default is to build individual shared libraries
+ifndef BUILD_SHARED_LIB
+  BUILD_SHARED_LIB=1
+endif
+
 LOCAL_CXXFLAGS += -Wall $(INCLUDE_DIR)
 
 ifdef EXTRAFLAGS
@@ -205,7 +210,9 @@ SHARED_LIB_TARGET = $(LIB_DIR)/$(SHARED_LIBRARY)
 BUILD_SPECIFIC_TARGET = $(STATIC_LIB_TARGET)
 
 ifneq ($(STATIC),1)
+ifeq ($(BUILD_SHARED_LIB),1)
   BUILD_SPECIFIC_TARGET += $(SHARED_LIB_TARGET)
+endif
 endif
 
 all: $(BUILD_SPECIFIC_TARGET)

@@ -63,6 +63,8 @@ namespace CVC3 {
     // a Boolean
     operator bool() const { return done(); }
     void printLocation(std::ostream & out) const;
+    // Reset any local data that depends on validity checker
+    void reset();
   }; // end of class Parser
 
   // The global pointer to ParserTemp.  Each instance of class Parser

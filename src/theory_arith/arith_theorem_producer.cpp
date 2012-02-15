@@ -1151,7 +1151,148 @@ ArithTheoremProducer::canonComboLikeTerms(const Expr& e) {
 }
 
 
+// 0 = (* e1 e2 ...) <=> 0 = e1 OR 0 = e2 OR ...
+Theorem ArithTheoremProducer::multEqZero(const Expr& expr)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.isEq() && expr[0].isRational() &&
+                expr[0].getRational() == 0 &&
+                isMult(expr[1]) && expr[1].arity() > 1,
+                "multEqZero invariant violated"+expr.toString());
+  }
+  Proof pf;
+  vector<Expr> kids;
+  Expr::iterator i = expr[1].begin(), iend = expr[1].end();
+  for (; i != iend; ++i) {
+    kids.push_back(rat(0).eqExpr(*i));
+  }
+  if (withProof()) {
+    pf = newPf("multEqZero", expr);
+  }
+  return newRWTheorem(expr, Expr(OR, kids), Assumptions::emptyAssump(), pf);
+}
 
+
+// 0 = (^ c x) <=> false if c <=0
+//             <=> 0 = x if c > 0
+Theorem ArithTheoremProducer::powEqZero(const Expr& expr)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.isEq() && expr[0].isRational() &&
+                expr[0].getRational() == 0 &&
+                isPow(expr[1]) && expr[1].arity() == 2 &&
+                expr[1][0].isRational(),
+                "powEqZero invariant violated"+expr.toString());
+  }
+  Proof pf;
+  if (withProof()) {
+    pf = newPf("powEqZero", expr);
+  }
+  Rational r = expr[1][0].getRational();
+  Expr res;
+  if (r <= 0) {
+    res = d_em->falseExpr();
+  }
+  else {
+    res = rat(0).eqExpr(expr[1][1]);
+  }
+  return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
+}
+
+
+// x^n = y^n <=> x = y (if n is odd)
+// x^n = y^n <=> x = y OR x = -y (if n is even)
+Theorem ArithTheoremProducer::elimPower(const Expr& expr)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
+                isPow(expr[1]) &&
+                isIntegerConst(expr[0][0]) &&
+                expr[0][0].getRational() > 0 &&
+                expr[0][0] == expr[1][0],
+                "elimPower invariant violated"+expr.toString());
+  }
+  Proof pf;
+  if (withProof()) {
+    pf = newPf("elimPower", expr);
+  }
+  Rational r = expr[0][0].getRational();
+  Expr res = expr[0][1].eqExpr(expr[1][1]);
+  if (r % 2 == 0) {
+    res = res.orExpr(expr[0][1].eqExpr(-expr[1][1]));
+  }
+  return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
+}
+
+
+// x^n = c <=> x = root (if n is odd and root^n = c)
+// x^n = c <=> x = root OR x = -root (if n is even and root^n = c)
+Theorem ArithTheoremProducer::elimPowerConst(const Expr& expr, const Rational& root)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
+                isIntegerConst(expr[0][0]) &&
+                expr[0][0].getRational() > 0 &&
+                expr[1].isRational() &&
+                pow(expr[0][0].getRational(), root) == expr[1].getRational(),
+                "elimPowerConst invariant violated"+expr.toString());
+  }
+  Proof pf;
+  if (withProof()) {
+    pf = newPf("elimPowerConst", expr, rat(root));
+  }
+  Rational r = expr[0][0].getRational();
+  Expr res = expr[0][1].eqExpr(rat(root));
+  if (r % 2 == 0) {
+    res = res.orExpr(expr[0][1].eqExpr(rat(-root)));
+  }
+  return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
+}
+
+
+// x^n = c <=> false (if n is even and c is negative)
+Theorem ArithTheoremProducer::evenPowerEqNegConst(const Expr& expr)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
+                expr[1].isRational() &&
+                isIntegerConst(expr[0][0]) &&
+                expr[0][0].getRational() % 2 == 0 &&
+                expr[1].getRational() < 0,
+                "evenPowerEqNegConst invariant violated"+expr.toString());
+  }
+  Proof pf;
+  if (withProof()) {
+    pf = newPf("evenPowerEqNegConst", expr);
+  }
+  return newRWTheorem(expr, d_em->falseExpr(), Assumptions::emptyAssump(), pf);
+}
+
+
+// x^n = c <=> false (if x is an integer and c is not a perfect n power)
+Theorem ArithTheoremProducer::intEqIrrational(const Expr& expr, const Theorem& isIntx)
+{
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
+                expr[1].isRational() &&
+                expr[1].getRational() != 0 &&
+                isIntegerConst(expr[0][0]) &&
+                expr[0][0].getRational() > 0 &&
+                ratRoot(expr[1].getRational(), expr[0][0].getRational().getUnsigned()) == 0,
+                "intEqIrrational invariant violated"+expr.toString());
+    CHECK_SOUND(isIntPred(isIntx.getExpr()) && isIntx.getExpr()[0] == expr[0][1],
+		"ArithTheoremProducerOld::intEqIrrational:\n "
+		"wrong integrality constraint:\n expr = "
+		+expr.toString()+"\n isIntx = "
+		+isIntx.getExpr().toString());
+  }
+  const Assumptions& assump(isIntx.getAssumptionsRef());
+  Proof pf;
+  if (withProof()) {
+    pf = newPf("int_eq_irr", expr, isIntx.getProof());
+  }
+  return newRWTheorem(expr, d_em->falseExpr(), assump, pf);
+}
 
 
 // e[0] kind e[1] <==> true when e[0] kind e[1],
@@ -1262,6 +1403,16 @@ Theorem ArithTheoremProducer::multEqn(const Expr& x,
   return newRWTheorem(x.eqExpr(y), (x * z).eqExpr(y * z), Assumptions::emptyAssump(), pf);
 }
 
+
+// x = y <==> z=0 OR x * 1/z = y * 1/z
+Theorem ArithTheoremProducer::divideEqnNonConst(const Expr& x, 
+                                                const Expr& y,
+                                                const Expr& z) {
+  Proof pf;
+  if(withProof()) pf = newPf("mult_eqn_nonconst", x, y, z);
+  return newRWTheorem(x.eqExpr(y), (z.eqExpr(rat(0))).orExpr((x / z).eqExpr(y / z)),
+                      Assumptions::emptyAssump(), pf);
+}
 
 
 // if z is +ve, return e[0] LT|LE|GT|GE e[1] <==> e[0]*z LT|LE|GT|GE e[1]*z
@@ -1586,8 +1737,21 @@ Theorem ArithTheoremProducer::darkGrayShadow2ab(const Theorem& betaLEbx,
   thms.push_back(isIntBeta);
   thms.push_back(isIntx);
   Assumptions A(thms);
+
+  Expr bAlpha = multExpr(rat(b), alpha);
+  Expr aBeta = multExpr(rat(a), beta);
+  Expr t = minusExpr(bAlpha, aBeta);
+  Expr d = darkShadow(rat(a*b-1), t);
+  Expr g = grayShadow(ax, alpha, -a+1, 0);
+
   Proof pf;
   if(withProof()) {
+    vector<Expr> exprs;
+    exprs.push_back(expr1);
+    exprs.push_back(expr2);
+    exprs.push_back(d);
+    exprs.push_back(g);
+
     vector<Proof> pfs;
     pfs.push_back(betaLEbx.getProof());
     pfs.push_back(axLEalpha.getProof());
@@ -1595,14 +1759,9 @@ Theorem ArithTheoremProducer::darkGrayShadow2ab(const Theorem& betaLEbx,
     pfs.push_back(isIntBeta.getProof());
     pfs.push_back(isIntx.getProof());
     
-    pf = newPf("dark_grayshadow_2ab", expr1, expr2, pfs);
+    pf = newPf("dark_grayshadow_2ab", exprs, pfs);
   }
-  
-  Expr bAlpha = multExpr(rat(b), alpha);
-  Expr aBeta = multExpr(rat(a), beta);
-  Expr t = minusExpr(bAlpha, aBeta);
-  Expr d = darkShadow(rat(a*b-1), t);
-  Expr g = grayShadow(ax, alpha, -a+1, 0);
+
   return newTheorem((d || g) && (!d || !g), A, pf);
 }
 
@@ -1753,11 +1912,18 @@ Theorem ArithTheoremProducer::splitGrayShadow(const Theorem& gThm) {
   const Expr& e = theShadow[1];
 
   Proof pf;
-  if(withProof())
-    pf = newPf("expand_gray_shadow", theShadow, gThm.getProof());
   Rational c(floor((c1+c2) / 2));
   Expr g1(grayShadow(v, e, c1, c));
   Expr g2(grayShadow(v, e, c+1, c2));
+
+  if(withProof()){
+    vector<Expr> exprs;
+    exprs.push_back(theShadow); 
+    exprs.push_back(g1); 
+    exprs.push_back(g2); 
+    pf = newPf("split_gray_shadow", exprs, gThm.getProof());
+  }
+
   return newTheorem((g1 || g2) && (!g1 || !g2), gThm.getAssumptionsRef(), pf);
 }
 
@@ -1893,7 +2059,7 @@ ArithTheoremProducer::grayShadowConst(const Theorem& gThm) {
 	    : grayShadow(x, rat(0), newC1, newC2));
   Proof pf;
   if(withProof())
-    pf = newPf("gray_shadow_const", g, gThm.getProof());
+    pf = newPf("gray_shadow_const", g, newG, gThm.getProof());
   return newTheorem(newG, gThm.getAssumptionsRef(), pf);
 }
 
@@ -1943,17 +2109,19 @@ Theorem ArithTheoremProducer::lessThanToLE(const Theorem& less,
   thms.push_back(isIntRHS);
   Assumptions a(thms);
   Proof pf;
+  Expr le = changeRight?
+    leExpr(ineq[0], ineq[1] + rat(-1))
+    : leExpr(ineq[0] + rat(1), ineq[1]);
+
   if(withProof()) {
     vector<Proof> pfs;
     pfs.push_back(less.getProof());
     pfs.push_back(isIntLHS.getProof());
     pfs.push_back(isIntRHS.getProof());
     pf = newPf(changeRight? "lessThan_To_LE_rhs" : "lessThan_To_LE_lhs",
-	       ineq, pfs);
+	       ineq, le, pfs);
   }
-  Expr le = changeRight?
-    leExpr(ineq[0], ineq[1] + rat(-1))
-    : leExpr(ineq[0] + rat(1), ineq[1]);
+
   return newRWTheorem(ineq, le, a, pf);
 }
 
@@ -2414,7 +2582,7 @@ ArithTheoremProducer::eqElimIntRule(const Theorem& eqn, const Theorem& isIntx,
     vector<Theorem>::const_iterator i=isIntVars.begin(), iend=isIntVars.end();
     for(; i!=iend; ++i) 
       pfs.push_back(i->getProof());
-    pf = newPf("eq_elim_int", eqn.getExpr(), pfs);
+    pf = newPf("eq_elim_int", eqn.getExpr(), res , pfs);
   }
 
   Theorem thm(newTheorem(res, assump, pf));
@@ -2913,3 +3081,118 @@ Theorem ArithTheoremProducer::rafineStrictInteger(const Theorem& isIntConstrThm,
 	return newRWTheorem(constr, newConstr, assump, pf); 
 }
 
+// 
+// This one is here just to compile... the code is in old arithmetic
+Theorem ArithTheoremProducer::simpleIneqInt(const Expr& ineq, const Theorem& isIntRHS)
+{
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+// Given:
+// 0 = c + t
+// where t is integer and c is not
+// deduce bot
+Theorem ArithTheoremProducer::intEqualityRationalConstant(const Theorem& isIntConstrThm, const Expr& constr) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::cycleConflict(const vector<Theorem>& inequalitites) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::implyEqualities(const vector<Theorem>& inequalitites) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+/*! Takes a Theorem(\\alpha < \\beta) and returns 
+ *  Theorem(\\alpha < \\beta <==> \\alpha <= \\beta -1)
+ * where \\alpha and \\beta are integer expressions
+ */
+Theorem ArithTheoremProducer::lessThanToLERewrite(const Expr& ineq,
+					   const Theorem& isIntLHS,
+					   const Theorem& isIntRHS,
+					   bool changeRight) {
+  
+	const Expr& isIntLHSexpr = isIntLHS.getExpr();
+	const Expr& isIntRHSexpr = isIntRHS.getExpr();
+  
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(isLT(ineq), "ArithTheoremProducerOld::LTtoLE: ineq must be <");
+		// Integrality check
+		CHECK_SOUND(isIntPred(isIntLHSexpr)	&& isIntLHSexpr[0] == ineq[0],
+		"ArithTheoremProducerOld::lessThanToLE: bad integrality check:\n"
+		" ineq = "+ineq.toString()+"\n isIntLHS = "
+		+isIntLHSexpr.toString());
+		CHECK_SOUND(isIntPred(isIntRHSexpr) && isIntRHSexpr[0] == ineq[1],
+		"ArithTheoremProducerOld::lessThanToLE: bad integrality check:\n"
+		" ineq = "+ineq.toString()+"\n isIntRHS = "
+		+isIntRHSexpr.toString());
+	}
+	
+	vector<Theorem> thms;
+	thms.push_back(isIntLHS);
+	thms.push_back(isIntRHS);
+	Assumptions a(thms);
+	Proof pf;
+	Expr le = changeRight? leExpr(ineq[0], ineq[1] + rat(-1)) : leExpr(ineq[0] + rat(1), ineq[1]);
+	if(withProof()) {
+		vector<Proof> pfs;		
+		pfs.push_back(isIntLHS.getProof());
+		pfs.push_back(isIntRHS.getProof());
+		pf = newPf(changeRight? "lessThan_To_LE_rhs" : "lessThan_To_LE_lhs", le, pfs);
+	}
+
+	return newRWTheorem(ineq, le, a, pf);
+}
+
+
+Theorem ArithTheoremProducer::splitGrayShadowSmall(const Theorem& gThm) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::implyWeakerInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::implyNegatedInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::expandGrayShadowRewrite(const Expr& theShadow) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::compactNonLinearTerm(const Expr& nonLinear) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::nonLinearIneqSignSplit(const Theorem& ineqThm) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::implyDiffLogicBothBounds(const Expr& x,
+							std::vector<Theorem>& c1_le_x, Rational c1, 
+    						std::vector<Theorem>& x_le_c2, Rational c2) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::addInequalities(const vector<Theorem>& thms) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}
+
+Theorem ArithTheoremProducer::powerOfOne(const Expr& e) {
+	DebugAssert(false, "Not implemented!!!");
+	return Theorem();
+}

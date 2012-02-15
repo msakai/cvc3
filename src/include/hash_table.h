@@ -498,6 +498,38 @@ namespace Hash {
       return 0;
     }
 
+    // removes element pointed to by iter,
+    // returns element after iter.
+    const_iterator erase(const const_iterator& iter) {
+      const_iterator next(iter);
+      ++next;
+
+      const key_type& key = extractKey(*iter);
+      size_type index = getBucketIndex(key);
+
+      // keep track of the node previous to the current one
+      BucketNode* prev = NULL;
+      for (BucketNode* node = d_data[index]; node != NULL; node = node->d_next) {
+	if (equal(extractKey(node->d_value), key)) {
+	  --d_size;
+	  
+	  // remove the bucket's head
+	  if (prev == NULL) {
+	    d_data[index] = node->d_next;
+	  }
+	  // remove within the list;
+	  else {
+	    prev->d_next = node->d_next;
+	  }
+	  delete node;
+	  return next;
+	}
+
+	prev = node;
+      }
+      
+      return next;
+    }
 
 
     /// status

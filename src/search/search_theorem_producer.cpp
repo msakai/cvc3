@@ -1377,7 +1377,7 @@ Expr SearchEngineTheoremProducer::findInLocalCache(const Expr& i,
   Expr v;
   if(it != localCache.end()) {
     v = ((*it).second)[1];
-    IF_DEBUG(debugger.counter("CNF Local Cache Hits")++);
+    IF_DEBUG(debugger.counter("CNF Local Cache Hits")++;)
   }
   else {
     v = d_em->newBoundVarExpr(i.getType());
@@ -1389,3 +1389,12 @@ Expr SearchEngineTheoremProducer::findInLocalCache(const Expr& i,
   TRACE("mycnf", "findInLocalCache => ", v, " }");
   return v;
 }
+
+// theorem for minisat generated proofs,  by yeting
+Theorem SearchEngineTheoremProducer::satProof(const Expr& queryExpr, const Proof& satProof) {
+  Proof pf;
+  if(withProof())
+    pf = newPf("minisat_proof", queryExpr, satProof);
+  return newTheorem(queryExpr, Assumptions::emptyAssump() , pf);
+}
+

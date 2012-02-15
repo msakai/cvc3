@@ -78,6 +78,12 @@ namespace CVC3 {
     //! If there are too few elements, a non BVPLUS expression will be created.
     Expr sumNormalizedElements(int bvplusLength,
 			       const std::vector<Expr>& elements);
+
+    void getPlusTerms(const Expr& e, Rational& known_term, ExprMap<Rational>& sumHashMap);
+    Expr buildPlusTerm(int bv_size, Rational& known_term, ExprMap<Rational>& sumHashMap);
+    Expr processExtract(const Expr& ext, const Expr& rhs);
+    Expr chopConcat(int bv_size, Rational c, std::vector<Expr>& concatKids);
+
   public:
     //! Constructor: constructs an instance of bitvector DP
     BitvectorTheoremProducer(TheoryBitvector* theoryBitvector);
@@ -150,10 +156,14 @@ namespace CVC3 {
 			 const Theorem& topBit0, 
 			 const Theorem& topBit1);
 
+    /*! NOT(e[0][0] = e[0][1]) <==> e[0][0] = ~e[0][1]
+     */
+    Theorem notBVEQ1Rule(const Expr& e);
+
     /*! NOT(e[0][0] < e[0][1]) <==> (e[0][1] <= e[0][0]), 
      *  NOT(e[0][0] <= e[0][1]) <==> (e[0][1] < e[0][0])
      */    
-    Theorem notBVLTRule(const Expr& e, int Kind);
+    Theorem notBVLTRule(const Expr& e);
 
     //! if(lhs==rhs) then we have (lhs < rhs <==> false),(lhs <= rhs <==> true)
     Theorem lhsEqRhsIneqn(const Expr& e, int kind);
@@ -169,6 +179,11 @@ namespace CVC3 {
     // Bitblasting rules for terms
     ////////////////////////////////////////////////////////////////////
 
+    // Input: |- BOOLEXTRACT(a,0) <=> bc_0, ... BOOLEXTRACT(a,n-1) <=> bc_(n-1)
+    // where each bc_0 is TRUE or FALSE
+    // Output: |- a = c
+    // where c is an n-bit constant made from the values bc_0..bc_(n-1)
+    Theorem bitExtractAllToConstEq(std::vector<Theorem>& thms);
     //! t[i] ==> t[i:i] = 0bin1   or    NOT t[i] ==> t[i:i] = 0bin0
     Theorem bitExtractToExtract(const Theorem& thm);
     //! t[i] <=> t[i:i][0]   (to use rewriter for simplifying t[i:i])
@@ -284,6 +299,22 @@ namespace CVC3 {
     Theorem bitExtractFixedLeftShift(const Expr & x, int i);   
 
     Theorem bitExtractFixedRightShift(const Expr & x, int i);   
+
+    // BOOLEXTRACT(bvshl(t,s),i) <=> ((s = 0) AND BOOLEXTRACT(t,i)) OR
+    //                               ((s = 1) AND BOOLEXTRACT(t,i-1)) OR ...
+    //                               ((s = i) AND BOOLEXTRACT(t,0))
+    Theorem bitExtractBVSHL(const Expr & x, int i);
+
+    // BOOLEXTRACT(bvlshr(t,s),i) <=> ((s = 0) AND BOOLEXTRACT(t,i)) OR
+    //                                ((s = 1) AND BOOLEXTRACT(t,i+1)) OR ...
+    //                                ((s = n-1-i) AND BOOLEXTRACT(t,n-1))
+    Theorem bitExtractBVLSHR(const Expr & x, int i);
+
+    // BOOLEXTRACT(bvashr(t,s),i) <=> ((s = 0) AND BOOLEXTRACT(t,i)) OR
+    //                                ((s = 1) AND BOOLEXTRACT(t,i+1)) OR ...
+    //                                ((s >= n-1-i) AND BOOLEXTRACT(t,n-1))
+    Theorem bitExtractBVASHR(const Expr & x, int i);
+
     /*! \param e : input1 is bitvector term
      *  \param r : input2 is extracted bitposition
      *
@@ -306,6 +337,12 @@ namespace CVC3 {
     Theorem constWidthLeftShiftToConcat(const Expr& e);
     //! t>>m = 0bin00...00 @ t[bvlength-1:m], takes e == (t>>n)
     Theorem rightShiftToConcat(const Expr& e);
+    //! BVSHL(t,c) = t[n-c,0] @ 0bin00...00
+    Theorem bvshlToConcat(const Expr& e);
+    //! BVLSHR(t,c) = 0bin00...00 @ t[n-1,c]
+    Theorem bvlshrToConcat(const Expr& e);
+    //! BVASHR(t,c) = SX(t[n-1,c], n-1)
+    Theorem bvashrToConcat(const Expr& e);
     //! a XOR b <=> (a & ~b) | (~a & b)
     Theorem rewriteXOR(const Expr& e);
     //! a XNOR b <=> (~a & ~b) | (a & b)
@@ -314,6 +351,8 @@ namespace CVC3 {
     Theorem rewriteNAND(const Expr& e);
     //! a NOR b <=> ~(a | b)
     Theorem rewriteNOR(const Expr& e);
+    //! BVCOMP(a,b) <=> ITE(a=b,0bin1,0bin0)
+    Theorem rewriteBVCOMP(const Expr& e);
     //! a - b <=> a + (-b)
     Theorem rewriteBVSub(const Expr& e);
     //! k*t = BVPLUS(n, <sum of shifts of t>) -- translation of k*t to BVPLUS
@@ -390,6 +429,8 @@ namespace CVC3 {
     Theorem negConcat(const Expr& e);
     //! ~(~t) = t  -- eliminate double negation
     Theorem negNeg(const Expr& e);
+    //! ~t = -1*t + 1 -- eliminate negation
+    Theorem negElim(const Expr& e);
     //! ~(t1 & t2) <=> ~t1 | ~t2 -- DeMorgan's Laws
     Theorem negBVand(const Expr& e);
     //! ~(t1 | t2) <=> ~t1 & ~t2 -- DeMorgan's Laws
@@ -535,8 +576,62 @@ namespace CVC3 {
 				 int bitPos,
 				 int precomputedFlag);
 
+    /*Beginning of Lorenzo PLatania's methods*/
+    
+    //    virtual Theorem multiply_coeff( Rational mult_inv, const Expr& e);
+    //! isolate a variable with coefficient = 1 on the Lhs of an
+    //equality expression
+    virtual Theorem isolate_var(const Expr& e);
+
+    // BVPLUS(N, a@b, y) = BVPLUS(N-n,a,BVPLUS(N,b,y)[N-1:n])@BVPLUS(n,b,y)
+    // where n = BVSize(b), a != 0
+    virtual Theorem liftConcatBVMult(const Expr& e);
+
+    //! canonize BVMult expressions in order to get one coefficient
+    //multiplying the variable(s) in the expression
+    virtual Theorem canonBVMult( const Expr& e );
+
+    // BVPLUS(N, a@b, y) = BVPLUS(N-n,a,BVPLUS(N,b,y)[N-1:n])@BVPLUS(n,b,y)
+    // where n = BVSize(b)
+    virtual Theorem liftConcatBVPlus(const Expr& e);
+    
+    //! canonize BVPlus expressions in order to get just one
+    //coefficient multiplying each variable in the expression
+    virtual Theorem canonBVPlus( const Expr& e );
+    
+    //! canonize BVMinus expressions: push the minus to the leafs in
+    //BVPLUS expr; simplify minus in BVMULT and BVMINUS expr
+    virtual Theorem canonBVUMinus( const Expr& e );
+
+    // puts the equation in the form \sum a_i*x_i = c
+    virtual Theorem canonBVEQ( const Expr& e );
+
+    //! apply the distributive rule on the BVMULT expression e
+    virtual Theorem distributive_rule( const Expr& e );
+    //    virtual Theorem BVMultConstTerm( const Expr& e1, const Expr& e2);
+    // recursively reorder subterms in a BVMULT term
+    virtual Theorem BVMult_order_subterms( const Expr& e);
+
+    // rewrites the equation in the form 0 = Expr
+    // this is needed for TheoryBitvector::solve
+    virtual Theorem MarkNonSolvableEq( const Expr& e);
+    /*End of Lorenzo PLatania's methods*/
+
+    // rewrite BVZEROEXTEND into CONCAT
+    virtual Theorem zeroExtendRule(const Expr& e);
+
+    // rewrite BVREPEAT into CONCAT
+    virtual Theorem repeatRule(const Expr& e);
+
+    // rewrite BVROTL into CONCAT
+    virtual Theorem rotlRule(const Expr& e);
+    // rewrite BVROTR into CONCAT
+    virtual Theorem rotrRule(const Expr& e);
+
     //ExprMap<Expr> carryCache(void);
   }; // end of class BitvectorTheoremProducer
 } // end of namespace CVC3
 
+
 #endif
+

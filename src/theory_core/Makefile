@@ -9,7 +9,8 @@ MODULE = theory_core
 SRC = theory.cpp \
  theory_core.cpp \
  core_theorem_producer.cpp \
- expr_transform.cpp
+ expr_transform.cpp \
+ bryant.cpp
 
 HEADERS = core_proof_rules.h \
           core_theorem_producer.h

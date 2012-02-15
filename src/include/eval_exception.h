@@ -41,6 +41,14 @@ public:
   }
 };
 
+class ResetException: public Exception {
+public:
+  // Constructors
+  ResetException(): Exception("Reset Exception") { }
+  // Destructor
+  virtual ~ResetException() { }
+};
+
 }
 
 #endif

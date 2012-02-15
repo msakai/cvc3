@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*!
- * \file theory_arith_old.cpp
+ * \file theory_arith3.cpp
  * 
  * Author: Clark Barrett, Vijay Ganesh.
  * 
@@ -19,7 +19,7 @@
 /*****************************************************************************/
 
 
-#include "theory_arith_old.h"
+#include "theory_arith3.h"
 #include "arith_proof_rules.h"
 //#include "arith_expr.h"
 #include "arith_exception.h"
@@ -36,22 +36,22 @@ using namespace CVC3;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// TheoryArithOld::FreeConst Methods                                            //
+// TheoryArith3::FreeConst Methods                                            //
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace CVC3 {
 
-ostream& operator<<(ostream& os, const TheoryArithOld::FreeConst& fc) {
+ostream& operator<<(ostream& os, const TheoryArith3::FreeConst& fc) {
   os << "FreeConst(r=" << fc.getConst() << ", " 
      << (fc.strict()? "strict" : "non-strict") << ")";
   return os;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// TheoryArithOld::Ineq Methods                                                 //
+// TheoryArith3::Ineq Methods                                                 //
 ///////////////////////////////////////////////////////////////////////////////
 
-ostream& operator<<(ostream& os, const TheoryArithOld::Ineq& ineq) {
+ostream& operator<<(ostream& os, const TheoryArith3::Ineq& ineq) {
   os << "Ineq(" << ineq.ineq().getExpr() << ", isolated on "
      << (ineq.varOnRHS()? "RHS" : "LHS") << ", const = "
      << ineq.getConst() << ")";
@@ -61,11 +61,11 @@ ostream& operator<<(ostream& os, const TheoryArithOld::Ineq& ineq) {
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// TheoryArithOld Private Methods                                               //
+// TheoryArith3 Private Methods                                               //
 ///////////////////////////////////////////////////////////////////////////////
 
 
-Theorem TheoryArithOld::isIntegerThm(const Expr& e) {
+Theorem TheoryArith3::isIntegerThm(const Expr& e) {
   // Quick check
   if(isReal(e.getType())) return Theorem();
   // Try harder
@@ -73,7 +73,7 @@ Theorem TheoryArithOld::isIntegerThm(const Expr& e) {
 }
 
 
-Theorem TheoryArithOld::isIntegerDerive(const Expr& isIntE, const Theorem& thm) {
+Theorem TheoryArith3::isIntegerDerive(const Expr& isIntE, const Theorem& thm) {
   const Expr& e = thm.getExpr();
   // We found it!
   if(e == isIntE) return thm;
@@ -90,8 +90,8 @@ Theorem TheoryArithOld::isIntegerDerive(const Expr& isIntE, const Theorem& thm) 
   return res;
 }
 
-const Rational& TheoryArithOld::freeConstIneq(const Expr& ineq, bool varOnRHS) {
-  DebugAssert(isIneq(ineq), "TheoryArithOld::freeConstIneq("+ineq.toString()+")");
+const Rational& TheoryArith3::freeConstIneq(const Expr& ineq, bool varOnRHS) {
+  DebugAssert(isIneq(ineq), "TheoryArith3::freeConstIneq("+ineq.toString()+")");
   const Expr& e = varOnRHS? ineq[0] : ineq[1];
   
   switch(e.getKind()) {
@@ -107,12 +107,12 @@ const Rational& TheoryArithOld::freeConstIneq(const Expr& ineq, bool varOnRHS) {
 }
 
 
-const TheoryArithOld::FreeConst& 
-TheoryArithOld::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
+const TheoryArith3::FreeConst& 
+TheoryArith3::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
 				 bool& subsumed) {
-  TRACE("arith ineq", "TheoryArithOld::updateSubsumptionDB(", ineq, 
+  TRACE("arith ineq", "TheoryArith3::updateSubsumptionDB(", ineq, 
 	", var isolated on "+string(varOnRHS? "RHS" : "LHS")+")");
-  DebugAssert(isLT(ineq) || isLE(ineq), "TheoryArithOld::updateSubsumptionDB("
+  DebugAssert(isLT(ineq) || isLE(ineq), "TheoryArith3::updateSubsumptionDB("
 	      +ineq.toString()+")");
   // Indexing expression: same as ineq only without the free const
   Expr index;
@@ -120,7 +120,7 @@ TheoryArithOld::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
   bool strict(isLT(ineq));
   Rational c(0);
   if(isPlus(t)) {
-    DebugAssert(t.arity() >= 2, "TheoryArithOld::updateSubsumptionDB("
+    DebugAssert(t.arity() >= 2, "TheoryArith3::updateSubsumptionDB("
 		+ineq.toString()+")");
     c = t[0].getRational(); // Extract the free const in ineq
     Expr newT;
@@ -129,16 +129,15 @@ TheoryArithOld::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
     } else {
       vector<Expr> kids;
       Expr::iterator i=t.begin(), iend=t.end();
-      kids.push_back(rat(0));
       for(++i; i!=iend; ++i) kids.push_back(*i);
       DebugAssert(kids.size() > 0, "kids.size = "+int2string(kids.size())
 		  +", ineq = "+ineq.toString());
       newT = plusExpr(kids);
     }
     if(varOnRHS)
-      index = leExpr(rat(0), canonSimplify(ineq[1] - newT).getRHS());
+      index = leExpr(newT, ineq[1]);
     else
-      index = leExpr(canonSimplify(ineq[0]-newT).getRHS(), rat(0));
+      index = leExpr(ineq[0], newT);
   } else if(isRational(t)) {
     c = t.getRational();
     if(varOnRHS)
@@ -178,7 +177,7 @@ TheoryArithOld::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
 }
 
 
-bool TheoryArithOld::kidsCanonical(const Expr& e) {
+bool TheoryArith3::kidsCanonical(const Expr& e) {
   if(isLeaf(e)) return true;
   bool res(true);
   for(int i=0; res && i<e.arity(); ++i) {
@@ -187,13 +186,13 @@ bool TheoryArithOld::kidsCanonical(const Expr& e) {
     IF_DEBUG(if(!res) debugger.getOS() << "\ne[" << i << "] = " << e[i]
 	     << "\nsimplified = " << simp << endl;)
   }
-  return res;	  
+  return res;
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                           //
-// Function: TheoryArithOld::canon                                              //
+// Function: TheoryArith3::canon                                              //
 // Author: Clark Barrett, Vijay Ganesh.                                      //
 // Created: Sat Feb  8 14:46:32 2003                                         //
 // Description: Compute a canonical form for expression e and return a       //
@@ -210,10 +209,10 @@ bool TheoryArithOld::kidsCanonical(const Expr& e) {
 //    term_{i+1}.                                                            //
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
-Theorem TheoryArithOld::canon(const Expr& e)
+Theorem TheoryArith3::canon(const Expr& e)
 {
   TRACE("arith canon","canon(",e,") {");
-  DebugAssert(kidsCanonical(e), "TheoryArithOld::canon("+e.toString()+")");
+  DebugAssert(kidsCanonical(e), "TheoryArith3::canon("+e.toString()+")");
   Theorem result;
   switch (e.getKind()) {
     case UMINUS: {
@@ -344,14 +343,9 @@ Theorem TheoryArithOld::canon(const Expr& e)
     }
   case POW:
     if(e[1].isRational())
-      result = d_rules->canonPowConst(e);      
-    else {
-      // x ^ 1 --> x
-      if (e[0].isRational() && e[0].getRational() == 1) {
-    	  result = d_rules->powerOfOne(e);
-      } else 
-    	  result = reflexivityRule(e);
-    }
+      result = d_rules->canonPowConst(e);
+    else
+      result = reflexivityRule(e);
     break;
   default:
       result = reflexivityRule(e);
@@ -363,10 +357,10 @@ Theorem TheoryArithOld::canon(const Expr& e)
 
 
 Theorem
-TheoryArithOld::canonSimplify(const Expr& e) {
-  TRACE("arith simplify", "canonSimplify(", e, ") {");
+TheoryArith3::canonSimplify(const Expr& e) {
+  TRACE("arith", "canonSimplify(", e, ") {");
   DebugAssert(kidsCanonical(e),
-	      "TheoryArithOld::canonSimplify("+e.toString()+")");
+	      "TheoryArith3::canonSimplify("+e.toString()+")");
   DebugAssert(leavesAreSimp(e), "Expected leaves to be simplified");
   Expr tmp(e);
   Theorem thm = canon(e);
@@ -393,32 +387,28 @@ TheoryArithOld::canonSimplify(const Expr& e) {
  *  derive the canonized thm
  */
 Theorem
-TheoryArithOld::canonPred(const Theorem& thm) {
+TheoryArith3::canonPred(const Theorem& thm) {
   vector<Theorem> thms;
   DebugAssert(thm.getExpr().arity() == 2,
-              "TheoryArithOld::canonPred: bad theorem: "+thm.toString());
+              "TheoryArith3::canonPred: bad theorem: "+thm.toString());
   Expr e(thm.getExpr());
   thms.push_back(canonSimplify(e[0]));
   thms.push_back(canonSimplify(e[1]));
-  Theorem result = iffMP(thm, substitutivityRule(e.getOp(), thms));
-        
-  return result;
+  return iffMP(thm, substitutivityRule(e.getOp(), thms));
 }
 
 /*! accepts an equivalence theorem, canonizes it, applies iffMP and
  *  substituvity to derive the canonized thm
  */
 Theorem
-TheoryArithOld::canonPredEquiv(const Theorem& thm) {
+TheoryArith3::canonPredEquiv(const Theorem& thm) {
   vector<Theorem> thms;
   DebugAssert(thm.getRHS().arity() == 2,
-              "TheoryArithOld::canonPredEquiv: bad theorem: "+thm.toString());
+              "TheoryArith3::canonPredEquiv: bad theorem: "+thm.toString());
   Expr e(thm.getRHS());
   thms.push_back(canonSimplify(e[0]));
   thms.push_back(canonSimplify(e[1]));
-  Theorem result = transitivityRule(thm, substitutivityRule(e.getOp(), thms));
-  
-  return result;
+  return transitivityRule(thm, substitutivityRule(e.getOp(), thms));
 }
 
 /*! accepts an equivalence theorem whose RHS is a conjunction,
@@ -426,7 +416,7 @@ TheoryArithOld::canonPredEquiv(const Theorem& thm) {
  *  canonized thm
  */
 Theorem
-TheoryArithOld::canonConjunctionEquiv(const Theorem& thm) {
+TheoryArith3::canonConjunctionEquiv(const Theorem& thm) {
   vector<Theorem> thms;
   return thm;
 }
@@ -439,10 +429,9 @@ TheoryArithOld::canonConjunctionEquiv(const Theorem& thm) {
  *      - if all variables are integers then isolate suitable variable 
  *         and call processIntEq(). 
  */
-Theorem TheoryArithOld::doSolve(const Theorem& thm)
+Theorem TheoryArith3::doSolve(const Theorem& thm)
 { 
   const Expr& e = thm.getExpr();
-  if (e.isTrue() || e.isFalse()) return thm;
   TRACE("arith eq","doSolve(",e,") {");
   DebugAssert(thm.isRewrite(), "thm = "+thm.toString());
   Theorem eqnThm;
@@ -466,7 +455,6 @@ Theorem TheoryArithOld::doSolve(const Theorem& thm)
 
   //normalize
   eqnThm = iffMP(eqnThm, normalize(eqnThm.getExpr()));
-  TRACE("arith eq","doSolve => ",eqnThm.getExpr()," }");
   right = eqnThm.getRHS();
   
   //eqn is of the form 0 = e' and is normalized where 'right' denotes e'
@@ -599,16 +587,16 @@ Theorem TheoryArithOld::doSolve(const Theorem& thm)
  *  if the equation is an integer equation. Choose the monomial with
  *  the smallest absolute value of coefficient.
  */
-bool TheoryArithOld::pickIntEqMonomial(const Expr& right, Expr& isolated, bool& nonlin)
+bool TheoryArith3::pickIntEqMonomial(const Expr& right, Expr& isolated, bool& nonlin)
 {
   DebugAssert(isPlus(right) && right.arity() > 1,
-              "TheoryArithOld::pickIntEqMonomial right is wrong :-): " +
+              "TheoryArith3::pickIntEqMonomial right is wrong :-): " +
               right.toString());
   DebugAssert(right[0].isRational(),
-              "TheoryArithOld::pickIntEqMonomial. right[0] must be const" +
+              "TheoryArith3::pickIntEqMonomial. right[0] must be const" +
               right.toString());
   DebugAssert(isInteger(right),
-              "TheoryArithOld::pickIntEqMonomial: right is of type int: " +
+              "TheoryArith3::pickIntEqMonomial: right is of type int: " +
               right.toString());
   //right is of the form "C + a1x1 + ... + anxn". min is initialized
   //to a1
@@ -651,7 +639,7 @@ bool TheoryArithOld::pickIntEqMonomial(const Expr& right, Expr& isolated, bool& 
  * is "var = e''" Theorem.
  */
 Theorem 
-TheoryArithOld::processRealEq(const Theorem& eqn)
+TheoryArith3::processRealEq(const Theorem& eqn)
 {
   DebugAssert(eqn.getLHS().isRational() &&
               eqn.getLHS().getRational() == 0,
@@ -717,7 +705,7 @@ TheoryArithOld::processRealEq(const Theorem& eqn)
   }
 
   DebugAssert(isReal(getBaseType(left)) && !isInteger(left),
-              "TheoryArithOld::ProcessRealEq: left is integer:\n left = "
+              "TheoryArith3::ProcessRealEq: left is integer:\n left = "
 	      +left.toString());
   // Normalize equation so that coefficient of the monomial
   // corresponding to "left" in eqn[1] is -1
@@ -734,7 +722,7 @@ TheoryArithOld::processRealEq(const Theorem& eqn)
 }
 
 
-void TheoryArithOld::getFactors(const Expr& e, set<Expr>& factors)
+void TheoryArith3::getFactors(const Expr& e, set<Expr>& factors)
 {
   switch (e.getKind()) {
     case RATIONAL_EXPR: break;
@@ -768,17 +756,17 @@ void TheoryArithOld::getFactors(const Expr& e, set<Expr>& factors)
  * \return an equivalent Theorem (x = t AND 0 = e'), or just x = t
  */
 Theorem
-TheoryArithOld::processSimpleIntEq(const Theorem& eqn)
+TheoryArith3::processSimpleIntEq(const Theorem& eqn)
 {
   TRACE("arith eq", "processSimpleIntEq(", eqn.getExpr(), ") {");
   DebugAssert(eqn.isRewrite(),
-              "TheoryArithOld::processSimpleIntEq: eqn must be equality" +
+              "TheoryArith3::processSimpleIntEq: eqn must be equality" +
               eqn.getExpr().toString());
 
   Expr right = eqn.getRHS();
 
   DebugAssert(eqn.getLHS().isRational() && 0 == eqn.getLHS().getRational(),
-              "TheoryArithOld::processSimpleIntEq: LHS must be 0:\n" +
+              "TheoryArith3::processSimpleIntEq: LHS must be 0:\n" +
               eqn.getExpr().toString());
 
   DebugAssert(!isMult(right) && !isPow(right), "should have been handled above");
@@ -840,7 +828,7 @@ TheoryArithOld::processSimpleIntEq(const Theorem& eqn)
         return result;
       } else if (!nonlin) {
         DebugAssert(isMult(isolated) && isolated[0].getRational() >= 2,
-                    "TheoryArithOld::processSimpleIntEq: isolated must be mult "
+                    "TheoryArith3::processSimpleIntEq: isolated must be mult "
                     "with coeff >= 2.\n isolated = " + isolated.toString());
 
         // Compute IS_INTEGER() for lhs and rhs
@@ -899,7 +887,7 @@ TheoryArithOld::processSimpleIntEq(const Theorem& eqn)
  * solved form.
  */
 Theorem 
-TheoryArithOld::processIntEq(const Theorem& eqn)
+TheoryArith3::processIntEq(const Theorem& eqn)
 {
   TRACE("arith eq", "processIntEq(", eqn.getExpr(), ") {");
   // Equations in the solved form.  
@@ -918,7 +906,7 @@ TheoryArithOld::processIntEq(const Theorem& eqn)
     }
     else {
       DebugAssert(result.getExpr().isAnd() && result.getExpr().arity() == 2,
-		  "TheoryArithOld::processIntEq("+eqn.getExpr().toString()
+		  "TheoryArith3::processIntEq("+eqn.getExpr().toString()
 		  +")\n result = "+result.getExpr().toString());
       solvedAndNewEqs.push_back(getCommonRules()->andElim(result, 0));
       newEq = getCommonRules()->andElim(result, 1);
@@ -942,12 +930,12 @@ TheoryArithOld::processIntEq(const Theorem& eqn)
  * i<j, but not for i>=j.
  */
 Theorem
-TheoryArithOld::solvedForm(const vector<Theorem>& solvedEqs) 
+TheoryArith3::solvedForm(const vector<Theorem>& solvedEqs) 
 {
-  DebugAssert(solvedEqs.size() > 0, "TheoryArithOld::solvedForm()");
+  DebugAssert(solvedEqs.size() > 0, "TheoryArith3::solvedForm()");
 
   // Trace code
-  TRACE_MSG("arith eq", "TheoryArithOld::solvedForm:solvedEqs(\n  [");
+  TRACE_MSG("arith eq", "TheoryArith3::solvedForm:solvedEqs(\n  [");
   IF_DEBUG(if(debugger.trace("arith eq")) {
     for(vector<Theorem>::const_iterator j = solvedEqs.begin(),
 	  jend=solvedEqs.end(); j!=jend;++j)
@@ -972,7 +960,7 @@ TheoryArithOld::solvedForm(const vector<Theorem>& solvedEqs)
     else {
       // This is the FALSE case: just return the contradiction
       DebugAssert(i->getExpr().isFalse(),
-		  "TheoryArithOld::solvedForm: an element of solvedEqs must "
+		  "TheoryArith3::solvedForm: an element of solvedEqs must "
 		  "be either EQ or FALSE: "+i->toString());
       return *i;
     }
@@ -994,7 +982,7 @@ TheoryArithOld::solvedForm(const vector<Theorem>& solvedEqs)
  */
 
 Theorem
-TheoryArithOld::substAndCanonize(const Expr& t, ExprMap<Theorem>& subst)
+TheoryArith3::substAndCanonize(const Expr& t, ExprMap<Theorem>& subst)
 {
   TRACE("arith eq", "substAndCanonize(", t, ") {");
   // Quick and dirty check: return immediately if subst is empty
@@ -1045,12 +1033,12 @@ TheoryArithOld::substAndCanonize(const Expr& t, ExprMap<Theorem>& subst)
  */
 
 Theorem
-TheoryArithOld::substAndCanonize(const Theorem& eq, ExprMap<Theorem>& subst)
+TheoryArith3::substAndCanonize(const Theorem& eq, ExprMap<Theorem>& subst)
 {
   // Quick and dirty check: return immediately if subst is empty
   if(subst.empty()) return eq;
 
-  DebugAssert(eq.isRewrite(), "TheoryArithOld::substAndCanonize: t = "
+  DebugAssert(eq.isRewrite(), "TheoryArith3::substAndCanonize: t = "
 	      +eq.getExpr().toString());
   const Expr& t = eq.getRHS();
   // Do the actual substitution in the term t
@@ -1065,143 +1053,54 @@ TheoryArithOld::substAndCanonize(const Theorem& eq, ExprMap<Theorem>& subst)
   return iffMP(eq, substitutivityRule(eq.getExpr(), changed, thms));
 }
 
-void TheoryArithOld::processBuffer()
+
+void TheoryArith3::processBuffer()
 {
   // Process the inequalities in the buffer
   bool varOnRHS;
-    
-  // If we are in difference logic only, just return
-  if (diffLogicOnly) return;
   
-  while (!inconsistent() && (d_bufferIdx_0 < d_buffer_0.size() || d_bufferIdx_1 < d_buffer_1.size() || d_bufferIdx_2 < d_buffer_2.size() ||  d_bufferIdx_3 < d_buffer_3.size())) {
-    
-	  // Get the unprojected inequality
-	  Theorem ineqThm;
-	  if (d_bufferIdx_0 < d_buffer_0.size()) {  
-		  ineqThm = d_buffer_0[d_bufferIdx_0];
-	  	  d_bufferIdx_0 = d_bufferIdx_0 + 1;
-	  } else if (d_bufferIdx_1 < d_buffer_1.size()) {
-		  ineqThm = d_buffer_1[d_bufferIdx_1];
-		  d_bufferIdx_1 = d_bufferIdx_1 + 1;
-	  } else if (d_bufferIdx_2 < d_buffer_2.size()) {  
-		  ineqThm = d_buffer_2[d_bufferIdx_2];
-		  d_bufferIdx_2 = d_bufferIdx_2 + 1;
-	  } else {
-		  ineqThm = d_buffer_3[d_bufferIdx_3];
-		  d_bufferIdx_3 = d_bufferIdx_3 + 1;
-	  }
-    
-//    // Skip this inequality if it is stale
-//    if(isStale(ineqThm.getExpr())) {
-//    	TRACE("arith buffer", "processBuffer(", ineqThm.getExpr(), ")... skipping stale");
-//    	continue;
-//    }
-    // Dejan: project the finds, not the originals (if not projected already)
-    const Expr& inequality = ineqThm.getExpr();
-    Theorem inequalityFindThm = inequalityToFind(ineqThm, true);
-    Expr inequalityFind = inequalityFindThm.getExpr();
-//    if (inequality != inequalityFind)
-//    	enqueueFact(inequalityFindThm);
-    
-    TRACE("arith buffer", "processing: ", inequality, "");
-    TRACE("arith buffer", "with find : ", inequalityFind, "");
-    
-    if (!isIneq(inequalityFind)) {
-    	TRACE("arith buffer", "find not an inequality... ", "", "skipping");
-    	continue;
-    }
-    
-    if (alreadyProjected.find(inequalityFind) != alreadyProjected.end()) {
-    	TRACE("arith buffer", "already projected ... ", "", "skipping");
-    	continue;
-    } 
-
-    
-    // We put the dummy for now, isolate variable will set it properly (or the find's one)
-    // This one is just if the find is different. If the find is different
-    // We will not check it again in update, so we're fine
-	Expr dummy;    		
-    alreadyProjected[inequality] = dummy;         	
-    if (inequality != inequalityFind) {    	    		
-
-    	alreadyProjected[inequalityFind] = dummy;
-    	
-    	Expr rhs = inequalityFind[1];
-    	
-    	// Collect the statistics about variables  
-    	if(isPlus(rhs)) {
-    	    for(Expr::iterator i=rhs.begin(), iend=rhs.end(); i!=iend; ++i) {
-    	    	Expr monomial = *i;
-    	    	updateStats(monomial);
-    	    }
-    	} else // It's a monomial
-    	    updateStats(rhs);
-    }
-    
-    // See if this one is subsumed by a stronger inequality
-    // c1 <= t1, t2 <= c2
-    Rational c1, c2;
-    Expr t1, t2;
-    // Every term in the buffer has to have a lower bound set!!!
-    // Except for the ones that changed the find
-    extractTermsFromInequality(inequalityFind, c1, t1, c2, t2);
-    if (termLowerBound.find(t1) != termLowerBound.end() && c1 != termLowerBound[t1]) {
-    	TRACE("arith ineq", "skipping because stronger bounds asserted ", inequalityFind.toString(), ":" + t1.toString());
-    	DebugAssert(termLowerBoundThm.find(t1) != termLowerBoundThm.end(), "No lower bound on asserted atom!!! " + t1.toString());
-	   	Theorem strongerBound = termLowerBoundThm[t1];
-	   	//enqueueFact(d_rules->implyWeakerInequality(strongerBound.getExpr(), inequalityFindThm.getExpr()));
-	   	continue;
-    }
-    
-    Theorem thm1 = isolateVariable(inequalityFindThm, varOnRHS);
+  for(; !inconsistent() && d_bufferIdx < d_buffer.size();
+      d_bufferIdx = d_bufferIdx+1) {
+    const Theorem& ineqThm = d_buffer[d_bufferIdx];
+    // Skip this inequality if it is stale
+    if(isStale(ineqThm.getExpr())) continue;
+    Theorem thm1 = isolateVariable(ineqThm, varOnRHS);
     const Expr& ineq = thm1.getExpr();
-    if (ineq.isFalse())
+    if((ineq).isFalse())
       setInconsistent(thm1);
-    else 
-    	if(!ineq.isTrue()) {
-    		
-    		// Check that the variable is indeed isolated correctly
-    		DebugAssert(varOnRHS? !isPlus(ineq[1]) : !isPlus(ineq[0]), "TheoryArithOld::processBuffer(): bad result from isolateVariable:\nineq = "+ineq.toString());
-    		// and project the inequality
-    		projectInequalities(thm1, varOnRHS);
-    	}
-  	}
+    else if(!ineq.isTrue()) {
+      // Check that the variable is indeed isolated correctly
+      DebugAssert(varOnRHS? !isPlus(ineq[1]) : !isPlus(ineq[0]),
+		  "TheoryArith3::processBuffer(): bad result from "
+		  "isolateVariable:\nineq = "+ineq.toString());
+      // and project the inequality
+      projectInequalities(thm1, varOnRHS);
+    }
+  }
 }
 
 
-void TheoryArithOld::updateStats(const Rational& c, const Expr& v)
+void TheoryArith3::updateStats(const Rational& c, const Expr& v)
 {
-  TRACE("arith stats", "updateStats("+c.toString()+", ", v, ")");
+  TRACE("arith ineq", "updateStats("+c.toString()+", ", v, ")");
 
-  // we can get numbers as checking for variables is not possible (nonlinear stuff)
-  if (v.isRational()) return;
-  
-  if (v.getType() != d_realType) 
   // Dejan: update the max coefficient of the variable
   if (c < 0) {
 	  // Goes to the left side
-	  ExprMap<Rational>::iterator maxFind = maxCoefficientLeft.find(v);
-	  if (maxFind == maxCoefficientLeft.end()) {
+	  CDMap<Expr, Rational>::iterator maxFind = maxCoefficientLeft.find(v);
+	  if (maxFind == maxCoefficientLeft.end()) 
 		  maxCoefficientLeft[v] = - c;
-		  TRACE("arith stats", "max left", "", "");
-	  }
 	  else
-		  if ((*maxFind).second < -c) {
-			  TRACE("arith stats", "max left", "", "");
-			  maxCoefficientLeft[v] = -c;
-		  }
+		  if ((*maxFind).second < -c)
+			  (*maxFind).second = -c;
   } else {
 	  // Stays on the right side
-	  ExprMap<Rational>::iterator maxFind = maxCoefficientRight.find(v);
-	  if (maxFind == maxCoefficientRight.end()) {
+	  CDMap<Expr, Rational>::iterator maxFind = maxCoefficientRight.find(v);
+	  if (maxFind == maxCoefficientRight.end())
 		  maxCoefficientRight[v] = c;
-		  TRACE("arith stats", "max right", "", "");
-	  }
 	  else
-		  if((*maxFind).second < c) {
-			  TRACE("arith stats", "max right", "", "");
-			  maxCoefficientRight[v] = c;
-		  }
+		  if((*maxFind).second < c)
+			  (*maxFind).second = c;			  
   }
   
   if(c > 0) {
@@ -1214,317 +1113,39 @@ void TheoryArithOld::updateStats(const Rational& c, const Expr& v)
 }
 
 
-void TheoryArithOld::updateStats(const Expr& monomial)
+void TheoryArith3::updateStats(const Expr& monomial)
 {
   Expr c, m;
   separateMonomial(monomial, c, m);
   updateStats(c.getRational(), m);
 }
 
-int TheoryArithOld::extractTermsFromInequality(const Expr& inequality,
-		Rational& c1, Expr& t1,
-		Rational& c2, Expr& t2) {
-	
-	TRACE("arith extract", "extract(", inequality.toString(), ")");
-	
-	DebugAssert(isIneq(inequality), "extractTermsFromInequality: expexting an inequality got: " + inequality.getString() + ")");	
-	
-	Expr rhs = inequality[1];
-	
-	c1 = 0;
-	
-	// Extract the non-constant term (both sides)
-	vector<Expr> positive_children, negative_children;
-	if (isPlus(rhs)) {
-		  int start_i = 0;
-		  if (rhs[0].isRational()) {
-			  start_i = 1;
-			  c1 = -rhs[0].getRational();
-		  }
-		  int end_i   = rhs.arity();
-		    for(int i = start_i; i < end_i; i ++) {
-		  	  const Expr& term = rhs[i];
-		  	  positive_children.push_back(term);	  	 
-		  	  negative_children.push_back(canon(multExpr(rat(-1),term)).getRHS());	  
-		    }
-	  } else { 
-	  	  positive_children.push_back(rhs);
-		  negative_children.push_back(canon(multExpr(rat(-1), rhs)).getRHS());
-	  }
-	  
-	  int num_vars = positive_children.size();
-	
-	  // c1 <= t1
-	  t1 = (num_vars > 1 ? canon(plusExpr(positive_children)).getRHS() : positive_children[0]);
-	  
-	  // c2 is the upper bound on t2 : t2 <= c2
-	  c2 = -c1;
-	  t2 = (num_vars > 1 ? canon(plusExpr(negative_children)).getRHS() : negative_children[0]);
-	  
-	  TRACE("arith extract", "extract: ", c1.toString() + " <= ", t1.toString());
-	  
-	  return num_vars;
-}
 
-bool TheoryArithOld::addToBuffer(const Theorem& thm, bool priority) {
-  
-  TRACE("arith buffer", "addToBuffer(", thm.getExpr().toString(), ")");        
-    
-  Expr ineq = thm.getExpr();  
+void TheoryArith3::addToBuffer(const Theorem& thm) {
+  // First, turn the inequality into 0 < rhs
+  // FIXME: check if this can be optimized away
+  Theorem result(thm);
+  const Expr& e = thm.getExpr();
+  // int kind = e.getKind();
+  if(!(e[0].isRational() && e[0].getRational() == 0)) {
+    result = iffMP(result, d_rules->rightMinusLeft(e));
+    result = canonPred(result);
+  }
+  TRACE("arith ineq", "addToBuffer(", result.getExpr(), ")");
+  // Push it into the buffer
+  d_buffer.push_back(thm);
+
+  // Collect the statistics about variables
   const Expr& rhs = thm.getExpr()[1];
-  
-  bool nonLinear = false;
-  Rational nonLinearConstant = 0;
-  Expr compactNonLinear;
-  Theorem compactNonLinearThm;
-  
-  // Collect the statistics about variables and check for non-linearity  
-  if(isPlus(rhs)) {
-    for(Expr::iterator i=rhs.begin(), iend=rhs.end(); i!=iend; ++i) {
-    	Expr monomial = *i;
-    	updateStats(monomial);
-    	// check for non-linear
-    	if (isMult(monomial)) {
-    		if ((monomial[0].isRational() && monomial.arity() >= 3) || 
-    			(!monomial[0].isRational() && monomial.arity() >= 2) ||
-    			(monomial.arity() == 2 && isPow(monomial[1])))
-    			nonLinear = true;
-    	}
-    }
-    if (nonLinear) {
-    	compactNonLinearThm = d_rules->compactNonLinearTerm(rhs);
-    	compactNonLinear = compactNonLinearThm.getRHS();
-    }
-  }
+  if(isPlus(rhs))
+    for(Expr::iterator i=rhs.begin(), iend=rhs.end(); i!=iend; ++i)
+      updateStats(*i);
   else // It's a monomial
-  {
     updateStats(rhs);
-	if (isMult(rhs))
-		if ((rhs[0].isRational() && rhs.arity() >= 3) 
-				|| (!rhs[0].isRational() && rhs.arity() >= 2)
-				|| (rhs.arity() == 2 && isPow(rhs[1]))) {
-			nonLinear = true;
-			compactNonLinear = rhs;
-			compactNonLinearThm = reflexivityRule(compactNonLinear);
-		}
-  }
-    
-  if (bufferedInequalities.find(ineq) != bufferedInequalities.end()) {
-	  TRACE("arith buffer", "addToBuffer()", "", "... already in db");	 
-	  if (formulaAtoms.find(ineq) != formulaAtoms.end()) {
-		  TRACE("arith buffer", "it's a formula atom, enqueuing.", "", "");
-		  enqueueFact(thm);
-	  }
-	  return false;
-  }
-  
-  if (nonLinear && (isMult(rhs) || compactNonLinear != rhs)) {
-	  TRACE("arith nonlinear", "compact version of ", rhs, " is " + compactNonLinear.toString());
-	  // Replace the rhs with the compacted nonlinear term
-	  Theorem thm1 = (compactNonLinear != rhs ? 
-			  iffMP(thm, substitutivityRule(ineq, 1, compactNonLinearThm)) : thm);				  
-	  // Now, try to deduce the signednes of multipliers
-	  Rational c = (isMult(rhs) ? 0 : compactNonLinear[0].getRational());
-	  // We can deduct the signs if the constant is not bigger than 0
-	  if (c <= 0) {
-		  thm1 = d_rules->nonLinearIneqSignSplit(thm1);
-		  TRACE("arith nonlinear", "spliting on signs : ", thm1.getExpr(), "");
-		  enqueueFact(thm1);
-	  }
-  }
-  
-  // Get c1, c2, t1, t2 such that c1 <= t1 and t2 <= c2 
-  Expr t1, t2;
-  Rational c1, c2;  
-  int num_vars = extractTermsFromInequality(ineq, c1, t1, c2, t2);
-    
-  // If 2 variable, do add to difference logic (allways, just in case)
-  bool factIsDiffLogic = false;
-  if (num_vars <= 2) {
-   
-	  TRACE("arith diff", t2, " < ", c2);
-  	  // c1 <= t1, check if difference logic
-  	  // t1 of the form 0 + ax + by
-  	  Expr ax = (num_vars == 2 ? t2[1] : t2);
-  	  Expr a_expr, x;
-  	  separateMonomial(ax, a_expr, x);
-  	  Rational a = a_expr.getRational();
-  	  Expr by = (num_vars == 2 ? t2[2] : (a < 0 ? zero : rat(-1)*zero));
-  	  Expr b_expr, y;
-  	  separateMonomial(by, b_expr, y);
-  	  Rational b = b_expr.getRational();
-  	  
-  	  // Check for non-linear
-  	  if (!isLeaf(x) || !isLeaf(y))
-  		  setIncomplete("Non-linear arithmetic inequalities");
-  	  
-  	  if (a == 1 && b == -1) {
-  		  diffLogicGraph.addEdge(x, y, c2, thm);
-  		  factIsDiffLogic = true; 
-  	  }
-  	  else if (a == -1 && b == 1) {
-  		  diffLogicGraph.addEdge(y, x, c2, thm);  	
-  		  factIsDiffLogic = true;
-  	  }
-  	  // Not difference logic, put it in the 3 or more vars buffer
-  	  else {
-  		  diffLogicOnly = false;
-  		  TRACE("arith diff", "not diff logic", thm.getExpr().toString(), "");
-  	  }
-  	  
-  	  if (diffLogicGraph.isUnsat()) {
-  		  TRACE("diff unsat", "UNSAT", " : ", diffLogicGraph.getUnsatTheorem());
-  		  setInconsistent(diffLogicGraph.getUnsatTheorem());
-  		  return false;
-  	  }  	  	  
-  } else {
-	  diffLogicOnly = false;
-	  TRACE("arith diff", "not diff logic", thm.getExpr().toString(), "");
-  }
-      
-  // For now we treat all the bound as LE, weaker
-  CDMap<Expr, Rational>::iterator find_lower = termLowerBound.find(t1);
-  if (find_lower != termLowerBound.end()) {
-	  // found bound c <= t1
-	  Rational found_c = (*find_lower).second;
-	  // If found c is bigger than the new one, we are done
-	  if (c1 <= found_c && !(found_c == c1 && ineq.getKind() == LT)) {
-		  TRACE("arith buffer", "addToBuffer()", "", "... lower_bound subsumed");		  
-		  // Removed assert. Can happen that an atom is not asserted yet, and get's implied as
-		  // a formula atom and then asserted here. it's fine
-		  //DebugAssert(!thm.isAssump(), "Should have been propagated: " + ineq.toString() + "");
-		  return false;
-	  } else {
-		  Theorem oldLowerBound = termLowerBoundThm[t1];
-		  Expr oldIneq = oldLowerBound.getExpr();
-		  if (formulaAtoms.find(oldIneq) != formulaAtoms.end())
-			  enqueueFact(getCommonRules()->implMP(thm, d_rules->implyWeakerInequality(ineq, oldIneq)));
-		  termLowerBound[t1] = c1;
-		  termLowerBoundThm[t1] = thm;		  	 
-	  }
-  } else {
-	  termLowerBound[t1] = c1;
-	  termLowerBoundThm[t1] = thm;
-  }
-  
-  CDMap<Expr, Rational>::iterator find_upper = termUpperBound.find(t2);
-  if (find_upper != termUpperBound.end()) {
-	  // found bound t2 <= c
-	  Rational found_c = (*find_upper).second;
-	  // If found c is smaller than the new one, we are done
-	  if (found_c <= c2 && !(found_c == c2 && ineq.getKind() == LT)) {
-		  TRACE("arith buffer", "addToBuffer()", "", "... upper_bound subsumed");		  	  
-		  //DebugAssert(!thm.isAssump(), "Should have been propagated: " + ineq.toString() + "");
-		  return false;
-	  } else {
-		  termUpperBound[t2] = c2;
-		  termUpperBoundThm[t2] = thm;
-	  }
-  } else {
-	  termUpperBound[t2] = c2;
-	  termUpperBoundThm[t2] = thm;
-  }
-
-  // See if the bounds on the term can infer conflict or equality
-  if (termUpperBound.find(t1) != termUpperBound.end() &&
-      termLowerBound.find(t1) != termLowerBound.end() &&
-      termUpperBound[t1] <= termLowerBound[t1]) {
-	  Theorem thm1 = termUpperBoundThm[t1];
-	  Theorem thm2 = termLowerBoundThm[t1];
-	  TRACE("arith propagate", "adding inequalities: ", thm1.getExpr().toString(), " with " + thm2.getExpr().toString());
-	  enqueueFact(d_rules->addInequalities(thm1, thm2));
-  } else   
-  if (termUpperBound.find(t2) != termUpperBound.end() &&
-        termLowerBound.find(t2) != termLowerBound.end() &&
-        termUpperBound[t2] <= termLowerBound[t2]) {
-	  Theorem thm1 = termUpperBoundThm[t2];
-	  Theorem thm2 = termLowerBoundThm[t2];
-	  TRACE("arith propagate", "adding inequalities: ", thm1.getExpr().toString(), " with " + thm2.getExpr().toString());
-  	  enqueueFact(d_rules->addInequalities(thm1, thm2));
-  }
-  
-  if (true) {
-	  // See if we can propagate anything to the formula atoms
-	  // c1 <= t1 ===> c <= t1 for c < c1
-	  AtomsMap::iterator find     = formulaAtomLowerBound.find(t1);
-	  AtomsMap::iterator find_end = formulaAtomLowerBound.end();
-	  if (find != find_end) {
-	  	  set< pair<Rational, Expr> >::iterator bounds     = (*find).second.begin();
-	  	  set< pair<Rational, Expr> >::iterator bounds_end = (*find).second.end();
-	  	  while (bounds != bounds_end) {
-	  		  TRACE("arith atoms", "trying propagation", ineq, (*bounds).second);
-	  		  const Expr& implied = (*bounds).second;
-	  		  // Try to do some theory propagation
-	  		  if ((*bounds).first < c1 || (!(ineq.getKind() == LE && implied.getKind() == LT) && (*bounds).first == c1)) {
-	  			  // c1 <= t1 => c <= t1 (for c <= c1)
-	  			  // c1 < t1  => c <= t1 (for c <= c1)
-	  			  // c1 <= t1 => c < t1  (for c < c1)
-	  			  Theorem impliedThm = getCommonRules()->implMP(thm, d_rules->implyWeakerInequality(ineq, implied)); 
-	  			  enqueueFact(impliedThm);		  	  
-	  		  }
-	  		  bounds ++;
-	  	  }
-	  }
-	  
-	  //
-	  // c1 <= t1 ==> !(t1 <= c) for c < c1
-	  //          ==> !(-c <= t2) 
-	  // i.e. all coefficient in in the implied are opposite of t1
-	  find     = formulaAtomUpperBound.find(t1);
-	  find_end = formulaAtomUpperBound.end();
-	  if (find != find_end) {
-	   	  set< pair<Rational, Expr> >::iterator bounds     = (*find).second.begin();
-	   	  set< pair<Rational, Expr> >::iterator bounds_end = (*find).second.end();
-	   	  while (bounds != bounds_end) {
-	   		  TRACE("arith atoms", "trying propagation", ineq, (*bounds).second);
-	   		  const Expr& implied = (*bounds).second;
-	   		  // Try to do some theory propagation
-	   		  if ((*bounds).first < c1) {
-	   			  Theorem impliedThm = getCommonRules()->implMP(thm, d_rules->implyNegatedInequality(ineq, implied)); 
-	   			  enqueueFact(impliedThm);
-	   		  }
-	   		  bounds ++;
-	   	  }
-	  }	  
-  }
-  
-  // Register this as a resource 
-  theoryCore()->getResource();
-
-  // If out of resources, bail out
-  if (theoryCore()->outOfResources()) return false;
-  
-  // Checking because we could have projected it as a find of some other
-  // equation
-  if (alreadyProjected.find(ineq) == alreadyProjected.end()) {  
-	  // We buffer it if it's not marked for not buffering 
-	  if (dontBuffer.find(ineq) == dontBuffer.end()) {  
-		  // We give priority to the one that can produce a conflict
-		  if (priority) 
-			  d_buffer_0.push_back(thm);
-		  else {  
-			  // Push it into the buffer (one var)	  
-			  if (num_vars == 1) d_buffer_1.push_back(thm);
-			  else if (num_vars == 2) d_buffer_2.push_back(thm);
-			  else d_buffer_3.push_back(thm);
-		  }
-		  
-		  if (factIsDiffLogic) diff_logic_size = diff_logic_size + 1;
-	  }	
-  }
-	
-  // Remember that it's in the buffer
-  bufferedInequalities[ineq] = thm;
-    
-  // Since we care about this atom, lets set it up 
-  if (!ineq.hasFind())
-	  theoryCore()->setupTerm(ineq, this, thm);
-  
-  return true;
 }
 
 
-Theorem TheoryArithOld::isolateVariable(const Theorem& inputThm, 
+Theorem TheoryArith3::isolateVariable(const Theorem& inputThm, 
                                      bool& isolatedVarOnRHS)
 {
   Theorem result(inputThm);
@@ -1533,11 +1154,11 @@ Theorem TheoryArithOld::isolateVariable(const Theorem& inputThm,
   TRACE("arith ineq", "isolateVariable(", e, ") {");
   //we assume all the children of e are canonized
   DebugAssert(isLT(e)||isLE(e),
-              "TheoryArithOld::isolateVariable: " + e.toString() +
+              "TheoryArith3::isolateVariable: " + e.toString() +
               " wrong kind");
   int kind = e.getKind();
   DebugAssert(e[0].isRational() && e[0].getRational() == 0,
-              "TheoryArithOld::isolateVariable: theorem must be of "
+              "TheoryArith3::isolateVariable: theorem must be of "
               "the form 0 < rhs: " + inputThm.toString());
 
   const Expr& zero = e[0];
@@ -1553,7 +1174,7 @@ Theorem TheoryArithOld::isolateVariable(const Theorem& inputThm,
   // Normalization of inequality to make coefficients integer and
   // relatively prime.
 
-  Expr factor(computeNormalFactor(right, false));
+  Expr factor(computeNormalFactor(right));
   TRACE("arith", "isolateVariable: factor = ", factor, "");
   DebugAssert(factor.getRational() > 0,
               "isolateVariable: factor="+factor.toString());
@@ -1562,7 +1183,6 @@ Theorem TheoryArithOld::isolateVariable(const Theorem& inputThm,
     result = iffMP(result, d_rules->multIneqn(e, factor));
     // And canonize the result
     result = canonPred(result);
-    result = rafineIneqaulityToInteger(result);
     right = result.getExpr()[1];
   }
 
@@ -1572,28 +1192,19 @@ Theorem TheoryArithOld::isolateVariable(const Theorem& inputThm,
   if (isPlus(right))
     isolatedMonomial = pickMonomial(right);
 
-  TRACE("arith ineq", "isolatedMonomial => ",isolatedMonomial,"");
-  
-  // Set the correct isolated monomial
-  // Now, if something gets updated, but this monomial is not changed, we don't
-  // Have to rebuffer it as the projection will still be accurate when updated
-  alreadyProjected[e] = isolatedMonomial;
-  
   Rational r = -1;
   isolatedVarOnRHS = true;
   if (isMult(isolatedMonomial)) {
-	  r = ((isolatedMonomial[0].getRational()) >= 0)? -1 : 1;
-	  isolatedVarOnRHS = 
-		  ((isolatedMonomial[0].getRational()) >= 0)? true : false;
+    r = ((isolatedMonomial[0].getRational()) >= 0)? -1 : 1;
+    isolatedVarOnRHS = 
+      ((isolatedMonomial[0].getRational()) >= 0)? true : false;
   }
   isolatedMonomial = canon(rat(-1)*isolatedMonomial).getRHS();
-  TRACE("arith ineq", "-(isolatedMonomial) => ",isolatedMonomial,"");
-    // Isolate isolatedMonomial on to the LHS
+  // Isolate isolatedMonomial on to the LHS
   result = iffMP(result, d_rules->plusPredicate(zero, right, 
                                                 isolatedMonomial, kind));
   // Canonize the resulting inequality
-  TRACE("arith ineq", "resutl => ",result,"");
-    result = canonPred(result);
+  result = canonPred(result);
   if(1 != r) {
     result = iffMP(result, d_rules->multIneqn(result.getExpr(), rat(r)));
     result = canonPred(result);
@@ -1604,7 +1215,7 @@ Theorem TheoryArithOld::isolateVariable(const Theorem& inputThm,
 }
 
 Expr
-TheoryArithOld::computeNormalFactor(const Expr& right, bool normalizeConstants) {
+TheoryArith3::computeNormalFactor(const Expr& right) {
   // Strategy: compute f = lcm(d1...dn)/gcd(c1...cn), where the RHS is
   // of the form c1/d1*x1 + ... + cn/dn*xn
   Rational factor;
@@ -1612,14 +1223,12 @@ TheoryArithOld::computeNormalFactor(const Expr& right, bool normalizeConstants) 
     vector<Rational> nums, denoms;
     for(int i=0, iend=right.arity(); i<iend; ++i) {
       switch(right[i].getKind()) {
-      case RATIONAL_EXPR: 
-      if (normalizeConstants)  {
+      case RATIONAL_EXPR: {
         Rational c(abs(right[i].getRational()));
         nums.push_back(c.getNumerator());
         denoms.push_back(c.getDenominator());
         break;
         }
-    	  break;
       case MULT: {
         Rational c(abs(right[i][0].getRational()));
         nums.push_back(c.getNumerator());
@@ -1648,10 +1257,10 @@ TheoryArithOld::computeNormalFactor(const Expr& right, bool normalizeConstants) 
 }
 
 
-bool TheoryArithOld::lessThanVar(const Expr& isolatedMonomial, const Expr& var2) 
+bool TheoryArith3::lessThanVar(const Expr& isolatedMonomial, const Expr& var2) 
 {
   DebugAssert(!isRational(var2) && !isRational(isolatedMonomial),
-              "TheoryArithOld::findMaxVar: isolatedMonomial cannot be rational" + 
+              "TheoryArith3::findMaxVar: isolatedMonomial cannot be rational" + 
               isolatedMonomial.toString());
   Expr c, var0, var1;
   separateMonomial(isolatedMonomial, c, var0);
@@ -1664,7 +1273,7 @@ bool TheoryArithOld::lessThanVar(const Expr& isolatedMonomial, const Expr& var2)
  *  checks the children recursively (no caching!).  So, apply it with
  *  caution, and only to simple atomic formulas (like inequality).
  */
-bool TheoryArithOld::isStale(const Expr& e) {
+bool TheoryArith3::isStale(const Expr& e) {
   if(e.isTerm())
     return e != find(e).getRHS();
   // It's better be a simple predicate (like inequality); we check the
@@ -1676,8 +1285,8 @@ bool TheoryArithOld::isStale(const Expr& e) {
 }
 
 
-bool TheoryArithOld::isStale(const TheoryArithOld::Ineq& ineq) {
-  TRACE("arith stale", "isStale(", ineq, ") {");
+bool TheoryArith3::isStale(const TheoryArith3::Ineq& ineq) {
+  TRACE("arith ineq", "isStale(", ineq, ") {");
   const Expr& ineqExpr = ineq.ineq().getExpr();
   const Rational& c = freeConstIneq(ineqExpr, ineq.varOnRHS());
   bool strict(isLT(ineqExpr));
@@ -1685,9 +1294,6 @@ bool TheoryArithOld::isStale(const TheoryArithOld::Ineq& ineq) {
 
   bool subsumed;
 
-  if (ineqExpr.hasFind() && find(ineqExpr[1]).getRHS() != ineqExpr[1])
-	  return true;
-  
   if(ineq.varOnRHS()) {
     subsumed = (c < fc.getConst() ||
 		(c == fc.getConst() && !strict && fc.strict()));
@@ -1709,13 +1315,13 @@ bool TheoryArithOld::isStale(const TheoryArithOld::Ineq& ineq) {
 }
 
 
-void TheoryArithOld::separateMonomial(const Expr& e, Expr& c, Expr& var) {
+void TheoryArith3::separateMonomial(const Expr& e, Expr& c, Expr& var) {
   TRACE("separateMonomial", "separateMonomial(", e, ")");
   DebugAssert(!isPlus(e), 
-	      "TheoryArithOld::separateMonomial(e = "+e.toString()+")");
+	      "TheoryArith3::separateMonomial(e = "+e.toString()+")");
   if(isMult(e)) {
     DebugAssert(e.arity() >= 2,
-		"TheoryArithOld::separateMonomial(e = "+e.toString()+")");
+		"TheoryArith3::separateMonomial(e = "+e.toString()+")");
     c = e[0];
     if(e.arity() == 2) var = e[1];
     else {
@@ -1727,128 +1333,118 @@ void TheoryArithOld::separateMonomial(const Expr& e, Expr& c, Expr& var) {
     c = rat(1);
     var = e;
   }
-  DebugAssert(c.isRational(), "TheoryArithOld::separateMonomial(e = "
+  DebugAssert(c.isRational(), "TheoryArith3::separateMonomial(e = "
 	      +e.toString()+", c = "+c.toString()+")");
   DebugAssert(!isMult(var) || (var[0].isRational() && var[0].getRational()==1),
-	      "TheoryArithOld::separateMonomial(e = "
+	      "TheoryArith3::separateMonomial(e = "
 	      +e.toString()+", var = "+var.toString()+")");
 }
 
 
-void TheoryArithOld::projectInequalities(const Theorem& theInequality, 
+void TheoryArith3::projectInequalities(const Theorem& theInequality, 
                                       bool isolatedVarOnRHS)
 {
-  
-	TRACE("arith project", "projectInequalities(", theInequality.getExpr(),
+  TRACE("arith ineq", "projectInequalities(", theInequality.getExpr(),
         ", isolatedVarOnRHS="+string(isolatedVarOnRHS? "true" : "false")
         +") {");
-	DebugAssert(isLE(theInequality.getExpr()) || 
+  DebugAssert(isLE(theInequality.getExpr()) || 
               isLT(theInequality.getExpr()),
-              "TheoryArithOld::projectIsolatedVar: "\
+              "TheoryArith3::projectIsolatedVar: "\
               "theInequality is of the wrong form: " + 
               theInequality.toString());
+  //TODO: DebugAssert to check if the isolatedMonomial is of the right
+  //form and the whether we are indeed getting inequalities.
+  Theorem theIneqThm(theInequality);
+  Expr theIneq = theIneqThm.getExpr();
+
+  Theorem isIntLHS(isIntegerThm(theIneq[0]));
+  Theorem isIntRHS(isIntegerThm(theIneq[1]));
+  bool isInt = (!isIntLHS.isNull() && !isIntRHS.isNull());
+  // If the inequality is strict and integer, change it to non-strict
+  if(isLT(theIneq) && isInt) {
+    Theorem thm = d_rules->lessThanToLE(theInequality, isIntLHS, isIntRHS,
+					!isolatedVarOnRHS);
+    theIneqThm = canonPred(iffMP(theIneqThm, thm));
+    theIneq = theIneqThm.getExpr();
+  }
+  Expr isolatedMonomial = 
+    isolatedVarOnRHS ? theIneq[1] : theIneq[0];
   
-	//TODO: DebugAssert to check if the isolatedMonomial is of the right
-	//form and the whether we are indeed getting inequalities.
-	Theorem theIneqThm(theInequality);
-	Expr theIneq = theIneqThm.getExpr();
+  Expr monomialVar, a;
+  separateMonomial(isolatedMonomial, a, monomialVar);
+
+  bool subsumed;
+  const FreeConst& bestConst =
+    updateSubsumptionDB(theIneq, isolatedVarOnRHS, subsumed);
+
+  if(subsumed) {
+    IF_DEBUG(debugger.counter("subsumed inequalities")++;)
+    TRACE("arith ineq", "subsumed inequality: ", theIneq, "");
+  } else {
+    // If the isolated variable is actually a non-linear term, we are
+    // incomplete
+    if(isMult(monomialVar) || isPow(monomialVar))
+      setIncomplete("Non-linear arithmetic inequalities");
+
+    // First, we need to make sure the isolated inequality is
+    // setup properly.
+    //    setupRec(theIneq[0]);
+    //    setupRec(theIneq[1]);
+    theoryCore()->setupTerm(theIneq[0], this, theIneqThm);
+    theoryCore()->setupTerm(theIneq[1], this, theIneqThm);
+    // Add the inequality into the appropriate DB.
+    ExprMap<CDList<Ineq> *>& db1 =
+      isolatedVarOnRHS ? d_inequalitiesRightDB : d_inequalitiesLeftDB; 
+    ExprMap<CDList<Ineq> *>::iterator it1 = db1.find(monomialVar);
+    if(it1 == db1.end()) {
+      CDList<Ineq> * list = new(true) CDList<Ineq>(theoryCore()->getCM()->getCurrentContext());
+      list->push_back(Ineq(theIneqThm, isolatedVarOnRHS, bestConst));
+      db1[monomialVar] = list;
+    }
+    else 
+      ((*it1).second)->push_back(Ineq(theIneqThm, isolatedVarOnRHS, bestConst));
+  
+    ExprMap<CDList<Ineq> *>& db2 = 
+      isolatedVarOnRHS ? d_inequalitiesLeftDB : d_inequalitiesRightDB; 
+    ExprMap<CDList<Ineq> *>::iterator it = db2.find(monomialVar);
+    if(it == db2.end()) {
+      TRACE_MSG("arith ineq", "projectInequalities[not in DB] => }");
+      return;
+    }
+  
+    CDList<Ineq>& listOfDBIneqs = *((*it).second);
+    Theorem betaLTt, tLTalpha, thm;
+    for(size_t i = 0, iend=listOfDBIneqs.size(); i!=iend; ++i) {
+      const Ineq& ineqEntry = listOfDBIneqs[i];
+      const Theorem& ineqThm = ineqEntry.ineq();
+      if(!isStale(ineqEntry)) {
+	betaLTt = isolatedVarOnRHS ? theIneqThm : ineqThm;
+	tLTalpha = isolatedVarOnRHS ? ineqThm : theIneqThm;
+	thm = normalizeProjectIneqs(betaLTt, tLTalpha);
 	
-	// If the inequality is strict and integer, change it to non-strict
-	if(isLT(theIneq)) {
-		Theorem isIntLHS(isIntegerThm(theIneq[0]));
-		Theorem isIntRHS(isIntegerThm(theIneq[1]));
-		if ((!isIntLHS.isNull() && !isIntRHS.isNull())) {
-			Theorem thm = d_rules->lessThanToLE(theInequality, isIntLHS, isIntRHS, !isolatedVarOnRHS);
-			theIneqThm = canonPred(iffMP(theIneqThm, thm));
-			theIneq = theIneqThm.getExpr();
-		}
+	IF_DEBUG(debugger.counter("real shadows")++;)
+
+	// Check for TRUE and FALSE theorems
+	Expr e(thm.getExpr());	if(e.isFalse()) {
+	  setInconsistent(thm);
+	  TRACE_MSG("arith ineq", "projectInequalities[inconsistent] => }");
+	  return;
 	}
-  
-	Expr isolatedMonomial = isolatedVarOnRHS ? theIneq[1] : theIneq[0];
-  
-	Expr monomialVar, a;
-	separateMonomial(isolatedMonomial, a, monomialVar);
-
-	bool subsumed;
-	const FreeConst& bestConst = updateSubsumptionDB(theIneq, isolatedVarOnRHS, subsumed);
-
-	if(subsumed) {
-		IF_DEBUG(debugger.counter("subsumed inequalities")++;)
-		TRACE("arith ineq", "subsumed inequality: ", theIneq, "");
-	} else {
-		// If the isolated variable is actually a non-linear term, we are
-		// incomplete
-		if(isMult(monomialVar) || isPow(monomialVar))
-			setIncomplete("Non-linear arithmetic inequalities");
-
-		// First, we need to make sure the isolated inequality is
-		// setup properly.
-		//    setupRec(theIneq[0]);
-		//    setupRec(theIneq[1]);
-		theoryCore()->setupTerm(theIneq[0], this, theIneqThm);
-		theoryCore()->setupTerm(theIneq[1], this, theIneqThm);
-		// Add the inequality into the appropriate DB.
-		ExprMap<CDList<Ineq> *>& db1 = isolatedVarOnRHS ? d_inequalitiesRightDB : d_inequalitiesLeftDB; 
-		ExprMap<CDList<Ineq> *>::iterator it1 = db1.find(monomialVar);
-		if(it1 == db1.end()) {
-			CDList<Ineq> * list = new(true) CDList<Ineq>(theoryCore()->getCM()->getCurrentContext());
-			list->push_back(Ineq(theIneqThm, isolatedVarOnRHS, bestConst));
-			db1[monomialVar] = list;
-		}
-		else 
-			((*it1).second)->push_back(Ineq(theIneqThm, isolatedVarOnRHS, bestConst));
-  
-		ExprMap<CDList<Ineq> *>& db2 = isolatedVarOnRHS ? d_inequalitiesLeftDB : d_inequalitiesRightDB; 
-		ExprMap<CDList<Ineq> *>::iterator it = db2.find(monomialVar);
-		if(it == db2.end()) {
-			TRACE_MSG("arith ineq", "projectInequalities[not in DB] => }");
-			return;
-		}
-  
-		CDList<Ineq>& listOfDBIneqs = *((*it).second);
-		Theorem betaLTt, tLTalpha, thm;
-		for(int i = listOfDBIneqs.size() - 1; !inconsistent() && i >= 0; --i) {
-			const Ineq& ineqEntry = listOfDBIneqs[i];
-			const Theorem& ineqThm = ineqEntry.ineq(); //inequalityToFind(ineqEntry.ineq(), isolatedVarOnRHS);
-      
-			// ineqExntry might be stale
-      
-			if(!isStale(ineqEntry)) {
-				betaLTt = isolatedVarOnRHS ? theIneqThm : ineqThm;
-				tLTalpha = isolatedVarOnRHS ? ineqThm : theIneqThm;
-					
-				thm = normalizeProjectIneqs(betaLTt, tLTalpha);
-				if (thm.isNull()) continue;
-								
-				IF_DEBUG(debugger.counter("real shadows")++;)
-
-				// Check for TRUE and FALSE theorems
-				Expr e(thm.getExpr());	
-	
-				if(e.isFalse()) {
-					setInconsistent(thm);
-					TRACE_MSG("arith ineq", "projectInequalities[inconsistent] => }");
-					return;
-				}
-				else {
-					if(!e.isTrue() && !e.isEq()) {				
-						// setup the term so that it comes out in updates						
-						bool added = addToBuffer(thm, false);
-						//if (added && !inconsistent()) enqueueFact(thm);
-					}
-					else if(e.isEq())
-						enqueueFact(thm);
-				}
-			} else {
-				IF_DEBUG(debugger.counter("stale inequalities")++;)
-			}
-		}
+	else {
+	  if(!e.isTrue() && !e.isEq())
+	    addToBuffer(thm);
+	  else if(e.isEq())
+	    enqueueFact(thm);
 	}
-	
-	TRACE_MSG("arith ineq", "projectInequalities => }");
+      } else {
+	IF_DEBUG(debugger.counter("stale inequalities")++;)
+      }
+    }
+  }
+  TRACE_MSG("arith ineq", "projectInequalities => }");
 }
 
-Theorem TheoryArithOld::normalizeProjectIneqs(const Theorem& ineqThm1, 
+Theorem TheoryArith3::normalizeProjectIneqs(const Theorem& ineqThm1, 
                                            const Theorem& ineqThm2)
 {
   //ineq1 is of the form beta < b.x  or beta < x  [ or with <= ]
@@ -1867,10 +1463,10 @@ Theorem TheoryArithOld::normalizeProjectIneqs(const Theorem& ineqThm1,
         ", "+ineq2.toString()+") {");
   DebugAssert((isLE(ineq1) || isLT(ineq1)) &&
               (isLE(ineq2) || isLT(ineq2)),
-              "TheoryArithOld::normalizeProjectIneqs: Wrong Kind inputs: " +
+              "TheoryArith3::normalizeProjectIneqs: Wrong Kind inputs: " +
               ineq1.toString() + ineq2.toString());
   DebugAssert(!isPlus(ineq1[1]) && !isPlus(ineq2[0]),
-              "TheoryArithOld::normalizeProjectIneqs: Wrong Kind inputs: " +
+              "TheoryArith3::normalizeProjectIneqs: Wrong Kind inputs: " +
               ineq1.toString() + ineq2.toString());
 
   //compute the factors to multiply the two inequalities with
@@ -1897,33 +1493,34 @@ Theorem TheoryArithOld::normalizeProjectIneqs(const Theorem& ineqThm1,
     else 
       intResult = d_rules->darkGrayShadow2ba(betaLTt, tLTalpha,
 					     isIntAlpha, isIntBeta, isIntx);
-	enqueueFact(intResult);
+    enqueueFact(intResult);
     // Fetch dark and gray shadows
     const Expr& DorG = intResult.getExpr();
     DebugAssert(DorG.isOr() && DorG.arity()==2, "DorG = "+DorG.toString());
+    const Expr& D = DorG[0];
     const Expr& G = DorG[1];
+    DebugAssert(D.getKind()==DARK_SHADOW, "D = "+D.toString());
     DebugAssert(G.getKind()==GRAY_SHADOW, "G = "+G.toString());
     // Set the higher splitter priority for dark shadow
-//    Expr tmp = simplifyExpr(D);
-//    if (!tmp.isBoolConst())
-//      addSplitter(tmp, 5);
+    Expr tmp = simplifyExpr(D);
+    if (!tmp.isBoolConst())
+      addSplitter(tmp, 5);
     // Also set a higher priority to the NEGATION of GRAY_SHADOW
-    Expr tmp = simplifyExpr(!G);
+    tmp = simplifyExpr(!G);
     if (!tmp.isBoolConst())
       addSplitter(tmp, 1);
     IF_DEBUG(debugger.counter("dark+gray shadows")++;)
-    
-    // Dejan: Let's forget about the real shadow, we are doing integers
-//    /return intResult;
   }
 
   //actually normalize the inequalities
   if(1 != factor1) {
+    std::vector<Theorem> thms1;
     Theorem thm2 = iffMP(betaLTt, d_rules->multIneqn(ineq1, rat(factor1)));
     betaLTt = canonPred(thm2);
     ineq1 = betaLTt.getExpr();
   }
   if(1 != factor2) {
+    std::vector<Theorem> thms1;
     Theorem thm2 = iffMP(tLTalpha, d_rules->multIneqn(ineq2, rat(factor2)));
     tLTalpha = canonPred(thm2);
     ineq2 = tLTalpha.getExpr();
@@ -1941,13 +1538,9 @@ Theorem TheoryArithOld::normalizeProjectIneqs(const Theorem& ineqThm1,
   }
 
   // Check if this inequality is a finite interval
-//  if(isInt)
-//    processFiniteInterval(betaLTt, tLTalpha);
+  if(isInt)
+    processFiniteInterval(betaLTt, tLTalpha);
 
-//  // Only do the real shadow if a and b = 1
-//  if (isInt && a > 1 && b > 1) 
-//	  return Theorem();
-  
   //project the normalized inequalities.
 
   Theorem result = d_rules->realShadow(betaLTt, tLTalpha);
@@ -1959,61 +1552,58 @@ Theorem TheoryArithOld::normalizeProjectIneqs(const Theorem& ineqThm1,
   // Now, transform the result into 0 < rhs and see if rhs is a const 
   Expr e(result.getExpr());
   // int kind = e.getKind();
-  if(!(e[0].isRational() && e[0].getRational() == 0))
+  if(!(e[0].isRational() && e[0].getRational() == 0)) {
     result = iffMP(result, d_rules->rightMinusLeft(e));
-  result = canonPred(result);  
+    result = canonPred(result);
+  }
   
   //result is "0 kind e'". where e' is equal to canon(e[1]-e[0])
   Expr right = result.getExpr()[1];
   // Check for trivial inequality
   if (right.isRational())
     result = iffMP(result, d_rules->constPredicate(result.getExpr()));
-  else
-	result = normalize(result);
   TRACE("arith ineq", "normalizeProjectIneqs => ", result, " }");
   return result;
 }
 
-Rational TheoryArithOld::currentMaxCoefficient(Expr var)
-{	
-	// We prefer real variables
-	if (var.getType() == d_realType) return -100;
-	
-	// Check if the variable is nonlinear
-	bool nonLinear = (isLeaf(var) ? false : true);
+Rational TheoryArith3::currentMaxCoefficient(Expr var)
+{
+	bool foundLeft = false;
+	bool foundRight = false;
+	Rational leftMax = 1;
+	Rational rightMax = 1;
+
+	// If the coefitient was found earlier and fixed, just return it
+	CDMap<Expr, Rational>::iterator findFixed = fixedMaxCoefficient.find(var);
+	if (findFixed != fixedMaxCoefficient.end())
+		return (*findFixed).second;
 	
 	// Find the biggest left side coefficient
-	ExprMap<Rational>::iterator findMaxLeft = maxCoefficientLeft.find(var);
-	Rational leftMax = -1;
-	if (findMaxLeft != maxCoefficientLeft.end())
+	CDMap<Expr, Rational>::iterator findMaxLeft = maxCoefficientLeft.find(var);
+	if (findMaxLeft != maxCoefficientLeft.end()) {
+		foundLeft = true;
 		leftMax = (*findMaxLeft).second;
+	}
 
 	// 
-	ExprMap<Rational>::iterator findMaxRight = maxCoefficientRight.find(var);
-	Rational rightMax = -1;
-	if (findMaxRight != maxCoefficientRight.end())
-		rightMax = (*findMaxRight).second;	
+	CDMap<Expr, Rational>::iterator findMaxRight = maxCoefficientRight.find(var);
+	if (findMaxRight != maxCoefficientRight.end()) {
+		foundRight = true;
+		rightMax = (*findMaxRight).second;
+	}
+
+	if (foundLeft && foundRight)
+		if (leftMax < rightMax) return rightMax;
+		else return leftMax;
 	
-	// What is the max coefficient
-	// If one is undefined, dont take it. My first thought was to project away unbounded
-	// ones, but it happens that you get another constraint on it later and the hell breaks
-	// loose if they have big coefficients.	
-	Rational returnValue;
-	if (leftMax == -1) returnValue = rightMax;
-	else if (rightMax == -1) returnValue = leftMax;
-	else if (leftMax > rightMax) returnValue = rightMax;
-	else returnValue = leftMax;	
-	
-	TRACE("arith stats", "max coeff of ", var.toString(), ": " + returnValue.toString() + "(left=" + leftMax.toString() + ",right=" + rightMax.toString());
-	
-	return returnValue;
+	return Rational(1) / (leftMax * rightMax);
 }
 
-void TheoryArithOld::fixCurrentMaxCoefficient(Expr var, Rational max) {
+void TheoryArith3::fixCurrentMaxCoefficient(Expr var, Rational max) {
 	fixedMaxCoefficient[var] = max;
 }
 
-void TheoryArithOld::selectSmallestByCoefficient(const vector<Expr>& input, vector<Expr>& output) {
+void TheoryArith3::selectSmallestByCoefficient(vector<Expr> input, vector<Expr>& output) {
   
 	// Clear the output vector
 	output.clear();
@@ -2037,18 +1627,18 @@ void TheoryArithOld::selectSmallestByCoefficient(const vector<Expr>& input, vect
 			output.clear();
 		}
 
-		// If equal to the current best, push it to the stack (in 10% range)
+		// If equal to the current best, push it to the stack
 		if (current_coefficient == best_coefficient)
 			  output.push_back(current_variable);		  
 	}
 	  
     // Fix the selected best coefficient
-	//fixCurrentMaxCoefficient(best_variable, best_coefficient);
+	fixCurrentMaxCoefficient(best_variable, best_coefficient);
 }
 
-Expr TheoryArithOld::pickMonomial(const Expr& right)
+Expr TheoryArith3::pickMonomial(const Expr& right)
 {
-  DebugAssert(isPlus(right), "TheoryArithOld::pickMonomial: Wrong Kind: " + 
+  DebugAssert(isPlus(right), "TheoryArith3::pickMonomial: Wrong Kind: " + 
               right.toString());
   if(theoryCore()->getFlags()["var-order"].getBool()) {
     Expr::iterator i = right.begin();
@@ -2077,12 +1667,12 @@ Expr TheoryArithOld::pickMonomial(const Expr& right)
   vector<Expr> largest;
   d_graph.selectLargest(vars, largest);
   DebugAssert(0 < largest.size(),
-              "TheoryArithOld::pickMonomial: selectLargest: failed!!!!");
+              "TheoryArith3::pickMonomial: selectLargest: failed!!!!");
   
   // DEJAN: Rafine the largest by coefficient values
   vector<Expr> largest_small_coeff;
   selectSmallestByCoefficient(largest, largest_small_coeff);
-  DebugAssert(0 < largest_small_coeff.size(), "TheoryArithOld::pickMonomial: selectLargestByCOefficient: failed!!!!");   
+  DebugAssert(0 < largest_small_coeff.size(), "TheoryArith3::pickMonomial: selectLargestByCOefficient: failed!!!!");   
   
   size_t pickedVar = 0;
     // Pick the variable which will generate the fewest number of
@@ -2117,22 +1707,20 @@ Expr TheoryArithOld::pickMonomial(const Expr& right)
       d_graph.addEdge(largestVar, vars[k]);
   }
   
-  TRACE("arith buffer", "picked var : ", var2monomial[largestVar].toString(), "");
-  
   return var2monomial[largestVar];  
 }
 
-void TheoryArithOld::VarOrderGraph::addEdge(const Expr& e1, const Expr& e2)
+void TheoryArith3::VarOrderGraph::addEdge(const Expr& e1, const Expr& e2)
 {
   TRACE("arith var order", "addEdge("+e1.toString()+" > ", e2, ")");
-  DebugAssert(e1 != e2, "TheoryArithOld::VarOrderGraph::addEdge("
+  DebugAssert(e1 != e2, "TheoryArith3::VarOrderGraph::addEdge("
 	      +e1.toString()+", "+e2.toString()+")");
   d_edges[e1].push_back(e2);
 }
 
 //returns true if e1 < e2, else false(i.e e2 < e1 or e1,e2 are not
 //comparable)
-bool TheoryArithOld::VarOrderGraph::lessThan(const Expr& e1, const Expr& e2) 
+bool TheoryArith3::VarOrderGraph::lessThan(const Expr& e1, const Expr& e2) 
 {
   d_cache.clear();
   //returns true if e1 is in the subtree rooted at e2 implying e1 < e2
@@ -2140,7 +1728,7 @@ bool TheoryArithOld::VarOrderGraph::lessThan(const Expr& e1, const Expr& e2)
 }
 
 //returns true if e1 is in the subtree rooted at e2 implying e1 < e2
-bool TheoryArithOld::VarOrderGraph::dfs(const Expr& e1, const Expr& e2)
+bool TheoryArith3::VarOrderGraph::dfs(const Expr& e1, const Expr& e2)
 {
   if(e1 == e2)
     return true;
@@ -2158,7 +1746,7 @@ bool TheoryArithOld::VarOrderGraph::dfs(const Expr& e1, const Expr& e2)
 }
 
 
-void TheoryArithOld::VarOrderGraph::selectSmallest(vector<Expr>& v1,
+void TheoryArith3::VarOrderGraph::selectSmallest(vector<Expr>& v1,
                                                vector<Expr>& v2) 
 {
   int v1Size = v1.size();
@@ -2186,7 +1774,7 @@ void TheoryArithOld::VarOrderGraph::selectSmallest(vector<Expr>& v1,
 }
 
 
-void TheoryArithOld::VarOrderGraph::selectLargest(const vector<Expr>& v1,
+void TheoryArith3::VarOrderGraph::selectLargest(const vector<Expr>& v1,
                                                vector<Expr>& v2) 
 {
   int v1Size = v1.size();
@@ -2211,54 +1799,31 @@ void TheoryArithOld::VarOrderGraph::selectLargest(const vector<Expr>& v1,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// TheoryArithOld Public Methods                                                //
+// TheoryArith3 Public Methods                                                //
 ///////////////////////////////////////////////////////////////////////////////
 
 
-TheoryArithOld::TheoryArithOld(TheoryCore* core)
-  : TheoryArith(core, "ArithmeticOld"),
+TheoryArith3::TheoryArith3(TheoryCore* core)
+  : TheoryArith(core, "Arithmetic3"),
     d_diseq(core->getCM()->getCurrentContext()),
     d_diseqIdx(core->getCM()->getCurrentContext(), 0, 0),
     d_inModelCreation(core->getCM()->getCurrentContext(), false, 0),
     d_freeConstDB(core->getCM()->getCurrentContext()),
-    d_buffer_0(core->getCM()->getCurrentContext()),
-    d_buffer_1(core->getCM()->getCurrentContext()),
-    d_buffer_2(core->getCM()->getCurrentContext()),
-    d_buffer_3(core->getCM()->getCurrentContext()),
-        // Initialize index to 0 at scope 0
-    d_bufferIdx_0(core->getCM()->getCurrentContext(), 0, 0),
-    d_bufferIdx_1(core->getCM()->getCurrentContext(), 0, 0),
-    d_bufferIdx_2(core->getCM()->getCurrentContext(), 0, 0),
-    d_bufferIdx_3(core->getCM()->getCurrentContext(), 0, 0),
-    diff_logic_size(core->getCM()->getCurrentContext(), 0, 0),
+    d_buffer(core->getCM()->getCurrentContext()),
+    // Initialize index to 0 at scope 0
+    d_bufferIdx(core->getCM()->getCurrentContext(), 0, 0),
     d_bufferThres(&(core->getFlags()["ineq-delay"].getInt())),
-    d_grayShadowThres(&(core->getFlags()["grayshadow-threshold"].getInt())),    
     d_countRight(core->getCM()->getCurrentContext()),
     d_countLeft(core->getCM()->getCurrentContext()),
     d_sharedTerms(core->getCM()->getCurrentContext()),
-    d_sharedTermsList(core->getCM()->getCurrentContext()),
     d_sharedVars(core->getCM()->getCurrentContext()),
-    bufferedInequalities(core->getCM()->getCurrentContext()),
-    termLowerBound(core->getCM()->getCurrentContext()),
-    termLowerBoundThm(core->getCM()->getCurrentContext()),
-    termUpperBound(core->getCM()->getCurrentContext()),
-    termUpperBoundThm(core->getCM()->getCurrentContext()),
-    alreadyProjected(core->getCM()->getCurrentContext()),
-    dontBuffer(core->getCM()->getCurrentContext()),
-    diffLogicOnly(core->getCM()->getCurrentContext(), true, 0),
-    diffLogicGraph(0, core, 0, core->getCM()->getCurrentContext()),
-    shared_index_1(core->getCM()->getCurrentContext(), 0, 0),
-    shared_index_2(core->getCM()->getCurrentContext(), 0, 0)
+    maxCoefficientLeft(core->getCM()->getCurrentContext()),
+    maxCoefficientRight(core->getCM()->getCurrentContext()),
+    fixedMaxCoefficient(core->getCM()->getCurrentContext())
 {
-  IF_DEBUG(d_diseq.setName("CDList[TheoryArithOld::d_diseq]");)
-  IF_DEBUG(d_buffer_0.setName("CDList[TheoryArithOld::d_buffer_0]");)
-  IF_DEBUG(d_buffer_1.setName("CDList[TheoryArithOld::d_buffer_1]");)
-  IF_DEBUG(d_buffer_2.setName("CDList[TheoryArithOld::d_buffer_2]");)
-  IF_DEBUG(d_buffer_3.setName("CDList[TheoryArithOld::d_buffer_3]");)
-  IF_DEBUG(d_bufferIdx_1.setName("CDList[TheoryArithOld::d_bufferIdx_0]");)
-  IF_DEBUG(d_bufferIdx_1.setName("CDList[TheoryArithOld::d_bufferIdx_1]");)
-  IF_DEBUG(d_bufferIdx_2.setName("CDList[TheoryArithOld::d_bufferIdx_2]");)
-  IF_DEBUG(d_bufferIdx_3.setName("CDList[TheoryArithOld::d_bufferIdx_3]");)
+  IF_DEBUG(d_diseq.setName("CDList[TheoryArith3::d_diseq]");)
+  IF_DEBUG(d_buffer.setName("CDList[TheoryArith3::d_buffer]");)
+  IF_DEBUG(d_bufferIdx.setName("CDList[TheoryArith3::d_bufferIdx]");)
 
   getEM()->newKind(REAL, "_REAL", true);
   getEM()->newKind(INT, "_INT", true);
@@ -2284,44 +1849,41 @@ TheoryArithOld::TheoryArithOld(TheoryCore* core)
 
   getEM()->newKind(REAL_CONST, "_REAL_CONST");
 
-  d_kinds.push_back(REAL);
-  d_kinds.push_back(INT);
-  d_kinds.push_back(SUBRANGE);
-  d_kinds.push_back(IS_INTEGER);
-  d_kinds.push_back(UMINUS);
-  d_kinds.push_back(PLUS);
-  d_kinds.push_back(MINUS);
-  d_kinds.push_back(MULT);
-  d_kinds.push_back(DIVIDE);
-  d_kinds.push_back(POW);
-  d_kinds.push_back(INTDIV);
-  d_kinds.push_back(MOD);
-  d_kinds.push_back(LT);
-  d_kinds.push_back(LE);
-  d_kinds.push_back(GT);
-  d_kinds.push_back(GE);
-  d_kinds.push_back(RATIONAL_EXPR);
-  d_kinds.push_back(NEGINF);
-  d_kinds.push_back(POSINF);
-  d_kinds.push_back(DARK_SHADOW);
-  d_kinds.push_back(GRAY_SHADOW);
-  d_kinds.push_back(REAL_CONST);
+  vector<int> kinds;
+  kinds.push_back(REAL);
+  kinds.push_back(INT);
+  kinds.push_back(SUBRANGE);
+  kinds.push_back(IS_INTEGER);
+  kinds.push_back(UMINUS);
+  kinds.push_back(PLUS);
+  kinds.push_back(MINUS);
+  kinds.push_back(MULT);
+  kinds.push_back(DIVIDE);
+  kinds.push_back(POW);
+  kinds.push_back(INTDIV);
+  kinds.push_back(MOD);
+  kinds.push_back(LT);
+  kinds.push_back(LE);
+  kinds.push_back(GT);
+  kinds.push_back(GE);
+  kinds.push_back(RATIONAL_EXPR);
+  kinds.push_back(NEGINF);
+  kinds.push_back(POSINF);
+  kinds.push_back(DARK_SHADOW);
+  kinds.push_back(GRAY_SHADOW);
+  kinds.push_back(REAL_CONST);
 
-  registerTheory(this, d_kinds, true);
+  registerTheory(this, kinds, true);
 
-  d_rules = createProofRulesOld();
-  diffLogicGraph.setRules(d_rules);
-  diffLogicGraph.setArith(this);
-  
+  d_rules = createProofRules3();
+
   d_realType = Type(getEM()->newLeafExpr(REAL));
   d_intType  = Type(getEM()->newLeafExpr(INT));
-  
-  zero = theoryCore()->newVar("cvc3arithZero", intType());
 }
 
 
 // Destructor: delete the proof rules class if it's present
-TheoryArithOld::~TheoryArithOld() {
+TheoryArith3::~TheoryArith3() {
   if(d_rules != NULL) delete d_rules;
   // Clear the inequality databases
   for(ExprMap<CDList<Ineq> *>::iterator i=d_inequalitiesRightDB.begin(),
@@ -2334,10 +1896,9 @@ TheoryArithOld::~TheoryArithOld() {
     delete (i->second);
     free (i->second);
   }
-  unregisterTheory(this, d_kinds, true);
 }
 
-void TheoryArithOld::collectVars(const Expr& e, vector<Expr>& vars,
+void TheoryArith3::collectVars(const Expr& e, vector<Expr>& vars,
 			      set<Expr>& cache) {
   // Check the cache first
   if(cache.count(e) > 0) return;
@@ -2350,14 +1911,13 @@ void TheoryArithOld::collectVars(const Expr& e, vector<Expr>& vars,
 }
 
 void
-TheoryArithOld::processFiniteInterval
-(const Theorem& alphaLEax,
+TheoryArith3::processFiniteInterval(const Theorem& alphaLEax,
 				   const Theorem& bxLEbeta) {
   const Expr& ineq1(alphaLEax.getExpr());
   const Expr& ineq2(bxLEbeta.getExpr());
-  DebugAssert(isLE(ineq1), "TheoryArithOld::processFiniteInterval: ineq1 = "
+  DebugAssert(isLE(ineq1), "TheoryArith3::processFiniteInterval: ineq1 = "
 	      +ineq1.toString());
-  DebugAssert(isLE(ineq2), "TheoryArithOld::processFiniteInterval: ineq2 = "
+  DebugAssert(isLE(ineq2), "TheoryArith3::processFiniteInterval: ineq2 = "
 	      +ineq2.toString());
   // If the inequalities are not integer, just return (nothing to do)
   if(!isInteger(ineq1[0])
@@ -2369,9 +1929,9 @@ TheoryArithOld::processFiniteInterval
   const Expr& ax = ineq1[1];
   const Expr& bx = ineq2[0];
   DebugAssert(!isPlus(ax) && !isRational(ax),
-	      "TheoryArithOld::processFiniteInterval:\n ax = "+ax.toString());
+	      "TheoryArith3::processFiniteInterval:\n ax = "+ax.toString());
   DebugAssert(!isPlus(bx) && !isRational(bx),
-	      "TheoryArithOld::processFiniteInterval:\n bx = "+bx.toString());
+	      "TheoryArith3::processFiniteInterval:\n bx = "+bx.toString());
   Expr a = isMult(ax)? ax[0] : rat(1);
   Expr b = isMult(bx)? bx[0] : rat(1);
 
@@ -2403,14 +1963,13 @@ TheoryArithOld::processFiniteInterval
     // Derive and enqueue the finite interval constraint
     Theorem isInta(isIntegerThm(alpha));
     Theorem isIntt(isIntegerThm(t));
-    if (d_sharedTerms.find(thm1.getExpr()[1]) != d_sharedTerms.end())
-    	enqueueFact(d_rules->finiteInterval(thm1, tLEac, isInta, isIntt));
+    enqueueFact(d_rules->finiteInterval(thm1, tLEac, isInta, isIntt));
   }
 }
 
 
 void
-TheoryArithOld::processFiniteIntervals(const Expr& x) {
+TheoryArith3::processFiniteIntervals(const Expr& x) {
   // If x is not integer, do not bother
   if(!isInteger(x)) return;
   // Process every pair of the opposing inequalities for 'x'
@@ -2436,7 +1995,7 @@ TheoryArithOld::processFiniteIntervals(const Expr& x) {
  *  careful on what expressions you are calling it.
  */
 void
-TheoryArithOld::setupRec(const Expr& e) {
+TheoryArith3::setupRec(const Expr& e) {
   if(e.hasFind()) return;
   // First, set up the kids recursively
   for (int k = 0; k < e.arity(); ++k) {
@@ -2450,85 +2009,24 @@ TheoryArithOld::setupRec(const Expr& e) {
 }
 
 
-void TheoryArithOld::addSharedTerm(const Expr& e) {
-  if (d_sharedTerms.find(e) == d_sharedTerms.end()) { 
-	  d_sharedTerms[e] = true;
-	  d_sharedTermsList.push_back(e);
-	  
-//	  if (!isIntegerThm(e).isNull()) {
-//		  int i, size = d_sharedTermsList.size();
-//		  for (i = 0; i < size - 1; i ++) {
-//			  Expr e2 = d_sharedTermsList[i];			  
-//			  if (!isIntegerThm(e2).isNull())			  
-//				  if (!find(e).getRHS().isRational() || !find(e2).getRHS().isRational())
-//					  addSplitter(e.eqExpr(e2));
-//		  }
-//	  }
-  }  
+void TheoryArith3::addSharedTerm(const Expr& e) {
+  d_sharedTerms[e] = true;
 }
 
 
-void TheoryArithOld::assertFact(const Theorem& e)
+void TheoryArith3::assertFact(const Theorem& e)
 {
 	TRACE("arith assert", "assertFact(", e.getExpr().toString(), ")");
   const Expr& expr = e.getExpr();
   if (expr.isNot() && expr[0].isEq()) {
     IF_DEBUG(debugger.counter("[arith] received disequalities")++;)
-
-//    Expr eq = expr[0];
-//    
-//    // We want to expand on difference logic disequalities as soon as possible
-//    bool diff_logic = false;        	
-//    if (eq[1].isRational() && eq[1].getRational() == 0) {
-//    	if (!isPlus(eq[0])) {
-//    		if (isLeaf(eq[0])) diff_logic = true;
-//    	}
-//    	else {
-//    		int arity = eq[0].arity();
-//    		if (arity <= 2) {
-//    			if (eq[0][0].isRational())    			
-//    				diff_logic = true;
-//    			else {
-//    				Expr ax = eq[0][0], a, x;
-//    				Expr by = eq[0][1], b, y;
-//    				separateMonomial(ax, a, x);
-//    				separateMonomial(by, b, y);
-//    				if (isLeaf(x) && isLeaf(y))
-//    					if ((a.getRational() == 1 && b.getRational() == -1) ||
-//    						(a.getRational() == -1 && b.getRational() == 1))
-//    						diff_logic = true;    				
-//    			}
-//    		}
-//    		if (arity == 3 && eq[0][0].isRational()) {
-//    			Expr ax = eq[0][1], a, x;
-//				Expr by = eq[0][2], b, y;
-//				separateMonomial(ax, a, x);
-//				separateMonomial(by, b, y);
-//				if (isLeaf(x) && isLeaf(y))
-//					if ((a.getRational() == 1 && b.getRational() == -1) ||
-//						(a.getRational() == -1 && b.getRational() == 1))
-//						diff_logic = true;    				
-//    		}
-//    	}
-//    }
-//
-//    if (diff_logic)
-//    	enqueueFact(d_rules->diseqToIneq(e));
-//    else
-    	d_diseq.push_back(e);
+    d_diseq.push_back(e);
   }
   else if (!expr.isEq()){
     if (expr.isNot()) {
       // This can only be negation of dark or gray shadows, or
       // disequalities, which we ignore.  Negations of inequalities
       // are handled in rewrite, we don't even receive them here.
-   
-//      if (isGrayShadow(expr[0])) {
-//    	  TRACE("arith gray", "expanding ", expr.toString(), "");
-//    	  Theorem expand = d_rules->expandGrayShadowRewrite(expr[0]);
-//    	  enqueueFact(iffMP(e, substitutivityRule(expr, 0, expand)));    	  
-//      }
-    
     } 
     else if(isDarkShadow(expr)) {
       enqueueFact(d_rules->expandDarkShadow(e));
@@ -2538,62 +2036,48 @@ void TheoryArithOld::assertFact(const Theorem& e)
       IF_DEBUG(debugger.counter("received GRAY_SHADOW")++;)
       const Rational& c1 = expr[2].getRational();
       const Rational& c2 = expr[3].getRational();
-      
-      // If gray shadow bigger than the treshold, we are done
-      if (*d_grayShadowThres > -1 && (c2 - c1 > *d_grayShadowThres)) {
-    	  setIncomplete("Some gray shadows ignored due to threshold");
-    	  return;    	  
-      }
-      
       const Expr& v = expr[0];
       const Expr& ee = expr[1];
       if(c1 == c2)
-    	  enqueueFact(d_rules->expandGrayShadow0(e));
+	enqueueFact(d_rules->expandGrayShadow0(e));
       else {
-    	  Theorem gThm(e);
-    	  // Check if we can reduce the number of cases in G(ax,c,c1,c2)
-    	  if(ee.isRational() && isMult(v)
-    			  && v[0].isRational() && v[0].getRational() >= 2) {
-    		  IF_DEBUG(debugger.counter("reduced const GRAY_SHADOW")++;)
-    		  gThm = d_rules->grayShadowConst(e);
-    	  }
-    	  // (Possibly) new gray shadow
-    	  const Expr& g = gThm.getExpr();
-    	  if(g.isFalse())
-    		  setInconsistent(gThm);
-    	  else if(g[2].getRational() == g[3].getRational())
-    		  enqueueFact(d_rules->expandGrayShadow0(gThm));
-    	  else if(g[3].getRational() - g[2].getRational() <= 5) {
-    		  // Assert c1+e <= v <= c2+e
-    		  enqueueFact(d_rules->expandGrayShadow(gThm));
-    		  // Split G into 2 cases x = l_bound and the other
-    		  Theorem thm2 = d_rules->splitGrayShadowSmall(gThm);
-    		  enqueueFact(thm2);
-    	  }
-    	  else {
-    		  // Assert c1+e <= v <= c2+e
-    		  enqueueFact(d_rules->expandGrayShadow(gThm));
-    		  // Split G into 2 cases (binary search b/w c1 and c2)
-    		  Theorem thm2 = d_rules->splitGrayShadow(gThm);
-    		  enqueueFact(thm2);
-    		  // Fetch the two gray shadows
-//    		  DebugAssert(thm2.getExpr().isAnd() && thm2.getExpr().arity()==2,
-//    				  "thm2 = "+thm2.getExpr().toString());
-//    		  const Expr& G1orG2 = thm2.getExpr()[0];
-//    		  DebugAssert(G1orG2.isOr() && G1orG2.arity()==2,
-//    				  "G1orG2 = "+G1orG2.toString());
-//    		  const Expr& G1 = G1orG2[0];
-//    		  const Expr& G2 = G1orG2[1];
-//    		  DebugAssert(G1.getKind()==GRAY_SHADOW, "G1 = "+G1.toString());
-//    		  DebugAssert(G2.getKind()==GRAY_SHADOW, "G2 = "+G2.toString());
-//    		  // Split on the left disjunct first (keep the priority low)
-//    		  Expr tmp = simplifyExpr(G1);
-//    		  if (!tmp.isBoolConst())
-//    			  addSplitter(tmp, 1);
-//    		  tmp = simplifyExpr(G2);
-//    		  if (!tmp.isBoolConst())
-//    			  addSplitter(tmp, -1);
-    	  }
+	Theorem gThm(e);
+	// Check if we can reduce the number of cases in G(ax,c,c1,c2)
+	if(ee.isRational() && isMult(v)
+	   && v[0].isRational() && v[0].getRational() >= 2) {
+	  IF_DEBUG(debugger.counter("reduced const GRAY_SHADOW")++;)
+	  gThm = d_rules->grayShadowConst(e);
+	}
+	// (Possibly) new gray shadow
+	const Expr& g = gThm.getExpr();
+	if(g.isFalse())
+	  setInconsistent(gThm);
+	else if(g[2].getRational() == g[3].getRational())
+	  enqueueFact(d_rules->expandGrayShadow0(gThm));
+	else {
+	  // Assert c1+e <= v <= c2+e
+	  enqueueFact(d_rules->expandGrayShadow(gThm));
+	  // Split G into 2 cases (binary search b/w c1 and c2)
+	  Theorem thm2 = d_rules->splitGrayShadow(gThm);
+	  enqueueFact(thm2);
+	  // Fetch the two gray shadows
+	  DebugAssert(thm2.getExpr().isAnd() && thm2.getExpr().arity()==2,
+		      "thm2 = "+thm2.getExpr().toString());
+	  const Expr& G1orG2 = thm2.getExpr()[0];
+	  DebugAssert(G1orG2.isOr() && G1orG2.arity()==2,
+		      "G1orG2 = "+G1orG2.toString());
+	  const Expr& G1 = G1orG2[0];
+	  const Expr& G2 = G1orG2[1];
+	  DebugAssert(G1.getKind()==GRAY_SHADOW, "G1 = "+G1.toString());
+	  DebugAssert(G2.getKind()==GRAY_SHADOW, "G2 = "+G2.toString());
+	  // Split on the left disjunct first (keep the priority low)
+          Expr tmp = simplifyExpr(G1);
+          if (!tmp.isBoolConst())
+            addSplitter(tmp, 1);
+          tmp = simplifyExpr(G2);
+	  if (!tmp.isBoolConst())
+            addSplitter(tmp, -1);
+	}
       }
     }
     else {
@@ -2602,27 +2086,26 @@ void TheoryArithOld::assertFact(const Theorem& e)
       if(isLE(expr) || isLT(expr)) {
 	IF_DEBUG(debugger.counter("recevied inequalities")++;)
 	
-//        // Assert the equivalent negated inequality
-//        Theorem thm;
-//        if (isLE(expr)) thm = d_rules->negatedInequality(!gtExpr(expr[0],expr[1]));
-//        else thm = d_rules->negatedInequality(!geExpr(expr[0],expr[1]));
-//        thm = symmetryRule(thm);
-//        Theorem thm2 = simplify(thm.getRHS()[0]);
-//        DebugAssert(thm2.getLHS() != thm2.getRHS(), "Expected rewrite");
-//        thm2 = getCommonRules()->substitutivityRule(thm.getRHS(), thm2);
-//        thm = transitivityRule(thm, thm2);
-//        enqueueFact(iffMP(e, thm));
+        // Assert the equivalent negated inequality
+        Theorem thm;
+        if (isLE(expr)) thm = d_rules->negatedInequality(!gtExpr(expr[0],expr[1]));
+        else thm = d_rules->negatedInequality(!geExpr(expr[0],expr[1]));
+        thm = symmetryRule(thm);
+        Theorem thm2 = simplify(thm.getRHS()[0]);
+        DebugAssert(thm2.getLHS() != thm2.getRHS(), "Expected rewrite");
+        thm2 = getCommonRules()->substitutivityRule(thm.getRHS(), thm2);
+        thm = transitivityRule(thm, thm2);
+        enqueueFact(iffMP(e, thm));
 
 	// Buffer the inequality
 	addToBuffer(e);
 	
-	int total_buf_size = d_buffer_0.size() + d_buffer_1.size() + d_buffer_2.size() + d_buffer_3.size();
-	int processed      = d_bufferIdx_0 + d_bufferIdx_1 + d_bufferIdx_2 + d_bufferIdx_3;
-	TRACE("arith ineq", "buffer.size() = ", total_buf_size, 
-		      ", index="+int2string(processed)
-		      +", threshold="+int2string(*d_bufferThres));
-		
-	if(!diffLogicOnly && (total_buf_size - processed - diff_logic_size > *d_bufferThres) && !d_inModelCreation)
+	TRACE("arith ineq", "buffer.size() = ", d_buffer.size(), 
+	      ", index="+int2string(d_bufferIdx)
+	      +", threshold="+int2string(*d_bufferThres));
+	
+	if((((int)d_buffer.size()) - (int)d_bufferIdx > *d_bufferThres) 
+	   && !d_inModelCreation)
 	  processBuffer();
       } else {
 	IF_DEBUG(debugger.counter("arith IS_INTEGER")++;)
@@ -2630,183 +2113,38 @@ void TheoryArithOld::assertFact(const Theorem& e)
     }
   }
   else {
-    IF_DEBUG(debugger.counter("[arith] received 	t1=t2")++;)       
-    
-//    const Expr lhs = e.getExpr()[0];
-//    const Expr rhs = e.getExpr()[1];
-//    
-//    CDMap<Expr, Rational>::iterator l_bound_find = termLowerBound[lhs];
-//    if (l_bound_find != termLowerBound.end()) {
-//    	Rational lhs_bound = (*l_bound_find).second;
-//    	CDMap<Expr, Rational>::iterator l_bound_find_rhs = termLowerBound[rhs];
-//    	if (l_bound_find_rhs != termLowerBound.end()) {
-//    		
-//    	} else {
-//    		// Add the new bound for the rhs
-//    		termLowerBound[rhs] = lhs_bound;
-//    		termLowerBoundThm = 
-//    	}
-//    		
-//    }
-                                                                  
-    
+    IF_DEBUG(debugger.counter("[arith] received t1=t2")++;)
   }
 }
 
 
-void TheoryArithOld::checkSat(bool fullEffort)
+void TheoryArith3::checkSat(bool fullEffort)
 {
   //  vector<Expr>::const_iterator e;
   //  vector<Expr>::const_iterator eEnd;
   // TODO: convert back to use iterators
   TRACE("arith checksat", "checksat(", fullEffort? "true" : "false", ")");
-  TRACE("arith ineq", "TheoryArithOld::checkSat(fullEffort=",
+  TRACE("arith ineq", "TheoryArith3::checkSat(fullEffort=",
         fullEffort? "true" : "false", ")");
   if (fullEffort) {
-	  // Process the buffer if necessary
-    if (!inconsistent())
-        processBuffer();
-    
-    // Expand the needded inequalitites
-    if(!inconsistent()) { 	    	    	
+    while(!inconsistent() && d_bufferIdx < d_buffer.size())
+      processBuffer();
+    if(d_inModelCreation) {
       for(; d_diseqIdx < d_diseq.size(); d_diseqIdx = d_diseqIdx+1) {
 	TRACE("model", "[arith] refining diseq: ",
 	      d_diseq[d_diseqIdx].getExpr() , "");    
-	
-		// Get the disequality theorem and the expressoin
-		Theorem diseqThm = d_diseq[d_diseqIdx];
-		Expr diseq = diseqThm.getExpr();
-		
-		// Get the equality
-		Expr eq = diseq[0];
-		
-		// If the value of the equality is already determined by instantiation, we just skip it
-		// This can happen a lot as we infer equlities in difference logic
-		if (find(eq[0]).getRHS().isRational() &&
-			find(eq[1]).getRHS().isRational()) {
-			TRACE("arith diseq", "disequality already evaluated : ", diseq.toString(), "");
-			continue;
-		}
-		
-		// We don't know the value of the disequlaity, split on it (for now)		
-		enqueueFact(d_rules->diseqToIneq(diseqThm));
+	enqueueFact(d_rules->diseqToIneq(d_diseq[d_diseqIdx]));
       }
     }
-    
-    // Split on shared term equalities
-    if (!inconsistent()) {
-    	unsigned size = d_sharedTermsList.size();
-
-    	Expr t1, t2;
-    	Expr t1_find, t2_find;
-    	
-    	TRACE("arith shared", "expanding on shared term equalities","","");
-    	
-    	// start from (0, 0)
-    	if (shared_index_1 < size) {
-    		t1 = d_sharedTermsList[shared_index_1];
-    		if (t1.hasFind()) t1_find = find(t1).getRHS();
-    		else t1_find = t1;
-    	}    	
-    	while (!inconsistent() && shared_index_1 < size) {
-    		
-       		// Take the next t2
-       		shared_index_2 = shared_index_2 + 1;    		
-    		
-    		// If off limits, move on t1
-    		if (shared_index_2 >= shared_index_1) {
-    			// Take the fist t2
-    			shared_index_2 = 0;
-    			t2 = d_sharedTermsList[0];
-    			DebugAssert(!t2.isNull(), "t2 is null!");
-    			
-    			// Take the next t1
-    			shared_index_1 = shared_index_1 + 1;    			
-    			while (shared_index_1 < size) {
-    				t1 = d_sharedTermsList[shared_index_1];
-    				DebugAssert(!t1.isNull(), "t1 is null!");
-    				
-    	    		if (t1.hasFind()) t1_find = find(t1).getRHS();
-    	    		else t1_find = t1;
-    	    		
-    	    		if (t1_find != t1 && d_sharedTerms.find(t1_find) != d_sharedTerms.end()) {
-    	    			shared_index_1 = shared_index_1 + 1;    			
-    	    			continue;
-    	    		} else 
-    	    			break;	    		
-    			}    			
-    			if (shared_index_1 >= size) break;    			
-    		} else {
-    			t2 = d_sharedTermsList[shared_index_2];    			
-    			DebugAssert(!t2.isNull(), "t2 is null!");
-    		}    		
-    		
-    		TRACE("arith shared", "comparing : ", int2string(shared_index_1) + " with", int2string(shared_index_2));    		    		    		
-    		
-    		if (t2.hasFind()) t2_find = find(t2).getRHS();
-    		else t2_find = t2;    		
-    		
-    		if (t2_find.isRational() && t1_find.isRational()) continue;
-    		if (t2_find != t2 && d_sharedTerms.find(t2_find) != d_sharedTerms.end()) continue;
-    		
-    		TRACE("arith shared", "checking shared term eq for ", t1.toString() + " and ", t2.toString());
-    		
-    		// Construct the equality disjunct if both are integers
-    		if (!isIntegerThm(t1_find).isNull() && !isIntegerThm(t2_find).isNull()) {
-                        if (t1_find == t2_find) continue;
-    			// The equality
-    			Expr eq = t1_find.eqExpr(t2_find);
-    			// Try to simplify it
-    			Theorem thm = canonSimp(eq);
-    			if (thm.getRHS() == trueExpr() || thm.getRHS() == falseExpr()) continue;    			
-    			// Add it
-    			addSplitter(eq, 0);    			
-    			TRACE("arith shared", "adding shared term eq for ", eq.toString(), "");
-    		}
-    	}
-    }
-    
-//    IF_DEBUG(
-//    		cerr << "Disequalities after CheckSat" << endl;
-//    		for (int i = 0; i < d_diseq.size(); i ++) {
-//    			Expr diseq = d_diseq[i].getExpr();
-//    			Expr d_find = find(diseq[0]).getRHS();
-//    			cerr << diseq.toString() << ":" << d_find.toString() << endl;
-//    		}
-//    		cerr << "Arith Buffer after CheckSat (0)" << endl;
-//    		for (int i = 0; i < d_buffer_0.size(); i ++) {
-//    			Expr ineq = d_buffer_0[i].getExpr();
-//    			Expr rhs = find(ineq[1]).getRHS();
-//    			cerr << ineq.toString() << ":" << rhs.toString() << endl; 
-//    		}
-//    		cerr << "Arith Buffer after CheckSat (1)" << endl;
-//    		for (int i = 0; i < d_buffer_1.size(); i ++) {
-//    			Expr ineq = d_buffer_1[i].getExpr();
-//    			Expr rhs = find(ineq[1]).getRHS();
-//    			cerr << ineq.toString() << ":" << rhs.toString() << endl; 
-//    		}
-//    		cerr << "Arith Buffer after CheckSat (2)" << endl;
-//    		for (int i = 0; i < d_buffer_2.size(); i ++) {
-//    			Expr ineq = d_buffer_2[i].getExpr();
-//    			Expr rhs = find(ineq[1]).getRHS();
-//    			cerr << ineq.toString() << ":" << rhs.toString() << endl; 
-//    		}
-//    		cerr << "Arith Buffer after CheckSat (3)" << endl;
-//    		for (int i = 0; i < d_buffer_3.size(); i ++) {
-//    			Expr ineq = d_buffer_3[i].getExpr();
-//    			Expr rhs = find(ineq[1]).getRHS();
-//    			cerr << ineq.toString() << ":" << rhs.toString() << endl; 
-//       		}
-//    )
   }
 }
 
 
 
-void TheoryArithOld::refineCounterExample()
+void TheoryArith3::refineCounterExample()
 {
   d_inModelCreation = true;
-  TRACE("model", "refineCounterExample[TheoryArithOld] ", "", "{");
+  TRACE("model", "refineCounterExample[TheoryArith3] ", "", "{");
   CDMap<Expr, bool>::iterator it = d_sharedTerms.begin(), it2,
     iend = d_sharedTerms.end();
   // Add equalities over all pairs of shared terms as suggested
@@ -2818,11 +2156,11 @@ void TheoryArithOld::refineCounterExample()
     for(it2 = it, ++it2; it2!=iend; ++it2) {
       Expr e2 = (*it2).first;
       DebugAssert(isReal(getBaseType(e1)),
-		  "TheoryArithOld::refineCounterExample: e1 = "+e1.toString()
+		  "TheoryArith3::refineCounterExample: e1 = "+e1.toString()
 		  +"\n type(e1) = "+e1.getType().toString());
       if(findExpr(e1) != findExpr(e2)) {
 	DebugAssert(isReal(getBaseType(e2)),
-		    "TheoryArithOld::refineCounterExample: e2 = "+e2.toString()
+		    "TheoryArith3::refineCounterExample: e2 = "+e2.toString()
 		    +"\n type(e2) = "+e2.getType().toString());
 	Expr eq = simplifyExpr(e1.eqExpr(e2));
         if (!eq.isBoolConst())
@@ -2835,7 +2173,7 @@ void TheoryArithOld::refineCounterExample()
 
 
 void
-TheoryArithOld::findRationalBound(const Expr& varSide, const Expr& ratSide, 
+TheoryArith3::findRationalBound(const Expr& varSide, const Expr& ratSide, 
 			       const Expr& var,
 			       Rational &r)
 {
@@ -2853,7 +2191,7 @@ TheoryArithOld::findRationalBound(const Expr& varSide, const Expr& ratSide,
 } 
 
 bool
-TheoryArithOld::findBounds(const Expr& e, Rational& lub, Rational&  glb)
+TheoryArith3::findBounds(const Expr& e, Rational& lub, Rational&  glb)
 {
   bool strictLB=false, strictUB=false;
   bool right = (d_inequalitiesRightDB.count(e) > 0
@@ -2894,7 +2232,7 @@ TheoryArithOld::findBounds(const Expr& e, Rational& lub, Rational&  glb)
     TRACE("model", "   =>Upper bound ", lub.toString(), "");
   }
   if(!left && !right) {
-	  lub = 0; 
+      lub = 0; 
       glb = 0;
   }
   if(!left && right) {lub = glb +2;}
@@ -2904,23 +2242,9 @@ TheoryArithOld::findBounds(const Expr& e, Rational& lub, Rational&  glb)
   return strictLB;
 }
 
-void TheoryArithOld::assignVariables(std::vector<Expr>&v)
+void TheoryArith3::assignVariables(std::vector<Expr>&v)
 {
   int count = 0;
-  
-  if (diffLogicOnly) {
-	  // Compute the model
-	  diffLogicGraph.computeModel();
-	  
-	  // Get values for the variables
-	  for (unsigned i = 0; i < v.size(); i ++) {
-		  Expr x = v[i];
-		  assignValue(x, rat(diffLogicGraph.getValuation(x)));
-	  }
-	  
-	  return;
-  }
-  
   while (v.size() > 0) {
     std::vector<Expr> bottom;
     d_graph.selectSmallest(v, bottom);
@@ -2952,7 +2276,7 @@ void TheoryArithOld::assignVariables(std::vector<Expr>&v)
   }
 }
 
-void TheoryArithOld::computeModelBasic(const std::vector<Expr>& v)
+void TheoryArith3::computeModelBasic(const std::vector<Expr>& v)
 {
   d_inModelCreation = true;
   vector<Expr> reps;
@@ -2975,84 +2299,12 @@ void TheoryArithOld::computeModelBasic(const std::vector<Expr>& v)
 
 // For any arith expression 'e', if the subexpressions are assigned
 // concrete values, then find(e) must already be a concrete value.
-void TheoryArithOld::computeModel(const Expr& e, vector<Expr>& vars) {
-  DebugAssert(findExpr(e).isRational(), "TheoryArithOld::computeModel("
+void TheoryArith3::computeModel(const Expr& e, vector<Expr>& vars) {
+  DebugAssert(findExpr(e).isRational(), "TheoryArith3::computeModel("
 	      +e.toString()+")\n e is not assigned concrete value.\n"
 	      +" find(e) = "+findExpr(e).toString());
   assignValue(simplify(e));
   vars.push_back(e);
-}
-
-Theorem TheoryArithOld::checkIntegerEquality(const Theorem& thm) {
-			
-	// Check if this is a rewrite theorem
-	bool rewrite = thm.isRewrite();
-	
-	// If it's an integer theorem, then rafine it to integer domain
-	Expr eq = (rewrite ? thm.getRHS() : thm.getExpr());	
-	
-	TRACE("arith rafine", "TheoryArithOld::checkIntegerEquality(", eq, ")");
-	DebugAssert(eq.getKind() == EQ, "checkIntegerEquality: must be an equality");
-	
-	// Trivial equalities, we don't care 
-	if (!isPlus(eq[1]) && !isPlus(eq[0])) return thm;
-	Expr old_sum = (isPlus(eq[1]) ? eq[1] : eq[0]);		
-	
-	// Get the sum part
-	vector<Expr> children;
-	bool const_is_integer = true; // Assuming only one constant is present (canon called before this)	
-	for (int i = 0; i < old_sum.arity(); i ++)
-		 if (!old_sum[i].isRational())
-			 children.push_back(old_sum[i]);
-		 else 
-			 const_is_integer = old_sum[i].getRational().isInteger();
-	
-	// If the constants are integers, we don't care
-	if (const_is_integer) return thm;
-	
-	Expr sum = (children.size() > 1 ? plusExpr(children) : children[0]);    	
-	// Check for integer of the remainder of the sum
-	Theorem isIntegerEquality = isIntegerThm(sum);
-	// If it is an integer, it's unsat
-	if (!isIntegerEquality.isNull()) {
-		  Theorem false_thm = d_rules->intEqualityRationalConstant(isIntegerEquality, eq);
-	  	  if (rewrite) return transitivityRule(thm, false_thm);
-	   	  else return iffMP(thm, false_thm);
-	}
-	else return thm;
-}
-
-
-Theorem TheoryArithOld::rafineIneqaulityToInteger(const Theorem& thm) {
-			
-	// Check if this is a rewrite theorem
-	bool rewrite = thm.isRewrite();
-	
-	// If it's an integer theorem, then rafine it to integer domain
-	Expr ineq = (rewrite ? thm.getRHS() : thm.getExpr());	
-	
-	TRACE("arith rafine", "TheoryArithOld::rafineIneqaulityToInteger(", ineq, ")");
-	DebugAssert(isIneq(ineq), "rafineIneqaulityToInteger: must be an inequality");
-	
-	// Trivial inequalities are rafined 
-	if (!isPlus(ineq[1])) return thm;
-	
-	// Get the sum part
-	vector<Expr> children;
-	for (int i = 0; i < ineq[1].arity(); i ++)
-		 if (!ineq[1][i].isRational())
-			 children.push_back(ineq[1][i]);
-	Expr sum = (children.size() > 1 ? plusExpr(children) : children[0]);    	
-	// Check for integer of the remainder of the sum
-	Theorem isIntegerInequality = isIntegerThm(sum);
-	// If it is an integer, do rafine it	
-	if (!isIntegerInequality.isNull()) {
-	  	  Theorem rafine = d_rules->rafineStrictInteger(isIntegerInequality, ineq);
-	  	  TRACE("arith rafine", "TheoryArithOld::rafineIneqaulityToInteger()", "=>", rafine.getRHS());
-	   	  if (rewrite) return canonPredEquiv(transitivityRule(thm, rafine));
-	   	  else return canonPred(iffMP(thm, rafine));
-	}
-	else return thm;
 }
 
 
@@ -3061,10 +2313,10 @@ Theorem TheoryArithOld::rafineIneqaulityToInteger(const Theorem& thm) {
  *  and returns a theorem to that effect. assumes e is non-trivial
  *  i.e. e is not '0=const' or 'const=0' or '0 <= const' etc.
  */
-Theorem TheoryArithOld::normalize(const Expr& e) {
+Theorem TheoryArith3::normalize(const Expr& e) {
   //e is an eqn or ineqn. e is not a trivial eqn or ineqn
   //trivial means 0 = const or 0 <= const.
-  TRACE("arith normalize", "normalize(", e, ") {");
+  TRACE("arith", "normalize(", e, ") {");
   DebugAssert(e.isEq() || isIneq(e),
 	      "normalize: input must be Eq or Ineq: " + e.toString());
   DebugAssert(!isIneq(e) || (0 == e[0].getRational()),
@@ -3085,11 +2337,11 @@ Theorem TheoryArithOld::normalize(const Expr& e) {
   
   Expr factor;
   if(e[0].isRational())
-    factor = computeNormalFactor(e[1], false);
+    factor = computeNormalFactor(e[1]);
   else
-    factor = computeNormalFactor(e[0], false);
+    factor = computeNormalFactor(e[0]);
   
-  TRACE("arith normalize", "normalize: factor = ", factor, "");
+  TRACE("arith", "normalize: factor = ", factor, "");
   DebugAssert(factor.getRational() > 0,
               "normalize: factor="+ factor.toString());
   
@@ -3099,28 +2351,18 @@ Theorem TheoryArithOld::normalize(const Expr& e) {
     int kind = e.getKind();
     switch(kind) {
     case EQ:
-      //TODO: DEJAN FIX
       thm = d_rules->multEqn(e[0], e[1], factor);
       // And canonize the result
       thm = canonPredEquiv(thm);
-      
-      // If this is an equation of the form 0 = c + sum, c is not integer, but sum is
-      // then equation has no solutions
-      thm = checkIntegerEquality(thm);
-      
       break;
     case LE:
     case LT:
     case GE:
-    case GT: {
-    	 thm = d_rules->multIneqn(e, factor);            
-    	 // And canonize the result
-    	 thm = canonPredEquiv(thm);
-    	 // Try to rafine to integer domain
-    	 thm = rafineIneqaulityToInteger(thm);
-    	 break;	
-    }
-     
+    case GT:
+      thm = d_rules->multIneqn(e, factor);
+      // And canonize the result
+      thm = canonPredEquiv(thm);
+      break;
     default:
       // MS .net doesn't accept "..." + int
       ostringstream ss;
@@ -3128,49 +2370,33 @@ Theorem TheoryArithOld::normalize(const Expr& e) {
       DebugAssert(false, ss.str());
       break;
     }
-  } else
-	  if (e.getKind() == EQ)
-		  thm = checkIntegerEquality(thm);
-  
-  TRACE("arith normalize", "normalize => ", thm, " }");
+  }
+  TRACE("arith", "normalize => ", thm, " }");
   return(thm);
 }
 
 
-Theorem TheoryArithOld::normalize(const Theorem& eIffEqn) {  
-	if (eIffEqn.isRewrite()) return transitivityRule(eIffEqn, normalize(eIffEqn.getRHS()));
-	else return iffMP(eIffEqn, normalize(eIffEqn.getExpr()));
+Theorem TheoryArith3::normalize(const Theorem& eIffEqn) {
+  return transitivityRule(eIffEqn, normalize(eIffEqn.getRHS()));
 }
 
 
-Theorem TheoryArithOld::rewrite(const Expr& e)
+Theorem TheoryArith3::rewrite(const Expr& e)
 {
   DebugAssert(leavesAreSimp(e), "Expected leaves to be simplified");
-  TRACE("arith", "TheoryArithOld::rewrite(", e, ") {");
+  TRACE("arith", "TheoryArith3::rewrite(", e, ") {");
   Theorem thm;
   if (!e.isTerm()) {
     if (!e.isAbsLiteral()) {
       e.setRewriteNormal();
       thm = reflexivityRule(e);
-      TRACE("arith", "TheoryArithOld::rewrite[non-literal] => ", thm, " }");
+      TRACE("arith", "TheoryArith3::rewrite[non-literal] => ", thm, " }");
       return thm;
     }
     switch(e.getKind()) {
     case EQ:
     {
-//    	// Rewrite as l <= r and l >= r
-//    	thm = d_rules->eqToIneq(e);
-//    	Expr conjunction = thm.getRHS();
-//    	vector<unsigned> changed;
-//    	vector<Theorem> children;
-//    	changed.push_back(0);
-//    	changed.push_back(1);
-//    	children.push_back(simplify(conjunction[0]));
-//    	children.push_back(simplify(conjunction[1]));
-//    	thm = transitivityRule(thm, substitutivityRule(conjunction, changed, children));
-//    	break;
-    	
-    	// canonical form for an equality of two leaves
+      // canonical form for an equality of two leaves
       // is just l == r instead of 0 + (-1 * l) + r = 0.
       if (isLeaf(e[0]) && isLeaf(e[1]))
  	thm = reflexivityRule(e);
@@ -3191,8 +2417,8 @@ Theorem TheoryArithOld::rewrite(const Expr& e)
 	  //else equation is non-trivial
 	  thm = normalize(thm);
 	  // Normalization may yield non-simplified terms
-	  if (!thm.getRHS().isBoolConst())
-		  thm = canonPredEquiv(thm);
+	  thm = canonPredEquiv(thm);
+
 	}
       }
 
@@ -3229,19 +2455,6 @@ Theorem TheoryArithOld::rewrite(const Expr& e)
 	thm = transitivityRule(thm, d_rules->rightMinusLeft(thm.getRHS()));
 	thm = canonPredEquiv(thm);
 
-    // If the inequality is strict and integer, change it to non-strict      
-	Expr theIneq = thm.getRHS();
-    if(isLT(theIneq)) {
-    	// Check if integer
-    	Theorem isIntLHS(isIntegerThm(theIneq[0]));
-    	Theorem isIntRHS(isIntegerThm(theIneq[1]));
-    	bool isInt = (!isIntLHS.isNull() && !isIntRHS.isNull());
-    	  	if (isInt) {
-    	  		thm = canonPredEquiv(
-    	 			  transitivityRule(thm, d_rules->lessThanToLERewrite(theIneq, isIntLHS, isIntRHS, true)));
-    	}
-    }
-
 	// Check for trivial inequation
 	if ((thm.getRHS())[1].isRational())
 	  thm = transitivityRule(thm, d_rules->constPredicate(thm.getRHS()));
@@ -3253,42 +2466,26 @@ Theorem TheoryArithOld::rewrite(const Expr& e)
 	}
       }
       break;
-    case LT:
-    case GT:
     case LE:
-    case GE: {
-            
+    case LT:
+    case GE:
+    case GT:
       if (isGE(e) || isGT(e)) {
-    	  thm = d_rules->flipInequality(e);
-    	  thm = transitivityRule(thm, d_rules->rightMinusLeft(thm.getRHS()));
+	thm = d_rules->flipInequality(e);
+	thm = transitivityRule(thm, d_rules->rightMinusLeft(thm.getRHS()));
       }
       else 
-    	  thm = d_rules->rightMinusLeft(e);
-      
+	thm = d_rules->rightMinusLeft(e);
       thm = canonPredEquiv(thm);
-
-      // If the inequality is strict and integer, change it to non-strict      
-      Expr theIneq = thm.getRHS();
-      if(isLT(theIneq)) {
-      	// Check if integer
-      	Theorem isIntLHS(isIntegerThm(theIneq[0]));
-      	Theorem isIntRHS(isIntegerThm(theIneq[1]));
-      	bool isInt = (!isIntLHS.isNull() && !isIntRHS.isNull());
-      	  	if (isInt) {
-      	  		thm = canonPredEquiv(
-      	 			  transitivityRule(thm, d_rules->lessThanToLERewrite(theIneq, isIntLHS, isIntRHS, true)));
-      	}
-      }
-                 
+   
       // Check for trivial inequation
       if ((thm.getRHS())[1].isRational()) 
-    	  thm = transitivityRule(thm, d_rules->constPredicate(thm.getRHS()));
-      else { // ineq is non-trivial    	 
-    	  thm = normalize(thm);
-    	  thm = canonPredEquiv(thm);
+	thm = transitivityRule(thm, d_rules->constPredicate(thm.getRHS()));
+      else { // ineq is non-trivial
+	thm = normalize(thm);
+	thm = canonPredEquiv(thm);
       }
       break;
-      }
     default:
       DebugAssert(false,
 		  "Theory_Arith::rewrite: control should not reach here");
@@ -3304,31 +2501,23 @@ Theorem TheoryArithOld::rewrite(const Expr& e)
   // Arith canonization is idempotent
   if (theoryOf(thm.getRHS()) == this)
     thm.getRHS().setRewriteNormal();
-  TRACE("arith", "TheoryArithOld::rewrite => ", thm, " }");
+  TRACE("arith", "TheoryArith3::rewrite => ", thm, " }");
   return thm;
 }
 
 
-void TheoryArithOld::setup(const Expr& e)
+void TheoryArith3::setup(const Expr& e)
 {
   if (!e.isTerm()) {
-    if (e.isNot() || e.isEq()) return;
+    if (e.isNot() || e.isEq() || isDarkShadow(e) || isGrayShadow(e)) return;
     if(e.getKind() == IS_INTEGER) {
       e[0].addToNotify(this, e);
       return;
     }
-    if (isIneq(e)) {
-    	DebugAssert((isLT(e)||isLE(e)) &&
+    DebugAssert((isLT(e)||isLE(e)) &&
                 e[0].isRational() && e[0].getRational() == 0,
-                "TheoryArithOld::setup: expected 0 < rhs:" + e.toString());
-    	e[1].addToNotify(this, e);
-    } else {
-//    	
-//    	DebugAssert(isGrayShadow(e), "TheoryArithOld::setup: expected grayshadow" + e.toString());
-//    	
-//    	// Do not add the variable, just the subterm e[0].addToNotify(this, e);    	
-//    	e[1].addToNotify(this, e);    	
-    }
+                "TheoryArith3::setup: expected 0 < rhs:" + e.toString());
+    e[1].addToNotify(this, e);
     return;
   }
   int k(0), ar(e.arity());
@@ -3339,112 +2528,23 @@ void TheoryArithOld::setup(const Expr& e)
 }
 
 
-void TheoryArithOld::update(const Theorem& e, const Expr& d)
+void TheoryArith3::update(const Theorem& e, const Expr& d)
 {
-	TRACE("arith update", "update on " + d.toString() + " with ", e.getRHS().toString(), ".");
-	
   if (inconsistent()) return;
-  
-  // We accept atoms without find, but only inequalities (they come from the buffer)
-  DebugAssert(d.hasFind() || isIneq(d), "update on a non-inequality term/atom");
-    
   IF_DEBUG(debugger.counter("arith update total")++;)
-//  if (isGrayShadow(d)) {
-//		TRACE("shadow update", "updating index of " + d.toString() + " with ", e.getRHS().toString(), ".");
-//		
-//	    // Substitute e[1] for e[0] in d and enqueue new shadow
-//	    DebugAssert(e.getLHS() == d[1], "Mismatch");
-//	    Theorem thm = find(d);
-//	    	    
-//	    //    DebugAssert(thm.getRHS() == trueExpr(), "Expected find = true");
-//	    vector<unsigned> changed;
-//	    vector<Theorem> children;
-//	    changed.push_back(1);
-//	    children.push_back(e);
-//	    Theorem thm2 = substitutivityRule(d, changed, children);
-//	    if (thm.getRHS() == trueExpr()) {
-//	      enqueueFact(iffMP(getCommonRules()->iffTrueElim(thm), thm2));
-//	    }
-//	    else {
-//	      enqueueFact(getCommonRules()->iffFalseElim(
-//	        transitivityRule(symmetryRule(thm2), thm)));
-//	    }
-//	    IF_DEBUG(debugger.counter("arith update ineq")++;)
-//  }
-//  else
-  if (isIneq(d)) {	
-	
+  if (!d.hasFind()) return;
+  if (isIneq(d)) {
     // Substitute e[1] for e[0] in d and enqueue new inequality
     DebugAssert(e.getLHS() == d[1], "Mismatch");
-    Theorem thm;
-    if (d.hasFind()) thm = find(d);
-        
-//    bool diff_logic = false;
-//    Expr new_rhs = e.getRHS();
-//    if (!isPlus(new_rhs)) {
-//    	if (isLeaf(new_rhs)) diff_logic = true;
-//    }
-//    else {
-//    	int arity = new_rhs.arity();
-//    	if (arity == 2)  {
-//    		if (new_rhs[0].isRational()) diff_logic = true;
-//    		else {
-//    			Expr ax = new_rhs[0], a, x;
-//    			Expr by = new_rhs[1], b, y;
-//    			separateMonomial(ax, a, x);
-//    			separateMonomial(by, b, y);
-//    			if ((a.getRational() == 1 && b.getRational() == -1) ||
-//    					(a.getRational() == -1 && b.getRational() == 1))
-//    				diff_logic = true;
-//    		} 
-//    	} else {
-//    		if (arity == 3 && new_rhs[0].isRational()) {
-//    			Expr ax = new_rhs[1], a, x;
-//    			Expr by = new_rhs[2], b, y;
-//    			separateMonomial(ax, a, x);
-//    			separateMonomial(by, b, y);
-//    			if ((a.getRational() == 1 && b.getRational() == -1) ||
-//    					(a.getRational() == -1 && b.getRational() == 1))
-//    							diff_logic = true;
-//    		}
-//    	}
-//    }
-       		            
+    Theorem thm = find(d);
     //    DebugAssert(thm.getRHS() == trueExpr(), "Expected find = true");
     vector<unsigned> changed;
     vector<Theorem> children;
     changed.push_back(1);
     children.push_back(e);
     Theorem thm2 = substitutivityRule(d, changed, children);
-    Expr newIneq = thm2.getRHS();
-    
-  	// If this inequality is bufferred but not yet projected, just wait for it
-   	// but don't add the find to the buffer as it will be projected as a find
-   	// We DO want it to pass through all the buffer stuff but NOT get into the buffer
-   	// NOTE: this means that the difference logic WILL get processed
-   	if ((thm.isNull() || thm.getRHS() != falseExpr()) && 
-   			bufferedInequalities.find(d) != bufferedInequalities.end() && 
-   			alreadyProjected.find(d) == alreadyProjected.end()) {
-   		TRACE("arith update", "simplified but not projected : ", thm2.getRHS(), "");
-   		dontBuffer[thm2.getRHS()] = true;
-   	}
-    
-   	if (thm.isNull()) {
-   		// This hy is in the buffer, not in the core
-   		// if it has been projected, than it's parent has been projected and will get reprojected
-   		// accuratlz. If it has not been projected, we don't care it's still there
-   		TRACE("arith update", "in udpate, but no find", "", "");
-   		if (bufferedInequalities.find(d) != bufferedInequalities.end()) {
-   			if (thm2.getRHS()[1].isRational()) enqueueFact(iffMP(bufferedInequalities[d], thm2));
-   			else if (alreadyProjected.find(d) != alreadyProjected.end()) {
-   				// the parent will get reprojected
-   				alreadyProjected[d] = d;
-   			}
-   		}
-   	} 
-   	else if (thm.getRHS() == trueExpr()) {      
-   		if (!newIneq[1].isRational() || newIneq[1].getRational() <= 0)
-   			enqueueFact(iffMP(getCommonRules()->iffTrueElim(thm), thm2));
+    if (thm.getRHS() == trueExpr()) {
+      enqueueFact(iffMP(getCommonRules()->iffTrueElim(thm), thm2));
     }
     else {
       enqueueFact(getCommonRules()->iffFalseElim(
@@ -3454,7 +2554,7 @@ void TheoryArithOld::update(const Theorem& e, const Expr& d)
   }
   else if (find(d).getRHS() == d) {
     Theorem thm = canonSimp(d);
-    TRACE("arith", "TheoryArithOld::update(): thm = ", thm, "");
+    TRACE("arith", "TheoryArith3::update(): thm = ", thm, "");
     DebugAssert(leavesAreSimp(thm.getRHS()), "updateHelper error: "
  		+thm.getExpr().toString());
     assertEqualities(transitivityRule(thm, rewrite(thm.getRHS())));
@@ -3463,7 +2563,7 @@ void TheoryArithOld::update(const Theorem& e, const Expr& d)
 }
 
 
-Theorem TheoryArithOld::solve(const Theorem& thm)
+Theorem TheoryArith3::solve(const Theorem& thm)
 {
   DebugAssert(thm.isRewrite() && thm.getLHS().isTerm(), "");
   const Expr& lhs = thm.getLHS();
@@ -3491,7 +2591,7 @@ Theorem TheoryArithOld::solve(const Theorem& thm)
 }
 
 
-void TheoryArithOld::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
+void TheoryArith3::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
   switch(e.getKind()) {
   case RATIONAL_EXPR: // Skip the constants
     break;
@@ -3506,11 +2606,11 @@ void TheoryArithOld::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
   default: { // Otherwise it's a variable.  Check if it has a find pointer
     Expr e2(findExpr(e));
     if(e==e2) {
-      TRACE("model", "TheoryArithOld::computeModelTerm(", e, "): a variable");
+      TRACE("model", "TheoryArith3::computeModelTerm(", e, "): a variable");
       // Leave it alone (it has no descendants)
       // v.push_back(e);
     } else {
-      TRACE("model", "TheoryArithOld::computeModelTerm("+e.toString()
+      TRACE("model", "TheoryArith3::computeModelTerm("+e.toString()
 	    +"): has find pointer to ", e2, "");
       v.push_back(e2);
     }
@@ -3519,7 +2619,7 @@ void TheoryArithOld::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
 }
 
 
-Expr TheoryArithOld::computeTypePred(const Type& t, const Expr& e) {
+Expr TheoryArith3::computeTypePred(const Type& t, const Expr& e) {
   Expr tExpr = t.getExpr();
   switch(tExpr.getKind()) {
   case INT:  
@@ -3537,7 +2637,7 @@ Expr TheoryArithOld::computeTypePred(const Type& t, const Expr& e) {
 }
 
 
-void TheoryArithOld::checkAssertEqInvariant(const Theorem& e)
+void TheoryArith3::checkAssertEqInvariant(const Theorem& e)
 {
   if (e.isRewrite()) {
     DebugAssert(e.getLHS().isTerm(), "Expected equation");
@@ -3589,7 +2689,7 @@ void TheoryArithOld::checkAssertEqInvariant(const Theorem& e)
 }
 
 
-void TheoryArithOld::checkType(const Expr& e)
+void TheoryArith3::checkType(const Expr& e)
 {
   switch (e.getKind()) {
     case INT:
@@ -3607,13 +2707,13 @@ void TheoryArithOld::checkType(const Expr& e)
       }
       break;
     default:
-      DebugAssert(false, "Unexpected kind in TheoryArithOld::checkType"
+      DebugAssert(false, "Unexpected kind in TheoryArith3::checkType"
                   +getEM()->getKindName(e.getKind()));
   }
 }
 
 
-void TheoryArithOld::computeType(const Expr& e)
+void TheoryArith3::computeType(const Expr& e)
 {
   switch (e.getKind()) {
     case REAL_CONST:
@@ -3689,23 +2789,23 @@ void TheoryArithOld::computeType(const Expr& e)
       e.setType(boolType());
       break;
     default:
-      DebugAssert(false,"TheoryArithOld::computeType: unexpected expression:\n "
+      DebugAssert(false,"TheoryArith3::computeType: unexpected expression:\n "
                   +e.toString());
       break;
   }
 }
 
 
-Type TheoryArithOld::computeBaseType(const Type& t) {
+Type TheoryArith3::computeBaseType(const Type& t) {
   IF_DEBUG(int kind = t.getExpr().getKind();)
   DebugAssert(kind==INT || kind==REAL || kind==SUBRANGE,
-	      "TheoryArithOld::computeBaseType("+t.toString()+")");
+	      "TheoryArith3::computeBaseType("+t.toString()+")");
   return realType();
 }
 
 
 Expr
-TheoryArithOld::computeTCC(const Expr& e) {
+TheoryArith3::computeTCC(const Expr& e) {
   Expr tcc(Theory::computeTCC(e));
   switch(e.getKind()) {
   case DIVIDE:
@@ -3721,8 +2821,8 @@ TheoryArithOld::computeTCC(const Expr& e) {
 //translating special Exprs to regular EXPR??
 ///////////////////////////////////////////////////////////////////////////////
 Expr
-TheoryArithOld::parseExprOp(const Expr& e) {
-  TRACE("parser", "TheoryArithOld::parseExprOp(", e, ")");
+TheoryArith3::parseExprOp(const Expr& e) {
+  TRACE("parser", "TheoryArith3::parseExprOp(", e, ")");
   //std::cout << "Were here";
   // If the expression is not a list, it must have been already
   // parsed, so just return it as is.
@@ -3746,7 +2846,7 @@ TheoryArithOld::parseExprOp(const Expr& e) {
   }
 
   DebugAssert(e.getKind() == RAW_LIST && e.arity() > 0,
-	      "TheoryArithOld::parseExprOp:\n e = "+e.toString());
+	      "TheoryArith3::parseExprOp:\n e = "+e.toString());
   
   const Expr& c1 = e[0][0];
   int kind = getEM()->getKind(c1.getString());
@@ -3820,7 +2920,7 @@ TheoryArithOld::parseExprOp(const Expr& e) {
     }
     default:
       DebugAssert(false,
-	  	  "TheoryArithOld::parseExprOp: invalid input " + e.toString());
+	  	  "TheoryArith3::parseExprOp: invalid input " + e.toString());
       break;
   }
   return e;
@@ -3832,7 +2932,7 @@ TheoryArithOld::parseExprOp(const Expr& e) {
 
 
 ExprStream&
-TheoryArithOld::print(ExprStream& os, const Expr& e) {
+TheoryArith3::print(ExprStream& os, const Expr& e) {
   switch(os.lang()) {
     case SIMPLIFY_LANG:
       switch(e.getKind()) {
@@ -4153,7 +3253,7 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
           os << "Int";
           break;
         case SUBRANGE:
-          throw SmtlibException("TheoryArithOld::print: SMTLIB: SUBRANGE not implemented");
+          throw SmtlibException("TheoryArith3::print: SMTLIB: SUBRANGE not implemented");
 //           if(e.arity() != 2) e.print(os);
 //           else 
 //             os << "(" << push << "SUBRANGE" << space << e[0]
@@ -4163,7 +3263,7 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
  	  if(e.arity() == 1)
  	    os << "(" << push << "IsInt" << space << e[0] << push << ")";
  	  else
-            throw SmtlibException("TheoryArithOld::print: SMTLIB: IS_INTEGER used unexpectedly");
+            throw SmtlibException("TheoryArith3::print: SMTLIB: IS_INTEGER used unexpectedly");
 	  break;
         case PLUS:  {
           os << "(" << push << "+";
@@ -4194,11 +3294,11 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
           break;
         }
         case POW:
-          throw SmtlibException("TheoryArithOld::print: SMTLIB: POW not supported");
+          throw SmtlibException("TheoryArith3::print: SMTLIB: POW not supported");
           //          os << "(" << push << "^ " << e[1] << space << e[0] << push << ")";
           break;
         case DIVIDE: {
-          throw SmtlibException("TheoryArithOld::print: SMTLIB: unexpected use of DIVIDE");
+          throw SmtlibException("TheoryArith3::print: SMTLIB: unexpected use of DIVIDE");
           break;
         }
         case LT: {
@@ -4226,17 +3326,17 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
           break;
         }
         case DARK_SHADOW:
-          throw SmtlibException("TheoryArithOld::print: SMTLIB: DARK_SHADOW not supported");
+          throw SmtlibException("TheoryArith3::print: SMTLIB: DARK_SHADOW not supported");
 	  os << "(" << push << "DARK_SHADOW" << space << e[0]
 	     << space << e[1] << push << ")";
 	  break;
         case GRAY_SHADOW:
-          throw SmtlibException("TheoryArithOld::print: SMTLIB: GRAY_SHADOW not supported");
+          throw SmtlibException("TheoryArith3::print: SMTLIB: GRAY_SHADOW not supported");
 	  os << "GRAY_SHADOW(" << push << e[0] << ","  << space << e[1]
 	     << "," << space << e[2] << "," << space << e[3] << push << ")";
 	  break;
         default:
-          throw SmtlibException("TheoryArithOld::print: SMTLIB: default not supported");
+          throw SmtlibException("TheoryArith3::print: SMTLIB: default not supported");
           // Print the top node in the default LISP format, continue with
           // pretty-printing for children.
           e.printAST(os);
@@ -4328,546 +3428,3 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
   }
   return os;
 }
-
-Theorem TheoryArithOld::inequalityToFind(const Theorem& inequalityThm, bool normalizeRHS) {
-		
-	// Which side of the inequality
-	int index = (normalizeRHS ? 1 : 0);
-	
-	TRACE("arith find", "inequalityToFind(", int2string(index) + ", " + inequalityThm.getExpr().toString(), ")");
-	
-	// Get the inequality expression
-	const Expr& inequality = inequalityThm.getExpr();	
-	
-	// The theorem we will return 
-	Theorem inequalityFindThm;
-	
-	// If the inequality side has a find
-	if (inequality[index].hasFind()) {  
-		// Get the find of the rhs (lhs)
-	 	Theorem rhsFindThm = inequality[index].getFind();
-	 	// Get the theorem simplifys the find (in case the updates haven't updated all the finds yet
-	    // Fixed with d_theroyCore.inUpdate() 
-        rhsFindThm = transitivityRule(rhsFindThm, simplify(rhsFindThm.getRHS()));
-	    // If not the same as the original 
-	    Expr rhsFind = rhsFindThm.getRHS();	    
-	    if (rhsFind != inequality[index]) {
-	    	// Substitute in the inequality	    	
-	    	vector<unsigned> changed;
-	    	vector<Theorem> children;
-	    	changed.push_back(index);
-	    	children.push_back(rhsFindThm);
-	    	rhsFindThm = iffMP(inequalityThm, substitutivityRule(inequality, changed, children));
-	    	// If on the left-hand side, we are done
-	    	if (index == 0)
-	    		inequalityFindThm = rhsFindThm;
-	    	else 
-	    		// If on the right-hand side and left-hand side is 0, normalize it
-	    		if (inequality[0].isRational() && inequality[0].getRational() == 0)
-	    			inequalityFindThm =	normalize(rhsFindThm);
-	    		else	    			
-	    			inequalityFindThm = rhsFindThm;
-	    } else
-	    	inequalityFindThm = inequalityThm;	    
-	} else    		  	
-	    inequalityFindThm = inequalityThm;			
-
-	
-	TRACE("arith find", "inequalityToFind ==>", inequalityFindThm.getExpr(), "");
-	
-	return inequalityFindThm;
-}
-
-void TheoryArithOld::registerAtom(const Expr& e) {
-	// Trace it
-	TRACE("arith atoms", "registerAtom(", e.toString(), ")");
-	
-	// Mark it
-	formulaAtoms[e] = true;
-	
-	// If it is a atomic formula, add it to the map	
-	if (e.isAbsAtomicFormula() && isIneq(e)) {
-		Expr rightSide    = e[1];
-		Rational leftSide = e[0].getRational();
-		
-		//Get the terms for : c1 op t1 and t2 -op c2
-		Expr t1, t2;
-		Rational c1, c2;		
-		int vars = extractTermsFromInequality(e, c1, t1, c2, t2);
-		
-		if (true) {
-			TRACE("arith atoms", "registering lower bound for ", t1.toString(), " = " + c1.toString() + ")");
-			formulaAtomLowerBound[t1].insert(pair<Rational, Expr>(c1, e));
-			
-			// See if the bounds on the registered term can infered from already asserted facts
-			CDMap<Expr, Rational>::iterator lowerBoundFind = termLowerBound.find(t1);
-			if (lowerBoundFind != termLowerBound.end()) {
-				Rational boundValue = (*lowerBoundFind).second;
-				Theorem boundThm = termLowerBoundThm[t1];
-				Expr boundIneq = boundThm.getExpr();
-				if (boundValue > c1 || (boundValue == c1 && !(boundIneq.getKind() == LE && e.getKind() == LT))) {										
-					enqueueFact(getCommonRules()->implMP(boundThm, d_rules->implyWeakerInequality(boundIneq, e)));
-				}
-			}
-			
-			// See if the bounds on the registered term can falsified from already asserted facts
-			CDMap<Expr, Rational>::iterator upperBoundFind = termUpperBound.find(t1);
-			if (upperBoundFind != termUpperBound.end()) {
-				Rational boundValue = (*upperBoundFind).second;
-				Theorem boundThm = termUpperBoundThm[t1];
-				Expr boundIneq = boundThm.getExpr();
-				if (boundValue < c1 || (boundValue == c1 && boundIneq.getKind() == LT && e.getKind() == LT)) {															
-					enqueueFact(getCommonRules()->implMP(boundThm, d_rules->implyNegatedInequality(boundIneq, e)));
-				}
-			}
-			
-			TRACE("arith atoms", "registering upper bound for ", t2.toString(), " = " + c2.toString() + ")");
-			formulaAtomUpperBound[t2].insert(pair<Rational, Expr>(c2, e));			
-		}		
-	}		
-}
-
-TheoryArithOld::DifferenceLogicGraph::DifferenceLogicGraph(TheoryArithOld* arith, TheoryCore* core, ArithProofRules* rules, Context* context)
-	: d_pathLenghtThres(&(core->getFlags()["pathlength-threshold"].getInt())),
-	  arith(arith), 
-	  core(core), 
-	  rules(rules), 
-	  unsat_theorem(context),
-	  biggestEpsilon(context, 0, 0),
-	  smallestPathDifference(context, 1, 0),
-	  ltGraph(context), 
-	  leGraph(context)
-{		
-}
-			
-Theorem TheoryArithOld::DifferenceLogicGraph::getUnsatTheorem() {
-	return unsat_theorem;
-}
-			
-bool TheoryArithOld::DifferenceLogicGraph::isUnsat() {	
-	return !getUnsatTheorem().isNull();
-}
-
-bool TheoryArithOld::DifferenceLogicGraph::existsEdge(const Expr& x, const Expr& y) {
-	Expr index = x - y;
-
-	Graph::iterator find_le = leGraph.find(index); 
-	if (find_le != leGraph.end()) {
-		EdgeInfo edge_info = (*find_le).second; 
-		if (edge_info.isDefined()) return true;		
-	}	
-	
-	return false;
-}
-
-TheoryArithOld::DifferenceLogicGraph::Graph::ElementReference TheoryArithOld::DifferenceLogicGraph::getEdge(const Expr& x, const Expr& y) {
-	Expr index = x - y;
-	Graph::ElementReference edge_info = leGraph[index];
-	
-	// If a new edge and x != y, then add vertices to the apropriate lists
-	if (x != y && !edge_info.get().isDefined()) {
-	
-		// Adding a new edge, take a resource
-		core->getResource();
-		
-		EdgesList::iterator y_it = incomingEdges.find(y);
-		if (y_it == incomingEdges.end() || (*y_it).second == 0) {
-			CDList<Expr>* list = new(true) CDList<Expr>(core->getCM()->getCurrentContext());
-			list->push_back(x);
-			incomingEdges[y] = list;
-		} else 
-			((*y_it).second)->push_back(x);
-		
-		EdgesList::iterator x_it = outgoingEdges.find(x);
-		if (x_it == outgoingEdges.end() || (*x_it).second == 0) {
-			CDList<Expr>* list = new(true) CDList<Expr>(core->getCM()->getCurrentContext());
-			list->push_back(y);
-			outgoingEdges[x] = list;
-		} else 
-			((*x_it).second)->push_back(y);					
-	}		
-	
-	return edge_info;
-}
-
-void TheoryArithOld::DifferenceLogicGraph::addEdge(const Expr& x, const Expr& y, const Rational& bound, const Theorem& edge_thm) {
-	
-	TRACE("arith diff", x, " --> ", y);
-	DebugAssert(x != y, "addEdge, given two equal expressions!");
-	
-	if (isUnsat()) return;
-	
-    // If out of resources, bail out
-	if (core->outOfResources()) return;
-	
-	// Get the kind of the inequality (NOTE isNull -- for model computation we add a vertex with no theorem)
-	// FIXME: Later, add a debug assert for the theorem that checks that this variable is cvc3diffLogicSource
-	int kind = (edge_thm.isNull() ? LE : edge_thm.getExpr().getKind());
-	DebugAssert(kind == LT || kind == LE, "addEdge, not an <= or <!");
-	
-	// Get the EpsRational bound
-	Rational k = (kind == LE ? 0 : -1);
-	EpsRational c(bound, k);
-	
-	// Get the current (or a fresh new edge info)	
-	Graph::ElementReference edgeInfoRef = getEdge(x, y); 
-	// If uninitialized, or smaller length (we prefer shorter paths, so one edge is better)
-	EdgeInfo edgeInfo = edgeInfoRef.get();
-	// If the edge changed to the better, do the work
-	if (!edgeInfo.isDefined() || c <= edgeInfo.length) { 
-		
-		// Update model generation data
-		if (edgeInfo.isDefined()) {
-			EpsRational difference = edgeInfo.length - c;
-			Rational rationalDifference = difference.getRational();
-			if (rationalDifference > 0 && rationalDifference < smallestPathDifference) {				
-				smallestPathDifference = rationalDifference;
-				TRACE("diff model", "smallest path difference : ", smallestPathDifference, ""); 
-			}
-		}			
-		Rational newEpsilon = - c.getEpsilon();
-		if (newEpsilon > biggestEpsilon) {
-			biggestEpsilon = newEpsilon;
-			TRACE("diff model", "biggest epsilon : ", biggestEpsilon, ""); 
-		}
-				
-		// Set the edge info
-		edgeInfo.length = c;
-		edgeInfo.explanation = edge_thm;
-		edgeInfo.path_length_in_edges = 1;
-		edgeInfoRef = edgeInfo;
-				
-		
-		// Try simple cycle x --> y --> x, to keep invariants (no cycles or one negative)
-		if (existsEdge(y, x)) {
-			tryUpdate(x, y, x);
-			if (isUnsat()) 
-				return;
-		}
-		
-	    // For all edges coming into x, z ---> x,  update z ---> y and add updated ones to the updated_in_y vector
-		CDList<Expr>* in_x = incomingEdges[x];
-		vector<Expr> updated_in_y;
-		updated_in_y.push_back(x);
-		
-		// If there 
-		if (in_x) {
-			IF_DEBUG(int total = 0; int updated = 0;);
-			for (unsigned it = 0; it < in_x->size() && !isUnsat(); it ++) {
-				const Expr& z = (*in_x)[it];
-				if (z != arith->zero && z.hasFind() && core->find(z).getRHS() != z) continue;
-				if (z != y && z != x && x != y) {
-					IF_DEBUG(total ++;);
-					TRACE("diff update", "trying with ", z.toString() + " --> ", x.toString());
-					if (tryUpdate(z, x, y)) {
-						updated_in_y.push_back(z);
-						IF_DEBUG(updated++;);
-					} 
-				}
-			}
-			TRACE("diff updates", "Updates : ", int2string(updated), " of " + int2string(total));
-		}
-		
-		// For all edges coming into y, z_1 ---> y, and all edges going out of y, y ---> z_2, update z1 --> z_2
-		CDList<Expr>* out_y = outgoingEdges[y];
-		if (out_y)
-			for (unsigned it_z1 = 0; it_z1 < updated_in_y.size() && !isUnsat(); it_z1 ++) { 
-				for (unsigned it_z2 = 0; it_z2 < out_y->size() && !isUnsat(); it_z2 ++) {
-					const Expr& z1 = updated_in_y[it_z1];
-					const Expr& z2 = (*out_y)[it_z2];
-					if (z2 != arith->zero && z2.hasFind() && core->find(z2).getRHS() != z2) continue;
-					if (z1 != z2 && z1 != y && z2 != y)						
-						tryUpdate(z1, y, z2);
-				}
-			}
-	
-	} else {
-		TRACE("arith propagate", "could have propagated ", edge_thm.getExpr(), edge_thm.isAssump() ? " ASSUMPTION " : "not assumption");
-		
-	}
-	
-}
-
-void TheoryArithOld::DifferenceLogicGraph::getEdgeTheorems(const Expr& x, const Expr& z, const EdgeInfo& edgeInfo, std::vector<Theorem>& outputTheorems) {
-	TRACE("arith diff", "Getting theorems from ", x, " to " + z.toString() + " length = " + edgeInfo.length.toString() + ", edge_length = " + int2string(edgeInfo.path_length_in_edges));
-	
-	if (edgeInfo.path_length_in_edges == 1) {			
-		DebugAssert(!edgeInfo.explanation.isNull(), "Edge from " + x.toString() + " to " + z.toString() + " has no theorem!");
-		outputTheorems.push_back(edgeInfo.explanation);
-	}
-	else {		
-		const Expr& y = edgeInfo.in_path_vertex;
-		EdgeInfo x_y = getEdge(x, y);
-		DebugAssert(x_y.isDefined(), "getEdgeTheorems: the cycle edge is not defined!");
-		EdgeInfo y_z = getEdge(y, z);
-		DebugAssert(y_z.isDefined(), "getEdgeTheorems: the cycle edge is not defined!");
-		getEdgeTheorems(x, y, x_y, outputTheorems);
-		getEdgeTheorems(y, z, y_z, outputTheorems);				
-	}
-} 
-
-void TheoryArithOld::DifferenceLogicGraph::analyseConflict(const Expr& x, int kind) {
-	
-	// Get the cycle info
-	Graph::ElementReference x_x_cycle_ref = getEdge(x, x);
-	EdgeInfo x_x_cycle = x_x_cycle_ref.get(); 
-	
-	DebugAssert(x_x_cycle.isDefined(), "analyseConflict: the cycle edge is not defined!");
-	
-	// Vector to keep the theorems in
-	vector<Theorem> inequalities;
-	
-	// Get the theorems::analyse
-	getEdgeTheorems(x, x, x_x_cycle, inequalities);
-	
-	// Set the unsat theorem
-	unsat_theorem = rules->cycleConflict(inequalities);
-	
-	TRACE("diff unsat", "negative cycle : ", int2string(inequalities.size()), " vertices.");
-}
-
-bool TheoryArithOld::DifferenceLogicGraph::tryUpdate(const Expr& x, const Expr& y, const Expr& z) {
-	
-	//Get all the edges
-	Graph::ElementReference x_y_le_ref = getEdge(x, y);	
-	EdgeInfo x_y_le = x_y_le_ref;	
-	if (*d_pathLenghtThres >= 0 && x_y_le.path_length_in_edges > *d_pathLenghtThres) return false;
-		
-	Graph::ElementReference y_z_le_ref = getEdge(y, z);
-	EdgeInfo y_z_le = y_z_le_ref;
-	if (*d_pathLenghtThres >= 0 && y_z_le.path_length_in_edges > *d_pathLenghtThres) return false;
-	
-	Graph::ElementReference x_z_le_ref = getEdge(x, z);			
-	EdgeInfo x_z_le = x_z_le_ref;	
-	
-	bool cycle = (x == z);
-	bool updated = false;	
-		
-	// Try <= + <= --> <= 
-	if (!isUnsat() && x_y_le.isDefined() && y_z_le.isDefined()) { 
-		EpsRational combined_length = x_y_le.length + y_z_le.length;
-		int combined_edge_length = x_y_le.path_length_in_edges + y_z_le.path_length_in_edges;
-		
-		if (!x_z_le.isDefined() || combined_length < x_z_le.length ||
-				(combined_length == x_z_le.length && (combined_edge_length < x_z_le.path_length_in_edges))) {
-			
-			if (!cycle || combined_length <= EpsRational::Zero) {
-				
-				if (!cycle || combined_length < EpsRational::Zero) {				
-					
-					// Remember the path differences
-					if (!cycle) {
-						EpsRational difference = x_z_le.length - combined_length;
-						Rational rationalDifference = difference.getRational();
-						Rational newEpsilon = - x_z_le.length.getEpsilon();
-						if (rationalDifference > 0 && rationalDifference < smallestPathDifference) {
-							smallestPathDifference = rationalDifference;
-							TRACE("diff model", "smallest path difference : ", smallestPathDifference, ""); 
-						}
-						if (newEpsilon > biggestEpsilon) {
-							biggestEpsilon = newEpsilon;
-							TRACE("diff model", "biggest epsilon : ", biggestEpsilon, ""); 
-						}
-					}
-		
-					// If we have a constraint among two integers variables strenghten it
-					bool addAndEnqueue = false;
-					if (!combined_length.isRational())
-						if (x.getType() == arith->intType() && z.getType() == arith->intType())
-							addAndEnqueue = true;							
-					
-					x_z_le.length = combined_length;
-					x_z_le.path_length_in_edges = combined_edge_length;
-					x_z_le.in_path_vertex = y;
-					x_z_le_ref = x_z_le;
-					
-					if (addAndEnqueue) {
-						vector<Theorem> pathTheorems;
-						getEdgeTheorems(x, z, x_z_le, pathTheorems);
-						core->enqueueFact(rules->addInequalities(pathTheorems));
-					}
-					
-					TRACE("arith diff", x.toString() + " -- > " + z.toString(), " : ", combined_length.toString());
-					updated = true;								
-				} else {				
-					// 0 length cycle
-					vector<Theorem> antecedentThms;
-					getEdgeTheorems(x, y, x_y_le, antecedentThms);
-					getEdgeTheorems(y, z, y_z_le, antecedentThms);
-					core->enqueueFact(rules->implyEqualities(antecedentThms));					
-				}				
-
-				// Try to propagate somthing in the original formula
-				if (updated && !cycle && x != sourceVertex && z != sourceVertex) 
-					arith->tryPropagate(x, z, x_z_le, LE);
-
-			}			
-
-			if (cycle && combined_length < EpsRational::Zero) 
-				analyseConflict(x, LE);
-		}
-	} 
-
-	return updated;
-}
-
-void TheoryArithOld::DifferenceLogicGraph::expandSharedTerm(const Expr& x) {
-		
-}
-
-TheoryArithOld::DifferenceLogicGraph::~DifferenceLogicGraph() {
-	for (EdgesList::iterator it = incomingEdges.begin(), it_end = incomingEdges.end(); it != it_end; it ++) {
-		if ((*it).second) {
-			delete (*it).second;
-			free ((*it).second);
-		}		
-	}
-	for (EdgesList::iterator it = outgoingEdges.begin(), it_end = outgoingEdges.end(); it != it_end; it ++) {
-		if ((*it).second) {
-			delete (*it).second;
-			free ((*it).second);
-		}
-	}		
-}
-
-void TheoryArithOld::tryPropagate(const Expr& x, const Expr& y, const DifferenceLogicGraph::EdgeInfo& x_y_edge, int kind) {
-  
-	TRACE("diff atoms", "trying propagation", " x = " + x.toString(), " y = " + y.toString());
-	
-	// bail on non representative terms (we don't pass non-representative terms)
-//	if (x.hasFind() && find(x).getRHS() != x) return;
-//	if (y.hasFind() && find(y).getRHS() != y) return;
-	
-	// given edge x - z (kind) lenth
-	
-	// Make the index (c1 <= y - x)
-	vector<Expr> t1_summands;
-	t1_summands.push_back(rat(0));
-	if (y != zero) t1_summands.push_back(y);
-	// We have to canonize in case it is nonlinear
-	// nonlinear terms are canonized with a constants --> 1*x*y, hence (-1)*1*x*y will not be canonical
-	if (x != zero) t1_summands.push_back(canon(rat(-1)*x).getRHS());
-	Expr t1 = canon(plusExpr(t1_summands)).getRHS();
-	
-	TRACE("diff atoms", "trying propagation", " t1 = " + t1.toString(), "");
-	
-	// The constant c1 <= y - x 
-	Rational c1 = - x_y_edge.length.getRational();
-			
-	// See if we can propagate anything to the formula atoms
-	// c1 <= t1 ===> c <= t1 for c < c1
-	AtomsMap::iterator find     = formulaAtomLowerBound.find(t1);
-	AtomsMap::iterator find_end = formulaAtomLowerBound.end();
-	if (find != find_end) {
-  	  	set< pair<Rational, Expr> >::iterator bounds     = (*find).second.begin();
-  	  	set< pair<Rational, Expr> >::iterator bounds_end = (*find).second.end();
-  	  	while (bounds != bounds_end) {
-  	  		const Expr& implied = (*bounds).second; 
-  	  		// Try to do some theory propagation
-  	  		if ((*bounds).first < c1 || (implied.getKind() == LE && (*bounds).first == c1)) {
-  	  			TRACE("diff atoms", "found propagation", "", "");
-  	  		  	  			// c1 <= t1 => c <= t1 (for c <= c1)
-  	  			// c1 < t1  => c <= t1 (for c <= c1)
-  	  			// c1 <= t1 => c < t1  (for c < c1)
-  	  			vector<Theorem> antecedentThms;
-  	  			diffLogicGraph.getEdgeTheorems(x, y, x_y_edge, antecedentThms);
-  	  			Theorem impliedThm = d_rules->implyWeakerInequalityDiffLogic(antecedentThms, implied); 
-  	  			enqueueFact(impliedThm);		  	  
-  	  		}
-  	  		bounds ++;
-  	  	}
-	}
-  
-	//
-	// c1 <= t1 ==> !(t1 <= c) for c < c1
-	//          ==> !(-c <= t2) 
-	// i.e. all coefficient in in the implied are opposite of t1
-	find     = formulaAtomUpperBound.find(t1);
-	find_end = formulaAtomUpperBound.end();
-	if (find != find_end) {
-		set< pair<Rational, Expr> >::iterator bounds     = (*find).second.begin();
-   	  	set< pair<Rational, Expr> >::iterator bounds_end = (*find).second.end();
-   	  	while (bounds != bounds_end) {
-   	  		const Expr& implied = (*bounds).second;
-   	  		// Try to do some theory propagation
-   	  		if ((*bounds).first < c1) {
-   	  			TRACE("diff atoms", "found negated propagation", "", "");
-   	  			vector<Theorem> antecedentThms;
-	  			diffLogicGraph.getEdgeTheorems(x, y, x_y_edge, antecedentThms);
-	  			Theorem impliedThm = d_rules->implyNegatedInequalityDiffLogic(antecedentThms, implied); 
-	  			enqueueFact(impliedThm);
-   	  		}
-   	  		bounds ++;
-   	  	}
-	}	  
-}
-
-void TheoryArithOld::DifferenceLogicGraph::computeModel() {
-	
-	// If source vertex is null, create it
-	if (sourceVertex.isNull()) sourceVertex = core->newVar("cvc3diffLogicSource", arith->intType());
-		
-	// The empty theorem to pass around
-	Theorem thm;
-	
-	// Add an edge to all the vertices
-	EdgesList::iterator vertexIt    = incomingEdges.begin();
-	EdgesList::iterator vertexItEnd = incomingEdges.end();
-	for (; vertexIt != vertexItEnd; vertexIt ++) {
-		Expr vertex = (*vertexIt).first;
-		if (vertex != sourceVertex && !existsEdge(sourceVertex, vertex)) 
-			addEdge(sourceVertex, vertex, 0, thm);
-	}	
-	vertexIt    = outgoingEdges.begin();
-	vertexItEnd = outgoingEdges.end();
-	for (; vertexIt != vertexItEnd; vertexIt ++) {
-		Expr vertex = (*vertexIt).first;
-		if (vertex != sourceVertex && !existsEdge(sourceVertex, vertex))
-			addEdge(sourceVertex, vertex, 0, thm);
-	}
-	
-	// Also add an edge to cvcZero
-	if (!existsEdge(sourceVertex, arith->zero))
-		addEdge(sourceVertex, arith->zero, 0, thm);
-	
-	// For the < edges we will have a small enough epsilon to add
-	// So, we will upper-bound the number of vertices and then divide 
-	// the smallest edge with that number so as to not be able to bypass 
-	
-}
-
-Rational TheoryArithOld::DifferenceLogicGraph::getValuation(const Expr& x) {
-	
-	// For numbers, return it's value
-	if (x.isRational()) return x.getRational();
-	
-	// For the source vertex, we don't care
-	if (x == sourceVertex) return 0;	
-	
-	// The path from source to targer vertex
-	Graph::ElementReference x_le_c_ref = getEdge(sourceVertex, x);			
-	EdgeInfo x_le_c = x_le_c_ref;
-	
-	// The path from source to zero (adjusment)
-	Graph::ElementReference zero_le_c_ref = getEdge(sourceVertex, arith->zero);			
-	EdgeInfo zero_le_c = zero_le_c_ref;
-			
-	// Value adjusted with the epsilon
-	Rational epsAdjustment = (biggestEpsilon > 0 ? x_le_c.length.getEpsilon() * smallestPathDifference / (2 * biggestEpsilon) : 0);
-	Rational value = x_le_c.length.getRational() - epsAdjustment; 
-	
-	// Value adjusted with the shift for zero
-	value = zero_le_c.length.getRational() - value;
-	
-	TRACE("diff model", "Value of ", x, " : " + value.toString());
-	
-	// Return it
-	return value;
-}
-
-// The infinity constant 
-const TheoryArithOld::DifferenceLogicGraph::EpsRational TheoryArithOld::DifferenceLogicGraph::EpsRational::PlusInfinity(PLUS_INFINITY);
-// The negative infinity constant
-const TheoryArithOld::DifferenceLogicGraph::EpsRational TheoryArithOld::DifferenceLogicGraph::EpsRational::MinusInfinity(MINUS_INFINITY);
-// The negative infinity constant
-const TheoryArithOld::DifferenceLogicGraph::EpsRational TheoryArithOld::DifferenceLogicGraph::EpsRational::Zero;

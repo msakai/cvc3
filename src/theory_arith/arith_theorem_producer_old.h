@@ -183,6 +183,27 @@ namespace CVC3 {
     // combine like terms. accepts a flattened PLUS expr
     virtual Theorem canonComboLikeTerms(const Expr& e);
     
+    // 0 = (* e1 e2 ...) <=> 0 = e1 OR 0 = e2 OR ...
+    virtual Theorem multEqZero(const Expr& expr);
+
+    // 0 = (^ c x) <=> false if c <=0
+    //             <=> 0 = x if c > 0
+    virtual Theorem powEqZero(const Expr& expr);
+
+    // x^n = y^n <=> x = y (if n is odd)
+    // x^n = y^n <=> x = y OR x = -y (if n is even)
+    virtual Theorem elimPower(const Expr& expr);
+
+    // x^n = c <=> x = root (if n is odd and root^n = c)
+    // x^n = c <=> x = root OR x = -root (if n is even and root^n = c)
+    virtual Theorem elimPowerConst(const Expr& expr, const Rational& root);
+
+    // x^n = c <=> false (if n is even and c is negative)
+    virtual Theorem evenPowerEqNegConst(const Expr& expr);
+
+    // x^n = c <=> false (if x is an integer and c is not a perfect n power)
+    virtual Theorem intEqIrrational(const Expr& expr, const Theorem& isInt);
+
     // e[0] kind e[1] <==> true when e[0] kind e[1],
     // false when e[0] !kind e[1], for constants only
     virtual Theorem constPredicate(const Expr& e);
@@ -200,6 +221,9 @@ namespace CVC3 {
 
     // x = y <==> x * z = y * z
     virtual Theorem multEqn(const Expr& x, const Expr& y, const Expr& z);
+
+    // x = y <==> z=0 OR x * 1/z = y * 1/z
+    virtual Theorem divideEqnNonConst(const Expr& x, const Expr& y, const Expr& z);
 
     // if z is +ve, return e[0] LT|LE|GT|GE e[1] <==> e[0]*z LT|LE|GT|GE e[1]*z
     // if z is -ve, return e[0] LT|LE|GT|GE e[1] <==> e[1]*z LT|LE|GT|GE e[0]*z
@@ -237,6 +261,7 @@ namespace CVC3 {
     Theorem expandDarkShadow(const Theorem& darkShadow);
     Theorem expandGrayShadow0(const Theorem& grayShadow);
     Theorem splitGrayShadow(const Theorem& grayShadow);
+    Theorem splitGrayShadowSmall(const Theorem& grayShadow);
     Theorem expandGrayShadow(const Theorem& grayShadow);
     Theorem expandGrayShadowConst(const Theorem& grayShadow);
     Theorem grayShadowConst(const Theorem& g);
@@ -251,6 +276,10 @@ namespace CVC3 {
 
     Theorem lessThanToLE(const Theorem& less, const Theorem& isIntLHS,
 			 const Theorem& isIntRHS, bool changeRight);
+    
+    Theorem lessThanToLERewrite(const Expr& ineq, const Theorem& isIntLHS,
+    			 const Theorem& isIntRHS, bool changeRight);
+
     
     Theorem intVarEqnConst(const Expr& eqn, const Theorem& isIntx);
 
@@ -273,6 +302,7 @@ namespace CVC3 {
     Theorem clashingBounds(const Theorem& lowerBound, const Theorem& upperBound);
     
     Theorem addInequalities(const Theorem& thm1, const Theorem& thm2);
+    Theorem addInequalities(const std::vector<Theorem>& thms);
     
     Theorem implyWeakerInequality(const Expr& expr1, const Expr& expr2);
     
@@ -284,6 +314,29 @@ namespace CVC3 {
 	
     Theorem rafineStrictInteger(const Theorem& isIntConstrThm, const Expr& constr);
 
+    Theorem simpleIneqInt(const Expr& ineq, const Theorem& isIntRHS);
+    
+    Theorem intEqualityRationalConstant(const Theorem& isIntConstrThm, const Expr& constr);
+    
+    Theorem cycleConflict(const std::vector<Theorem>& inequalitites);
+    
+    Theorem implyEqualities(const std::vector<Theorem>& inequalities);
+    
+    Theorem implyWeakerInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied);
+
+    Theorem implyNegatedInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied);
+    
+    Theorem expandGrayShadowRewrite(const Expr& theShadow);
+    
+    Theorem compactNonLinearTerm(const Expr& nonLinear);
+    
+    Theorem nonLinearIneqSignSplit(const Theorem& ineqThm);
+    
+    Theorem implyDiffLogicBothBounds(const Expr& x, std::vector<Theorem>& c1_le_x, Rational c1, 
+        							 std::vector<Theorem>& x_le_c2, Rational c2);
+    
+    Theorem powerOfOne(const Expr& e);
+    
   }; // end of class ArithTheoremProducerOld
 
 } // end of namespace CVC3

@@ -43,6 +43,7 @@ class VCCmd {
   typedef std::hash_map<const char*, Context*> CtxtMap;
   std::string d_name_of_cur_ctxt;
   CtxtMap d_map;
+  bool d_calledFromParser;
 
   //! Take a parsed Expr and evaluate it
   bool evaluateCommand(const Expr& e);
@@ -56,7 +57,7 @@ class VCCmd {
   void reportResult(QueryResult qres, bool checkingValidity = true);
 
 public:
-  VCCmd(ValidityChecker* vc, Parser* parser);
+  VCCmd(ValidityChecker* vc, Parser* parser, bool calledFromParser=false);
   ~VCCmd();
 
   // Main loop function

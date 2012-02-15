@@ -33,7 +33,7 @@ namespace CVC3 {
     // Constructors
     SmtlibException() { }
     SmtlibException(const std::string& msg): Exception(msg) { }
-    SmtlibException(char* msg): Exception(msg) { }
+    SmtlibException(const char* msg): Exception(msg) { }
     // Destructor
     virtual ~SmtlibException() { }
     virtual std::string toString() const {

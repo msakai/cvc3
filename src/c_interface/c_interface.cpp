@@ -30,9 +30,8 @@
 #include "fdstream.h"
 #include <assert.h>
 
-using namespace std;
-//using namespace CVC3;
 
+using namespace std;
 
 
 // -------------------------------------------------------------------------
@@ -54,26 +53,26 @@ void signal_error(char* message,int flag_val,CVC3::Exception ex){
   ss << c_interface_error_message << endl;
   ss << "Message: " << message << endl;
   ss << "Exception: " << ex << endl;
-  IF_DEBUG(cerr << ss.str());
+  IF_DEBUG(cerr << ss.str();)
   c_interface_error_string = ss.str();
   c_interface_error_flag = flag_val;
 }
 
-extern "C" int get_error_status(){
+extern "C" int vc_get_error_status(){
   return c_interface_error_flag;
 }
 
-extern "C" void reset_error_status(){
+extern "C" void vc_reset_error_status(){
   c_interface_error_flag = 1;
   c_interface_error_string = "";  
 }
 
-extern "C" char* get_error_string() {
+extern "C" char* vc_get_error_string() {
   return (char*) (c_interface_error_string.c_str());
 }
 
 
-// ---------------------------
+// Private to implementation
 
 class CInterface {
 public:
@@ -86,6 +85,7 @@ public:
   //  static CVC3::Proof fromProof(Proof proof);
   //  static Proof toProof(const CVC3::Proof& proof);
   static void deleteExpr(Expr e);
+  static void deleteVector(Expr* vec);
 };
 
 
@@ -147,6 +147,11 @@ void CInterface::deleteExpr(Expr e)
   if (e) ((CVC3::ExprValue*)e)->decRefcount();
 }
 
+void CInterface::deleteVector(Expr* e)
+{
+  if (e) delete [] e;
+}
+
 
 static CVC3::Type fromType(Type t) { return CInterface::fromType(t); }
 static Type toType(const CVC3::Type& t) { return CInterface::toType(t); }
@@ -158,6 +163,25 @@ static Op toOp(VC vc, const CVC3::Op& op) { return CInterface::toOp(vc, op); }
 // static Proof toProof(const CVC3::Proof& proof) { return CInterface::toProof(proof); }
 
 
+static char *val_to_binary_str(unsigned nbits, unsigned long val) {
+        char s[65];
+
+	assert(nbits < sizeof s);
+        strcpy(s, "");
+        while(nbits-- > 0) {
+                if((val >> nbits) & 1)
+                        strcat(s, "1");
+                else
+                        strcat(s, "0");
+        }
+        return strdup(s);
+}
+
+
+///////////////////////////////////////////////////////////////////////////
+// Begin implementation of C interface                                   //
+///////////////////////////////////////////////////////////////////////////
+
 
 extern "C" VC vc_createValidityChecker(Flags flags) {
   try{
@@ -165,7 +189,6 @@ extern "C" VC vc_createValidityChecker(Flags flags) {
       : *((CVC3::CLFlags*)flags);
     return (VC)CVC3::ValidityChecker::create(f);
   } catch (CVC3::Exception ex){
-	cerr << ex.toString() << endl;
     signal_error("vc_createValidityChecker",error_int,ex);
     return NULL;
   }
@@ -173,25 +196,42 @@ extern "C" VC vc_createValidityChecker(Flags flags) {
 
 
 extern "C" Flags vc_createFlags() {
+  try{
   return new CVC3::CLFlags(CVC3::ValidityChecker::createFlags());
+  } catch (CVC3::Exception ex){
+    signal_error("vc_createFlags",error_int,ex);
+    return NULL;
+  }
 }
 
 
 extern "C" void vc_destroyValidityChecker(VC vc)
 {
+  try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
   delete cvc;
+  } catch (CVC3::Exception ex){
+    signal_error("vc_destroyVelidityChecker",error_int,ex);
+  }
 }
 
 
 extern "C" void vc_deleteFlags(Flags flags) {
+  try{
   delete ((CVC3::CLFlags*)flags);
+  } catch (CVC3::Exception ex){
+    signal_error("vc_deleteFlags",error_int,ex);
+  }
 }
 
 
 extern "C" void vc_deleteExpr(Expr e)
 {
+  try{
   CInterface::deleteExpr(e);
+  } catch (CVC3::Exception ex){
+    signal_error("vc_deleteExpr",error_int,ex);
+  }
 }
 
 
@@ -207,35 +247,61 @@ extern "C" void vc_deleteOp(Op op)
 }
 
 
-extern "C" void vc_deleteProof(Proof proof)
+extern "C" void vc_deleteVector(Expr* e)
 {
-  vc_deleteExpr(proof);
+  try{
+  CInterface::deleteVector(e);
+  } catch (CVC3::Exception ex){
+    signal_error("vc_deleteVector",error_int,ex);
+  }
 }
 
-// Setting the flags
-// Set a boolean flag to true or false
+
+extern "C" void vc_deleteTypeVector(Type* e)
+{
+  vc_deleteVector(e);
+}
+
+
 extern "C" void vc_setBoolFlag(Flags flags, char* name, int val) {
+  try{
   CVC3::CLFlags& f = *((CVC3::CLFlags*)flags);
   f.setFlag(name, (val!=0));
+  } catch (CVC3::Exception ex){
+    signal_error("vc_setBoolFlag",error_int,ex);
+  }
 }
 
-// Set an integer flag to the given value
+
 extern "C" void vc_setIntFlag(Flags flags, char* name, int val) {
+  try{
   CVC3::CLFlags& f = *((CVC3::CLFlags*)flags);
   f.setFlag(name, val);
+  } catch (CVC3::Exception ex){
+    signal_error("vc_setIntFlag",error_int,ex);
+  }
 }
 
-// Set a string flag to the given value
+
 extern "C" void vc_setStringFlag(Flags flags, char* name, char* val) {
+  try{
   CVC3::CLFlags& f = *((CVC3::CLFlags*)flags);
   f.setFlag(name, string(val));
+  } catch (CVC3::Exception ex){
+    signal_error("vc_setStringFlag",error_int,ex);
+  }
 }
 
-// Add a (string, bool) pair to the multy-string flag
+
 extern "C" void vc_setStrSeqFlag(Flags flags, char* name, char* str, int val) {
+  try{
   CVC3::CLFlags& f = *((CVC3::CLFlags*)flags);
   f.setFlag(name, pair<string,bool>(string(str), val!=0));
+  } catch (CVC3::Exception ex){
+    signal_error("vc_setStrSeqFlag",error_int,ex);
+  }
 }
+
 
 extern "C" Type vc_boolType(VC vc)
 {
@@ -259,19 +325,44 @@ extern "C" Type vc_realType(VC vc)
     return NULL;
   }
 }
-  
+
+
+extern "C" Type vc_intType(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toType(cvc->intType());
+  }catch (CVC3::Exception ex){
+    signal_error("vc_intType",error_int,ex);
+    return NULL;
+  }
+}
+
+
 extern "C" Type vc_subRangeType(VC vc, int lowerEnd, int upperEnd)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toType(cvc->parseType(cvc->listExpr("SUBRANGE", 
-					     cvc->ratExpr(lowerEnd), 
-					     cvc->ratExpr(upperEnd))));
+  return toType(cvc->subrangeType(cvc->ratExpr(lowerEnd),
+                                  cvc->ratExpr(upperEnd)));
   }catch (CVC3::Exception &ex){
     signal_error("vc_subRangeType",error_int,ex);
     return NULL;
   }
 }
+
+
+extern "C" Type vc_subTypeType(VC vc, Expr pred, Expr witness)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toType(cvc->subtypeType(fromExpr(pred), fromExpr(witness)));
+  }catch (CVC3::Exception &ex){
+    signal_error("vc_subTypeType",error_int,ex);
+    return NULL;
+  }
+}
+
 
 extern "C" Type vc_tupleType2(VC vc, Type type0, Type type1)
 {
@@ -309,37 +400,6 @@ extern "C" Type vc_tupleTypeN(VC vc, Type* types, int numTypes)
   return toType(cvc->tupleType(cvcTypes));
   }catch(CVC3::Exception ex){
     signal_error("vc_tupleTypeN",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" Type vc_forallExpr(VC vc, Expr* Bvars, int numBvars, Expr f)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  vector<CVC3::Expr> cvcBvars;
-  for (int i = 0; i < numBvars; ++i) {
-    cvcBvars.push_back(fromExpr(Bvars[i]));
-  }
-  return toExpr(cvc->forallExpr(cvcBvars,fromExpr(f)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_forallExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Type vc_existsExpr(VC vc, Expr* Bvars, int numBvars, Expr f)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  vector<CVC3::Expr> cvcBvars;
-  for (int i = 0; i < numBvars; ++i) {
-    cvcBvars.push_back(fromExpr(Bvars[i]));
-  }
-  return toExpr(cvc->existsExpr(cvcBvars,fromExpr(f)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_forallExpr",error_int,ex);
     return NULL;
   }
 }
@@ -406,6 +466,91 @@ extern "C" Type vc_recordTypeN(VC vc, char** fields, Type* types,
 }
 
 
+extern "C" Type vc_dataType1(VC vc, char* name, char* constructor, int arity,
+                             char** selectors, Expr* types)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  string cvcName(name);
+  string cvcConstructor(constructor);
+  vector<string> cvcSelectors;
+  vector<CVC3::Expr> cvcTypes;
+  for (int i = 0; i < arity; ++i) {
+    cvcSelectors.push_back(selectors[i]);
+    cvcTypes.push_back(fromExpr(types[i]));
+  }
+  return toType(cvc->dataType(cvcName, cvcConstructor, cvcSelectors, cvcTypes));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_dataType1",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type vc_dataTypeN(VC vc, char* name, int numCons, char** constructors,
+                             int* arities, char*** selectors, Expr** types)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  string cvcName(name);
+  vector<string> cvcConstructors;
+  vector<vector<string> > cvcSelectors(numCons);
+  vector<vector<CVC3::Expr> > cvcTypes(numCons);
+  for (int i = 0; i < numCons; ++i) {
+    cvcConstructors.push_back(constructors[i]);
+    for (int j = 0; j < arities[i]; ++j) {
+      cvcSelectors[i].push_back(selectors[i][j]);
+      cvcTypes[i].push_back(fromExpr(types[i][j]));
+    }
+  }
+  return toType(cvc->dataType(cvcName, cvcConstructors,
+                              cvcSelectors, cvcTypes));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_dataTypeN",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type* vc_dataTypeMN(VC vc, int numTypes, char** names,
+                               int* numCons, char*** constructors,
+                               int** arities, char**** selectors,
+                               Expr*** types)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<string> cvcNames;
+  vector<vector<string> > cvcConstructors(numTypes);
+  vector<vector<vector<string> > > cvcSelectors(numTypes);
+  vector<vector<vector<CVC3::Expr> > > cvcTypes(numTypes);
+  int i;
+  for (i = 0; i < numTypes; ++i) {
+    cvcNames.push_back(names[i]);
+    cvcSelectors[i].resize(numCons[i]);
+    cvcTypes[i].resize(numCons[i]);
+    for (int j = 0; i < numCons[i]; ++j) {
+      cvcConstructors[i].push_back(constructors[i][j]);
+      for (int k = 0; k < arities[i][j]; ++k) {
+        cvcSelectors[i][j].push_back(selectors[i][j][k]);
+        cvcTypes[i][j].push_back(fromExpr(types[i][j][k]));
+      }
+    }
+  }
+  vector<CVC3::Type> cvcReturnTypes;
+  cvc->dataType(cvcNames, cvcConstructors,
+                cvcSelectors, cvcTypes, cvcReturnTypes);
+  Type* returnTypes = new Type[numTypes];
+  for (i = 0; i < numTypes; ++i) {
+    returnTypes[i] = toType(cvcReturnTypes[i]);
+  }
+  return returnTypes;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_dataTypeN",error_int,ex);
+    return NULL;
+  }
+}
+
+
 extern "C" Type vc_arrayType(VC vc, Type typeIndex, Type typeData)
 {
   try{
@@ -413,6 +558,18 @@ extern "C" Type vc_arrayType(VC vc, Type typeIndex, Type typeData)
   return toType(cvc->arrayType(fromType(typeIndex), fromType(typeData)));
   }catch(CVC3::Exception ex){
     signal_error("vc_arrayType",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type vc_bvType(VC vc, int n)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toType(cvc->bitvecType(n));
+  }catch (CVC3::Exception ex){
+    signal_error("vc_bvType",error_int,ex);
     return NULL;
   }
 }
@@ -507,21 +664,13 @@ extern "C" Type vc_lookupType(VC vc, char* typeName)
 
 extern "C" ExprManager vc_getEM(VC vc)
 {
+  try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
   return (ExprManager)cvc->getEM();
-}
-
-extern "C" int vc_getKindInt(VC vc,char* kind_name)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return (cvc->getEM())->getKind(kind_name);
-}
-
-extern "C" const char* vc_getKindString(VC vc,int kind)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  tmpString = (cvc->getEM())->getKindName(kind);
-  return tmpString.c_str();
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getEM",error_int,ex);
+    return NULL;
+  }
 }
 
 
@@ -531,18 +680,19 @@ extern "C" Expr vc_varExpr(VC vc, char* name, Type type)
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
   return toExpr(cvc->varExpr(name, fromType(type)));
   }catch(CVC3::Exception ex){
-    signal_error("vc_getEM",error_int,ex);
+    signal_error("vc_varExpr",error_int,ex);
     return NULL;
   }
 }
 
-extern "C" Expr vc_boundVarExpr(VC vc, char* name, char *uid, Type type)
+
+extern "C" Expr vc_varExprDef(VC vc, char* name, Type type, Expr def)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->boundVarExpr(name, uid, fromType(type)));
+  return toExpr(cvc->varExpr(name, fromType(type), fromExpr(def)));
   }catch(CVC3::Exception ex){
-    signal_error("vc_getEM",error_int,ex);
+    signal_error("vc_varExprDef",error_int,ex);
     return NULL;
   }
 }
@@ -570,6 +720,157 @@ extern "C" Type vc_getType(VC vc, Expr e)
   return toType(cvc->getType(fromExpr(e)));
   }catch(CVC3::Exception ex){
     signal_error("vc_getType",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type vc_getBaseType(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toType(cvc->getBaseType(fromExpr(e)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getBaseType",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type vc_getBaseTypeOfType(VC vc, Type t)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toType(cvc->getBaseType(fromType(t)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getBaseTypeOfType",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getTypePred(VC vc, Type t, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getTypePred(fromType(t), fromExpr(e)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getTypePred",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_stringExpr(VC vc, char* str)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->stringExpr(str));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_stringExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_idExpr(VC vc, char* str)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->idExpr(str));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_idExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_listExpr(VC vc, int numKids, Expr* kids)
+{
+  try{
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    vector<CVC3::Expr> args;
+    for(int i=0; i<numKids; ++i)
+      args.push_back(fromExpr(kids[i]));
+    return toExpr(cvc->listExpr(args));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_listExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" void vc_printExpr(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->printExpr(fromExpr(e));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_printExpr",error_int,ex);
+  }
+}
+
+
+extern "C" char* vc_printExprString(VC vc, Expr e)
+{
+  try{
+    ostringstream os;
+    string aa;
+    char*  result;
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    cvc->printExpr(fromExpr(e), os);
+    os.flush();
+    aa=os.str();
+    result=new char[aa.length()];
+    strcpy(result,aa.c_str());
+    return result;
+  } catch(CVC3::Exception ex) {
+    signal_error("vc_printExprString",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" void vc_deleteString(char* str)
+{
+  if (str) delete [] str;
+}
+
+
+extern "C" void vc_printExprFile(VC vc, Expr e, int fd)
+{
+  try {
+    fdostream os(fd);
+    if(!os) throw CVC3::Exception("vc_printExprFile: Bad file descriptor: "
+				  +CVC3::int2string(fd));
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    cvc->printExpr(fromExpr(e), os);
+    os.flush();
+  } catch(CVC3::Exception ex) {
+    signal_error("vc_printExpr",error_int,ex);
+  }
+}
+
+
+extern "C" Expr vc_importExpr(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->importExpr(fromExpr(e)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_importExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type vc_importType(VC vc, Type e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toType(cvc->importType(fromType(e)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_importType",error_int,ex);
     return NULL;
   }
 }
@@ -716,6 +1017,84 @@ extern "C" Expr vc_iteExpr(VC vc, Expr ifpart, Expr thenpart, Expr elsepart)
 }
 
 
+extern "C" Op vc_createOp(VC vc, char* name, Type type)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toOp(vc, cvc->createOp(name, fromType(type)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_createOp",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Op vc_createOpDef(VC vc, char* name, Type type, Expr def)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toOp(vc, cvc->createOp(name, fromType(type), fromExpr(def)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_createOpDef",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_funExpr1(VC vc, Op op, Expr child)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->funExpr(fromOp(op), fromExpr(child)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_funExpr1",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_funExpr2(VC vc, Op op, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->funExpr(fromOp(op), fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_funExpr2",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_funExpr3(VC vc, Op op, Expr child0, Expr child1,
+			    Expr child2)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->funExpr(fromOp(op), fromExpr(child0), fromExpr(child1),
+			     fromExpr(child2)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_funExpr3",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_funExprN(VC vc, Op op, Expr* children, int numChildren)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcExprs;
+  for (int i = 0; i < numChildren; ++i) {
+    cvcExprs.push_back(fromExpr(children[i]));
+  }
+  return toExpr(cvc->funExpr(fromOp(op), cvcExprs));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_funExprN",error_int,ex);
+    return NULL;
+  }
+}
+
+
 extern "C" Expr vc_ratExpr(VC vc, int n, int d)
 {
   try{
@@ -735,6 +1114,18 @@ extern "C" Expr vc_ratExprFromStr(VC vc, char* n, char* d, int base)
   return toExpr(cvc->ratExpr(n, d, base));
   }catch(CVC3::Exception ex){
     signal_error("vc_ratExprFromStr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_ratExprFromStr1(VC vc, char* n, int base)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->ratExpr(n, base));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_ratExprFromStr1",error_int,ex);
     return NULL;
   }
 }
@@ -783,6 +1174,30 @@ extern "C" Expr vc_multExpr(VC vc, Expr left, Expr right)
   return toExpr(cvc->multExpr(fromExpr(left), fromExpr(right)));
   }catch(CVC3::Exception ex){
     signal_error("vc_multExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_powExpr(VC vc, Expr pow, Expr base)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->powExpr(fromExpr(pow), fromExpr(base)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_powExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_divideExpr(VC vc, Expr numerator, Expr denominator)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->divideExpr(fromExpr(numerator), fromExpr(denominator)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_divideExpr",error_int,ex);
     return NULL;
   }
 }
@@ -948,557 +1363,17 @@ extern "C" Expr vc_writeExpr(VC vc, Expr array, Expr index, Expr newValue)
 }
 
 
-extern "C" Op vc_createOp(VC vc, char* name, Type type)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toOp(vc, cvc->createOp(name, fromType(type)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_createOp",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_funExpr1(VC vc, Op op, Expr child)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->funExpr(fromOp(op), fromExpr(child)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_funExpr1",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_funExpr2(VC vc, Op op, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->funExpr(fromOp(op), fromExpr(left), fromExpr(right)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_funExpr2",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_funExpr3(VC vc, Op op, Expr child0, Expr child1,
-			    Expr child2)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->funExpr(fromOp(op), fromExpr(child0), fromExpr(child1),
-			     fromExpr(child2)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_funExpr3",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_funExprN(VC vc, Op op, Expr* children, int numChildren)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  vector<CVC3::Expr> cvcExprs;
-  for (int i = 0; i < numChildren; ++i) {
-    cvcExprs.push_back(fromExpr(children[i]));
-  }
-  return toExpr(cvc->funExpr(fromOp(op), cvcExprs));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_funExprN",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" Expr vc_tupleExprN(VC vc, Expr* children, int numChildren)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  vector<CVC3::Expr> cvcExprs;
-  for (int i = 0; i < numChildren; ++i) {
-    cvcExprs.push_back(fromExpr(children[i]));
-  }
-  return toExpr(cvc->tupleExpr(cvcExprs));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_tupleExprN",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" void vc_printExpr(VC vc, Expr e)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->printExpr(fromExpr(e));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_printExpr",error_int,ex);
-  }
-}
-
-
-extern "C" void vc_printExprFile(VC vc, Expr e, int fd)
-{
-  try {
-    fdostream os(fd);
-    if(!os) throw CVC3::Exception("vc_printExprFile: Bad file descriptor: "
-				  +CVC3::int2string(fd));
-    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-    cvc->printExpr(fromExpr(e), os);
-    os.flush();
-  } catch(CVC3::Exception ex) {
-    signal_error("vc_printExpr",error_int,ex);
-  }
-}
-
-
-/////////////////////////////////////////////////////////////////////////////
-// Context-related methods                                                 //
-/////////////////////////////////////////////////////////////////////////////
-
-
-extern "C" void vc_assertFormula(VC vc, Expr e)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->assertFormula(fromExpr(e));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_assertFormula",error_int,ex);
-  }
-}
-
-
-extern "C" void vc_registerAtom(VC vc, Expr e)
-{
-  try{
-    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-    cvc->registerAtom(fromExpr(e));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_registerAtom",error_int,ex);
-  }
-}
-
-
-extern "C" Expr vc_getImpliedLiteral(VC vc)
-{
-  try {
-    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-    return toExpr(cvc->getImpliedLiteral());
-  } catch(CVC3::Exception ex){
-    signal_error("vc_getImpliedLiteral",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_simplify(VC vc, Expr e)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->simplify(fromExpr(e)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_simplify",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" int vc_query(VC vc, Expr e)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return (int)cvc->query(fromExpr(e));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_query",error_int,ex);
-    return error_int;
-  }
-}
-
-
-/* Returns a counterexample as a list of assignments.
-   Returns NULL on error */
-extern "C" Expr* vc_getCounterExample(VC vc, int* size)
-{
-  int n = 0;
-  static Expr* locAssumptions = NULL;
-  
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::ExprMap<CVC3::Expr> assertions;
-  cvc->getConcreteModel(assertions);
-  locAssumptions = new Expr[assertions.size()];
-  CVC3::ExprMap<CVC3::Expr>::iterator it = assertions.begin(), end = assertions.end();
-  for (; it != end; it++) {    
-    locAssumptions[n] = toExpr(cvc->eqExpr(it->first, it->second));
-    n++;
-  }
-  *size = n;
-  return locAssumptions;
-  }catch(CVC3::Exception ex){
-    cout << c_interface_error_message << endl;
-    cout << "Exception: " << ex.toString();
-    return NULL;
-  }
-}
-
-
-extern "C" int vc_inconsistent(VC vc, Expr** assumptions, int* size)
-{
-  try{
-  static Expr* locAssumptions = NULL;
-  static int locsize = 0;
-  if (locAssumptions) {
-    for (int j = 0; j < locsize; ++j) {
-      vc_deleteExpr(locAssumptions[j]);
-    }
-    delete [] locAssumptions;
-  }
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  vector<CVC3::Expr> assertions;
-  bool ret = cvc->inconsistent(assertions);
-  locAssumptions = new Expr[assertions.size()];
-  for (unsigned i = 0; i < assertions.size(); ++i) {
-    locAssumptions[i] = toExpr(assertions[i]);
-  }
-  *assumptions = locAssumptions;
-  locsize = *size = assertions.size();
-  return (int)ret;
-  }catch(CVC3::Exception ex){
-    signal_error("vc_inconsistent",error_int,ex);
-    return 0;
-  }
-}
-
-
-extern "C" void vc_setResourceLimit(VC vc, unsigned limit)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->setResourceLimit(limit);
-}
-
-
-extern "C" Expr vc_getProof(VC vc)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->getProof().getExpr());
-  }catch(CVC3::Exception ex){
-    signal_error("vc_getProof",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_getProofOfFile(VC vc, char* fileName){
-
-  try{
-  cout<<"in getProofOffile\n";
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Parser* parser;
-  parser = new CVC3::Parser(cvc,
-			cvc->getEM()->getInputLang(),
-			0,
-                        string(fileName));
-  CVC3::VCCmd* cmd = new CVC3::VCCmd(cvc, parser);
-  cout<<"\n begin process commands\n";
-  cmd->processCommands();
-  cout<<"\n end of procsssing commands\n";
-  // delete cmd;
-  // delete parser;
-  cout<<"\n begin to return the proof\n";
-  return toExpr(cvc->getProof().getExpr());
-  } catch (CVC3::Exception ex){
-    signal_error("vc_getProofsOfFile",error_int,ex);
-    return NULL;
-  }
-}
-  
-
-extern "C" void vc_push(VC vc)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->push();
-}
-
-
-extern "C" void vc_pop(VC vc)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->pop();
-}
-
-
-extern "C" void vc_popto(VC vc, int scopeLevel)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->popto(scopeLevel);
-}
-
-
-extern "C" int vc_scopeLevel(VC vc)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return cvc->scopeLevel();
-}
-
-
-extern "C" Context vc_getCurrentContext(VC vc)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return (Context)cvc->getCurrentContext();
-}
-
-
-// -------------------------------------------------------------------------
-//  Util                                                                    
-// -------------------------------------------------------------------------
-
-extern "C" const char* exprString(Expr e){
-  try{
-    tmpString =(fromExpr(e)).toString();
-    return tmpString.c_str();
-  } catch (CVC3::Exception ex){
-    signal_error("exprString",error_int,ex);
-    return "ERROR";
-  }
-}
-
-extern "C" const char* typeString(Type t){
-  try{
-    tmpString = (fromExpr(t)).toString();
-    return tmpString.c_str();
-  } catch (CVC3::Exception ex){
-    signal_error("typeString",error_int,ex);
-    return "ERROR";
-  }
-}
-
-extern "C" int arity(Expr e){
-  try{
-    return (fromExpr(e)).arity();
-  } catch (CVC3::Exception ex){
-    signal_error("arity",error_int,ex);
-    return error_int;
-  }
-}
-
-extern "C" int getKind(Expr e){
-  try{
-    return (fromExpr(e)).getKind();
-  } catch (CVC3::Exception ex){
-    signal_error("getKind",error_int,ex);
-    return error_int;
-  }
-}
-
-extern "C" Expr getChild(Expr e, int i){
-  try{
-    return toExpr(((fromExpr(e))[i]));
-  } catch (CVC3::Exception ex){
-    signal_error("getChild",error_int,ex);
-    return NULL;
-  }
-}
-  
-extern "C" bool isClosure(Expr e){
-  try{
-    return (fromExpr(e)).isClosure();
-  } catch (CVC3::Exception ex){
-    signal_error("isClosure",error_int,ex);
-    return false;
-  }
-}
-
-extern "C" bool isQuantifier(Expr e){
-  try{
-    return (fromExpr(e)).isQuantifier();
-  } catch (CVC3::Exception ex){
-    signal_error("isQuantifier",error_int,ex);
-    return false;
-  }
-}
-
-extern "C" bool isLambda(Expr e){
-  try{
-    return (fromExpr(e)).isLambda();
-  } catch (CVC3::Exception ex){
-    signal_error("isLambda",error_int,ex);
-    return false;
-  }
-}
-
-extern "C" Expr getVar(Expr e, int i){
-  try{
-    int size = ((fromExpr(e)).getVars()).size();
-    if(i < size){ 
-      Expr expr = toExpr(((fromExpr(e)).getVars())[i]);
-      return expr;
-    } else {
-      throw CVC3::Exception();
-    }
-  } catch (CVC3::Exception ex){
-    signal_error("getVar",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" int getNumVars(Expr e){
-  try{
-    return (fromExpr(e)).getVars().size();
-  } catch (CVC3::Exception ex){
-    signal_error("getNumVars",error_int,ex);
-    return error_int;
-  }
-}
-
-extern "C" Expr getBody(Expr e){
-  try{
-    return toExpr((fromExpr(e)).getBody());
-  } catch (CVC3::Exception ex){
-    signal_error("getBody",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_getFun(VC vc, Expr e)
-{
-  try{
-    return toExpr((fromExpr(e)).getOp().getExpr());
-  }catch(CVC3::Exception ex){
-    signal_error("vc_getFun",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr toExpr(Type t){
-  try{
-    return toExpr((fromType(t)).getExpr());
-  } catch (CVC3::Exception ex){
-    signal_error("toExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" bool isVar(Expr e){
-  try{
-    return (fromExpr(e)).isVar();
-  } catch (CVC3::Exception ex){
-    signal_error("isVar",error_int,ex);
-    return false;
-  }
-}
-
-
-extern "C" int getInt(Expr e){
-  try{
-    return (fromExpr(e)).getRational().getInt();
-  } catch (CVC3::Exception ex){
-    signal_error("getInt",error_int,ex);
-    return error_int;
-  }
-}
-
-extern "C" int getBVInt(Expr e){
-  try{
-    return CVC3::computeBVConst(fromExpr(e)).getInt();
-  } catch (CVC3::Exception ex){
-    signal_error("getBVInt",error_int,ex);
-    return 0;
-  }
-}
-
-extern "C" unsigned int getBVUnsigned(Expr e){
-  try{
-    return CVC3::computeBVConst(fromExpr(e)).getUnsigned();
-  } catch (CVC3::Exception ex){
-    signal_error("getBVUnsigned",error_int,ex);
-    return 0;
-  }
-}
-
-extern "C" int compare_exprs(Expr e1,Expr e2){
-  try{
-    return (compare(fromExpr(e1),fromExpr(e2)));
-  } catch (CVC3::Exception ex){
-    signal_error("compare",error_int,ex);
-    return error_int;
-  }
-}
-  
-extern "C" Type vc_intType(VC vc)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toType(cvc->intType());
-  }catch (CVC3::Exception ex){
-    signal_error("vc_intType",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" Expr vc_powExpr(VC vc, Expr pow, Expr base)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->powExpr(fromExpr(pow), fromExpr(base)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_powExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" Expr vc_divideExpr(VC vc, Expr numerator, Expr denominator)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->divideExpr(fromExpr(numerator), fromExpr(denominator)));
-  }catch(CVC3::Exception ex){
-    signal_error("vc_divideExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-extern "C" void print_statistics(VC vc)
-{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  cvc->printStatistics();
-}
-
-
-/**************************/
-/* BIT VECTOR OPERATIONS  */
-/**************************/
-
-
-extern "C" Type vc_bvType(VC vc, int no_bits)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toType(cvc->parseType(cvc->listExpr("BITVECTOR", cvc->ratExpr(no_bits))));
-  }catch (CVC3::Exception ex){
-    signal_error("vc_bvType",error_int,ex);
-    return NULL;
-  }
-}
-
-
 extern "C" Type vc_bv32Type(VC vc)
 {
   return vc_bvType(vc, 32);
 }
 
 
-
 extern "C" Expr vc_bvConstExprFromStr(VC vc, char* binary_repr)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  return toExpr(cvc->parseExpr(cvc->listExpr("BVCONST", cvc->stringExpr(binary_repr))));
+  return toExpr(cvc->parseExpr(cvc->listExpr("_BVCONST", cvc->stringExpr(binary_repr))));
   }catch(CVC3::Exception ex){
     signal_error("vc_bvConstExpr",error_int, ex);
     return NULL;
@@ -1506,64 +1381,11 @@ extern "C" Expr vc_bvConstExprFromStr(VC vc, char* binary_repr)
 }
 
 
-#include <assert.h>
-
-static char *val_to_binary_str(unsigned nbits, unsigned long long val) {
-        char s[65];
-
-	assert(nbits < sizeof s);
-        strcpy(s, "");
-        while(nbits-- > 0) {
-                if((val >> nbits) & 1)
-                        strcat(s, "1");
-                else
-                        strcat(s, "0");
-        }
-        return strdup(s);
-}
-
 extern "C" Expr vc_bvConstExprFromInt(VC vc, int n_bits, unsigned int value)
 {
   char* s = val_to_binary_str(n_bits, value);
   return vc_bvConstExprFromStr(vc, s);
 }
-
-extern "C" Expr 
-vc_bvConstExprFromLL(VC vc, int n_bits, unsigned long long value)
-{
-  char* s = val_to_binary_str(n_bits, value);
-  return vc_bvConstExprFromStr(vc, s);
-}
-
-
-#if 0
-extern "C" Expr vc_bvConstExprFromInt(VC vc, int n_bits, unsigned int value)
-{
-  char* s = (char*) malloc(100);
-  char* saux = (char*) malloc(100);
-  strcpy(s, "");
-
-  while (value) {
-    strcpy(saux, s);
-    if (value % 2 == 0)
-      strcpy(s, "0");
-    else strcpy(s, "1");
-    strcat(s, saux);
-    value = value / 2;
-    n_bits--;
-  }
-  while (n_bits) {
-    strcpy(saux, s);
-    strcpy(s, "0");
-    strcat(s, saux);
-    n_bits--;
-  }
-  
-  free(saux);
-
-  return vc_bvConstExprFromStr(vc, s);
-}
-#endif
 
 
 extern "C" Expr vc_bv32ConstExprFromInt(VC vc, unsigned int value)
@@ -1571,30 +1393,24 @@ extern "C" Expr vc_bv32ConstExprFromInt(VC vc, unsigned int value)
   return vc_bvConstExprFromInt(vc, 32, value);
 }
 
-extern "C" Expr vc_bvPlusExpr(VC vc, int n_bits, Expr left, Expr right)
+
+extern "C" Expr vc_bvConstExprFromLL(VC vc, int n_bits, unsigned long value)
 {
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVPLUS", cvc->ratExpr(n_bits), fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvPlusExpr",error_int,ex);
-    return NULL;
-  }
+  char* s = val_to_binary_str(n_bits, value);
+  return vc_bvConstExprFromStr(vc, s);
 }
 
-extern "C" Expr vc_bvConcatExpr(VC vc,Expr left, Expr right) {
+
+extern "C" Expr vc_bvConcatExpr(VC vc, Expr left, Expr right) {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("_CONCAT",fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
+  return toExpr(cvc->newConcatExpr(fromExpr(left), fromExpr(right)));
   }catch(CVC3::Exception &ex){
     signal_error("vc_bvConcatExpr",error_int,ex);
     return NULL;
   }
 }
+
 
 extern "C" Expr vc_bvConcatExprN(VC vc, Expr* children, int numChildren) {
   try{
@@ -1603,10 +1419,226 @@ extern "C" Expr vc_bvConcatExprN(VC vc, Expr* children, int numChildren) {
   for (int i = 0; i < numChildren; ++i) {
     cvcExprs.push_back(fromExpr(children[i]));
   }
-  CVC3::Expr lExpr = cvc->listExpr("_CONCAT",cvcExprs);
-  return toExpr(cvc->parseExpr(lExpr));
+  return toExpr(cvc->newConcatExpr(cvcExprs));
   }catch(CVC3::Exception &ex){
     signal_error("vc_concatExprN",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvExtract(VC vc, Expr child, int high_bit_no, int low_bit_no)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVExtractExpr(fromExpr(child), high_bit_no, low_bit_no));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvExtract",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvBoolExtract(VC vc, Expr child, int bit_no)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::Expr lExpr = cvc->listExpr("_BOOLEXTRACT", fromExpr(child), cvc->ratExpr(bit_no));
+  return toExpr(cvc->parseExpr(lExpr));
+  
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvBoolExtract",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvNotExpr(VC vc, Expr child)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVNegExpr(fromExpr(child)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvNotExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvAndExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVAndExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvAndExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvOrExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVOrExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvOrExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvXorExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVXorExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvXorExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvLtExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVLTExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvLtExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvLeExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVLEExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvLeExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvGtExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::Expr lExpr = cvc->listExpr("_BVGT", fromExpr(left), fromExpr(right));
+  return toExpr(cvc->parseExpr(lExpr));
+  
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvGtExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvGeExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::Expr lExpr = cvc->listExpr("_BVGE", fromExpr(left), fromExpr(right));
+  return toExpr(cvc->parseExpr(lExpr));
+  
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvGeExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvSLtExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVSLTExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvSLtExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvSLeExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVSLEExpr(fromExpr(left), fromExpr(right)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvSLeExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvSGtExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::Expr lExpr = cvc->listExpr("_BVSGT", fromExpr(left), fromExpr(right));
+  return toExpr(cvc->parseExpr(lExpr));
+  
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvSGtExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvSGeExpr(VC vc, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::Expr lExpr = cvc->listExpr("_BVSGE", fromExpr(left), fromExpr(right));
+  return toExpr(cvc->parseExpr(lExpr));
+  
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvSGeExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvSignExtend(VC vc, Expr child, int nbits)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newSXExpr(fromExpr(child), nbits));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvSignExtend",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvUMinusExpr(VC vc, Expr child)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->newBVUminusExpr(fromExpr(child)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvUMinusExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_bvPlusExpr(VC vc, int n_bits, Expr left, Expr right)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> args;
+  args.push_back(fromExpr(left));
+  args.push_back(fromExpr(right));
+  return toExpr(cvc->newBVPlusExpr(n_bits, args));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_bvPlusExpr",error_int,ex);
     return NULL;
   }
 }
@@ -1622,9 +1654,8 @@ extern "C" Expr vc_bvMinusExpr(VC vc, int n_bits, Expr left, Expr right)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVSUB", cvc->ratExpr(n_bits), fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
+  CVC3::Expr lExpr = cvc->listExpr("_BVSUB", cvc->ratExpr(n_bits), fromExpr(left), fromExpr(right));
+   return toExpr(cvc->parseExpr(lExpr));
   }catch(CVC3::Exception ex){
     signal_error("vc_bvMinusExpr",error_int,ex);
     return NULL;
@@ -1642,9 +1673,7 @@ extern "C" Expr vc_bvMultExpr(VC vc, int n_bits, Expr left, Expr right)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVMULT", cvc->ratExpr(n_bits), fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
+  return toExpr(cvc->newBVMultExpr(n_bits, fromExpr(left), fromExpr(right)));
   }catch(CVC3::Exception ex){
     signal_error("vc_bvMultExpr",error_int,ex);
     return NULL;
@@ -1658,237 +1687,11 @@ extern "C" Expr vc_bv32MultExpr(VC vc, Expr left, Expr right)
 }
 
 
-extern "C" Expr vc_bvLtExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVLT", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvLtExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvSLtExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVSLT", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvSLtExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvLeExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVLE", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvLeExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvSLeExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVSLE", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvSLeExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvGtExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVGT", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvGtExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvSGtExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVSGT", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvSGtExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvGeExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVGE", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvGeExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvSGeExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVSGE", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvSGeExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvUMinusExpr(VC vc, Expr child)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVUMINUS", fromExpr(child));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvUMinusExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvAndExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVAND", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvAndExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvOrExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVOR", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvOrExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvXorExpr(VC vc, Expr left, Expr right)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVXOR", fromExpr(left), fromExpr(right));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvXorExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvNotExpr(VC vc, Expr child)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BVNEG", fromExpr(child));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvNegExpr",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvExtract(VC vc, Expr child, int high_bit_no, int low_bit_no)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("EXTRACT", fromExpr(child), cvc->ratExpr(high_bit_no), cvc->ratExpr(low_bit_no));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvExtract",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvBoolExtract(VC vc, Expr child, int bit_no)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("BOOLEXTRACT", fromExpr(child), cvc->ratExpr(bit_no));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvBoolExtract",error_int,ex);
-    return NULL;
-  }
-}
-
-
-extern "C" Expr vc_bvSignExtend(VC vc, Expr child, int nbits)
-{
-  try{
-  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("SX", fromExpr(child), cvc->ratExpr(nbits));
-  return toExpr(cvc->parseExpr(lExpr));
-  
-  }catch(CVC3::Exception ex){
-    signal_error("vc_bvSignExtend",error_int,ex);
-    return NULL;
-  }
-}
-
-
 extern "C" Expr vc_bvLeftShiftExpr(VC vc, int sh_amt, Expr child)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("LEFTSHIFT", fromExpr(child), cvc->ratExpr(sh_amt));
-  return toExpr(cvc->parseExpr(lExpr));
-  
+  return toExpr(cvc->newFixedLeftShiftExpr(fromExpr(child), sh_amt));
   }catch(CVC3::Exception ex){
     signal_error("vc_bvLeftShiftExpr",error_int,ex);
     return NULL;
@@ -1900,15 +1703,24 @@ extern "C" Expr vc_bvRightShiftExpr(VC vc, int sh_amt, Expr child)
 {
   try{
   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
-  CVC3::Expr lExpr = cvc->listExpr("RIGHTSHIFT", fromExpr(child), cvc->ratExpr(sh_amt));
-  return toExpr(cvc->parseExpr(lExpr));
-  
+  return toExpr(cvc->newFixedRightShiftExpr(fromExpr(child), sh_amt));
   }catch(CVC3::Exception ex){
     signal_error("vc_bvRightShiftExpr",error_int,ex);
     return NULL;
   }
 }
 
+
+/* Same as vc_bvLeftShift only that the answer in 32 bits long */
+extern "C" Expr vc_bv32LeftShiftExpr(VC vc, int sh_amt, Expr child) {
+  return vc_bvExtract(vc, vc_bvLeftShiftExpr(vc, sh_amt, child), 31, 0);
+}
+
+
+/* Same as vc_bvRightShift only that the answer in 32 bits long */
+extern "C" Expr vc_bv32RightShiftExpr(VC vc, int sh_amt, Expr child) {
+  return vc_bvExtract(vc, vc_bvRightShiftExpr(vc, sh_amt, child), 31, 0);
+}
 
 extern "C" Expr vc_bvVar32LeftShiftExpr(VC vc, Expr sh_amt, Expr child) {
   try{
@@ -1991,17 +1803,6 @@ extern "C" Expr vc_bvVar32RightShiftExpr(VC vc, Expr sh_amt, Expr child)
   }
 }
  
-
-/* Same as vc_bvLeftShift only that the answer in 32 bits long */
-extern "C" Expr vc_bv32LeftShiftExpr(VC vc, int sh_amt, Expr child) {
-  return vc_bvExtract(vc, vc_bvLeftShiftExpr(vc, sh_amt, child), 31, 0);
-}
-
-
-/* Same as vc_bvRightShift only that the answer in 32 bits long */
-extern "C" Expr vc_bv32RightShiftExpr(VC vc, int sh_amt, Expr child) {
-  return vc_bvExtract(vc, vc_bvRightShiftExpr(vc, sh_amt, child), 31, 0);
-}
 
 /* C pointer support: C interface to support C memory arrays in CVC3 */
 extern "C" Expr vc_bvCreateMemoryArray(VC vc, char * arrayName) {
@@ -2103,6 +1904,7 @@ extern "C" Expr vc_bvReadMemoryArray(VC vc,
   }    
 }
 
+
 extern "C" Expr vc_bvWriteToMemoryArray(VC vc, 
 					Expr array, Expr byteIndex, 
 					Expr element, int numOfBytes) {
@@ -2138,3 +1940,852 @@ extern "C" Expr vc_bvWriteToMemoryArray(VC vc,
   }    
 }
 
+extern "C" Expr vc_tupleExprN(VC vc, Expr* children, int numChildren)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcExprs;
+  for (int i = 0; i < numChildren; ++i) {
+    cvcExprs.push_back(fromExpr(children[i]));
+  }
+  return toExpr(cvc->tupleExpr(cvcExprs));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_tupleExprN",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_tupleSelectExpr(VC vc, Expr tuple, int index)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->tupleSelectExpr(fromExpr(tuple), index));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_tupleSelectExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_tupleUpdateExpr(VC vc, Expr tuple, int index, Expr newValue)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->tupleUpdateExpr(fromExpr(tuple), index,
+                                     fromExpr(newValue)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_tupleUpdateExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_datatypeConsExpr(VC vc, char* constructor,
+                                    int numArgs, Expr* args)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcArgs;
+  for (int i = 0; i < numArgs; ++i) {
+    cvcArgs.push_back(fromExpr(args[i]));
+  }
+  return toExpr(cvc->datatypeConsExpr(constructor, cvcArgs));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_datatypeConsExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_datatypeSelExpr(VC vc, char* selector, Expr arg)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->datatypeSelExpr(selector, fromExpr(arg)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_datatypeSelExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_datatypeTestExpr(VC vc, char* constructor, Expr arg)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->datatypeTestExpr(constructor, fromExpr(arg)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_datatypeTestExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_boundVarExpr(VC vc, char* name, char *uid, Type type)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->boundVarExpr(name, uid, fromType(type)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getEM",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Type vc_forallExpr(VC vc, Expr* Bvars, int numBvars, Expr f)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcBvars;
+  for (int i = 0; i < numBvars; ++i) {
+    cvcBvars.push_back(fromExpr(Bvars[i]));
+  }
+  return toExpr(cvc->forallExpr(cvcBvars,fromExpr(f)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_forallExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" void vc_setTriggers(VC vc, Expr e, int numTrigs, Expr* triggers)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcTriggers;
+  for (int i = 0; i < numTrigs; ++i) {
+    cvcTriggers.push_back(fromExpr(triggers[i]));
+  }
+  cvc->setTriggers(fromExpr(e), cvcTriggers);
+  }catch(CVC3::Exception ex){
+    signal_error("vc_setTriggers",error_int,ex);
+  }
+}
+
+
+extern "C" Expr vc_existsExpr(VC vc, Expr* Bvars, int numBvars, Expr f)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcBvars;
+  for (int i = 0; i < numBvars; ++i) {
+    cvcBvars.push_back(fromExpr(Bvars[i]));
+  }
+  return toExpr(cvc->existsExpr(cvcBvars,fromExpr(f)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_existsExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Op vc_lambdaExpr(VC vc, int numVars, Expr* vars, Expr body)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcVars;
+  for (int i = 0; i < numVars; ++i) {
+    cvcVars.push_back(fromExpr(vars[i]));
+  }
+  return toOp(vc, cvc->lambdaExpr(cvcVars, fromExpr(body)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_lambdaExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Context-related methods                                                 //
+/////////////////////////////////////////////////////////////////////////////
+
+
+extern "C" void vc_setResourceLimit(VC vc, unsigned limit)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->setResourceLimit(limit);
+  }catch(CVC3::Exception ex){
+    signal_error("vc_setResourceLimit",error_int,ex);
+  }
+}
+
+
+extern "C" void vc_assertFormula(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->assertFormula(fromExpr(e));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_assertFormula",error_int,ex);
+  }
+}
+
+
+extern "C" void vc_registerAtom(VC vc, Expr e)
+{
+  try{
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    cvc->registerAtom(fromExpr(e));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_registerAtom",error_int,ex);
+  }
+}
+
+
+extern "C" Expr vc_getImpliedLiteral(VC vc)
+{
+  try {
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    return toExpr(cvc->getImpliedLiteral());
+  } catch(CVC3::Exception ex){
+    signal_error("vc_getImpliedLiteral",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_simplify(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->simplify(fromExpr(e)));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_simplify",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" int vc_query(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return (int)cvc->query(fromExpr(e));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_query",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" int vc_checkContinue(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return (int)cvc->checkContinue();
+  }catch(CVC3::Exception ex){
+    signal_error("vc_checkContinue",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" int vc_restart(VC vc, Expr e)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return (int)cvc->restart(fromExpr(e));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_restart",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" void vc_returnFromCheck(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->returnFromCheck();
+  }catch(CVC3::Exception ex){
+    signal_error("vc_returnFromCheck",error_int,ex);
+  }
+}
+
+
+extern "C" Expr* vc_getUserAssumptions(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getUserAssumptions(cvcAssumptions);
+  Expr* assumptions = new Expr[cvcAssumptions.size()];
+  unsigned n = 0;
+  for (; n < cvcAssumptions.size(); ++n) {
+    assumptions[n] = toExpr(cvcAssumptions[n]);
+  }
+  *size = int(n);
+  return assumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getUserAssumptions",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr* vc_getInternalAssumptions(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getInternalAssumptions(cvcAssumptions);
+  Expr* assumptions = new Expr[cvcAssumptions.size()];
+  unsigned n = 0;
+  for (; n < cvcAssumptions.size(); ++n) {
+    assumptions[n] = toExpr(cvcAssumptions[n]);
+  }
+  *size = int(n);
+  return assumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getInternalAssumptions",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr* vc_getAssumptions(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getAssumptions(cvcAssumptions);
+  Expr* assumptions = new Expr[cvcAssumptions.size()];
+  unsigned n = 0;
+  for (; n < cvcAssumptions.size(); ++n) {
+    assumptions[n] = toExpr(cvcAssumptions[n]);
+  }
+  *size = int(n);
+  return assumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getAssumptions",error_int,ex);
+    return NULL;
+  }
+}
+
+//yeting, this is for proof translation, 
+extern "C" Expr vc_getProofAssumptions(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getUserAssumptions(cvcAssumptions);
+  return toExpr(cvc->listExpr(cvcAssumptions));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getProofAssumptions",error_int,ex);
+    return NULL;
+  }
+}
+
+//yeting, this is for proof translation
+extern "C" Expr vc_getProofQuery(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getProofQuery());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getProofQuery",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr* vc_getAssumptionsUsed(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getAssumptionsUsed(cvcAssumptions);
+  Expr* assumptions = new Expr[cvcAssumptions.size()];
+  unsigned n = 0;
+  for (; n < cvcAssumptions.size(); ++n) {
+    assumptions[n] = toExpr(cvcAssumptions[n]);
+  }
+  *size = int(n);
+  return assumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getAssumptionsUsed",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr* vc_getCounterExample(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getCounterExample(cvcAssumptions);
+  Expr* assumptions = new Expr[cvcAssumptions.size()];
+  unsigned n = 0;
+  for (; n < cvcAssumptions.size(); ++n) {
+    assumptions[n] = toExpr(cvcAssumptions[n]);
+  }
+  *size = int(n);
+  return assumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getCounterExample",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr* vc_getConcreteModel(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::ExprMap<CVC3::Expr> assertions;
+  cvc->getConcreteModel(assertions);
+  Expr* locAssumptions = new Expr[assertions.size()];
+  int n = 0;
+  CVC3::ExprMap<CVC3::Expr>::iterator it = assertions.begin(), end = assertions.end();
+  for (; it != end; it++) {    
+    locAssumptions[n] = toExpr(cvc->eqExpr(it->first, it->second));
+    n++;
+  }
+  *size = n;
+  return locAssumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getConcreteModel",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" int vc_inconsistent(VC vc, Expr** assumptions, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> assertions;
+  bool ret = cvc->inconsistent(assertions);
+  Expr* locAssumptions = new Expr[assertions.size()];
+  for (unsigned i = 0; i < assertions.size(); ++i) {
+    locAssumptions[i] = toExpr(assertions[i]);
+  }
+  *assumptions = locAssumptions;
+  *size = assertions.size();
+  return (int)ret;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_inconsistent",error_int,ex);
+    return 0;
+  }
+}
+
+
+extern "C" char* vc_incomplete(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<string> reasons;
+  bool ret = cvc->incomplete(reasons);
+  if (!ret) return NULL;
+  string allReasons = "";
+  for (unsigned i = 0; i < reasons.size(); ++i) {
+    allReasons += '\n';
+    allReasons += reasons[i];
+  }
+  char* retStr = new char[allReasons.length()+1];
+  allReasons.copy(retStr, allReasons.length());
+  retStr[allReasons.length()] = '\0';
+  return retStr;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_incomplete",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getProof(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getProof().getExpr());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getProof",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getProofOfFile(VC vc, char* fileName){
+
+  try{
+   CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  CVC3::Parser* parser;
+  parser = new CVC3::Parser(cvc,
+			cvc->getEM()->getInputLang(),
+			0,
+                        string(fileName));
+  CVC3::VCCmd* cmd = new CVC3::VCCmd(cvc, parser);
+   cmd->processCommands();
+   delete cmd;
+  delete parser;
+   return toExpr(cvc->getProof().getExpr());
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getProofsOfFile",error_int,ex);
+    return NULL;
+  }
+}
+  
+
+extern "C" Expr vc_getTCC(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getTCC());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getTCC",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr* vc_getAssumptionsTCC(VC vc, int* size)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  vector<CVC3::Expr> cvcAssumptions;
+  cvc->getAssumptionsTCC(cvcAssumptions);
+  Expr* assumptions = new Expr[cvcAssumptions.size()];
+  unsigned n = 0;
+  for (; n < cvcAssumptions.size(); ++n) {
+    assumptions[n] = toExpr(cvcAssumptions[n]);
+  }
+  *size = int(n);
+  return assumptions;
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getAssumptionsTCC",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getProofTCC(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getProofTCC().getExpr());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getProofTCC",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getClosure(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getClosure());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getClosure",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getProofClosure(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return toExpr(cvc->getProofClosure().getExpr());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getProofClosure",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" int vc_stackLevel(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return cvc->stackLevel();
+  }catch(CVC3::Exception ex){
+    signal_error("vc_stackLevel",error_int,ex);
+    return 0;
+  }
+}
+
+
+extern "C" void vc_push(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->push();
+  }catch(CVC3::Exception ex){
+    signal_error("vc_push",error_int,ex);
+  }
+}
+
+
+extern "C" void vc_pop(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->pop();
+  }catch(CVC3::Exception ex){
+    signal_error("vc_pop",error_int,ex);
+  }
+}
+
+
+extern "C" void vc_popto(VC vc, int stackLevel)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->popto(stackLevel);
+  }catch(CVC3::Exception ex){
+    signal_error("vc_popto",error_int,ex);
+  }
+}
+
+
+extern "C" Context vc_getCurrentContext(VC vc)
+{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return (Context)cvc->getCurrentContext();
+}
+
+
+// -------------------------------------------------------------------------
+//  Util                                                                    
+// -------------------------------------------------------------------------
+
+
+extern "C" int vc_compare_exprs(Expr e1,Expr e2){
+  try{
+    return (compare(fromExpr(e1),fromExpr(e2)));
+  } catch (CVC3::Exception ex){
+    signal_error("vc_compare_exprs",error_int,ex);
+    return error_int;
+  }
+}
+
+  
+extern "C" const char* vc_exprString(Expr e){
+  try{
+    tmpString =(fromExpr(e)).toString();
+    return tmpString.c_str();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_exprString",error_int,ex);
+    return "ERROR";
+  }
+}
+
+
+extern "C" const char* vc_typeString(Type t){
+  try{
+    tmpString = (fromExpr(t)).toString();
+    return tmpString.c_str();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_typeString",error_int,ex);
+    return "ERROR";
+  }
+}
+
+
+extern "C" bool vc_isClosure(Expr e){
+  try{
+    return (fromExpr(e)).isClosure();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_isClosure",error_int,ex);
+    return false;
+  }
+}
+
+
+extern "C" bool vc_isQuantifier(Expr e){
+  try{
+    return (fromExpr(e)).isQuantifier();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_isQuantifier",error_int,ex);
+    return false;
+  }
+}
+
+
+extern "C" bool vc_isLambda(Expr e){
+  try{
+    return (fromExpr(e)).isLambda();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_isLambda",error_int,ex);
+    return false;
+  }
+}
+
+
+extern "C" bool vc_isVar(Expr e){
+  try{
+    return (fromExpr(e)).isVar();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_isVar",error_int,ex);
+    return false;
+  }
+}
+
+
+extern "C" int vc_arity(Expr e){
+  try{
+    return (fromExpr(e)).arity();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_arity",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" int vc_getKind(Expr e){
+  try{
+    return (fromExpr(e)).getKind();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getKind",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" Expr vc_getChild(Expr e, int i){
+  try{
+    return toExpr(((fromExpr(e))[i]));
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getChild",error_int,ex);
+    return NULL;
+  }
+}
+  
+
+extern "C" int vc_getNumVars(Expr e){
+  try{
+    return (fromExpr(e)).getVars().size();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getNumVars",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" Expr vc_getVar(Expr e, int i){
+  try{
+    int size = ((fromExpr(e)).getVars()).size();
+    if(i < size){ 
+      Expr expr = toExpr(((fromExpr(e)).getVars())[i]);
+      return expr;
+    } else {
+      throw CVC3::Exception();
+    }
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getVar",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getBody(Expr e){
+  try{
+    return toExpr((fromExpr(e)).getBody());
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getBody",error_int,ex);
+    return NULL;
+  }
+}
+
+extern "C" Expr vc_getExistential(Expr e){
+  try{
+    return toExpr((fromExpr(e)).getExistential());
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getExistential",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_getFun(VC vc, Expr e)
+{
+  try{
+    return toExpr((fromExpr(e)).getOp().getExpr());
+  }catch(CVC3::Exception ex){
+    signal_error("vc_getFun",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" Expr vc_toExpr(Type t){
+  try{
+    return toExpr(fromExpr(t));
+  } catch (CVC3::Exception ex){
+    signal_error("vc_toExpr",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" const char* vc_getKindString(VC vc,int kind)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  tmpString = (cvc->getEM())->getKindName(kind);
+  return tmpString.c_str();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getKindString",error_int,ex);
+    return NULL;
+  }
+}
+
+
+extern "C" int vc_getKindInt(VC vc,char* kind_name)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  return (cvc->getEM())->getKind(kind_name);
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getKindInt",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" int vc_getInt(Expr e){
+  try{
+    return (fromExpr(e)).getRational().getInt();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getInt",error_int,ex);
+    return error_int;
+  }
+}
+
+
+extern "C" int vc_getBVInt(VC vc, Expr e){
+  try{
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    return cvc->computeBVConst(fromExpr(e)).getInt();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getBVInt",error_int,ex);
+    return 0;
+  }
+}
+
+
+extern "C" unsigned int vc_getBVUnsigned(VC vc, Expr e){
+  try{
+    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+    return cvc->computeBVConst(fromExpr(e)).getUnsigned();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_getBVUnsigned",error_int,ex);
+    return 0;
+  }
+}
+
+
+extern "C" void vc_print_statistics(VC vc)
+{
+  try{
+  CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  cvc->printStatistics();
+  } catch (CVC3::Exception ex){
+    signal_error("vc_print_statistics",error_int,ex);
+  }
+}

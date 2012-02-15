@@ -32,7 +32,10 @@
 
 #ifdef _MSC_VER
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
+
 
 using namespace std;
 using namespace CVC3;
@@ -55,8 +58,8 @@ void sighandler(int signum) {
     cerr << " (self-timeout)";
   cerr << ".  " << programName << " is aborting.\n";
   // Print the debugging info
-  IF_DEBUG(if (pRuntime != NULL) CVC3::debugger.setElapsed(*pRuntime));
-  IF_DEBUG(debugger.printAll());
+  IF_DEBUG(if (pRuntime != NULL) CVC3::debugger.setElapsed(*pRuntime);)
+  IF_DEBUG(debugger.printAll();)
   if(vc != NULL && vc->getFlags()["stats"].getBool())
     cout << vc->getStatistics() << endl;
   exit(1);
@@ -74,8 +77,8 @@ int main(int argc, char **argv)
 {
   CLFlags flags(ValidityChecker::createFlags());
   programName = string(argv[0]);
-  IF_DEBUG(DebugTimer runtime(CVC3::debugger.timer("total runtime")));
-  IF_DEBUG(pRuntime = &runtime);
+  IF_DEBUG(DebugTimer runtime(CVC3::debugger.timer("total runtime"));)
+  IF_DEBUG(pRuntime = &runtime;)
 
 #ifndef _MSC_VER
   signal(SIGINT, sighandler);
@@ -145,7 +148,7 @@ int main(int argc, char **argv)
     // exception will be thrown
     vc->getEM()->getOutputLang();
     // Set the timer
-    IF_DEBUG(CVC3::debugger.setCurrentTime(runtime));
+    IF_DEBUG(CVC3::debugger.setCurrentTime(runtime);)
     // Read the input file
     vc->loadFile(fileName, vc->getEM()->getInputLang(),
                  flags["interactive"].getBool());
@@ -154,10 +157,10 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  IF_DEBUG(CVC3::debugger.setElapsed(runtime));
+  IF_DEBUG(CVC3::debugger.setElapsed(runtime);)
 
   // Print the debugging info
-  IF_DEBUG(debugger.printAll());
+  IF_DEBUG(debugger.printAll();)
   // Print statistics
   if(vc->getFlags()["stats"].getBool()) vc->printStatistics();
   // Destruct the system

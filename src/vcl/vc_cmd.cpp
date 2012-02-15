@@ -29,8 +29,9 @@
 using namespace std;
 using namespace CVC3;
 
-VCCmd::VCCmd(ValidityChecker* vc, Parser* parser)
-  : d_vc(vc), d_parser(parser), d_name_of_cur_ctxt("DEFAULT")
+VCCmd::VCCmd(ValidityChecker* vc, Parser* parser, bool calledFromParser)
+  : d_vc(vc), d_parser(parser), d_name_of_cur_ctxt("DEFAULT"),
+    d_calledFromParser(calledFromParser)
 {
   d_map[d_name_of_cur_ctxt.c_str()] = d_vc->getCurrentContext();
 }
@@ -81,7 +82,7 @@ readAgain:
   } 
   catch(Exception& e) {
     cerr << "*** " << e << endl;
-    IF_DEBUG(++(debugger.counter("parse errors")));
+    IF_DEBUG(++(debugger.counter("parse errors"));)
   }
   // The parser may return a Null Expr in case of parse errors or end
   // of file.  The right thing to do is to ignore it and repeat
@@ -284,8 +285,8 @@ bool VCCmd::evaluateCommand(const Expr& e0)
 			  +int2string(e.arity()-1)+":\n "+e.toString());
     TRACE_MSG("commands", "** [commands] Query formula");
     QueryResult qres = d_vc->query(d_vc->parseExpr(e[1]));
-
     reportResult(qres);
+
     break;
   }
   case CHECKSAT: {
@@ -301,7 +302,17 @@ bool VCCmd::evaluateCommand(const Expr& e0)
       throw EvalException("CHECKSAT requires no more than one argument, but is given "
 			  +int2string(e.arity()-1)+":\n "+e.toString());
     }
+
     reportResult(qres, false);
+//     {//for debug only by yeting
+//       Proof p = d_vc->getProof();
+//       if (d_vc->getFlags()["printResults"].getBool()) {
+//  	cout << p << endl;
+//  	cout << flush;
+//       }
+//     }
+
+
     break;
   }
   case CONTINUE: {
@@ -430,6 +441,10 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     else {
       d_vc->poptoScope(arg);
     }
+    break;
+  }
+  case RESET: {
+    throw ResetException();
     break;
   }
   case WHERE:
@@ -686,7 +701,12 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     ++i; // Skip "SEQ" symbol
     bool success = true;
     for(; i!=iend; ++i) {
-      success = success && evaluateCommand(*i);
+      try {
+        success = success && evaluateCommand(*i);
+      } catch(ResetException& e) {
+        if (++i == iend) throw e;
+        throw EvalException("RESET can only be the last command in a sequence");
+      }
     }
     return success;
   }
@@ -704,7 +724,8 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     fs.close();
     d_vc->loadFile(e[1].getString(),
                    d_vc->getEM()->getInputLang(),
-                   d_vc->getFlags()["interactive"].getBool());
+                   d_vc->getFlags()["interactive"].getBool(),
+                   true /* nested call */);
     break;
   }
   case HELP:
@@ -734,7 +755,14 @@ void VCCmd::processCommands()
     while(success) {
       try {
         success = evaluateNext();
-      } catch(EvalException& e) {
+      } catch (ResetException& e) {
+        if (d_calledFromParser) {
+          throw EvalException("RESET not supported within INCLUDEd file");
+        }
+        d_parser->reset();
+        d_vc->reset();
+        success = true;
+      } catch (EvalException& e) {
         error= true;
         cerr << "*** Eval Error:\n  " << e << endl;
       }

@@ -204,8 +204,8 @@ private:
    *  should clean up those. */
   ContextObjChain* d_restore;
 
-  IF_DEBUG(std::string d_name);
-  IF_DEBUG(bool d_active);
+  IF_DEBUG(std::string d_name;)
+  IF_DEBUG(bool d_active;)
 
   //! Update on the given scope, on the current scope if 'scope' == -1
   void update(int scope = -1);
@@ -214,9 +214,9 @@ protected:
   //! Copy constructor (defined mainly for debugging purposes)
   ContextObj(const ContextObj& co)
     : d_scope(co.d_scope), d_restore(co.d_restore) {
-    IF_DEBUG(d_name=co.d_name);
+    IF_DEBUG(d_name=co.d_name;)
     DebugAssert(co.d_active, "ContextObj["+co.name()+"] copy constructor");
-    IF_DEBUG(d_active = co.d_active);
+    IF_DEBUG(d_active = co.d_active;)
     //    TRACE("context verbose", "ContextObj()[", this, "]: copy constructor");
   }
 
@@ -244,7 +244,7 @@ protected:
   virtual void setNull(void) = 0;
 
   //! Return our name (for debugging)
-  IF_DEBUG(virtual std::string name() const { return d_name; });
+  IF_DEBUG(virtual std::string name() const { return d_name; })
 
   //! Get context memory manager
   ContextMemoryManager* getCMM() { return d_scope->getCMM(); }
@@ -267,7 +267,7 @@ public:
     else return d_scope->isCurrent();
   }
   void makeCurrent(int scope = -1) { if (!isCurrent(scope)) update(scope); }
-  IF_DEBUG(void setName(const std::string& name) { d_name=name; });
+  IF_DEBUG(void setName(const std::string& name) { d_name=name; })
 
   void* operator new(size_t size, MemoryManager* mm) {
     return mm->newData(size);
@@ -366,7 +366,7 @@ inline void Scope::restore(void) {
 inline ContextObj::ContextObj(Context* context, bool atBottomScope)
   IF_DEBUG(: d_name("ContextObj"))
 {
-  IF_DEBUG(d_active=true);
+  IF_DEBUG(d_active=true;)
   DebugAssert(context != NULL, "NULL context pointer");
   if (atBottomScope) d_scope = context->bottomScope();
   else d_scope = context->topScope();

@@ -66,7 +66,7 @@ Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
     }
 
     if(common.size() > 0) {
-      IF_DEBUG(debugger.counter("substExpr: bound var clashes")++);
+      IF_DEBUG(debugger.counter("substExpr: bound var clashes")++;)
       // Reduced substitution (without the common vars)
       ExprHashMap<Expr> newSubst(subst);
       // Remove variables in "common" from the substitution
@@ -182,6 +182,115 @@ Expr Expr::substExpr(const ExprHashMap<Expr>& oldToNew) const
   }
   return recursiveSubst(oldToNew, visited);
 }
+
+
+
+Expr Expr::substExprQuant(const vector<Expr>& oldTerms,
+			  const vector<Expr>& newTerms) const
+{
+  //let us disable this first yeting
+  //  static ExprHashMap<Expr> substCache;
+  //  Expr cacheIndex = Expr(RAW_LIST, *this, Expr(RAW_LIST, newTerms));
+
+  //  ExprHashMap<Expr>::iterator i = substCache.find(cacheIndex);
+  //  if (i != substCache.end()){
+  //    return i->second;
+  //  }
+
+  DebugAssert(oldTerms.size() == newTerms.size(), "substExpr: vectors"
+	      "don't match in size");
+  // Catch the vacuous case
+  
+  if(oldTerms.size() == 0) return *this;
+
+  ExprHashMap<Expr> oldToNew(10);
+
+  //  clearFlags();
+   for(unsigned int i=0; i<oldTerms.size(); i++) {
+     oldToNew.insert(oldTerms[i], newTerms[i]);
+     //     oldTerms[i].setFlag();
+   }
+  // For cache, initialized by the substitution
+  ExprHashMap<Expr> visited(oldToNew);
+  Expr returnExpr = recursiveQuantSubst(oldToNew, visited);;
+    //  return recursiveQuantSubst(oldToNew, visited);
+  //  substCache[cacheIndex] = returnExpr;
+  //  cout<<"pushed " << cacheIndex << endl << "RET " << returnExpr << endl;
+  return returnExpr;
+
+}
+
+
+
+Expr Expr::recursiveQuantSubst(const ExprHashMap<Expr>& substMap,
+			       ExprHashMap<Expr>& visited) const {
+
+  if (!containsBoundVar()){
+    std::cout <<"no bound var " << *this << std::endl;
+    return *this;
+  }
+
+  // Check the cache.
+  // INVARIANT: visited contains all the flagged expressions, and only those
+  // the above invarian is no longer true.  yeting
+  
+   if(getKind() == BOUND_VAR ) {
+     Expr ret  = visited[*this];
+     if (!ret.isNull()){
+       return ret; 
+     }
+   }
+  
+   //  if(getFlag()) return visited[*this];
+
+  // why we need this.
+//   ExprIndex minIndex = 0;
+//   for(ExprHashMap<Expr>::iterator i = substMap.begin(),iend=substMap.end();i!=iend;++i) {
+//     if(minIndex > (i->first).getIndex())
+//       minIndex = (i->first).getIndex();
+//   }
+
+  Expr replaced;
+
+  if(isClosure()) {
+    // for safety, we can wrap the following lines by if debug
+  
+    const vector<Expr> & vars = getVars();
+//     vector<Expr> common; // Bound vars which occur in subst
+
+//     for(vector<Expr>::const_iterator i = vars.begin(), iend=vars.end();
+// 	i!=iend; ++i) {
+//       if(substMap.count(*i) > 0) common.push_back(*i);
+//     }
+
+//     if(common.size() > 0) {
+//       cout<<"error in quant subst" << endl;
+//     } else {
+      replaced =
+        getEM()->newClosureExpr(getKind(), vars,
+                                getBody().recursiveQuantSubst(substMap, visited));
+//     }
+  } else { // Not a Closure
+    int changed=0;
+    vector<Expr> children;      
+    for(Expr::iterator i=begin(), iend=end(); i!=iend; ++i){	
+      Expr repChild ;
+      repChild = (*i).recursiveQuantSubst(substMap, visited);
+      if(repChild != *i)
+	changed++;
+      children.push_back(repChild);
+    }
+    if(changed > 0)
+      replaced = Expr(getOp(), children);
+    else
+      replaced = *this;
+  }
+  //  visited.insert(*this, replaced);
+  //  setFlag();
+  return replaced;
+}
+
+
 
 
 string Expr::toString() const {
@@ -335,6 +444,7 @@ ExprStream& Expr::print(ExprStream& os) const {
       }
       // If not an internal representation of quantifiers, it'll be
       // printed as "normal" Expr with a kind and children
+    case RESTART: return os << "RESTART " << (*this)[0] << ";";
     default:
       //    os << "(" << push;
       os << getEM()->getKindName(getKind());

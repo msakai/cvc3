@@ -293,6 +293,7 @@ sub addProblem {
 
 # Total running time
 my $totalTime = time;
+my $totalRunningTime = 0;
 my $defaultDir = `pwd`;
 $defaultDir =~ s/\n//;
 
@@ -412,6 +413,7 @@ foreach my $testcase (@testcases) {
 	    if($str =~ /^User\+Sys Time: (\d+\.\d\d)\+(\d+\.\d\d)/) {
 		$time = $1+$2;
 		print "Program Runtime: $time";
+		$totalRunningTime = $totalRunningTime + $time;
 	    }
 	}
 	close IN;
@@ -473,7 +475,8 @@ $totalTime = time - $totalTime;
 
 print "\nStatistics:\n";
 print "Total tests run: $testsTotal\n";
-print "Total running time: $totalTime sec\n";
+print "Total running time: $totalRunningTime sec\n";
+print "Total elapsed time: $totalTime sec\n";
 print "Total number of proofs checked: $proofsChecked\n";
 print "Problematic cases: $testsProblems\n";
 if($testsProblems > 0 && $verbose) {
