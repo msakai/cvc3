@@ -19,6 +19,8 @@
 
 
 #include <fstream>
+#include <sstream>
+#include <streambuf>
 #include "os.h"
 #include "vcl.h"
 #include "parser.h"
@@ -1075,8 +1077,19 @@ Type VCL::importType(const Type& t)
 
 void VCL::cmdsFromString(const std::string& s, InputLanguage lang)
 {
-  std::stringstream ss(s,std::stringstream::in);
-  return loadFile(ss,lang,false);
+  // Redirect cerr to a stringstream so we can capture any errors and
+  // throw an informative exception.
+  stringstream errBuf(stringstream::out);
+  streambuf *saveBuf = cerr.rdbuf(errBuf.rdbuf());
+
+  stringstream ss(s,stringstream::in);
+  loadFile(ss,lang,false);
+
+  std::string errOutput = errBuf.str();
+  cerr.rdbuf(saveBuf);
+  if( !errOutput.empty() ) {
+    throw Exception(errOutput);
+  }
 }
 
 Expr VCL::exprFromString(const std::string& s, InputLanguage lang)
