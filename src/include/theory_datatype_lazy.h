@@ -53,7 +53,7 @@ class TheoryDatatypeLazy :public TheoryDatatype {
   CDO<bool> d_typeComplete;
 
 private:
-  void instantiate(const Expr& e, const bigunsigned& u);
+  void instantiate(const Expr& e, const Unsigned& u);
   void initializeLabels(const Expr& e, const Type& t);
   void mergeLabels(const Theorem& thm, const Expr& e1, const Expr& e2);
   void mergeLabels(const Theorem& thm, const Expr& e,

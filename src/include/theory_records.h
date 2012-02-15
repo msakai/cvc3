@@ -71,6 +71,8 @@ public:
   Theorem rewrite(const Expr& e);
   //! check record or tuple type
   void checkType(const Expr& e);
+  Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                             bool enumerate, bool computeSize);
   //! computes the type of a record or a tuple
   void computeType(const Expr& e);
   Type computeBaseType(const Type& t);

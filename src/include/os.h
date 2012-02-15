@@ -2,9 +2,9 @@
 /*!
  * \file os.h
  * \brief Abstraction over different operating systems.
- * 
+ *
  * Author: Alexander Fuchs
- * 
+ *
  * Created: Fri Feb 16 12:00:00 2007
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -43,11 +43,17 @@
 
 #endif
 
-
+#ifndef _LINUX_WINDOWS_CROSS_COMPILE
 /// MS C++ specific settings
 #ifdef _MSC_VER
+
 // CLR specific settings
 //  #ifdef _MANAGED
+
+// if lex files are created with cygwin they require isatty,
+// which in MS VS C++ requires using _isatty
+#include <io.h>
+#define isatty _isatty
 
 // C99 stdint data types
 typedef signed __int8        int8_t;
@@ -68,6 +74,11 @@ typedef unsigned __int64     uint64_t;
 // intptr_t, uintptr_t
 #include <stdint.h>
 
+#endif
+
+#else
+// Cross-compile include the same as for unix
+#include <stdint.h>
 #endif
 
 

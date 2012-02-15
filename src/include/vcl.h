@@ -2,9 +2,9 @@
 /*!
  * \file vcl.h
  * \brief Main implementation of ValidityChecker for CVC3.
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Wed Dec 11 14:40:39 2002
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -147,7 +147,7 @@ class CVC_DLL VCL : public ValidityChecker {
   //! Check the tcc
   Theorem checkTCC(const Expr& tcc);
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
     //! Print an entry to the dump file: change of scope
     void dumpTrace(int scope);
 #endif
@@ -199,7 +199,7 @@ public:
                 const std::vector<std::vector<std::vector<Expr> > >& types,
                 std::vector<Type>& returnTypes);
   Type arrayType(const Type& typeIndex, const Type& typeData);
-  Type bitvecType(int n);  
+  Type bitvecType(int n);
   Type funType(const Type& typeDom, const Type& typeRan);
   Type funType(const std::vector<Type>& typeDom, const Type& typeRan);
   Type createType(const std::string& typeName);
@@ -232,6 +232,8 @@ public:
   Type parseType(const Expr& e);
   Expr importExpr(const Expr& e);
   Type importType(const Type& t);
+  void cmdsFromString(const std::string& s, InputLanguage lang);
+  Expr exprFromString(const std::string& s);
 
   Expr trueExpr();
   Expr falseExpr();
@@ -243,20 +245,24 @@ public:
   Expr impliesExpr(const Expr& hyp, const Expr& conc);
   Expr iffExpr(const Expr& left, const Expr& right);
   Expr eqExpr(const Expr& child0, const Expr& child1);
+  Expr distinctExpr(const std::vector<Expr>& children);
   Expr iteExpr(const Expr& ifpart, const Expr& thenpart, const Expr& elsepart);
 
   Op createOp(const std::string& name, const Type& type);
   Op createOp(const std::string& name, const Type& type, const Expr& def);
+  Op lookupOp(const std::string& name, Type* type);
   Expr funExpr(const Op& op, const Expr& child);
   Expr funExpr(const Op& op, const Expr& left, const Expr& right);
   Expr funExpr(const Op& op, const Expr& child0, const Expr& child1, const Expr& child2);
   Expr funExpr(const Op& op, const std::vector<Expr>& children);
 
+  bool addPairToArithOrder(const Expr& smaller, const Expr& bigger);
   Expr ratExpr(int n, int d);
   Expr ratExpr(const std::string& n, const std::string& d, int base);
   Expr ratExpr(const std::string& n, int base);
   Expr uminusExpr(const Expr& child);
   Expr plusExpr(const Expr& left, const Expr& right);
+  Expr plusExpr(const std::vector<Expr>& children);
   Expr minusExpr(const Expr& left, const Expr& right);
   Expr multExpr(const Expr& left, const Expr& right);
   Expr powExpr(const Expr& x, const Expr& n);
@@ -307,7 +313,13 @@ public:
   Expr newBVUminusExpr(const Expr& t1);
   Expr newBVSubExpr(const Expr& t1, const Expr& t2);
   Expr newBVPlusExpr(int numbits, const std::vector<Expr>& k);
+  Expr newBVPlusExpr(int numbits, const Expr& t1, const Expr& t2);
   Expr newBVMultExpr(int numbits, const Expr& t1, const Expr& t2);
+  Expr newBVUDivExpr(const Expr& t1, const Expr& t2);
+  Expr newBVURemExpr(const Expr& t1, const Expr& t2);
+  Expr newBVSDivExpr(const Expr& t1, const Expr& t2);
+  Expr newBVSRemExpr(const Expr& t1, const Expr& t2);
+  Expr newBVSModExpr(const Expr& t1, const Expr& t2);
   Expr newFixedLeftShiftExpr(const Expr& t1, int r);
   Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r);
   Expr newFixedRightShiftExpr(const Expr& t1, int r);
@@ -323,13 +335,17 @@ public:
   Expr boundVarExpr(const std::string& name, const std::string& uid,
 		    const Type& type);
   Expr forallExpr(const std::vector<Expr>& vars, const Expr& body);
-  void setTriggers(const Expr& e, const std::vector<Expr>& triggers);
+  Expr forallExpr(const std::vector<Expr>& vars, const Expr& body,
+		  const std::vector<std::vector<Expr> >& triggers);
+  void setTriggers(const Expr& e, const std::vector<std::vector<Expr> >& triggers);
   Expr existsExpr(const std::vector<Expr>& vars, const Expr& body);
   Op lambdaExpr(const std::vector<Expr>& vars, const Expr& body);
+  Op transClosure(const Op& op);
   Expr simulateExpr(const Expr& f, const Expr& s0,
 		    const std::vector<Expr>& inputs, const Expr& n);
 
   void setResourceLimit(unsigned limit);
+  void setTimeLimit(unsigned limit);
   void assertFormula(const Expr& e);
   void registerAtom(const Expr& e);
   Expr getImpliedLiteral();
@@ -347,7 +363,10 @@ public:
   Expr getProofQuery();
   void getCounterExample(std::vector<Expr>& assumptions, bool inOrder);
   void getConcreteModel(ExprMap<Expr> & m);
+  QueryResult tryModelGeneration();
+  FormulaValue value(const Expr& e);
   bool inconsistent(std::vector<Expr>& assumptions);
+  bool inconsistent();
   bool incomplete();
   bool incomplete(std::vector<std::string>& reasons);
   Proof getProof();
@@ -378,7 +397,7 @@ public:
 
   Statistics& getStatistics() { return *d_statistics; }
   void printStatistics() { std::cout << *d_statistics << std::endl; }
-  unsigned long printMemory();
+  unsigned long getMemory(int verbosity = 0);
 
 };
 

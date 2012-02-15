@@ -1,10 +1,38 @@
 dnl Process with autoconf to generate configure script   -*- sh -*-
 
 dnl Init with sanity check for source directory
-AC_INIT
+AC_INIT(cvc3,devel)
+
+
+##################################################
+# Library version information
+# IMPORTANT: This version number needs to be 
+# bumped if binary incompatabilities are 
+# introduced in the shared library
+##################################################
+
+# Major version: increases for non-backwards-compatible API changes 
+AC_SUBST(LIB_MAJOR_VERSION)
+# Minor version: increases for backwards-compatible API changes 
+AC_SUBST(LIB_MINOR_VERSION)
+# Teeny version: increases for library bug fixes (API hasn't changed)
+AC_SUBST(LIB_TEENY_VERSION)
+
+LIB_MAJOR_VERSION=1
+LIB_MINOR_VERSION=0
+LIB_TEENY_VERSION=0
+
+dnl We don't want the default autoconf CXXFLAGS=-g -O2
+if test "${CXXFLAGS+set}" != set; then
+  CXXFLAGS=""
+fi
 
 dnl Set C++ as the default language for all tests
 AC_LANG([C++])
+AC_REQUIRE_CPP
+
+AC_ARG_VAR([AR],[C/C++ linker/archiver])
+AC_CHECK_TOOL([AR],ar)
 
 AC_SUBST(EXTRA_SAT_HEADERS)
 AC_SUBST(EXTRA_SAT_CPP)
@@ -14,47 +42,10 @@ EXTRA_SAT_HEADERS=""
 EXTRA_SAT_CPP=""
 LICENSE_INFO=/dev/null
 DPLL_BASIC=""
-#BEGIN zchaff
-cvc_use_zchaff="yes"
-AC_ARG_ENABLE(zchaff,
-[  --enable-zchaff         Include zchaff code (default = yes)
-  --disable-zchaff        Remove zchaff code (default = no)],
-if test "$enableval" = "no"; then
-   cvc_use_zchaff="no"
-fi)
-if test "$cvc_use_zchaff" = "yes"; then
-/bin/sh >.zchaff <<EOF
-echo "This copy of CVC3 is also configured to use the SAT solver zchaff whose"
-echo "copyright is owned by Princeton University and is more restrictive."
-echo ""
-echo "Specifically, it may be used for internal, noncommercial, research purposes"
-echo "only.  See the copyright notice in the following files for more information."
-echo "To build CVC3 without these files, please delete them and then run:"
-echo "<pre>"
-echo "   ./configure --disable-zchaff"
-echo "   make"
-echo "</pre>"
-echo ""
-echo "<pre>"
-echo "src/sat/xchaff_base.h"
-echo "src/sat/xchaff_dbase.h"
-echo "src/sat/xchaff_solver.h"
-echo "src/sat/xchaff_utils.h"
-echo "src/sat/xchaff_dbase.cpp"
-echo "src/sat/xchaff_solver.cpp"
-echo "src/sat/xchaff_utils.cpp"
-echo "</pre>"
-echo ""
-EOF
-EXTRA_SAT_HEADERS="xchaff.h xchaff_base.h xchaff_dbase.h xchaff_solver.h xchaff_utils.h"
-EXTRA_SAT_CPP="xchaff.cpp xchaff_dbase.cpp xchaff_solver.cpp xchaff_utils.cpp "
-LICENSE_INFO=.zchaff
-DPLL_BASIC="-DDPLL_BASIC"
-fi
-#END zchaff
 
-# Name of the OS
-AC_SUBST(OSTYPE)
+dnl # Name of the OS
+dnl AC_SUBST(OSTYPE)
+
 # Version of CVC
 AC_SUBST(VERSION)
 
@@ -65,10 +56,10 @@ GCOV="0"
 AC_SUBST(GPROF)
 GPROF="0"
 
-AC_ARG_WITH(build, 
+AC_ARG_WITH([build], 
 [  --with-build=optimized  Specify the type of build (default = optimized).
                           Possible values: debug, optimized, gprof, gcov],
-if test "$withval" = "optimized"; then
+[if test "$withval" = "optimized"; then
   OPTIMIZED="1"
 elif test "$withval" = "gprof"; then
   OPTIMIZED="1"
@@ -77,9 +68,9 @@ elif test "$withval" = "gcov"; then
   GCOV="1"
 else
   DEBUG_MSG="yes"
-fi,
+fi],
 # --with-build is not given, default is "optimized" build
-  OPTIMIZED="1"
+  [OPTIMIZED="1"]
 )
 
 AC_SUBST(CXXFLAGS)
@@ -140,22 +131,37 @@ enable_broken_cxx="no")
 
 dnl Find out what OS-specific subdirectory name to use
 
-OSTYPE=`uname -s`-`uname -m`
-OSTYPE=`echo "$OSTYPE" | sed 'y%ABCDEFGHIJKLMNOPQRSTUVWXYZ %abcdefghijklmnopqrstuvwxyz_%'`
+AC_CANONICAL_HOST
+AC_EXEEXT
 
-if test `uname -s` = "Darwin"; then
- MAC_OSX=1
-else
- MAC_OSX=""
-fi
+case "$host_os" in
+  none)
+    host_os="unknown"
+    ;;
+    
+  darwin*)
+    MAC_OSX=1
+    ;;
+    
+  cygwin)
+    CYGWIN=1
+    ;;
+esac
 
-if test `uname -s` = "CYGWIN_NT-5.1"; then
- CYGWIN=1
-elif test `uname -s` = "CYGWIN_NT-6.0"; then
- CYGWIN=1
-else
- CYGWIN=""
-fi
+case "$host_cpu" in
+  i?86)
+    CXXFLAGS="$CXXFLAGS -m32"
+    JREFLAGS="$JREFLAGS -d32"
+    ;;
+
+  x86_64)
+    CXXFLAGS="$CXXFLAGS -m64"
+    JREFLAGS="$JREFLAGS -d64"
+    ;;
+esac
+
+OSTYPE="$host_cpu-$host_os"
+dnl OSTYPE=`echo "$OSTYPE" | sed 'y%ABCDEFGHIJKLMNOPQRSTUVWXYZ %abcdefghijklmnopqrstuvwxyz_%'`
 
 # The standard macro does something stupid.  Check it explicitly.
 # AC_PROG_INSTALL
@@ -241,6 +247,7 @@ STATIC="1"
 AC_SUBST(BUILD_SHARED_LIB)
 BUILD_SHARED_LIB="0"
 
+
 AC_SUBST(STATIC_FLAG)
 AC_SUBST(DYNAMIC_FLAG)
 AC_SUBST(SHARED)
@@ -301,6 +308,8 @@ STATIC_LIB_SUFFIX="a"
 AC_SUBST(SHARED_LIB_SUFFIX)
 if test -n "$MAC_OSX"; then
   SHARED_LIB_SUFFIX="dylib"
+elif test -n "$CYGWIN"; then
+  SHARED_LIB_SUFFIX="dll"
 else
   SHARED_LIB_SUFFIX="so"
 fi
@@ -392,6 +401,127 @@ if test "$cvc_cv_gmpxx_works" = "no"; then
 You may have to recompile GMP with the current compiler: $CXX.])
 fi
 fi
+
+dnl Java interface options
+
+AC_SUBST(BUILD_JAVA)
+BUILD_JAVA="0"
+
+AC_ARG_VAR([javadir],[installation directory for Java libraries])
+AC_ARG_VAR([JAR],[JAR archive utility command])
+AC_ARG_VAR([JAVA],[Java runtime command])
+AC_ARG_VAR([JAVAC],[Java compiler command])
+AC_ARG_VAR([JAVAH],[JNI utility command])
+AC_ARG_VAR([JFLAGS],[Java compiler flags])
+AC_ARG_VAR([JREFLAGS],[Java runtime flags])
+
+javadir='${exec_prefix}/java'
+
+dnl Take JNI_INC as a configuration option. By default, assume it's in
+dnl the standard Sun JDK 6 location.
+
+AC_SUBST([JNI_INC])
+
+
+AC_ARG_ENABLE([java],
+[  --enable-java
+  --disable-java          Enable building of CVC3 Java interface (default = no).],
+# If option is given
+if test "$enableval" = "yes"; then
+  BUILD_JAVA="1"
+fi)
+
+dnl AC_ARG_WITH([jni-include],
+dnl     [AS_HELP_STRING([--with-jni-include=PATH],
+dnl                     [specify PATH of the JNI include directory])],
+dnl     [JNI_INC=$withval],
+dnl     [JNI_INC=/usr/lib/jvm/java-6-sun/include])
+
+
+if test "$BUILD_JAVA" = "1"; then
+  if test "$STATIC" = "1"; then
+    AC_MSG_ERROR([The Java interface requires a dynamic library build. Use --enable-dynamic.])
+  fi
+
+dnl [chris] BEGIN: copy from libjmagick6-jni
+dnl Determine if we have a decent Java distribution
+  AC_ARG_WITH([java-home], 
+      [AS_HELP_STRING([--with-java-home=PATH], [Java installation path])],
+      [JAVA_HOME=${withval}])
+  AC_ARG_WITH([java-includes], 
+      [AS_HELP_STRING([--with-java-includes=PATH],[Java includes path])],
+      [JAVA_INCLUDE_PATH="${withval}"])
+  
+dnl [chris] Use a sensible default for JAVA_HOME on Mac
+  if test -n "${MAC_OSX}" -a -z "${JAVA_HOME}" ; then
+    JAVA_HOME=/System/Library/Frameworks/JavaVM.framework/Home
+  fi
+  
+  if test -n "${JAVA_INCLUDE_PATH}" -a -d "${JAVA_INCLUDE_PATH}" ; then
+	dnl Java include path supplied
+	JAVA_INCLUDES=-I${JAVA_INCLUDE_PATH}
+  elif test -d ${JAVA_HOME}/include ; then
+	JAVA_INCLUDES=-I${JAVA_HOME}/include
+	dnl The Blackdown JDK seems to have genunix.
+	if test -d ${JAVA_HOME}/include/genunix ; then
+		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/genunix"
+	fi
+	dnl The Sun Linux JDK seems to use linux
+	if test -d ${JAVA_HOME}/include/linux ; then
+		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/linux"
+	fi
+	dnl The Sun Solaris JDK seems to use solaris
+	if test -d ${JAVA_HOME}/include/solaris ; then
+		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/solaris"
+	fi
+	dnl The Sun FreeBSD JDK seems to use freebsd
+	if test -d ${JAVA_HOME}/include/freebsd ; then
+		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/freebsd"
+	fi
+	dnl The Sun Windows JDK seems to use win32
+	if test -d ${JAVA_HOME}/include/win32 ; then
+		JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/win32"
+	fi
+        if test -d ${JAVA_HOME}/include/bsd ; then
+                JAVA_INCLUDES="$JAVA_INCLUDES -I${JAVA_HOME}/include/bsd"
+        fi
+dnl check for Mac OS X series of systems
+  elif test -d ${JAVA_HOME}/Headers; then
+	JAVA_INCLUDES=-I${JAVA_HOME}/Headers
+  else
+	AC_MSG_ERROR([Unable to locate Java directories])
+  fi
+dnl [chris] END: copy from libjmagick6-jni
+
+  # Check for Java tools
+  AC_CHECK_PROG([JAVAC],[javac],[javac],
+      [AC_MSG_ERROR([javac not found: adjust PATH or set JAVAC])])
+
+  AC_CHECK_PROG([JAVAH],[javah],[javah],
+      [AC_MSG_ERROR([javah not found: adjust PATH or set JAVAH])] )
+
+  AC_CHECK_PROG([JAR],[jar],[jar],
+      [AC_MSG_ERROR([jar not found: adjust PATH or set JAR])] )
+
+  AC_CHECK_PROG([JAVA],[java],[java],
+      [AC_MSG_ERROR([java not found: adjust PATH or set JAVA])] )
+
+  dnl Save and restore CPPFLAGS while checking for JNI headers
+
+  OLD_CPPFLAGS="$CPPFLAGS"
+  CPPFLAGS="${JAVA_INCLUDES} $CPPFLAGS"
+
+  AC_CHECK_HEADER([jni.h],,
+      [AC_MSG_ERROR(jni.h not found: adjust include path or use --with-jni)])
+  AC_CHECK_HEADER([jni_md.h],,
+      [AC_MSG_ERROR(jni_md.h not found: adjust include path or use --with-jni)])
+
+  dnl Restore original CPPFLAGS
+  CPPFLAGS="$OLD_CPPFLAGS"
+fi 
+dnl end of Java tests
+
+AC_SUBST(JAVA_INCLUDES)
 
 dnl Checks for header files.  
 dnl Defines HAVE_headerFile for each headerFile found

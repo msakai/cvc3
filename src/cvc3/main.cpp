@@ -43,7 +43,7 @@ using namespace CVC3;
 
 static void parse_args(int argc, char **argv, CLFlags &flags,
 		       string& fileName);
-static void printUsage(const CLFlags& flags);
+static void printUsage(const CLFlags& flags, bool followDisplay);
 
 // Our own name 
 static string programName;
@@ -62,12 +62,12 @@ void sighandler(int signum) {
   IF_DEBUG(debugger.printAll();)
   if(vc != NULL && vc->getFlags()["stats"].getBool())
     cout << vc->getStatistics() << endl;
-  exit(1);
+  abort();
 }
 #else
 DWORD WINAPI thread_timeout(PVOID timeout) {
   Sleep((int)timeout * 1000);
-  cerr << "self-timeout." << endl;
+  cerr << "(self-timeout)." << endl;
   ExitProcess(1);
 }
 #endif
@@ -123,7 +123,11 @@ int main(int argc, char **argv)
   // -h flag sets "help" to false (+h would make it true, but that's
   // not what the user normally types in).
   if(!vc->getFlags()["help"].getBool()) {
-    printUsage(vc->getFlags());
+    printUsage(vc->getFlags(), true);
+    return 0;
+  }
+  if(!vc->getFlags()["unsupported"].getBool()) {
+    printUsage(vc->getFlags(), false);
     return 0;
   }
 #ifndef VERSION
@@ -135,7 +139,7 @@ int main(int argc, char **argv)
       IF_DEBUG( << " (debug build)")
 	 << "\n\n";
     cout <<
-      "Copyright (C) 2003-2007 by the Board of Trustees of Leland Stanford Junior\n" 
+      "Copyright (C) 2003-2009 by the Board of Trustees of Leland Stanford Junior\n" 
       "University, New York University, and the University of Iowa.\n\n"
       "THIS SOFTWARE PROVIDED AS-IS, WITHOUT ANY WARRANTIES. "
       "USE IT AT YOUR OWN RISK.\n"
@@ -175,12 +179,12 @@ int main(int argc, char **argv)
   return 0;
 }
 
-void printUsage(const CLFlags& flags) {
+void printUsage(const CLFlags& flags, bool followDisplay) {
   cout << "Usage: " << programName << " [options]\n"
        << programName << " will read the input from STDIN and \n"
        << "print the result on STDOUT.\n"
        << "Boolean (b) options are set 'on' by +option and 'off' by -option\n"
-       << "(for instance, +sat or -sat).\n"
+       << "(for instance, +model or -model).\n"
        << "Integer (i), string (s) and vector (v) options \n"
        << "require a parameter, e.g. -width 80\n" 
        << "Also, (v) options can appear multiple times setting "
@@ -194,6 +198,7 @@ void printUsage(const CLFlags& flags) {
   flags.countFlags("", names);
   for(size_t i=0,iend=names.size(); i!=iend; ++i) {
     const CLFlag& f(flags[names[i]]);
+    if (f.display() != followDisplay) continue;
     string tpStr; // Print type of the option
     string pref; // Print + or - in front of the option
     string name(names[i]); // Print name and optionally the value
@@ -215,7 +220,7 @@ void printUsage(const CLFlags& flags) {
     default:
       DebugAssert(false, "printUsage: unknown flag type");
     }
-    cout << " " << tpStr << " " << pref << setw(15);
+    cout << " " << tpStr << " " << pref << setw(25);
     cout.setf(ios::left);
     cout << name << " " << f.getHelp() << "\n";
   }

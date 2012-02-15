@@ -2,9 +2,9 @@
 /*!
  * \file typecheck_exception.h
  * \brief An exception to be thrown at typecheck error.
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Fri Feb 14 18:44:15 2003
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -33,13 +33,13 @@ namespace CVC3 {
     // Constructors
     TypecheckException() { }
     TypecheckException(const std::string& msg): Exception(msg) { }
-    TypecheckException(char* msg): Exception(msg) { }
+    TypecheckException(const char* msg): Exception(msg) { }
     // Destructor
     virtual ~TypecheckException() { }
     virtual std::string toString() const {
       return "Type Checking error: " + d_msg;
     }
   }; // end of class TypecheckException
-} // end of namespace CVC3 
+} // end of namespace CVC3
 
 #endif

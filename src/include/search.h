@@ -2,9 +2,9 @@
 /*!
  * \file search.h
  * \brief Abstract API to the proof search engine
- * 
+ *
  * Author: Clark Barrett, Vijay Ganesh (Clausal Normal Form Converter)
- * 
+ *
  * Created: Fri Jan 17 13:35:03 2003
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -25,6 +25,7 @@
 #include <vector>
 #include "queryresult.h"
 #include "cdo.h"
+#include "formula_value.h"
 
 namespace CVC3 {
 
@@ -37,7 +38,7 @@ class CommonProofRules;
 
 template<class Data> class ExprMap;
 
-  /*! \defgroup SE Search Engine 
+  /*! \defgroup SE Search Engine
    * \ingroup VC
    * The search engine includes Boolean reasoning and coordinates with theory
    * reasoning.  It consists of a generic abstract API (class SearchEngine) and
@@ -49,7 +50,7 @@ template<class Data> class ExprMap;
 class SearchEngine {
 
 protected:
-  /*! \addtogroup SE 
+  /*! \addtogroup SE
    * @{
    */
 
@@ -177,6 +178,17 @@ protected:
   /*! @brief Build a concrete Model (assign values to variables),
    * should only be called after a query which returns INVALID. */
   void getConcreteModel(ExprMap<Expr>& m);
+
+  /*! @brief Try to build a concrete Model (assign values to variables),
+   * should only be called after a query which returns UNKNOWN.
+   * Returns a theorem if inconsistent */
+  bool tryModelGeneration(Theorem& thm);
+
+  //:ALEX: returns the current truth value of a formula
+  // returns CVC3::UNKNOWN_VAL if e is not associated
+  // with a boolean variable in the SAT module,
+  // i.e. if its value can not determined without search.
+  virtual FormulaValue getValue(const CVC3::Expr& e) = 0;
 
   /* @} */ // end of group SE
 

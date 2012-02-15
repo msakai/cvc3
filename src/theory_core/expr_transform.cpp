@@ -21,15 +21,18 @@
 
 #include "expr_transform.h"
 #include "theory_core.h"
+#include "theory_arith.h"
 #include "command_line_flags.h"
 #include "core_proof_rules.h"
+#include <set>
 
 
 using namespace std;
 using namespace CVC3;
 
 
-ExprTransform::ExprTransform(TheoryCore* core) : d_core(core)
+ExprTransform::ExprTransform(TheoryCore* core)
+  : d_core(core)
 {
   d_commonRules = d_core->getCommonRules();  
   d_rules = d_core->getCoreRules();
@@ -75,23 +78,42 @@ Theorem ExprTransform::smartSimplify(const Expr& e, ExprMap<bool>& cache)
 
 Theorem ExprTransform::preprocess(const Expr& e)
 {
-  if (!d_core->getFlags()["preprocess"].getBool())
-    return d_commonRules->reflexivityRule(e);
-  Theorem thm1;
-  if (d_core->getFlags()["pp-pushneg"].getBool())
-    thm1 = pushNegation(e);
-  else
-    thm1 = d_commonRules->reflexivityRule(e);
-  {
+  // Force simplifier to run
+  d_core->getEM()->invalidateSimpCache();
+  d_core->setInPP();
+  Theorem res = d_commonRules->reflexivityRule(e);
+
+  if (d_core->getFlags()["preprocess"].getBool()) {
+    if (d_core->getFlags()["pp-pushneg"].getBool()) {
+      res = pushNegation(e);
+    }
     ExprMap<bool> cache;
-    thm1 = d_commonRules->transitivityRule(thm1, smartSimplify(thm1.getRHS(), cache));
+    if (d_core->getFlags()["pp-bryant"].getBool()) {
+      res = d_commonRules->transitivityRule(res, smartSimplify(res.getRHS(), cache));
+      res = d_commonRules->transitivityRule(res, dobryant(res.getRHS()));
+    }
+    if (d_core->getFlags()["pp-care"].getBool()) {
+      res = d_commonRules->transitivityRule(res, smartSimplify(res.getRHS(), cache));
+      res = d_commonRules->transitivityRule(res, simplifyWithCare(res.getRHS()));
+    }
+    int budget = 0;
+    d_budgetLimit = d_core->getFlags()["pp-budget"].getInt();
+    while (budget < d_budgetLimit) {
+      res = d_commonRules->transitivityRule(res, smartSimplify(res.getRHS(), cache));
+      Theorem ppRes = newPP(res.getRHS(), budget);
+      if (ppRes.isRefl()) break;
+      res = d_commonRules->transitivityRule(res, ppRes);
+      if (d_core->getFlags()["pp-care"].getBool()) {
+        res = d_commonRules->transitivityRule(res, smartSimplify(res.getRHS(), cache));
+        res = d_commonRules->transitivityRule(res, simplifyWithCare(res.getRHS()));
+      }
+    }
+    res = d_commonRules->transitivityRule(res, smartSimplify(res.getRHS(), cache));
+    // Make sure this call is last as it cleans up theory core
+    res = d_commonRules->transitivityRule(res, d_core->callTheoryPreprocess(res.getRHS()));
   }
-  if (d_core->getFlags()["pp-bryant"].getBool())
-     thm1 = d_commonRules->transitivityRule(thm1, dobryant(thm1.getRHS()));
- 
-  ExprMap<bool> cache;
-  thm1 = d_commonRules->transitivityRule(thm1, smartSimplify(thm1.getRHS(), cache));
-  return thm1;
+  d_core->clearInPP();
+  return res;
 }
 
 
@@ -255,3 +277,343 @@ Theorem ExprTransform::pushNegation1(const Expr& e) {
   TRACE("pushNegation1", "pushNegation1 => ", res.getExpr(), " }");
   return res;
 }
+
+
+Theorem ExprTransform::newPP(const Expr& e, int& budget)
+{
+  if (!e.getType().isBool()) return d_commonRules->reflexivityRule(e);
+  d_newPPCache.clear();
+  Theorem thm = newPPrec(e, budget);
+  //  cout << "budget = " << budget << endl;
+  if (budget > d_budgetLimit ||
+      thm.getRHS().getSize() > 2 * e.getSize()) {
+    return d_commonRules->reflexivityRule(e);
+  }
+  return thm;
+}
+
+
+Theorem ExprTransform::specialSimplify(const Expr& e, ExprHashMap<Theorem>& cache)
+{
+  if (e.isAtomic()) return d_commonRules->reflexivityRule(e);
+
+  ExprHashMap<Theorem>::iterator it = cache.find(e);
+  if (it != cache.end()) return (*it).second;
+
+  Theorem thm;
+  if (e.getType().isBool()) {
+    thm = d_core->simplify(e);
+    if (thm.getRHS().isBoolConst()) {
+      cache[e] = thm;
+      return thm;
+    }
+  }
+
+  thm = d_commonRules->reflexivityRule(e);
+
+  vector<Theorem> newChildrenThm;
+  vector<unsigned> changed;
+  int ar = e.arity();
+  for(int k = 0; k < ar; ++k) {
+    // Recursively process the kids
+    Theorem thm2 = specialSimplify(e[k], cache);
+    if (!thm2.isRefl()) {
+      newChildrenThm.push_back(thm2);
+      changed.push_back(k);
+    }
+  }
+  if(changed.size() > 0) {
+    thm = d_commonRules->substitutivityRule(e, changed, newChildrenThm);
+  }
+
+  cache[e] = thm;
+  return thm;
+}
+
+
+Theorem ExprTransform::newPPrec(const Expr& e, int& budget)
+{
+  DebugAssert(e.getType().isBool(), "Expected Boolean expression");
+  Theorem res = d_commonRules->reflexivityRule(e);
+
+  if (!e.containsTermITE()) return res;
+
+  ExprMap<Theorem>::iterator i = d_newPPCache.find(e);
+  if (i != d_newPPCache.end()) { // Found cached result
+    res = (*i).second;
+    return res;
+  }
+
+  Expr current = e;
+  Expr newExpr;
+  Theorem thm, thm2;
+
+  do {
+
+    if (budget > d_budgetLimit) break;
+
+    ++budget;
+    // Recursive case
+    if (!current.isPropAtom()) {
+      vector<Theorem> newChildrenThm;
+      vector<unsigned> changed;
+      int ar = current.arity();
+      for(int k = 0; k < ar; ++k) {
+        // Recursively process the kids
+        thm = newPPrec(current[k], budget);
+        if (!thm.isRefl()) {
+          newChildrenThm.push_back(thm);
+          changed.push_back(k);
+        }
+      }
+      if(changed.size() > 0) {
+        thm = d_commonRules->transitivityRule(res, d_commonRules->substitutivityRule(current, changed, newChildrenThm));
+        newExpr = thm.getRHS();
+        res = thm;
+      }
+      break;
+    }
+
+//     if (current.getSize() > 1000) {
+//       break;
+//     }
+
+    // Contains Term ITEs
+
+    thm = d_commonRules->transitivityRule(res, d_commonRules->liftOneITE(current));
+    newExpr = thm.getRHS();
+
+    if ((newExpr[0].isLiteral() || newExpr[0].isAnd())) {
+      d_core->getCM()->push();
+      d_core->addFact(d_commonRules->assumpRule(newExpr[0]));
+      thm2 = d_core->simplify(newExpr[1]);
+      thm = d_commonRules->transitivityRule(thm, d_rules->rewriteIteThen(newExpr, thm2));
+      d_core->getCM()->pop();
+
+      d_core->getCM()->push();
+      d_core->addFact(d_commonRules->assumpRule(newExpr[0].negate()));
+
+      thm2 = d_core->simplify(newExpr[2]);
+      newExpr = thm.getRHS();
+      thm = d_commonRules->transitivityRule(thm, d_rules->rewriteIteElse(newExpr, thm2));
+      d_core->getCM()->pop();
+      newExpr = thm.getRHS();
+    }
+    res = thm;
+    current = newExpr;
+
+  } while (current.containsTermITE());
+
+  d_newPPCache[e] = res;
+  return res;
+  
+}
+
+
+void ExprTransform::updateQueue(ExprMap<set<Expr>* >& queue,
+                                const Expr& e,
+                                const set<Expr>& careSet)
+{
+  ExprMap<set<Expr>* >::iterator it = queue.find(e), iend = queue.end();
+
+  if (it != iend) {
+
+    set<Expr>* cs2 = (*it).second;
+    set<Expr>* csNew = new set<Expr>;
+    set_intersection(careSet.begin(), careSet.end(), cs2->begin(), cs2->end(),
+                     inserter(*csNew, csNew->begin()));
+    (*it).second = csNew;
+    delete cs2;
+  }
+  else {
+    queue[e] = new set<Expr>(careSet);
+  }
+}
+
+
+Theorem ExprTransform::substitute(const Expr& e,
+                                  ExprHashMap<Theorem>& substTable,
+                                  ExprHashMap<Theorem>& cache)
+{
+  if (e.isAtomic()) return d_commonRules->reflexivityRule(e);
+
+  // check cache
+
+  ExprHashMap<Theorem>::iterator it = cache.find(e), iend = cache.end();
+  if (it != iend) {
+    return it->second;
+  }
+
+  // do substitution?
+
+  it = substTable.find(e);
+  iend = substTable.end();
+  if (it != iend) {
+    return d_commonRules->transitivityRule(it->second, substitute(it->second.getRHS(), substTable, cache));
+  }
+
+  Theorem res = d_commonRules->reflexivityRule(e);
+  int ar = e.arity();
+  if (ar > 0) {
+    vector<Theorem> newChildrenThm;
+    vector<unsigned> changed;
+    for(int k = 0; k < ar; ++k) {
+      Theorem thm = substitute(e[k], substTable, cache);
+      if (!thm.isRefl()) {
+        newChildrenThm.push_back(thm);
+        changed.push_back(k);
+      }
+    }
+    if(changed.size() > 0) {
+      res = d_commonRules->substitutivityRule(e, changed, newChildrenThm);
+    }
+  }
+  cache[e] = res;
+  return res;
+}
+
+
+Theorem ExprTransform::simplifyWithCare(const Expr& e)
+{
+  ExprHashMap<Theorem> substTable;
+  ExprMap<set<Expr>* > queue;
+  ExprMap<set<Expr>* >::iterator it;
+  set<Expr> cs;
+  updateQueue(queue, e, cs);
+
+  Expr v;
+  bool done;
+  Theorem thm;
+  int i;
+
+  while (!queue.empty()) {
+    it = queue.end();
+    --it;
+    v = it->first;
+    cs = *(it->second);
+    delete it->second;
+    queue.erase(v);
+
+    if (v.isAtomic() || v.isAtomicFormula()) {
+
+// Unfortunately, this can lead to incompleteness bugs
+
+//       d_core->getCM()->push();
+//       set<Expr>::iterator iCare = cs.begin(), iCareEnd = cs.end();
+//       for (; iCare != iCareEnd; ++iCare) {
+//         d_core->addFact(d_commonRules->assumpRule((*iCare)));
+//       }
+//       thm = d_core->simplify(v);
+//       if (!thm.isRefl()) {
+//         substTable[v] = d_rules->dummyTheorem(thm.getExpr());
+//       }
+//       d_core->getCM()->pop();
+      continue;
+    }
+
+    if (false && v.isPropAtom() && d_core->theoryOf(v) == d_theoryArith &&
+        d_theoryArith->leavesAreNumConst(v)) {
+      Expr vNew = v;
+      thm = d_commonRules->reflexivityRule(vNew);
+      while (vNew.containsTermITE()) {
+        thm = d_commonRules->transitivityRule(thm, d_commonRules->liftOneITE(vNew));
+        DebugAssert(!thm.isRefl(), "Expected non-reflexive");
+        thm = d_commonRules->transitivityRule(thm, d_rules->rewriteIteCond(thm.getRHS()));
+        thm = d_commonRules->transitivityRule(thm, d_core->simplify(thm.getRHS()));
+        vNew = thm.getRHS();
+      }
+      substTable[v] = thm;
+      continue;
+    }
+
+    done = false;
+    set<Expr>::iterator iCare, iCareEnd = cs.end();
+
+    switch (v.getKind()) {
+      case ITE: {
+        iCare = cs.find(v[0]);
+        if (iCare != iCareEnd) {
+          Expr rewrite = v.getType().isBool() ? v.iffExpr(v[1]) : v.eqExpr(v[1]);
+          substTable[v] = d_rules->dummyTheorem(rewrite);
+          updateQueue(queue, v[1], cs);
+          done = true;
+          break;
+        }
+        else {
+          iCare = cs.find(v[0].negate());
+          if (iCare != iCareEnd) {
+            Expr rewrite = v.getType().isBool() ? v.iffExpr(v[2]) : v.eqExpr(v[2]);
+            substTable[v] = d_rules->dummyTheorem(rewrite);
+            updateQueue(queue, v[2], cs);
+            done = true;
+            break;
+          }
+        }
+        updateQueue(queue, v[0], cs);
+        cs.insert(v[0]);
+        updateQueue(queue, v[1], cs);
+        cs.erase(v[0]);
+        cs.insert(v[0].negate());
+        updateQueue(queue, v[2], cs);
+        done = true;
+        break;
+      }
+      case AND: {
+        for (i = 0; i < v.arity(); ++i) {
+          iCare = cs.find(v[i].negate());
+          if (iCare != iCareEnd) {
+            Expr rewrite = v.iffExpr(d_core->getEM()->falseExpr());
+            substTable[v] = d_rules->dummyTheorem(rewrite);
+            done = true;
+            break;
+          }
+        }
+        if (done) break;
+
+        DebugAssert(v.arity() > 1, "Expected arity > 1");
+        cs.insert(v[1]);
+        updateQueue(queue, v[0], cs);
+        cs.erase(v[1]);
+        cs.insert(v[0]);
+        for (i = 1; i < v.arity(); ++i) {
+          updateQueue(queue, v[i], cs);
+        }
+        done = true;
+        break;
+      }
+      case OR: {
+        for (i = 0; i < v.arity(); ++i) {
+          iCare = cs.find(v[i]);
+          if (iCare != iCareEnd) {
+            Expr rewrite = v.iffExpr(d_core->getEM()->trueExpr());
+            substTable[v] = d_rules->dummyTheorem(rewrite);
+            done = true;
+            break;
+          }
+        }
+        if (done) break;
+        DebugAssert(v.arity() > 1, "Expected arity > 1");
+        cs.insert(v[1].negate());
+        updateQueue(queue, v[0], cs);
+        cs.erase(v[1].negate());
+        cs.insert(v[0].negate());
+        for (i = 1; i < v.arity(); ++i) {
+          updateQueue(queue, v[i], cs);
+        }
+        done = true;
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (done) continue;
+
+    for (int i = 0; i < v.arity(); ++i) {
+      updateQueue(queue, v[i], cs);
+    }
+  }
+  ExprHashMap<Theorem> cache;
+  return substitute(e, substTable, cache);
+}
+

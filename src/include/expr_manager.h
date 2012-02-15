@@ -30,6 +30,7 @@
 
 #include "os.h"
 #include "expr_map.h"
+#include <deque>
 
 namespace CVC3 {
   // Command line flags
@@ -38,7 +39,6 @@ namespace CVC3 {
   class MemoryManager;
   class ExprManagerNotifyObj;
   class TheoremManager;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //! Expression Manager
@@ -112,7 +112,7 @@ namespace CVC3 {
     //! Which memory manager to use (copy the flag value and keep it the same)
     const std::string d_mmFlag;
 
-    //! Private classe for d_exprSet
+    //! Private class for d_exprSet
     class HashEV {
       ExprManager* d_em;
     public:
@@ -168,6 +168,12 @@ namespace CVC3 {
     bool d_postponeGC;
     //! Vector of postponed garbage-collected expressions
     std::vector<ExprValue*> d_postponed;
+
+    //! Flag for whether GC is already running
+    bool d_inGC;
+    //! Queue of pending exprs to GC
+    std::deque<ExprValue*> d_pending;
+
     //! Rebuild cache
     ExprHashMap<Expr> d_rebuildCache;
     IF_DEBUG(bool d_inRebuild;)
@@ -182,6 +188,9 @@ namespace CVC3 {
       virtual void computeType(const Expr& e) = 0;
       //! Check that e is a valid Type expr
       virtual void checkType(const Expr& e) = 0;
+      //! Get information related to finiteness of a type
+      virtual Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                                         bool enumerate, bool computeSize) = 0;
     };
   private:
     //! Instance of TypeComputer: must be registered
@@ -210,6 +219,16 @@ namespace CVC3 {
     void computeType(const Expr& e);
     //! Check well-formedness of a type Expr
     void checkType(const Expr& e);
+    //! Get information related to finiteness of a type
+    // 1. Returns Cardinality of the type (finite, infinite, or unknown)
+    // 2. If cardinality = finite and enumerate is true,
+    //    sets e to the nth element of the type if it can
+    //    sets e to NULL if n is out of bounds or if unable to compute nth element
+    // 3. If cardinality = finite and computeSize is true,
+    //    sets n to the size of the type if it can
+    //    sets n to 0 otherwise
+    Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                               bool enumerate, bool computeSize);
 
   public:
     //! Constructor
@@ -279,12 +298,11 @@ namespace CVC3 {
     Expr newBoundVarExpr(const std::string &name, const std::string& uid,
                          const Type& type);
     Expr newBoundVarExpr(const Type& type);
+    Expr newClosureExpr(int kind, const Expr& var, const Expr& body);
     Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
                         const Expr& body);
     Expr newClosureExpr(int kind, const std::vector<Expr>& vars,
-                        const Expr& body, const std::vector<Expr>& trigs);
-
-    Expr newTheoremExpr(const Theorem& thm);
+                        const Expr& body, const std::vector<std::vector<Expr> >& trigs);
 
     // Vector of children constructors (vector may be empty)
     Expr andExpr(const std::vector <Expr>& children)
@@ -384,6 +402,9 @@ namespace CVC3 {
      */
     size_t registerSubclass(size_t sizeOfSubclass);
 
+    //! Calculate memory usage
+    unsigned long getMemory(int verbosity);
+
   }; // end of class ExprManager
 
 
@@ -410,6 +431,7 @@ namespace CVC3 {
 
     void notifyPre(void);
     void notify(void);
+    unsigned long getMemory(int verbosity) { return sizeof(ExprManagerNotifyObj); }
   };
     
 
@@ -420,9 +442,14 @@ namespace CVC3 {
 
 namespace CVC3 {
 
+inline size_t ExprManager::hash(const ExprValue* ev) const {
+  DebugAssert(ev!=NULL, "ExprManager::hash() called on a NULL ExprValue");
+  return ev->hash();
+}
+
 inline Expr ExprManager::newLeafExpr(const Op& op)
 {
-  if (op.getExpr().isNull()) {
+  if (op.getKind() != APPLY) {
     ExprValue ev(this, op.getKind());
     return newExpr(&ev);
   }
@@ -473,6 +500,11 @@ inline Expr ExprManager::newBoundVarExpr(const Type& type) {
 }
 
 inline Expr ExprManager::newClosureExpr(int kind,
+                                        const Expr& var,
+                                        const Expr& body)
+  { ExprClosure ev(this, kind, var, body); return newExpr(&ev); }
+
+inline Expr ExprManager::newClosureExpr(int kind,
                                         const std::vector<Expr>& vars,
                                         const Expr& body)
   { ExprClosure ev(this, kind, vars, body); return newExpr(&ev); }
@@ -480,17 +512,9 @@ inline Expr ExprManager::newClosureExpr(int kind,
 inline Expr ExprManager::newClosureExpr(int kind,
                                         const std::vector<Expr>& vars,
                                         const Expr& body,
-                                        const std::vector<Expr>& trigs)
+                                        const std::vector<std::vector<Expr> >& trigs)
   { ExprClosure ev(this, kind, vars, body);
     Expr ret = newExpr(&ev); ret.setTriggers(trigs); return ret; }
-
-inline Expr ExprManager::newTheoremExpr(const Theorem& thm)
-  { ExprTheorem ev(this, thm); return newExpr(&ev); }
-
-inline size_t ExprManager::hash(const ExprValue* ev) const {
-  DebugAssert(ev!=NULL, "ExprManager::hash() called on a NULL ExprValue");
-  return ev->hash();
-}
 
 inline bool ExprManager::EqEV::operator()(const ExprValue* ev1,
                                           const ExprValue* ev2) const {

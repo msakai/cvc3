@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file kinds.h
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Mon Jan 20 13:38:52 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -28,15 +28,20 @@ namespace CVC3 {
   // available for everyone else.
 typedef enum {
   NULL_KIND = 0,
+
+  // Constant (Leaf) Exprs
+  TRUE_EXPR = 1,
+  FALSE_EXPR = 2,
+  RATIONAL_EXPR = 3,
+  STRING_EXPR = 4,
+
+  // All constants should have kinds less than MAX_CONST
+  MAX_CONST = 100,
+
   // Generic LISP kinds for representing raw parsed expressions
   RAW_LIST, //!< May have any number of children >= 0
   //! Identifier is (ID (STRING_EXPR "name"))
   ID,
-  // Leaf exprs
-  STRING_EXPR,
-  RATIONAL_EXPR,
-  TRUE_EXPR,
-  FALSE_EXPR,
   // Types
   BOOLEAN,
 //   TUPLE_TYPE,
@@ -71,7 +76,7 @@ typedef enum {
 
   // (ITE c e1 e2) == IF c THEN e1 ELSE e2 ENDIF, the internal
   // representation of the conditional.  Parser produces (IF ...).
-  ITE, 
+  ITE,
 
   // Quantifiers
   FORALL,
@@ -125,6 +130,7 @@ typedef enum {
   GET_CHILD,
   SUBSTITUTE,
   SEQ,
+  ARITH_VAR_ORDER,
 
   // Kinds used mostly in the parser
 
@@ -137,7 +143,7 @@ typedef enum {
 
   // Bound variables have a "printable name", the one the user typed
   // in, and a uniqueID used to distinguish it from other bound
-  // variables, which is effectively the alpha-renaming: 
+  // variables, which is effectively the alpha-renaming:
 
   // Op(BOUND_VAR (BOUND_ID "user_name" "uniqueID")).  Note that
   // BOUND_VAR is an operator (Expr without children), just as UFUNC
@@ -155,14 +161,14 @@ typedef enum {
 
   // Updator "e1 WITH <bunch of stuff> := e2" is represented as
   // (UPDATE e1 (UPDATE_SELECT <bunch of stuff>) e2), where <bunch
-  // of stuff> is the list of accessors: 
+  // of stuff> is the list of accessors:
   // (READ idx)
   // ID (what's that for?)
   // (REC_SELECT ID)
   // and (TUPLE_SELECT num).
 //   UPDATE,
 //   UPDATE_SELECT,
-  // Record type [# f1 : t1, f2 : t2 ... #] is represented as 
+  // Record type [# f1 : t1, f2 : t2 ... #] is represented as
   // (RECORD_TYPE (f1 t1) (f2 t2) ... )
 //   RECORD_TYPE,
 //   // (# f1=e1, f2=e2, ...#) == (RECORD (f1 e1) ...)
@@ -226,7 +232,7 @@ typedef enum {
   // After processing, uninterpreted functions and constants
   // (a.k.a. variables) are represented as Op(UFUNC, (ID "name")) and
   // Op(UCONST, (ID "name")) with the appropriate type attribute.
-  CONST,  
+  CONST,
   VARLIST,
   UCONST,
 
@@ -268,8 +274,8 @@ typedef enum {
 //   // Mlss
 //   EMPTY, // {}
 //   UNION, // +
-//   INTER, // * 
-//   DIFF,  
+//   INTER, // *
+//   DIFF,
 //   SINGLETON,
 //   IN,
 //   INCS,

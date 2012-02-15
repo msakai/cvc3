@@ -57,7 +57,7 @@ void TheoryArith::printRational(ExprStream& os, const Rational& r,
   // Print rational
   if (r.isInteger()) {
     if (r < 0) {
-      os << "(" << push << "-" << space << (-r).toString();
+      os << "(" << push << "~" << space << (-r).toString();
       if (printAsReal) os << ".0";
       os << push << ")";
     }
@@ -265,3 +265,43 @@ bool TheoryArith::recursiveCanonSimpCheck(const Expr& e)
     if (!recursiveCanonSimpCheck(*i)) return false;
   return true;
 }
+
+
+bool TheoryArith::leavesAreNumConst(const Expr& e)
+{
+  DebugAssert(e.isTerm() ||
+              (e.isPropAtom() && theoryOf(e) == this),
+              "Expected term or arith prop atom");
+
+  if (e.validTerminalsConstFlag()) {
+    return e.getTerminalsConstFlag();
+  }
+
+  if (e.isRational()) {
+    e.setTerminalsConstFlag(true);
+    return true;
+  }
+
+  if (e.isAtomic() && isLeaf(e)) {
+    e.setTerminalsConstFlag(false);
+    return false;
+  }
+
+  DebugAssert(e.arity() > 0, "Expected non-zero arity");
+  int k = 0;
+
+  if (e.isITE()) {
+    k = 1;
+  }
+
+  for (; k < e.arity(); ++k) {
+    if (!leavesAreNumConst(e[k])) {
+      e.setTerminalsConstFlag(false);
+      return false;
+    }
+  }
+  e.setTerminalsConstFlag(true);
+  return true;
+}
+
+

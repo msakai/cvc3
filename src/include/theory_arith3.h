@@ -140,9 +140,6 @@ class TheoryArith3 :public TheoryArith {
   /*! Check if IS_INTEGER(e) is easily derivable from the given 'thm' */
   Theorem isIntegerDerive(const Expr& isIntE, const Theorem& thm);
 
-  //! Check the term t for integrality (return bool)
-  bool isInteger(const Expr& e) { return !(isIntegerThm(e).isNull()); }
-
   //! Extract the free constant from an inequality
   const Rational& freeConstIneq(const Expr& ineq, bool varOnRHS);
 
@@ -232,6 +229,9 @@ class TheoryArith3 :public TheoryArith {
  public: // ArithTheoremProducer needs this function, so make it public
   //! Separate monomial e = c*p1*...*pn into c and 1*p1*...*pn
   void separateMonomial(const Expr& e, Expr& c, Expr& var);
+  //! Check the term t for integrality (return bool)
+  bool isInteger(const Expr& e) { return !(isIntegerThm(e).isNull()); }
+
 
  private:
 
@@ -307,6 +307,8 @@ public:
   Theorem solve(const Theorem& e);
   void checkAssertEqInvariant(const Theorem& e);
   void checkType(const Expr& e);
+  Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                             bool enumerate, bool computeSize);
   void computeType(const Expr& e);
   Type computeBaseType(const Type& t);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);

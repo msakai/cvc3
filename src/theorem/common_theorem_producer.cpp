@@ -324,7 +324,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
   if(withProof())
     pf = newPf("basic_subst_op0",e, e2,thm.getProof());
   Theorem res = newRWTheorem(e, e2, Assumptions(thm), pf);
-  res.setSubst();
+  if (!res.isRefl()) res.setSubst();
   return res;
 }
 
@@ -365,7 +365,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
     pf = newPf("basic_subst_op1", e, e2, pfs);
   }
   Theorem res = newRWTheorem(e, e2, Assumptions(thm1, thm2), pf);
-  res.setSubst();
+  if (!res.isRefl()) res.setSubst();
   return res;
 }
 
@@ -501,7 +501,7 @@ Theorem CommonTheoremProducer::substitutivityRule(const Expr& e,
   Theorem res = newRWTheorem(e, e2, a, pf);
   IF_DEBUG(debugger.setElapsed(tmpTimer);
 	   accum0 += tmpTimer;)
-  res.setSubst();
+  if (!res.isRefl()) res.setSubst();
   return res;
 }
 
@@ -701,7 +701,7 @@ Theorem CommonTheoremProducer::implMP(const Theorem& e1,
   }
   const Expr& e2 = impl[1];
   // Avoid e1.getExpr(), it may cause unneeded Expr creation
-  if (impl[0] == e2) return e1;
+  //  if (impl[0] == e2) return e1;  // this line commented by yeting because of proof translation
   Proof pf;
   Assumptions a(e1, e1_impl_e2);
   if(withProof()) {
@@ -741,8 +741,8 @@ Theorem CommonTheoremProducer::andIntro(const Theorem& e1, const Theorem& e2) {
 Theorem CommonTheoremProducer::andIntro(const vector<Theorem>& es) {
   Proof pf;
   if(CHECK_PROOFS)
-    CHECK_SOUND(es.size() > 0,
-		"andIntro(vector<Theorem>): vector must be non-empty");
+    CHECK_SOUND(es.size() > 1,
+		"andIntro(vector<Theorem>): vector must have more than 1 element");
   Assumptions a(es);
   /*
   if(withProof()) {
@@ -836,6 +836,72 @@ Theorem CommonTheoremProducer::implContrapositive(const Theorem& thm) {
 }
 
 
+// ==> ITE(TRUE, e1, e2) == e1
+Theorem
+CommonTheoremProducer::rewriteIteTrue(const Expr& e) {
+  Proof pf;
+  if(CHECK_PROOFS)
+    CHECK_SOUND(e.isITE() && e[0].isTrue(),
+		"rewriteIteTrue precondition violated");
+  if(withProof()) {
+    Type t = e[1].getType();
+    DebugAssert(!t.isNull(), "rewriteIteTrue: e1 has no type: "
+		+ e[1].toString());
+    bool useIff = t.isBool();
+    if(useIff)
+      pf = newPf("rewrite_ite_true_iff", e[1], e[2]);
+    else {
+      pf = newPf("rewrite_ite_true", t.getExpr(), e[1], e[2]);
+    }
+  }
+  return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);
+}
+
+
+// ==> ITE(FALSE, e1, e2) == e2
+Theorem
+CommonTheoremProducer::rewriteIteFalse(const Expr& e) {
+  Proof pf;
+  if(CHECK_PROOFS)
+    CHECK_SOUND(e.isITE() && e[0].isFalse(),
+		"rewriteIteFalse precondition violated");
+  if(withProof()) {
+    Type t = e[1].getType();
+    DebugAssert(!t.isNull(), "rewriteIteFalse: e1 has no type: "
+		+ e[1].toString());
+    bool useIff = t.isBool();
+    if(useIff)
+      pf = newPf("rewrite_ite_false_iff", e[1], e[2]);
+    else {
+      pf = newPf("rewrite_ite_false", t.getExpr(), e[1], e[2]);
+    }
+  }
+  return newRWTheorem(e, e[2], Assumptions::emptyAssump(), pf);
+}
+
+
+// ==> ITE(c, e, e) == e
+Theorem
+CommonTheoremProducer::rewriteIteSame(const Expr& e) {
+  Proof pf;
+  if(CHECK_PROOFS)
+    CHECK_SOUND(e.isITE() && e[1] == e[2],
+		"rewriteIteSame precondition violated");
+  if(withProof()) {
+    Type t = e[1].getType();
+    DebugAssert(!t.isNull(), "rewriteIteSame: e[1] has no type: "
+		+ e[1].toString());
+    bool useIff = t.isBool();
+    if(useIff)
+      pf = newPf("rewrite_ite_same_iff", e[0], e[1]);
+    else {
+      pf = newPf("rewrite_ite_same", t.getExpr(), e[0], e[1]);
+    }
+  }
+  return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);
+}
+
+
 // NOT e ==> e IFF FALSE
 Theorem CommonTheoremProducer::notToIff(const Theorem& not_e)
 {
@@ -857,13 +923,17 @@ Theorem CommonTheoremProducer::xorToIff(const Expr& e)
 {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.isXor(), "xorToIff precondition violated");
-    CHECK_SOUND(e.arity() == 2, "Expected XOR of arity 2");
+    CHECK_SOUND(e.arity() >= 2, "Expected XOR of arity >= 2");
+  }
+  Expr res = e[e.arity()-1];
+  for (int i = e.arity()-2; i >=0; --i) {
+    res = (!e[i]).iffExpr(res);
   }
   Proof pf;
   if(withProof()) {
     pf = newPf("xorToIff");
   }
-  return newRWTheorem(e, e[0].iffExpr(!e[1]), Assumptions::emptyAssump(), pf);
+  return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -1246,4 +1316,59 @@ Theorem CommonTheoremProducer::ackermann(const Expr& e1, const Expr& e2)
   if(withProof())
     pf = newPf("ackermann", e1, e2);
   return newTheorem(hyp.impExpr(e1.eqExpr(e2)), Assumptions::emptyAssump(), pf);
+}
+
+
+void CommonTheoremProducer::findITE(const Expr& e, Expr& condition, Expr& thenpart, Expr& elsepart)
+{
+  if (!e.getType().isBool() && e.isITE()) {
+    condition = e[0];
+    if (!condition.containsTermITE()) {
+      thenpart = e[1];
+      elsepart = e[2];
+      return;
+    }
+  }
+
+  vector<Expr> kids;
+  int i = 0;
+  for (; i < e.arity(); ++i) {
+    if (e[i].containsTermITE()) break;
+    kids.push_back(e[i]);
+  }
+
+  if(CHECK_PROOFS) {
+    CHECK_SOUND(i < e.arity(), "could not find ITE");
+  }
+
+  Expr t2, e2;
+  findITE(e[i], condition, t2, e2);
+
+  kids.push_back(t2);
+  for(int k = i+1; k < e.arity(); ++k) {
+    kids.push_back(e[k]);
+  }
+
+  thenpart = Expr(e.getOp(), kids);
+
+  kids[i] = e2;
+  elsepart = Expr(e.getOp(), kids);
+}
+
+
+Theorem CommonTheoremProducer::liftOneITE(const Expr& e) {
+
+  if(CHECK_PROOFS) {
+    CHECK_SOUND(e.containsTermITE(), "CommonTheoremProducer::liftOneITE: bad input" + e.toString());
+  }
+
+  Expr cond, thenpart, elsepart;
+
+  findITE(e, cond, thenpart, elsepart);
+
+  Proof pf;
+  if(withProof())
+    pf = newPf("lift_one_ite", e);
+
+  return newRWTheorem(e, cond.iteExpr(thenpart, elsepart), Assumptions::emptyAssump(), pf);
 }

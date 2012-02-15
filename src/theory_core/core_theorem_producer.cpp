@@ -131,70 +131,6 @@ CoreTheoremProducer::rewriteNotIte(const Expr& e) {
 }
 
 
-// ==> ITE(TRUE, e1, e2) == e1
-Theorem
-CoreTheoremProducer::rewriteIteTrue(const Expr& e) {
-  Proof pf;
-  if(CHECK_PROOFS)
-    CHECK_SOUND(e.isITE() && e[0].isTrue(),
-		"rewriteIteTrue precondition violated");
-  if(withProof()) {
-    Type t = e[1].getType();
-    DebugAssert(!t.isNull(), "rewriteIteTrue: e1 has no type: "
-		+ e[1].toString());
-    bool useIff = t.isBool();
-    if(useIff)
-      pf = newPf("rewrite_ite_true_iff", e[1], e[2]);
-    else {
-      pf = newPf("rewrite_ite_true", t.getExpr(), e[1], e[2]);
-    }
-  }
-  return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);
-}
-
-
-// ==> ITE(FALSE, e1, e2) == e2
-Theorem
-CoreTheoremProducer::rewriteIteFalse(const Expr& e) {
-  Proof pf;
-  if(CHECK_PROOFS)
-    CHECK_SOUND(e.isITE() && e[0].isFalse(),
-		"rewriteIteFalse precondition violated");
-  if(withProof()) {
-    Type t = e[1].getType();
-    DebugAssert(!t.isNull(), "rewriteIteFalse: e1 has no type: "
-		+ e[1].toString());
-    bool useIff = t.isBool();
-    if(useIff)
-      pf = newPf("rewrite_ite_false_iff", e[1], e[2]);
-    else {
-      pf = newPf("rewrite_ite_false", t.getExpr(), e[1], e[2]);
-    }
-  }
-  return newRWTheorem(e, e[2], Assumptions::emptyAssump(), pf);
-}
-
-// ==> ITE(c, e, e) == e
-Theorem
-CoreTheoremProducer::rewriteIteSame(const Expr& e) {
-  Proof pf;
-  if(CHECK_PROOFS)
-    CHECK_SOUND(e.isITE() && e[1] == e[2],
-		"rewriteIteSame precondition violated");
-  if(withProof()) {
-    Type t = e[1].getType();
-    DebugAssert(!t.isNull(), "rewriteIteSame: e[1] has no type: "
-		+ e[1].toString());
-    bool useIff = t.isBool();
-    if(useIff)
-      pf = newPf("rewrite_ite_same_iff", e[0], e[1]);
-    else {
-      pf = newPf("rewrite_ite_same", t.getExpr(), e[0], e[1]);
-    }
-  }
-  return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);
-}
-
 // a |- b == d ==> ITE(a, b, c) == ITE(a, d, c)
 Theorem
 CoreTheoremProducer::rewriteIteThen(const Expr& e, const Theorem& thenThm) {
@@ -576,16 +512,24 @@ CoreTheoremProducer::rewriteIteToImp(const Expr& e)
 
 
 // ==> ITE(a, b(a), c(a)) IFF ITE(a, b(TRUE), c(FALSE))
-Theorem
-CoreTheoremProducer::rewriteIteCond(const Expr& e) {
+// ==> ITE(x = y, b, c) IFF ITE(x = y b[x/y], c[x = y/FALSE])
+Theorem CoreTheoremProducer::rewriteIteCond(const Expr& e)
+{
   if (CHECK_PROOFS)
     CHECK_SOUND(e.isITE() && e.arity()==3, "rewriteIteCond: " + e.toString());
 
   vector<Expr> oldTerms, newTerms;
+// //   if (e[0].isEq()) {
+// //     oldTerms.push_back(e[0][0]);
+// //     newTerms.push_back(e[0][1]);
+// //   }
+// //   else {
   oldTerms.push_back(e[0]);
   newTerms.push_back(d_em->trueExpr());
+//   }
   
   Expr e1(e[1].substExpr(oldTerms, newTerms));
+  oldTerms[0] = e[0];
   newTerms[0] = d_em->falseExpr();
   Expr e2(e[2].substExpr(oldTerms, newTerms));
 

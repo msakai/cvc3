@@ -66,13 +66,14 @@ namespace CVC3 {
  * 
  */
 /*****************************************************************************/
-class ExprValue {
+class CVC_DLL ExprValue {
   friend class Expr;
   friend class Expr::iterator;
   friend class ExprManager;
   friend class ::CInterface;
   friend class ExprApply;
   friend class Theorem;
+  friend class ExprClosure;
 
   //! Unique expression id
   ExprIndex d_index;
@@ -110,8 +111,8 @@ class ExprValue {
   //! context-dependent bit-vector for flags that are context-dependent
   CDFlags d_dynamicFlags;
 
-  //! Height of this expression
-  //  int d_height;
+  //! Size of dag rooted at this expression
+  Unsigned d_size;
 
   //! Which child has the largest height
   //  int d_highestKid;
@@ -144,7 +145,7 @@ private:
   void decRefcount() {
     // Cannot be DebugAssert, since we are called in a destructor
     // and should not throw an exception
-    FatalAssert(d_refcount > 0, "Mis-handled the ref. counting");
+    IF_DEBUG(FatalAssert(d_refcount > 0, "Mis-handled the ref. counting");)
     if((--d_refcount) == 0) d_em->gc(this);
   }
 
@@ -152,13 +153,17 @@ private:
   /*! Do NOT implement it in subclasses! Implement computeHash() instead.
    */
   size_t hash() const {
-    if(d_hash == 0)
+    if (d_hash == 0)
       const_cast<ExprValue*>(this)->d_hash = computeHash();
     return d_hash;
   }
 
-  //! Return height of Expr
-  //  int getHeight() const { return d_height; }
+  //! Return DAG-size of Expr
+  Unsigned getSize() const {
+    if (d_flag == d_em->getFlag()) return 0;
+    const_cast<ExprValue*>(this)->d_flag = d_em->getFlag();
+    return computeSize();
+  }
 
   //! Return child with greatest height
   //  int getHighestKid() const { return d_highestKid; }
@@ -183,6 +188,9 @@ protected:
   // Hash function for kinds
   static size_t hash(const int n) { return s_intHash((long int)n); }
 
+  // Size function for subclasses with children
+  static Unsigned sizeWithChildren(const std::vector<Expr>& kids);
+
   //! Return the memory manager (for the benefit of subclasses)
   MemoryManager* getMM(size_t MMIndex) {
     DebugAssert(d_em!=NULL, "ExprValue::getMM()");
@@ -203,6 +211,10 @@ protected:
   /*! This is the method that all subclasses should implement */
   virtual size_t computeHash() const { return hash(d_kind); }
 
+  //! Non-caching size function which actually computes the size.
+  /*! This is the method that all subclasses should implement */
+  virtual Unsigned computeSize() const { return 1; }
+
   //! Make a clean copy of itself using the given ExprManager
   virtual ExprValue* copy(ExprManager* em, ExprIndex idx) const;
 
@@ -213,6 +225,7 @@ public:
       d_hash(0), d_find(NULL), d_eqNext(NULL), d_notifyList(NULL),
       d_simpCacheTag(0),
       d_dynamicFlags(em->getCurrentContext()),
+      d_size(0),
       //      d_height(0), d_highestKid(-1),
       d_flag(0), d_kind(kind), d_em(em)
   {
@@ -221,7 +234,7 @@ public:
                 ("ExprValue(kind = " + int2string(kind)
                  + ")): kind is not registered").c_str());
     DebugAssert(kind != APPLY, "Only ExprApply should have APPLY kind");
-// #ifdef DEBUG //added by yeting, just hold a place to put my breakpoints in gdb
+// #ifdef _CVC3_DEBUG_MODE //added by yeting, just hold a place to put my breakpoints in gdb
 //     if(idx != 0){
 //       TRACE("expr", "expr created ", idx, "");//the line added by yeting
 //       //      char * a;
@@ -354,13 +367,13 @@ public:
     return null;
   }
 
-  virtual void setTriggers(const std::vector<Expr>& triggers) {
+  virtual void setTriggers(const std::vector<std::vector<Expr> >& triggers) {
     DebugAssert(false, "setTriggers() is called on ExprValue");
   }
 
-  virtual const std::vector<Expr>& getTrigs() const { //by yeting
+  virtual const std::vector<std::vector<Expr> >& getTrigs() const { //by yeting
     DebugAssert(false, "getTrigs() is called on ExprValue");
-    static std::vector<Expr> null;
+    static std::vector<std::vector<Expr> > null;
     return null;
   }
 
@@ -398,7 +411,7 @@ public:
 }; // end of class ExprValue
 
 // Class ExprNode; it's an expression with children
-class ExprNode: public ExprValue {
+class CVC_DLL ExprNode: public ExprValue {
   friend class Expr;
   friend class ExprManager;
 
@@ -428,6 +441,11 @@ protected:
   //! Use our static hash() for the member method
   size_t computeHash() const {
     return ExprValue::hash(d_kind, d_children);
+  }
+
+  //! Use our static sizeWithChildren() for the member method
+  Unsigned computeSize() const {
+    return ExprValue::sizeWithChildren(d_children);
   }
 
   //! Make a clean copy of itself using the given memory manager
@@ -489,6 +507,11 @@ protected:
   //! Use our static hash() for the member method
   size_t computeHash() const {
     return ExprValue::hash(d_kind, d_children);
+  }
+
+  //! Use our static sizeWithChildren() for the member method
+  Unsigned computeSize() const {
+    return ExprValue::sizeWithChildren(d_children);
   }
 
   //! Make a clean copy of itself using the given memory manager
@@ -885,29 +908,34 @@ private:
   Expr d_body;
   //! Manual triggers. // added by yeting
   // Note that due to expr caching, only the most recent triggers specified for a given formula will be used.
-  std::vector<Expr> d_manual_triggers;
+  std::vector<std::vector<Expr> > d_manual_triggers;
   //! Tell ExprManager who we are
   virtual size_t getMMIndex() const { return EXPR_CLOSURE; }
 
   virtual const std::vector<Expr>& getVars() const { return d_vars; }
   virtual const Expr& getBody() const { return d_body; }
-  virtual void setTriggers(const std::vector<Expr>& triggers) { d_manual_triggers = triggers; }
-  virtual const std::vector<Expr>&  getTrigs() const { return d_manual_triggers; }
+  virtual void setTriggers(const std::vector<std::vector<Expr> >& triggers) { d_manual_triggers = triggers; }
+  virtual const std::vector<std::vector<Expr> >&  getTrigs() const { return d_manual_triggers; }
 
 protected:
 
   size_t computeHash() const;
+  Unsigned computeSize() const { return d_body.d_expr->getSize() + 1; }
   //! Make a clean copy of itself using the given memory manager
   ExprValue* copy(ExprManager* em, ExprIndex idx = 0) const;
 
 public:
   // Constructor
+  ExprClosure(ExprManager *em, int kind, const Expr& var,
+              const Expr& body, ExprIndex idx = 0)
+    : ExprValue(em, kind, idx), d_body(body) { d_vars.push_back(var); }
+
   ExprClosure(ExprManager *em, int kind, const std::vector<Expr>& vars,
               const Expr& body, ExprIndex idx = 0)
     : ExprValue(em, kind, idx), d_vars(vars), d_body(body) { }
 
   ExprClosure(ExprManager *em, int kind, const std::vector<Expr>& vars, 
-              const Expr& body, const std::vector<Expr>& trigs, ExprIndex idx = 0)
+              const Expr& body, const std::vector<std::vector<Expr> >&  trigs, ExprIndex idx = 0)
     : ExprValue(em, kind, idx), d_vars(vars), d_body(body),  d_manual_triggers(trigs) { }
 
   // Destructor
@@ -925,44 +953,6 @@ public:
   virtual bool isClosure() const { return true; }
 }; // end of class ExprClosure
 
-// Expr that stores a theorem
-class ExprTheorem: public ExprValue {
-  friend class Expr;
-  friend class ExprManager;
-private:
-  Theorem d_thm;
-
-  virtual const Theorem& getTheorem() const { return d_thm; }
-
-  // Tell ExprManager who we are
-  virtual size_t getMMIndex() const { return EXPR_THEOREM; }
-protected:
-
-  virtual size_t computeHash() const {
-    return d_thm.hash();
-  }
-  //! Make a clean copy of itself using the given memory manager
-  virtual ExprValue* copy(ExprManager* em, ExprIndex idx = 0) const;
-  bool isTheorem() const { return true; }
-
-public:
-  // Constructor
-  ExprTheorem(ExprManager *em, const Theorem& thm, ExprIndex idx = 0)
-    : ExprValue(em, THEOREM_KIND, idx), d_thm(thm) { }
-  // Destructor
-  virtual ~ExprTheorem() { }
-
-  virtual bool operator==(const ExprValue& ev2) const;
-  // Memory management
-  void* operator new(size_t size, MemoryManager* mm) {
-    return mm->newData(size);
-  }
-  void operator delete(void* pMem, MemoryManager* mm) {
-    mm->deleteData(pMem);
-  }
-  void operator delete(void*) { }
-
-};
 
 } // end of namespace CVC3
 

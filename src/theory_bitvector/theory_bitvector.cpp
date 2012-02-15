@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file theory_bitvector.cpp
- * 
+ *
  * Author: Vijay Ganesh.
- * 
+ *
  * Created: Wed May  5 16:16:59 PST 2004
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -59,13 +59,13 @@ int TheoryBitvector::BVSize(const Expr& e)
 Expr TheoryBitvector::pad(int len, const Expr& e)
 {
   DebugAssert(len >=0,
-	      "TheoryBitvector::newBVPlusExpr:" 
+	      "TheoryBitvector::newBVPlusExpr:"
 	      "padding length must be a non-negative integer: "+
 	      int2string(len));
   DebugAssert(BITVECTOR == e.getType().getExpr().getOpKind(),
-	      "TheoryBitvector::newBVPlusExpr:" 
+	      "TheoryBitvector::newBVPlusExpr:"
 	      "input must be a BITVECTOR: " + e.toString());
-	      
+
   int size = BVSize(e);
   Expr res;
   if(size == len)
@@ -84,13 +84,13 @@ Expr TheoryBitvector::pad(int len, const Expr& e)
 // Bit-blasting methods
 
 
-//! accepts a bitvector equation t1 = t2. 
+//! accepts a bitvector equation t1 = t2.
 /*! \return a rewrite theorem which is a conjunction of equivalences
  * over the bits of t1,t2 respectively.
  */
 Theorem TheoryBitvector::bitBlastEqn(const Expr& e)
 {
-  TRACE("bitvector", "bitBlastEqn(", e.toString(), ") {"); 
+  TRACE("bitvector", "bitBlastEqn(", e.toString(), ") {");
   d_bvBitBlastEq++;
 
   DebugAssert(e.isEq(),
@@ -124,15 +124,15 @@ Theorem TheoryBitvector::bitBlastEqn(const Expr& e)
     bitBlastRightThm = bitBlastTerm(rightBV, bitPosition);
     //collect the two theorems created above in the vector
     //leftBVrightBVthms.
-    leftBVrightBVThms.push_back(bitBlastLeftThm); 
+    leftBVrightBVThms.push_back(bitBlastLeftThm);
     leftBVrightBVThms.push_back(bitBlastRightThm);
-    //construct (leftBV[bitPosition] <==> rightBV[bitPosition]) 
+    //construct (leftBV[bitPosition] <==> rightBV[bitPosition])
     //<====> phi <==> theta
     //and store in the vector substThms.
     Theorem thm = substitutivityRule(IFF, leftBVrightBVThms);
-    thm = transitivityRule(thm, rewriteBoolean(thm.getRHS()));    
+    thm = transitivityRule(thm, rewriteBoolean(thm.getRHS()));
     leftBVrightBVThms.clear();
-    substThms.push_back(thm); 
+    substThms.push_back(thm);
     //if phi <==> theta is false, then stop bitblasting. immediately
     //exit and return false.
     if(thm.getRHS().isFalse())
@@ -148,22 +148,22 @@ Theorem TheoryBitvector::bitBlastEqn(const Expr& e)
   //call trusted rule for bitblasting equations.
   result = d_rules->bitBlastEqnRule(e, thm.getLHS());
   result = transitivityRule(result, thm);
-  TRACE("bitvector", "bitBlastEqn => ", result.toString(), " }"); 
+  TRACE("bitvector", "bitBlastEqn => ", result.toString(), " }");
   return result;
 }
 
 
-//! accepts a bitvector equation t1 != t2. 
+//! accepts a bitvector equation t1 != t2.
 /*! \return a rewrite theorem which is a conjunction of
  * (dis)-equivalences over the bits of t1,t2 respectively.
- * 
+ *
  * A separate rule for disequations for efficiency sake. Obvious
  * implementation using rule for equations and rule for NOT, is not
  * efficient.
  */
 Theorem TheoryBitvector::bitBlastDisEqn(const Theorem& notE)
 {
-  TRACE("bitvector", "bitBlastDisEqn(", notE, ") {"); 
+  TRACE("bitvector", "bitBlastDisEqn(", notE, ") {");
   IF_DEBUG(debugger.counter("bit-blasted diseq")++);
   //stat counter
   d_bvBitBlastDiseq++;
@@ -199,17 +199,17 @@ Theorem TheoryBitvector::bitBlastDisEqn(const Theorem& notE)
     //bitBlastRightThm is the theorem 'rightBV[bitPosition] <==> theta'
     bitBlastRightThm = bitBlastTerm(rightBV, bitPosition);
     //collect the two theorems created above in the vector leftBVrightBVthms.
-    leftBVrightBVThms.push_back(bitBlastLeftThm); 
+    leftBVrightBVThms.push_back(bitBlastLeftThm);
     leftBVrightBVThms.push_back(bitBlastRightThm);
-    //construct (~leftBV[bitPosition] <==> rightBV[bitPosition]) 
+    //construct (~leftBV[bitPosition] <==> rightBV[bitPosition])
     //<====> ~phi <==> theta
     //and store in the vector substThms.
     //recall that (p <=/=> q) is same as (~p <==> q)
     Theorem thm = substitutivityRule(IFF, leftBVrightBVThms);
     thm = transitivityRule(thm, rewriteBoolean(thm.getRHS()));
     leftBVrightBVThms.clear();
-    substThms.push_back(thm); 
-    
+    substThms.push_back(thm);
+
     //if phi <==> theta is the True theorem, then stop bitblasting. immediately
     //exit and return t1!=t2 <=> true.
     if(thm.getRHS().isTrue())
@@ -223,23 +223,23 @@ Theorem TheoryBitvector::bitBlastDisEqn(const Theorem& notE)
   Theorem result = d_rules->bitBlastDisEqnRule(notE, thm1.getLHS());
   Theorem thm2 = transitivityRule(thm1, rewriteBoolean(thm1.getRHS()));
   result = iffMP(result, thm2);
-  TRACE("bitvector", "bitBlastDisEqn => ", result.toString(), " }"); 
+  TRACE("bitvector", "bitBlastDisEqn => ", result.toString(), " }");
   return result;
 }
 
 
-/*! \param e has the form e1 pred e2, where pred is < or <=.  
+/*! \param e has the form e1 pred e2, where pred is < or <=.
  *
- *  if e1,e2 are constants, determine bv2int(e1) pred bv2int(e2). 
+ *  if e1,e2 are constants, determine bv2int(e1) pred bv2int(e2).
  *
- *  most significant bit of ei is denoted by msb(ei) 
- * 
- *  \return \f$(msb(e1)\ pred\ msb(e2)) \vee 
+ *  most significant bit of ei is denoted by msb(ei)
+ *
+ *  \return \f$(msb(e1)\ pred\ msb(e2)) \vee
  *          (msb(e1)=msb(e2) \wedge e1[n-2:0]\ pred\ e2[n-2:0])\f$
  */
 Theorem TheoryBitvector::bitBlastIneqn(const Expr& e)
 {
-  TRACE("bitvector", "bitBlastIneqn(", e.toString(), ") {"); 
+  TRACE("bitvector", "bitBlastIneqn(", e.toString(), ") {");
 
   DebugAssert(BVLT == e.getOpKind() ||
 	      BVLE == e.getOpKind(),
@@ -252,7 +252,7 @@ Theorem TheoryBitvector::bitBlastIneqn(const Expr& e)
   Expr rhs = e[1];
   int e0len = BVSize(lhs);
   DebugAssert(e0len == BVSize(rhs), "Expected sizes to match");
-  
+
   int kind = e.getOpKind();
   Theorem res;
   if(lhs == rhs) {
@@ -343,7 +343,7 @@ Theorem TheoryBitvector::bitBlastIneqn(const Expr& e)
       */
     }
   }
-  TRACE("bitvector", "bitBlastIneqn => ", res.toString(), " }"); 
+  TRACE("bitvector", "bitBlastIneqn => ", res.toString(), " }");
   return res;
 }
 
@@ -358,256 +358,308 @@ Theorem TheoryBitvector::bitBlastIneqn(const Expr& e)
  */
 Theorem TheoryBitvector::bitBlastTerm(const Expr& t, int bitPosition)
 {
-  TRACE("bitvector", 
-	"bitBlastTerm(", t, ", " + int2string(bitPosition) + ") {"); 
+  TRACE("bitvector", "bitBlastTerm(", t, ", " + int2string(bitPosition) + ") {");
 
   IF_DEBUG(Type type = t.getType();)
-  DebugAssert(BITVECTOR == type.getExpr().getOpKind(),
-              "TheoryBitvector::bitBlastTerm: "
-              "The type of input to bitBlastTerm must be BITVECTOR.\n t = "
-              +t.toString());
-  DebugAssert(bitPosition >= 0,
-              "TheoryBitvector::bitBlastTerm: "
-              "illegal bitExtraction attempted.\n bitPosition = "+
-              int2string(bitPosition));
+  DebugAssert(BITVECTOR == type.getExpr().getOpKind(), "TheoryBitvector::bitBlastTerm: The type of input to bitBlastTerm must be BITVECTOR.\n t = " +t.toString());
+  DebugAssert(bitPosition >= 0, "TheoryBitvector::bitBlastTerm: illegal bitExtraction attempted.\n bitPosition = " + int2string(bitPosition));
 
   Theorem result;
-  
+
   // Check the cache
   Expr t_i = newBoolExtractExpr(t, bitPosition);
   CDMap<Expr,Theorem>::iterator it = d_bitvecCache.find(t_i);
   if (it != d_bitvecCache.end()) {
-    result = (*it).second;
-    TRACE("bitvector", "bitBlastTerm[cached] => ", result, " }"); 
-    DebugAssert(t_i == result.getLHS(),
-		"TheoryBitvector::bitBlastTerm:"
-		"created wrong theorem" + result.toString() + t_i.toString());
-    return result;
+	  result = (*it).second;
+	  TRACE("bitvector", "bitBlastTerm[cached] => ", result, " }");
+	  DebugAssert(t_i == result.getLHS(),	"TheoryBitvector::bitBlastTerm: created wrong theorem" + result.toString() + t_i.toString());
+	  return result;
   }
 
   // Construct the theorem t[bitPosition] <=> \theta_i and put it into
   // d_bitvecCache
   switch(t.getOpKind()) {
     case BVCONST:
-      result = d_rules->bitExtractConstant(t, bitPosition);
-      break;
-    case BVMULT: {
-      Theorem thm;
-      if(BVCONST == t[0].getKind())
-	thm = d_rules->bitExtractConstBVMult(t, bitPosition);
-      else
-	thm = d_rules->bitExtractBVMult(t, bitPosition);
-      const Expr& boolExtractTerm = thm.getRHS();
-      const Expr& term = boolExtractTerm[0];
-      result = transitivityRule(thm, bitBlastTerm(term, bitPosition)); 
-      break;
+    	result = d_rules->bitExtractConstant(t, bitPosition);
+    	break;
+    case CONCAT:
+    {
+    	Theorem thm = d_rules->bitExtractConcatenation(t, bitPosition);
+    	const Expr& boolExtractTerm = thm.getRHS();
+    	DebugAssert(BOOLEXTRACT == boolExtractTerm.getOpKind(), "TheoryBitvector::bitBlastTerm: recursion: term must be bool_extract");
+    	const Expr& term = boolExtractTerm[0];
+    	int bitPos = getBoolExtractIndex(boolExtractTerm);
+    	TRACE("bitvector", "term for bitblastTerm recursion:(", term.toString(), ")");
+    	result = transitivityRule(thm, bitBlastTerm(term, bitPos));
+    	break;
+    }
+    case EXTRACT:
+    {
+    	Theorem thm = d_rules->bitExtractExtraction(t, bitPosition);
+    	const Expr& boolExtractTerm = thm.getRHS();
+    	DebugAssert(BOOLEXTRACT == boolExtractTerm.getOpKind(), "TheoryBitvector::bitBlastTerm: recursion: term must be bool_extract");
+    	const Expr& term = boolExtractTerm[0];
+    	int bitPos = getBoolExtractIndex(boolExtractTerm);
+    	TRACE("bitvector", "term for bitblastTerm recursion:(", term, ")");
+    	result = transitivityRule(thm, bitBlastTerm(term, bitPos));
+    	break;
+    }
+    case CONST_WIDTH_LEFTSHIFT:
+    {
+    	result = d_rules->bitExtractFixedLeftShift(t, bitPosition);
+    	const Expr& extractTerm = result.getRHS();
+    	if(BOOLEXTRACT == extractTerm.getOpKind())
+    		result = transitivityRule(result, bitBlastTerm(extractTerm[0], getBoolExtractIndex(extractTerm)));
+    	break;
+    }
+    case BVSHL:
+    {
+    	// BOOLEXTRACT(bvshl(t,x),i) <=> ((x = 0) AND BOOLEXTRACT(t,i)) OR
+    	//                               ((x = 1) AND BOOLEXTRACT(t,i-1)) OR ...
+    	//                               ((x = i) AND BOOLEXTRACT(t,0))
+    	Theorem thm = d_rules->bitExtractBVSHL(t, bitPosition);
+    	// bitblast the equations and extractions
+      	vector<Theorem> thms, thms0;
+    	int bvsize = BVSize(t);
+      	for (int i = 0; i <= bitPosition; ++i) {
+    		thms0.push_back(bitBlastEqn(t[1].eqExpr(newBVConstExpr(i, bvsize))));
+    		thms0.push_back(bitBlastTerm(t[0], bitPosition-i));
+        	thms.push_back(substitutivityRule(AND, thms0));
+    		thms0.clear();
+    	}
+    	// Put it all together
+    	if (thms.size() == 1) {
+    		result = transitivityRule(thm, thms[0]);
+    	}
+    	else {
+    		Theorem thm2 = substitutivityRule(OR, thms);
+    		result = transitivityRule(thm, thm2);
+    	}
+    	break;
+    }
+    case BVLSHR:
+    {
+    	// BOOLEXTRACT(bvlshr(t,x),i) <=> ((x = 0) AND BOOLEXTRACT(t,i)) OR
+    	//                                ((x = 1) AND BOOLEXTRACT(t,i+1)) OR ...
+    	//                                ((x = n-1-i) AND BOOLEXTRACT(t,n-1))
+    	Theorem thm = d_rules->bitExtractBVLSHR(t, bitPosition);
+    	// bitblast the equations and extractions
+    	vector<Theorem> thms, thms0;
+    	int bvsize = BVSize(t);
+    	for (int i = 0; i <= bvsize-1-bitPosition; ++i) {
+    		thms0.push_back(bitBlastEqn(t[1].eqExpr(newBVConstExpr(i, bvsize))));
+    		thms0.push_back(bitBlastTerm(t[0], bitPosition+i));
+    		thms.push_back(substitutivityRule(AND, thms0));
+    		thms0.clear();
+    	}
+    	// Put it all together
+    	if (thms.size() == 1) {
+    		result = transitivityRule(thm, thms[0]);
+    	}
+    	else {
+    		Theorem thm2 = substitutivityRule(OR, thms);
+    		result = transitivityRule(thm, thm2);
+    	}
+    	break;
+    }
+    case BVASHR:
+    {
+    	// BOOLEXTRACT(bvlshr(t,x),i) <=> ((x = 0) AND BOOLEXTRACT(t,i)) OR
+    	//                                ((x = 1) AND BOOLEXTRACT(t,i+1)) OR ...
+    	//                                ((x >= n-1-i) AND BOOLEXTRACT(t,n-1))
+    	Theorem thm = d_rules->bitExtractBVASHR(t, bitPosition);
+    	// bitblast the equations and extractions
+    	vector<Theorem> thms, thms0;
+    	int bvsize = BVSize(t);
+    	int i = 0;
+    	for (; i < bvsize-1-bitPosition; ++i) {
+    		thms0.push_back(bitBlastEqn(t[1].eqExpr(newBVConstExpr(i, bvsize))));
+    		thms0.push_back(bitBlastTerm(t[0], bitPosition+i));
+    		thms.push_back(substitutivityRule(AND, thms0));
+    		thms0.clear();
+    	}
+    	Expr leExpr = newBVLEExpr(newBVConstExpr(i, bvsize), t[1]);
+    	thms0.push_back(bitBlastIneqn(leExpr));
+    	thms0.push_back(bitBlastTerm(t[0], bvsize-1));
+    	thms.push_back(substitutivityRule(AND, thms0));
+    	// Put it all together
+    	if (thms.size() == 1) {
+    		result = transitivityRule(thm, thms[0]);
+    	}
+    	else {
+    		Theorem thm2 = substitutivityRule(OR, thms);
+    		result = transitivityRule(thm, thm2);
+    	}
+    	break;
     }
     case BVOR:
-    case BVAND: {
-      int resKind = (t.getOpKind()==BVOR)? OR : AND;
-      Theorem thm = (resKind==AND) ?
-	d_rules->bitExtractAnd(t, bitPosition)
-	: d_rules->bitExtractOr(t, bitPosition);
-      const Expr& phi = thm.getRHS();
-      DebugAssert(phi.getOpKind() == resKind && phi.arity() == t.arity(),
-		  "TheoryBitvector::bitBlastTerm: recursion:"
-		  "\n phi = "+phi.toString()
-		  +"\n t = "+t.toString());
-      vector<Theorem> substThms;
-      for(Expr::iterator i=phi.begin(), iend=phi.end(); i!=iend; ++i) {
-	DebugAssert(i->getOpKind() == BOOLEXTRACT, "Expected BOOLEXTRACT");
-        substThms.push_back(bitBlastTerm((*i)[0], getBoolExtractIndex(*i)));
-      }
-      result = transitivityRule(thm, substitutivityRule(resKind, substThms));
-      break;
+    case BVAND:
+    case BVXOR:
+    {
+    	int kind = t.getOpKind();
+    	int resKind = (kind == BVOR) ? OR :
+        kind == BVAND ? AND : XOR;
+    	Theorem thm = d_rules->bitExtractBitwise(t, bitPosition, kind);
+    	const Expr& phi = thm.getRHS();
+    	DebugAssert(phi.getOpKind() == resKind && phi.arity() == t.arity(), "TheoryBitvector::bitBlastTerm: recursion:\n phi = " + phi.toString() + "\n t = " + t.toString());
+    	vector<Theorem> substThms;
+    	for(Expr::iterator i=phi.begin(), iend=phi.end(); i!=iend; ++i) {
+    		DebugAssert(i->getOpKind() == BOOLEXTRACT, "Expected BOOLEXTRACT");
+    		substThms.push_back(bitBlastTerm((*i)[0], getBoolExtractIndex(*i)));
+    	}
+    	result = transitivityRule(thm, substitutivityRule(resKind, substThms));
+    	break;
     }
-    case BVNEG: {
-      Theorem thm = d_rules->bitExtractNot(t, bitPosition);
-      const Expr& extractTerm = thm.getRHS();
-      DebugAssert(NOT == extractTerm.getKind(),
-		  "TheoryBitvector::bitBlastTerm:" 
-		  "recursion: term must be NOT");
-      const Expr& term0 = extractTerm[0];
-      DebugAssert(BOOLEXTRACT == term0.getOpKind(), 
-		  "TheoryBitvector::bitBlastTerm: recursion:("
-		  "terms must be BOOL-EXTRACT");
-      int bitPos0 = getBoolExtractIndex(term0);
-      std::vector<Theorem> res;
-      res.push_back(bitBlastTerm(term0[0], bitPos0));
-      result = transitivityRule(thm, substitutivityRule(NOT, res));
-      break; 
+    case BVNEG:
+    {
+    	Theorem thm = d_rules->bitExtractNot(t, bitPosition);
+    	const Expr& extractTerm = thm.getRHS();
+    	DebugAssert(NOT == extractTerm.getKind(), "TheoryBitvector::bitBlastTerm: recursion: term must be NOT");
+    	const Expr& term0 = extractTerm[0];
+    	DebugAssert(BOOLEXTRACT == term0.getOpKind(), "TheoryBitvector::bitBlastTerm: recursion:(terms must be BOOL-EXTRACT");
+    	int bitPos0 = getBoolExtractIndex(term0);
+    	std::vector<Theorem> res;
+    	res.push_back(bitBlastTerm(term0[0], bitPos0));
+    	result = transitivityRule(thm, substitutivityRule(NOT, res));
+    	break;
     }
-    case BVPLUS: {
-      Expr bvPlusTerm = t;
-      Theorem thm1;
-      if(2 < t.arity()) {
-	//this rule makes t a binary add. binary add is more suitable
-	//for bitblasting.
-	const Theorem& thm = d_rules->bvPlusAssociativityRule(bvPlusTerm);
-	std::vector<Theorem> thms;
-	thms.push_back(thm);
-	thm1 = substitutivityRule
-	  (newBoolExtractExpr(bvPlusTerm, bitPosition).getOp(), thms);
-	bvPlusTerm = thm.getRHS();
-	TRACE("bitvector", 
-	      "TheoryBitvector::bitBlastTerm:thm1(", thm1.getExpr(), ")");
-      } else
-	thm1 = reflexivityRule(newBoolExtractExpr(bvPlusTerm, bitPosition));
-      //bitblast each bit of t[0] and t[1] from 0-bit to bitPosition 
-      //and store in two separate vectors.
-      const Expr& bvplust1 = bvPlusTerm[0];
-      const Expr& bvplust2 = bvPlusTerm[1];
-      DebugAssert(BVSize(bvplust1) == BVSize(bvplust2), "Length mismatch");
-      std::vector<Theorem> t1BitExtractThms;
-      std::vector<Theorem> t2BitExtractThms;
-      for(int i = 0; i <= bitPosition; ++i) {
-        t1BitExtractThms.push_back(bitBlastTerm(bvplust1, i));
-        t2BitExtractThms.push_back(bitBlastTerm(bvplust2, i));
-      }
-      Theorem thm2 = 
-        d_rules->bitExtractBVPlus(t1BitExtractThms, 
-                                  t2BitExtractThms, bvPlusTerm, bitPosition);
-      result = transitivityRule(thm1, thm2);
-      break;
+    case BVPLUS:
+    {
+		Theorem thm_binary;
+		if(t.arity() > 2) thm_binary = d_rules->bvPlusAssociativityRule(t);
+		else thm_binary = reflexivityRule(t);
+
+		Expr bvPlusTerm = thm_binary.getRHS();
+
+    	// Get the bits of the right multiplicand
+    	Expr b = bvPlusTerm[1];
+    	vector<Theorem> b_bits(bitPosition + 1);
+    	for (int bit = bitPosition; bit >= 0; -- bit)
+    	    b_bits[bit] = bitBlastTerm(b, bit);
+
+    	// The output of the bit-blasting
+    	vector<Theorem> output_bits;
+
+  		// Get the bits of the left multiplicand
+   		Expr a = bvPlusTerm[0];
+   		vector<Theorem> a_bits(bitPosition + 1);
+   		for (int bit = bitPosition; bit >= 0; -- bit)
+   			a_bits[bit] = bitBlastTerm(a, bit);
+
+   		// Bit-blast them and get all the output bits (of this size)
+   		d_rules->bitblastBVPlus(a_bits, b_bits, bvPlusTerm, output_bits);
+
+    	// Simplify all the resulting bit expressions and add them to the bit-blasting cache
+    	Theorem thm;
+    	for (int bit = 0; bit <= bitPosition; bit ++)
+    	{
+    		thm = output_bits[bit];
+
+    		Expr original_boolextract = newBoolExtractExpr(t, bit);
+    		Expr boolextract = thm.getLHS();
+    		Expr bitblasted  = thm.getRHS();
+
+    		CDMap<Expr,Theorem>::iterator it = d_bitvecCache.find(boolextract);
+    		if (it != d_bitvecCache.end())
+    			continue;
+
+    		thm = d_bitvecCache[boolextract] = transitivityRule(thm, rewriteBoolean(thm.getRHS()));
+    		if (boolextract != original_boolextract)
+    			thm = d_bitvecCache[original_boolextract] = transitivityRule(substitutivityRule(original_boolextract, thm_binary), thm);
+       	}
+
+    	// We are returning the last theorem
+    	return thm;
+
+    	break;
     }
-    case CONCAT: {
-      Theorem thm = d_rules->bitExtractConcatenation(t, bitPosition);
-      const Expr& boolExtractTerm = thm.getRHS();
-      DebugAssert(BOOLEXTRACT == boolExtractTerm.getOpKind(),
-		  "TheoryBitvector::bitBlastTerm: recursion: term must be"
-		  "bool_extract");
-      const Expr& term = boolExtractTerm[0];
-      int bitPos = getBoolExtractIndex(boolExtractTerm);
-      TRACE("bitvector", 
-	    "term for bitblastTerm recursion:(", term.toString(), ")");
-      result = transitivityRule(thm, bitBlastTerm(term, bitPos));
+    case BVMULT: {
+
+    	Theorem thm;
+
+    	bool a_is_const = (BVCONST == t[0].getKind());
+
+    			// If a constant, rewrite using addition
+    	if (a_is_const) {
+    		thm = d_rules->bitExtractConstBVMult(t, bitPosition);
+    		const Expr& boolExtractTerm = thm.getRHS();
+		    const Expr& term = boolExtractTerm[0];
+    		result = transitivityRule(thm, bitBlastTerm(term, bitPosition));
+    		break;
+    	}
+
+    	// Get the bits ot the right multiplicant
+    	Expr b = t[1];
+    	vector<Theorem> b_bits(bitPosition + 1);
+    	for (int bit = bitPosition; bit >= 0; -- bit)
+    	    b_bits[bit] = bitBlastTerm(b, bit);
+
+    	// The output of the bitblasting
+    	vector<Theorem> output_bits;
+
+		// Get the bits of the left multiplicant
+    	Expr a = t[0];
+    	vector<Theorem> a_bits(bitPosition + 1);
+    	for (int bit = bitPosition; bit >= 0; -- bit)
+    		a_bits[bit] = bitBlastTerm(a, bit);
+
+    	// Bitblast them and get all the output bits (of this size)
+    	d_rules->bitblastBVMult(a_bits, b_bits, t, output_bits);
+
+    	// Simplify all the resulting bit expressions and add them to the bitblasting cache
+    	for (int bit = 0; bit <= bitPosition; bit ++)
+    	{
+    		thm = output_bits[bit];
+
+    		Expr boolextract = thm.getLHS();
+    		Expr bitblasted  = thm.getRHS();
+
+    		CDMap<Expr,Theorem>::iterator it = d_bitvecCache.find(boolextract);
+    		if (it != d_bitvecCache.end())
+    			continue;
+
+    		thm = d_bitvecCache[boolextract] = transitivityRule(thm, rewriteBoolean(thm.getRHS()));
+                // not allowed to use simplify in bitblasting
+                //theoryCore()->simplify(thm.getRHS()));
+    	}
+
+    	// We are returning the last theorem
+    	return thm;
+
+    	break;
     }
-      break;
-    case EXTRACT:{
-      Theorem thm = d_rules->bitExtractExtraction(t, bitPosition);
-      const Expr& boolExtractTerm = thm.getRHS();
-      DebugAssert(BOOLEXTRACT == boolExtractTerm.getOpKind(),
-		  "TheoryBitvector::bitBlastTerm: recursion: term must be"
-		  "bool_extract");
-      const Expr& term = boolExtractTerm[0];
-      int bitPos = getBoolExtractIndex(boolExtractTerm);
-      TRACE("bitvector", "term for bitblastTerm recursion:(", term, ")");
-      result = transitivityRule(thm, bitBlastTerm(term, bitPos));
-      break;
-    }
-    case CONST_WIDTH_LEFTSHIFT: {
-      result = d_rules->bitExtractFixedLeftShift(t, bitPosition);
-      const Expr& extractTerm = result.getRHS();
-      if(BOOLEXTRACT == extractTerm.getOpKind())
-	result = 
-	  transitivityRule(result,
-			   bitBlastTerm(extractTerm[0],
-					getBoolExtractIndex(extractTerm)));
-      break;
-    }
-    case BVSHL: {
-      // BOOLEXTRACT(bvshl(t,x),i) <=> ((x = 0) AND BOOLEXTRACT(t,i)) OR
-      //                               ((x = 1) AND BOOLEXTRACT(t,i-1)) OR ...
-      //                               ((x = i) AND BOOLEXTRACT(t,0))
-      Theorem thm = d_rules->bitExtractBVSHL(t, bitPosition);
-      // bitblast the equations and extractions
-      vector<Theorem> thms, thms0;
-      int bvsize = BVSize(t);
-      for (int i = 0; i <= bitPosition; ++i) {
-        thms0.push_back(bitBlastEqn(t[1].eqExpr(newBVConstExpr(i, bvsize))));
-        thms0.push_back(bitBlastTerm(t[0], bitPosition-i));
-        thms.push_back(substitutivityRule(AND, thms0));
-        thms0.clear();
-      }
-      // Put it all together
-      if (thms.size() == 1) {
-        result = transitivityRule(thm, thms[0]);
-      }
-      else {
-        Theorem thm2 = substitutivityRule(OR, thms);
-        result = transitivityRule(thm, thm2);
-      }
-      break;
-    }
-    case BVLSHR: {
-      // BOOLEXTRACT(bvlshr(t,x),i) <=> ((x = 0) AND BOOLEXTRACT(t,i)) OR
-      //                                ((x = 1) AND BOOLEXTRACT(t,i+1)) OR ...
-      //                                ((x = n-1-i) AND BOOLEXTRACT(t,n-1))
-      Theorem thm = d_rules->bitExtractBVLSHR(t, bitPosition);
-      // bitblast the equations and extractions
-      vector<Theorem> thms, thms0;
-      int bvsize = BVSize(t);
-      for (int i = 0; i <= bvsize-1-bitPosition; ++i) {
-        thms0.push_back(bitBlastEqn(t[1].eqExpr(newBVConstExpr(i, bvsize))));
-        thms0.push_back(bitBlastTerm(t[0], bitPosition+i));
-        thms.push_back(substitutivityRule(AND, thms0));
-        thms0.clear();
-      }
-      // Put it all together
-      if (thms.size() == 1) {
-        result = transitivityRule(thm, thms[0]);
-      }
-      else {
-        Theorem thm2 = substitutivityRule(OR, thms);
-        result = transitivityRule(thm, thm2);
-      }
-      break;
-    }
-    case BVASHR: {
-      // BOOLEXTRACT(bvlshr(t,x),i) <=> ((x = 0) AND BOOLEXTRACT(t,i)) OR
-      //                                ((x = 1) AND BOOLEXTRACT(t,i+1)) OR ...
-      //                                ((x >= n-1-i) AND BOOLEXTRACT(t,n-1))
-      Theorem thm = d_rules->bitExtractBVASHR(t, bitPosition);
-      // bitblast the equations and extractions
-      vector<Theorem> thms, thms0;
-      int bvsize = BVSize(t);
-      int i = 0;
-      for (; i < bvsize-1-bitPosition; ++i) {
-        thms0.push_back(bitBlastEqn(t[1].eqExpr(newBVConstExpr(i, bvsize))));
-        thms0.push_back(bitBlastTerm(t[0], bitPosition+i));
-        thms.push_back(substitutivityRule(AND, thms0));
-        thms0.clear();
-      }
-      Expr leExpr = newBVLEExpr(newBVConstExpr(i, bvsize), t[1]);
-      thms0.push_back(bitBlastIneqn(leExpr));
-      thms0.push_back(bitBlastTerm(t[0], bvsize-1));
-      thms.push_back(substitutivityRule(AND, thms0));
-      // Put it all together
-      if (thms.size() == 1) {
-        result = transitivityRule(thm, thms[0]);
-      }
-      else {
-        Theorem thm2 = substitutivityRule(OR, thms);
-        result = transitivityRule(thm, thm2);
-      }
-      break;
-    }
-    default: {
-      FatalAssert(theoryOf(t.getOpKind()) != this,
-                  "Unexpected operator in bitBlastTerm:"
-                  +t.toString());
-      //we have bitvector variable.
-      //check if the expr is indeed a BITVECTOR.   
-      IF_DEBUG(Type type = t.getType();)
-      DebugAssert(BITVECTOR == (type.getExpr()).getOpKind(),
-		  "BitvectorTheoremProducer::bitBlastTerm: "
-		  "the type must be BITVECTOR");
-      //check if 0<= i < length of BITVECTOR
-      IF_DEBUG(int bvLength=BVSize(t);)
-      DebugAssert(0 <= bitPosition && bitPosition < bvLength,
-		  "BitvectorTheoremProducer::bitBlastTerm: "
-		  "the bitextract position must be legal");
-      TRACE("bitvector",
-	    "bitBlastTerm: blasting variables(", t, ")");
-      const Expr bitExtract = newBoolExtractExpr(t, bitPosition);
-      result = reflexivityRule(bitExtract);
-      TRACE("bitvector",
-	    "bitBlastTerm: blasting variables(", t, ")");
-      break;
+//    case BVMULT: {
+//
+//    	Theorem thm;
+//      if(BVCONST == t[0].getKind())
+//    		thm = d_rules->bitExtractConstBVMult(t, bitPosition);
+//      else
+//	thm = d_rules->bitExtractBVMult(t, bitPosition);
+//    		const Expr& boolExtractTerm = thm.getRHS();
+//      const Expr& term = boolExtractTerm[0];
+//      result = transitivityRule(thm, bitBlastTerm(term, bitPosition));
+//    	break;
+//    }
+    default:
+    {
+    	FatalAssert(theoryOf(t.getOpKind()) != this, "Unexpected operator in bitBlastTerm:" + t.toString());
+    	//we have bitvector variable. check if the expr is indeed a BITVECTOR.
+    	IF_DEBUG(Type type = t.getType();)
+    	DebugAssert(BITVECTOR == (type.getExpr()).getOpKind(), "BitvectorTheoremProducer::bitBlastTerm: the type must be BITVECTOR");
+    	//check if 0<= i < length of BITVECTOR
+    	IF_DEBUG(int bvLength=BVSize(t);)
+    	DebugAssert(0 <= bitPosition && bitPosition < bvLength, "BitvectorTheoremProducer::bitBlastTerm: the bitextract position must be legal");
+    	TRACE("bitvector", "bitBlastTerm: blasting variables(", t, ")");
+    	const Expr bitExtract = newBoolExtractExpr(t, bitPosition);
+    	result = reflexivityRule(bitExtract);
+    	TRACE("bitvector", "bitBlastTerm: blasting variables(", t, ")");
+    	break;
     }
   }
   DebugAssert(!result.isNull(), "TheoryBitvector::bitBlastTerm()");
   Theorem simpThm = rewriteBoolean(result.getRHS());
+  // not allowed to use simplify in bitblasting
+  // theoryCore()->simplify(result.getRHS());
   result = transitivityRule(result, simpThm);
   d_bitvecCache[t_i] = result;
   DebugAssert(t_i == result.getLHS(),
@@ -615,7 +667,7 @@ Theorem TheoryBitvector::bitBlastTerm(const Expr& t, int bitPosition)
               "created wrong theorem.\n result = "
               +result.toString()
               +"\n t_i = "+t_i.toString());
-  TRACE("bitvector", "bitBlastTerm => ", result, " }"); 
+  TRACE("bitvector", "bitBlastTerm => ", result, " }");
   return result;
 }
 
@@ -644,35 +696,29 @@ static void constantKids(const Expr& e, vector<int>& idxs) {
 // Produce a proof of e <==> e' or !e <==> e', depending on whether
 // neg is false or true, respectively.
 // This function must be called only from the pushNegation function
-Theorem TheoryBitvector::pushNegationRec(const Expr& e, bool neg)
+Theorem TheoryBitvector::pushNegationRec(const Expr& e)
 {
-  TRACE("pushNegation", "pushNegationRec(", e,
-	", neg=" + string(neg? "true":"false") + ") {");
-  //DebugAssert(isTerm(e), 
-  //      "TheoryBitvector::pushNegationRec: input must be a term. e = " + 
-  //      e.toString());
-  Expr NegExpr = newBVNegExpr(e);
-  ExprMap<Theorem>::iterator i = d_pushNegCache.find(neg ? NegExpr : e);
+  TRACE("pushNegation", "pushNegationRec(", e,") {");
+  DebugAssert(e.getKind() == BVNEG, "Expected BVNEG in pushNegationRec");
+  ExprMap<Theorem>::iterator i = d_pushNegCache.find(e);
   if(i != d_pushNegCache.end()) { // Found cached result
-    TRACE("TheoryBitvector::pushNegation", 
+    TRACE("TheoryBitvector::pushNegation",
 	  "pushNegationRec [cached] => ", (*i).second, "}");
     return (*i).second;
   }
-  Theorem res(reflexivityRule((neg)? NegExpr : e));
-  if(neg) {
-    switch(e.getOpKind()) {
-    case BVCONST: 
-      res = d_rules->negConst(NegExpr); 
+  Theorem res(reflexivityRule(e));
+
+  switch(e[0].getOpKind()) {
+    case BVCONST:
+      res = d_rules->negConst(e);
       break;
     case BVNEG:{
-      Theorem thm0 = d_rules->negNeg(NegExpr);
-      res = pushNegationRec(thm0.getRHS(), false);
-      res = transitivityRule(thm0,res);
+      res = d_rules->negNeg(e);
       break;
     }
     case BVAND: {
-      //demorgan's laws. 
-      Theorem thm0 = d_rules->negBVand(NegExpr);
+      //demorgan's laws.
+      Theorem thm0 = d_rules->negBVand(e);
       Expr ee = thm0.getRHS();
       if (ee.arity() == 0) res = thm0;
       else {
@@ -680,16 +726,15 @@ Theorem TheoryBitvector::pushNegationRec(const Expr& e, bool neg)
         Op op = ee.getOp();
         vector<Theorem> thms;
         for(Expr::iterator i=ee.begin(), iend=ee.end(); i!=iend; ++i)
-          thms.push_back(pushNegationRec((*i)[0], true));
+          thms.push_back(pushNegationRec(*i));
         res = substitutivityRule(op, thms);
         res = transitivityRule(thm0, res);
-        res = transitivityRule(res, rewrite(res.getRHS()));
       }
       break;
     }
     case BVOR: {
-      //demorgan's laws. 
-      Theorem thm0 = d_rules->negBVor(NegExpr);
+      //demorgan's laws.
+      Theorem thm0 = d_rules->negBVor(e);
       Expr ee = thm0.getRHS();
       if (ee.arity() == 0) res = thm0;
       else {
@@ -697,32 +742,31 @@ Theorem TheoryBitvector::pushNegationRec(const Expr& e, bool neg)
         Op op = ee.getOp();
         vector<Theorem> thms;
         for(Expr::iterator i=ee.begin(), iend=ee.end(); i!=iend; ++i)
-          thms.push_back(pushNegationRec((*i)[0], true));
+          thms.push_back(pushNegationRec(*i));
         res = substitutivityRule(op, thms);
         res = transitivityRule(thm0, res);
-        res = transitivityRule(res, rewrite(res.getRHS()));
       }
       break;
     }
     case BVXOR: {
-      res = d_rules->negBVxor(NegExpr);
+      res = d_rules->negBVxor(e);
       Expr ee = res.getRHS();
 
       // only the first child is negated
-      Theorem thm0 = pushNegationRec(ee[0][0], true);
+      Theorem thm0 = pushNegationRec(ee[0]);
       if (!thm0.isRefl()) {
         thm0 = substitutivityRule(ee, 0, thm0);
         res = transitivityRule(res, thm0);
       }
-      break;      
+      break;
     }
     case BVXNOR: {
-      res = d_rules->negBVxnor(NegExpr);
-      break;      
+      res = d_rules->negBVxnor(e);
+      break;
     }
     case CONCAT: {
-      //demorgan's laws. 
-      Theorem thm0 = d_rules->negConcat(NegExpr);
+      //demorgan's laws.
+      Theorem thm0 = d_rules->negConcat(e);
       Expr ee = thm0.getRHS();
       if (ee.arity() == 0) res = thm0;
       else {
@@ -730,7 +774,7 @@ Theorem TheoryBitvector::pushNegationRec(const Expr& e, bool neg)
         Op op = ee.getOp();
         vector<Theorem> thms;
         for(Expr::iterator i=ee.begin(), iend=ee.end(); i!=iend; ++i)
-          thms.push_back(pushNegationRec((*i)[0], true));
+          thms.push_back(pushNegationRec(*i));
         res = substitutivityRule(op, thms);
         res = transitivityRule(thm0, res);
       }
@@ -742,68 +786,25 @@ Theorem TheoryBitvector::pushNegationRec(const Expr& e, bool neg)
       // (because  ~(x+y)+1= -(x+y) = -x-y = ~x+1+~y+1)
     case BVMULT:
       // FIXME: Need to implement the following transformation:
-      // ~(x*y) <=> (~x+1)*y-1 
+      // ~(x*y) <=> (~x+1)*y-1
       // [ where we prefer x to be constant/AND/OR/NEG and then
       //   BVPLUS, and only then everything else].
       // (because  ~(x*y)+1= -(x+y) = (-x)*y = (~x+1)*y)
     default:
-      res = reflexivityRule(NegExpr);
-      break;
-    }
-  } else { // if(!neg)
-    switch(e.getOpKind()) {
-    case BVNEG: 
-      res = pushNegationRec(e[0], true); 
-      break;
-    case CONCAT:
-    case BVAND:
-    case BVOR: {
-      if (e.arity() == 0) res = reflexivityRule(e);
-      else {
-        Op op = e.getOp();
-        vector<Theorem> thms;
-        for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)
-          thms.push_back(pushNegationRec(*i, false));
-        res = substitutivityRule(op, thms);
-        res = transitivityRule(res, rewrite(res.getRHS()));
-      }
-      break;
-    }
-    default:
       res = reflexivityRule(e);
       break;
-    } // end of switch(e.getOpKind())
   }
   TRACE("TheoryBitvector::pushNegation", "pushNegationRec => ", res, "}");
-  d_pushNegCache[neg? NegExpr : e] = res;
+  d_pushNegCache[e] = res;
   return res;
 }
 
-Theorem TheoryBitvector::pushNegationRec(const Theorem& thm, bool neg) {
-  DebugAssert(thm.isRewrite(), 
-	      "TheoryBitvector::pushNegationRec(Theorem): bad theorem: "
-	      + thm.toString());
-  Expr e(thm.getRHS());
-  if(neg) {
-    DebugAssert(e.isNot(), 
-		"TheoryBitvector::pushNegationRec(Theorem, neg = true): bad Theorem: "
-		+ thm.toString());
-    e = e[0];
-  }
-  return transitivityRule(thm, pushNegationRec(e, neg));
-}
 
 // We assume that the cache is initially empty
 Theorem TheoryBitvector::pushNegation(const Expr& e) {
   d_pushNegCache.clear();
-  Theorem res;
-  if(BVNEG == e.getOpKind())
-    res = pushNegationRec(e[0], true);
-  else if(BITVECTOR == e.getType().getExpr().getOpKind())
-    res = pushNegationRec(e, false);
-  else
-    res = reflexivityRule(e);
-  return res;
+  DebugAssert(BVNEG == e.getOpKind(), "Expected BVNEG");
+  return pushNegationRec(e);
 }
 
 
@@ -835,10 +836,10 @@ Theorem TheoryBitvector::simplifyOp(const Expr& e) {
       //      thm0 = d_rules->padBVMult(e);
       break;
     case CONCAT: // 0bin0_[k] @ BVPLUS(n, args) => BVPLUS(n+k, args)
-      if(e.arity()==2 && e[0].getKind()==BVCONST && e[1].getOpKind()==BVPLUS
-	 && computeBVConst(e[0]) == 0) {
-	thm0 = d_rules->bvplusZeroConcatRule(e);
-      }
+//       if(e.arity()==2 && e[0].getKind()==BVCONST && e[1].getOpKind()==BVPLUS
+// 	 && computeBVConst(e[0]) == 0) {
+// 	thm0 = d_rules->bvplusZeroConcatRule(e);
+//       }
       break;
     case RIGHTSHIFT:
       thm0 = d_rules->rightShiftToConcat(e);
@@ -859,7 +860,7 @@ Theorem TheoryBitvector::simplifyOp(const Expr& e) {
     ee = thm0.getRHS();
     int ar = ee.arity();
     for(int k = 0; k < ar; ++k) {
-      // Recursively simplify the kids	
+      // Recursively simplify the kids
       Theorem thm = simplify(ee[k]);
       if (thm.getLHS() != thm.getRHS()) {
 	newChildrenThm.push_back(thm);
@@ -879,7 +880,7 @@ Theorem TheoryBitvector::simplifyOp(const Expr& e) {
 // Theorem TheoryBitvector::rewriteConst(const Expr& e)
 // {
 //   Theorem result = reflexivityRule(e);
-//   return result;  
+//   return result;
 // }
 
 
@@ -927,6 +928,9 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
         case BVLT:
         case BVLE:
           res = d_rules->notBVLTRule(e);
+          if (!res.isRefl()) {
+            res = transitivityRule(res, simplify(res.getRHS()));
+          }
           break;
         case EQ:
           if (BVSize(e[0][0]) == 1) {
@@ -939,9 +943,27 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       break;
     case EQ:
     {
-      res = d_rules->canonBVEQ(e);
-      if (!res.isRefl()) {
-        res = transitivityRule(res, simplify(res.getRHS()));
+      // Canonise constant equations to true or false
+      if (e[0].getKind() == BVCONST && e[1].getKind() == BVCONST) {
+    	  res = d_rules->constEq(e);
+      } else
+      // If x_1 or x_2 = 0 then both have to be 0
+      if (e[0].getKind() == BVOR && e[1].getKind() == BVCONST && computeBVConst(e[1]) == 0) {
+    	  res = d_rules->zeroBVOR(e);
+    	  res = transitivityRule(res, simplify(res.getRHS()));
+      }
+      // if x_1 and x_2 = 1 then both have to be 1
+      else if (e[0].getKind() == BVAND && e[1].getKind() == BVCONST && computeBVConst(e[1]) == pow(BVSize(e[1]), 2) - 1) {
+    	  res = d_rules->oneBVAND(e);
+    	  res = transitivityRule(res, simplify(res.getRHS()));
+      }
+      // Solve
+      else {
+    	  res = d_rules->canonBVEQ(e);
+    	  if (!res.isRefl()) {
+    		  res = transitivityRule(res, simplify(res.getRHS()));
+    	  }
+    	  else e.setRewriteNormal();
       }
       break;
     }
@@ -1019,7 +1041,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
 	  res = transitivityRule(res, thms[0]);
 	} else {
 	  Expr ee = newConcatExpr(kids);
-	  
+
 	  Theorem constMerge = substitutivityRule(ee, idxs, thms);
 	  // The inverse flattening of ee
 	  Theorem unFlatten = symmetryRule(d_rules->concatFlatten(ee));
@@ -1028,7 +1050,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
 	  res = transitivityRule(res, constMerge);
 	}
       }
-      
+
       // Now do a similar search for mergeable extractions
       idxs.clear();
       thms.clear();
@@ -1115,22 +1137,22 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       // Check for 0bin00 @ BVPLUS(n, ...).  Most of the time, this
       // case will be handled during the top-down phase
       // (simplifyOp()), but not always.
-      Expr ee = res.getRHS();
-      if(ee.getOpKind()==CONCAT && ee.arity() == 2 && ee[0].getKind()==BVCONST
-	 && ee[1].getOpKind()==BVPLUS && computeBVConst(ee[0]) == 0) {
-	// Push the concat down through BVPLUS
-	Theorem thm = d_rules->bvplusZeroConcatRule(ee);
-	if(thm.getLHS()!=thm.getRHS()) {
-	  thm = transitivityRule(thm, d_rules->padBVPlus(thm.getRHS()));
-	  // Kids may need to be rewritten again
-	  res = rewriteBV(transitivityRule(res, thm), cache, 2);
-	}
-      }
+//       Expr ee = res.getRHS();
+//       if(ee.getOpKind()==CONCAT && ee.arity() == 2 && ee[0].getKind()==BVCONST
+// 	 && ee[1].getOpKind()==BVPLUS && computeBVConst(ee[0]) == 0) {
+// 	// Push the concat down through BVPLUS
+// 	Theorem thm = d_rules->bvplusZeroConcatRule(ee);
+// 	if(thm.getLHS()!=thm.getRHS()) {
+// 	  thm = transitivityRule(thm, d_rules->padBVPlus(thm.getRHS()));
+// 	  // Kids may need to be rewritten again
+// 	  res = rewriteBV(transitivityRule(res, thm), cache, 2);
+// 	}
+//       }
       // Since we may have pulled subexpressions from more than one
       // level deep, we cannot guarantee that all the new kids are
       // fully simplified, and have to call simplify explicitly again.
       // Since this is potentially an expensive operation, we try to
-      // minimize the need for it: 
+      // minimize the need for it:
 
       // * check if the result has a find pointer (then kids don't
       //   need to be simplified),
@@ -1138,7 +1160,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       // If kids are already simplified, we'll hit the simplifier
       // cache.  It's only expensive when kids do indeed simplify.
       if(!res.getRHS().hasFind()) {
-	ee = res.getRHS();
+	Expr ee = res.getRHS();
 	vector<Theorem> thms;
 	vector<unsigned> changed;
 	for(int i=0, iend=ee.arity(); i<iend; ++i) {
@@ -1167,9 +1189,6 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
 	  break;
 	case EXTRACT:
 	  res = d_rules->extractExtract(e);
-          if (!res.isRefl()) {
-            res = transitivityRule(res, simplify(res.getRHS()));
-          }
 	  break;
 	case CONCAT:
 	  // Push extraction through concat, and rewrite the kids
@@ -1185,7 +1204,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
 	  res = rewriteBV(d_rules->extractOr(e), cache, 2);
 	  break;
 	case BVXOR:
-	  res = 
+	  res =
 	    rewriteBV(d_rules->extractBitwise(e, BVXOR, "extract_bvxor"), cache, 2);
 	  break;
 	case BVMULT: {
@@ -1206,17 +1225,16 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
 	  int bvplusLen = BVSize(bvplus);
 	  if(hiBit+1 < bvplusLen) {
 	    res = d_rules->extractBVPlus(e);
-            if (!res.isRefl()) {
-              res = transitivityRule(res, simplify(res.getRHS()));
-            }
-	  } else
-	    res = reflexivityRule(e);
+	  } else res = reflexivityRule(e);
 	  break;
 	}
 	default:
 	  res = reflexivityRule(e);
 	  break;
 	}
+      }
+      if (!res.isRefl()) {
+        res = transitivityRule(res, simplify(res.getRHS()));
       }
       break;
     }
@@ -1258,36 +1276,69 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       break;
     }
     case LEFTSHIFT:
-      res = rewriteBV(d_rules->leftShiftToConcat(e), cache, 1);
-      break;
+        if (e[0].getKind() == BVCONST && computeBVConst(e[0]) == 0) {
+          res = d_rules->bvShiftZero(e);
+        } else {
+        	res = d_rules->leftShiftToConcat(e);
+        	if (!res.isRefl()) {
+        		res = transitivityRule(res, simplify(res.getRHS()));
+        	}
+        }
+        break;
     case CONST_WIDTH_LEFTSHIFT:
-      res = rewriteBV(d_rules->constWidthLeftShiftToConcat(e), cache, 1);
-      break;
+        if (e[0].getKind() == BVCONST && computeBVConst(e[0]) == 0) {
+          res = d_rules->bvShiftZero(e);
+        } else {
+        	res = d_rules->constWidthLeftShiftToConcat(e);
+        	if (!res.isRefl()) {
+        		res = transitivityRule(res, simplify(res.getRHS()));
+        	}
+        }
+        break;
     case RIGHTSHIFT:
-      res = rewriteBV(d_rules->rightShiftToConcat(e), cache, 1);
-      break;
+        if (e[0].getKind() == BVCONST && computeBVConst(e[0]) == 0) {
+          res = d_rules->bvShiftZero(e);
+        } else {
+        	res = d_rules->rightShiftToConcat(e);
+        	if (!res.isRefl()) {
+        		res = transitivityRule(res, simplify(res.getRHS()));
+        	}
+        }
+        break;
     case BVSHL:
+      if (e[0].getKind() == BVCONST && computeBVConst(e[0]) == 0) {
+        res = d_rules->bvShiftZero(e);
+      } else
       if (e[1].getKind() == BVCONST) {
         res = d_rules->bvshlToConcat(e);
         res = transitivityRule(res, simplify(res.getRHS()));
       }
+//       else {
+//         res = d_rules->bvshlSplit(e);
+//         res = transitivityRule(res, simplify(res.getRHS()));
+//       }
       break;
     case BVLSHR:
+      if (e[0].getKind() == BVCONST && computeBVConst(e[0]) == 0) {
+        res = d_rules->bvShiftZero(e);
+      } else
       if (e[1].getKind() == BVCONST) {
         res = d_rules->bvlshrToConcat(e);
         res = transitivityRule(res, simplify(res.getRHS()));
       }
       break;
     case BVASHR:
-      if (e[1].getKind() == BVCONST) {
-        res = d_rules->bvashrToConcat(e);
-        res = transitivityRule(res, simplify(res.getRHS()));
-      }
+      if (e[0].getKind() == BVCONST && computeBVConst(e[0]) == 0) {
+    	res = d_rules->bvShiftZero(e);
+      } else
+    	  if (e[1].getKind() == BVCONST) {
+            res = d_rules->bvashrToConcat(e);
+            res = transitivityRule(res, simplify(res.getRHS()));
+          }
       break;
-    case SX: {  
+    case SX: {
       res = d_rules->signExtendRule(e);
-      Expr rhs = res.getRHS();
-      res = transitivityRule(res, rewriteBV(rhs, cache));
+      res = transitivityRule(res, simplify(res.getRHS()));
       break;
     }
 
@@ -1305,139 +1356,60 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       res = d_rules->rotlRule(e);
       res = transitivityRule(res, simplify(res.getRHS()));
       break;
-      
+
     case BVROTR:
       res = d_rules->rotrRule(e);
       res = transitivityRule(res, simplify(res.getRHS()));
       break;
 
-    case BVAND: {
+    case BVAND:
+    case BVOR:
+    case BVXOR:
+    {
+      int kind = e.getOpKind();
       // Flatten the bit-wise AND, eliminate duplicates, reorder terms
-      res = d_rules->andFlatten(e);
+      res = d_rules->bitwiseFlatten(e, kind);
       Expr ee = res.getRHS();
+      if (ee.getOpKind() != kind) break;
+
       // Search for constant bitvectors
       vector<int> idxs;
       constantKids(ee, idxs);
+      int idx = -1;
+
       if(idxs.size() >= 2) {
-        res = transitivityRule(res, d_rules->andConst(ee, idxs));
+        res = transitivityRule(res, d_rules->bitwiseConst(ee, idxs, kind));
+        ee = res.getRHS();
+        if (ee.getOpKind() != kind) break;
+        idx = 0;
       }
-      ee = res.getRHS();
-      if(ee.getOpKind() == BVAND) {
-	// Search for constants again
-	idxs.clear();
-	constantKids(ee, idxs);
-	DebugAssert(idxs.size() <= 1, "TheoryBitvector::normalizeConcat(ee="
-		    +ee.toString()+")");
-	if(idxs.size() >= 1) {
-	  int idx(idxs[0]);
-	  // Check if ee[idx] is a bitvector of 0's or 1's
-          bool isZero(true);
-          bool isOne(true);
-          const Expr& c = ee[idx];
-          for(int i=0, iend=getBVConstSize(c);
-              (isZero || isOne) && (i<iend); ++i) {
-            isZero = (isZero && !getBVConstValue(c, i));
-            isOne  = (isOne && getBVConstValue(c, i));
-          }
-          if(isZero)
-            res = transitivityRule(res, d_rules->andZero(ee, idx));
-          else if(isOne)
-            res = transitivityRule(res, d_rules->andOne(ee, idxs));
-	}
+      else if (idxs.size() == 1) {
+        idx = idxs[0];
       }
-      // Lift concatenation over bit-wise AND and rewrite again
-      ee = res.getRHS();
-      if(ee.getOpKind() == BVAND) {
-	int i=0, iend=ee.arity();
-	// Search for the first CONCAT child
-	for(; (i<iend) && ee[i].getOpKind() != CONCAT; ++i);
-	// If found, lift CONCAT over BVAND, and rewrite 3 levels
-	// deep.  Reason: the result of andConcat is of the form:
-	// (@ (& ... t_k[i:j] ...) ... ), and only t_k is known to be 
-	// completely rewritten.  Hence the 3 levels of rewrites.
-	if(i<iend)
-	  res = transitivityRule(res,
-                                 rewriteBV(d_rules->andConcat(ee, i), cache, 3));
+
+      if (idx >= 0) {
+        res = transitivityRule(res, d_rules->bitwiseConstElim(ee, idx, kind));
+        ee = res.getRHS();
+        if (ee.getOpKind() != kind) break;
       }
-      break;
-    }
-    case BVOR: {
-      // Flatten the bit-wise OR, eliminate duplicates, reorder terms
-      res = d_rules->orFlatten(e);
-      Expr ee = res.getRHS();
-      // Search for constant bitvectors
-      vector<int> idxs;
-      constantKids(ee, idxs);
-      if(idxs.size() >= 2) {
-	res = transitivityRule(res, d_rules->orConst(ee, idxs));
+      res = transitivityRule(res, d_rules->bitwiseConcat(ee, kind));
+      if (!res.isRefl()) {
+        res = transitivityRule(res, simplify(res.getRHS()));
       }
-      ee = res.getRHS();
-      if(ee.getOpKind() == BVOR) {
-	// Search for constants again
-	idxs.clear();
-	constantKids(ee, idxs);
-	DebugAssert(idxs.size() <= 1, "TheoryBitvector::normalizeConcat(ee="
-		    +ee.toString()+")");
-	if(idxs.size() >= 1) {
-	  int idx(idxs[0]);
-	  // Check if ee[idx] is a bitvector of 0's or 1's
-	  bool isZero(true);
-	  bool isOne(true);
-	  const Expr& c = ee[idx];
-	  for(int i=0, iend=getBVConstSize(c);
-	      (isZero || isOne) && (i<iend); ++i) {
-	    isZero = (isZero && !getBVConstValue(c, i));
-	    isOne  &= (isOne && getBVConstValue(c, i));
-	  }
-	  if(isOne)
-	    res = transitivityRule(res, d_rules->orOne(ee, idx));
-	  else if(isZero)
-	    res = transitivityRule(res, d_rules->orZero(ee, idxs));
-	  
-	}
+      else {
+        e.setRewriteNormal();
       }
-      // Lift concatenation over bit-wise OR and rewrite again
-      ee = res.getRHS();
-      if(ee.getOpKind() == BVOR) {
-	int i=0, iend=ee.arity();
-	// Search for the first CONCAT child
-	for(; (i<iend) && ee[i].getOpKind() != CONCAT; ++i);
-	// If found, lift CONCAT over BVOR, and rewrite 3 levels
-	// deep.  Reason: the result of orConcat is of the form:
-	// (@ (| ... t_k[i:j] ...) ... ), and only t_k is known to be 
-	// completely rewritten.  Hence the 3 levels of rewrites.
-	if(i<iend)
-	  res = transitivityRule(res,
-                                 rewriteBV(d_rules->orConcat(ee, i), cache, 3));
-      }
-      break;
-    }
-    case BVXOR: {
-      Theorem thm1 = d_rules->rewriteXOR(e);
-      res = transitivityRule(thm1, simplify(thm1.getRHS()));
       break;
     }
     case BVXNOR: {
-      Theorem thm1 = d_rules->rewriteXNOR(e);
-      res = transitivityRule(thm1, simplify(thm1.getRHS()));
+      res = d_rules->rewriteXNOR(e);
+      res = transitivityRule(res, simplify(res.getRHS()));
       break;
     }
     case BVNEG: {
-      switch(e[0].getOpKind()) {
-        case BVCONST:
-          res = d_rules->negConst(e);
-          break;
-        case CONCAT:
-          // May need to propagate negation in the kids, rewrite 2 levels
-          res = rewriteBV(d_rules->negConcat(e), cache, 2);
-          break;
-        case BVNEG:
-          res = d_rules->negNeg(e);
-          break;
-        default:
-//           res = d_rules->negElim(e);
-//           res = transitivityRule(res, simplify(res.getRHS()));
-          break;
+      res = pushNegation(e);
+      if (!res.isRefl()) {
+        res = transitivityRule(res, simplify(res.getRHS()));
       }
       break;
     }
@@ -1468,6 +1440,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       if (!res.isRefl()) {
         res = transitivityRule(res, simplify(res.getRHS()));
       }
+      else e.setRewriteNormal();
       break;
     }
     case BVSUB: {
@@ -1485,18 +1458,72 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
         res =  d_rules->canonBVMult( e );
         if (!res.isRefl())
           res = transitivityRule(res, simplify(res.getRHS()));
+        else e.setRewriteNormal();
       }
       break;
     }
 
     case BVUDIV:
-    case BVSDIV:
-    case BVUREM:
-    case BVSREM:
-    case BVSMOD:
-      //not implemented yet
-      break;
+    {
+      Expr a = e[0];
+      Expr b = e[1];
 
+      // Constant division
+      if (a.getOpKind() == BVCONST && b.getOpKind() == BVCONST) {
+        res = d_rules->bvUDivConst(e);
+        break;
+      }
+
+      if (theoryCore()->okToEnqueue())
+      {
+        // get the full theorem
+        // e = x/y
+        // \exists div, mod: e = div & (y != 0 -> ...)
+        // result is the equality
+        // assert the additional conjunct
+        Theorem fullTheorem =  d_rules->bvUDivTheorem(e);
+        // Skolemise the variables
+        Theorem skolem_div = getCommonRules()->skolemize(fullTheorem);
+        // Get the rewrite part
+        res = getCommonRules()->andElim(skolem_div, 0);
+        // Get the division part
+        Theorem additionalConstraint = getCommonRules()->andElim(skolem_div, 1);
+        // Enqueue the division part
+        enqueueFact(additionalConstraint);
+        res = transitivityRule(res, simplify(res.getRHS()));
+      } else {
+        res = reflexivityRule(e);
+      }
+      break;
+    }
+    case BVSDIV:
+    	res = d_rules->bvSDivRewrite(e);
+    	res = transitivityRule(res, simplify(res.getRHS()));
+    	break;
+    case BVUREM:
+    {
+    	Expr a = e[0];
+    	Expr b = e[1];
+
+    	// Constant division
+    	if (a.getOpKind() == BVCONST && b.getOpKind() == BVCONST) {
+          res = d_rules->bvURemConst(e);
+          break;
+    	}
+
+       	res = d_rules->bvURemRewrite(e);
+       	res = transitivityRule(res, theoryCore()->simplify(res.getRHS()));
+
+    	break;
+    }
+    case BVSREM:
+    	res = d_rules->bvSRemRewrite(e);
+    	res = transitivityRule(res, simplify(res.getRHS()));
+    	break;
+    case BVSMOD:
+    	res = d_rules->bvSModRewrite(e);
+    	res = transitivityRule(res, simplify(res.getRHS()));
+    	break;
     case BVLT:
     case BVLE: {
       Expr lhs = e[0];
@@ -1527,13 +1554,13 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
        *  e0 and e1 are constants. If they are constants then optimizations
        *  are done. In general, the following rule is implemented.
        * Step1:
-       *                    e0 <=(s) e1 
-       *                       <==> 
+       *                    e0 <=(s) e1
+       *                       <==>
        *                 pad(e0) <=(s) pad(e1)
        * Step2:
-       *                 pad(e0) <=(s) pad(e1) 
-       *                       <==> 
-       *             (e0[n-1] AND NOT e1[n-1]) OR 
+       *                 pad(e0) <=(s) pad(e1)
+       *                       <==>
+       *             (e0[n-1] AND NOT e1[n-1]) OR
        *             (e0[n-1] = e1[n-1] AND e0[n-2:0] <= e1[n-2:0])
        */
       int e0len = BVSize(e[0]);
@@ -1574,7 +1601,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
 
       //signpad(e0) <= signpad(e1)
       Expr thm0RHS = thm0.getRHS();
-      DebugAssert(thm0RHS.getOpKind() == BVSLT || 
+      DebugAssert(thm0RHS.getOpKind() == BVSLT ||
                   thm0RHS.getOpKind() == BVSLE,
                   "TheoryBitvector::RewriteBV");
       //signpad(e0)[bvlength-1:bvlength-1]
@@ -1682,7 +1709,7 @@ Theorem TheoryBitvector::rewriteBoolean(const Expr& e)
     break;
   }
   if(thm.isNull()) thm = reflexivityRule(e);
-  
+
   return thm;
 }
 
@@ -1701,30 +1728,17 @@ TheoryBitvector::TheoryBitvector(TheoryCore* core)
     d_bvBitBlastEq(core->getStatistics().counter("bv bitblast eqs")),
     d_bvBitBlastDiseq(core->getStatistics().counter("bv bitblast diseqs")),
     d_bv32Flag(&(core->getFlags()["bv32-flag"].getBool())),
-    d_rewriteFlag(&(core->getFlags()["bv-rewrite"].getBool())),
-    d_concatRewriteFlag(&(core->getFlags()["bv-concatnormal-rewrite"].getBool())),
-    d_bvplusRewriteFlag(&(core->getFlags()["bv-plusnormal-rewrite"].getBool())),
-    d_rwBitBlastFlag(&(core->getFlags()["bv-rw-bitblast"].getBool())),
-    d_cnfBitBlastFlag(&(core->getFlags()["bv-cnf-bitblast"].getBool())),
-    d_lhsMinusRhsFlag(&(core->getFlags()["bv-lhs-minus-rhs"].getBool())),
-    d_pushNegationFlag(&(core->getFlags()["bv-pushnegation"].getBool())),
     d_bitvecCache(core->getCM()->getCurrentContext()),
     d_eq(core->getCM()->getCurrentContext()),
-    d_eqIdx(core->getCM()->getCurrentContext(), 0, 0),
-    d_eqBlastIdx(core->getCM()->getCurrentContext(), 0, 0),
-    d_diseq(core->getCM()->getCurrentContext()),
-    d_diseqIdx(core->getCM()->getCurrentContext(), 0, 0),
-    d_staleDB(core->getCM()->getCurrentContext()),
-    d_tccs(core->getCM()->getCurrentContext()),
-    d_tccsIdx(core->getCM()->getCurrentContext(), 0, 0),
+    d_eqPending(core->getCM()->getCurrentContext()),
+    d_eq_index(core->getCM()->getCurrentContext(), 0, 0),
+    d_bitblast(core->getCM()->getCurrentContext()),
+    d_bb_index(core->getCM()->getCurrentContext(), 0, 0),
     d_sharedSubterms(core->getCM()->getCurrentContext()),
     d_sharedSubtermsList(core->getCM()->getCurrentContext()),
-    d_typePredsCache(core->getCM()->getCurrentContext()),
     d_maxLength(0),
     d_index1(core->getCM()->getCurrentContext(), 0, 0),
-    d_index2(core->getCM()->getCurrentContext(), 0, 0),
-    d_bitblast(core->getCM()->getCurrentContext()),
-    d_bb_index(core->getCM()->getCurrentContext(), 0, 0)
+    d_index2(core->getCM()->getCurrentContext(), 0, 0)
     //    d_solvedEqSet(core->getCM()->getCurrentContext(), 0, 0)
 {
   getEM()->newKind(BITVECTOR, "_BITVECTOR", true);
@@ -1771,7 +1785,7 @@ TheoryBitvector::TheoryBitvector(TheoryCore* core)
   getEM()->newKind(INTTOBV, "_INTTOBV");
   getEM()->newKind(BVTOINT, "_BVTOINT");
   getEM()->newKind(BVTYPEPRED, "_BVTYPEPRED");
- 
+
   std::vector<int> kinds;
   kinds.push_back(BITVECTOR);
   kinds.push_back(BVCONST);
@@ -1819,7 +1833,7 @@ TheoryBitvector::TheoryBitvector(TheoryCore* core)
   kinds.push_back(BVTYPEPRED);
 
   registerTheory(this, kinds);
- 
+
   d_bvConstExprIndex = getEM()->registerSubclass(sizeof(BVConstExpr));
 
   // Cache constants 0bin0 and 0bin1
@@ -1884,32 +1898,37 @@ void TheoryBitvector::assertFact(const Theorem& e)
       // facts form the SAT solver are just ignored
       if (expr[0].getOpKind() == BOOLEXTRACT) return;
 
-      // Handle disequalities using the shared term mechanism:
-      // Shared terms are expected to be disequal.  This will be checked in
-      // checkSat.  If two shared terms are found to be equal, that information
-      // will be propagated to the core which will detect the inconsistency in
-      // the case of a disequality.
-//       DebugAssert(expr[0].isEq(), "Unexpected negation");
-//       addSharedTerm(expr[0][0]);
-//       addSharedTerm(expr[0][1]);
+      if (expr[0].getOpKind() == BVTYPEPRED) {
+        Expr tpExpr = getTypePredExpr(expr[0]);
+        Theorem tpThm = typePred(tpExpr);
+        DebugAssert(tpThm.getExpr() == expr[0], "Expected BVTYPEPRED theorem");
+        setInconsistent(getCommonRules()->contradictionRule(tpThm, e));
+        return;
+      }
+
+      DebugAssert(expr[0].isEq(), "Unexpected negation");
+
       d_bitblast.push_back(e);
       break;
 
     case EQ:
       // Updates are also ignored:
       // Note: this can only be true if this fact was asserted as a result of
-      // assertEqualities.  For BV theory, this should only be possible if it
+      // assertEqualities.  For BV theory, this should only be possible if
       // the update was made from our own theory, so we can ignore it.
       if (theoryCore()->inUpdate()) return;
 
+      // If we have already started bitblasting, just store the eq in d_bitblast;
       // if we haven't yet bitblasted and expr is a solved linear equation then
-      // we store it in d_eq CDList, otherwise we store it in d_bitblast
-      if (d_bb_index == 0 &&
-          isLeaf(expr[0]) && !isLeafIn(expr[0], expr[1])) {
+      // we store it in d_eq CDList, otherwise we store it in d_eqPending
+      if (d_bb_index != 0) {
+        d_bitblast.push_back(e);
+      }
+      else if (isLeaf(expr[0]) && !isLeafIn(expr[0], expr[1])) {
         d_eq.push_back( e );
       }
       else {
-        d_bitblast.push_back( e );
+        d_eqPending.push_back( e );
       }
       break;
 
@@ -1921,6 +1940,7 @@ void TheoryBitvector::assertFact(const Theorem& e)
 }
 
 
+//TODO: can we get rid of this in exchange for a more general politeness-based sharing mechanism?
 void TheoryBitvector::assertTypePred(const Expr& e, const Theorem& pred) {
   // Ignore bitvector constants (they always satisfy type predicates)
   // and bitvector operators.  When rewrites and updates are enabled.
@@ -1962,7 +1982,7 @@ void TheoryBitvector::extract_vars(const Expr& e, vector<Expr>& result)
 
 Expr TheoryBitvector::multiply_coeff( Rational mult_inv, const Expr& e)
 {
-  
+
   // nothing to be done
   if( mult_inv == 1)
     return e;
@@ -1981,10 +2001,10 @@ Expr TheoryBitvector::multiply_coeff( Rational mult_inv, const Expr& e)
       int size = BVSize(e);
       if( kind == BVMULT )
 	{
-	
+
 	  //lhs is like 'a_0*x_0'
 	  Rational new_coeff = mult_inv * computeBVConst( e[0] );
-	  Expr new_expr_coeff = newBVConstExpr( new_coeff, size);  
+	  Expr new_expr_coeff = newBVConstExpr( new_coeff, size);
  	  Expr BV_one = newBVConstExpr(1,size);
   	  if( new_expr_coeff == BV_one )
 	    {
@@ -1994,7 +2014,7 @@ Expr TheoryBitvector::multiply_coeff( Rational mult_inv, const Expr& e)
 	    {
 	      return newBVMultExpr( size, new_expr_coeff, e[1]);
 	    }
-	}   
+	}
       else
 	if( kind == BVPLUS)
 	  {
@@ -2018,7 +2038,7 @@ Expr TheoryBitvector::multiply_coeff( Rational mult_inv, const Expr& e)
 	else
 	  if( kind == BVCONST )
 	    {
-	      
+
 	      Rational new_const = mult_inv * computeBVConst(e);
 	      Expr res = newBVConstExpr( new_const, size);
               //	      cout<<res.toString()+"\n";
@@ -2032,9 +2052,9 @@ Expr TheoryBitvector::multiply_coeff( Rational mult_inv, const Expr& e)
 		// L:: guess it is not correct, mult_inv * e
 		Expr BV_mult_inv = newBVConstExpr( mult_inv, size);
 		Expr new_var = newBVMultExpr( size, BV_mult_inv, e);
-		
+
 		return new_var;
-	      } 
+	      }
 	    else
 	      {
 		return e;
@@ -2094,7 +2114,7 @@ Rational TheoryBitvector::multiplicative_inverse(Rational r, int n_bits)
 
 //   // set some values (from 1 to 10)
 //   for (i=1; i<=10; i++) mydeque.push_back(i);
-  
+
 //   // erase the 6th element
 //   mydeque.erase (mydeque.begin()+5);
 
@@ -2177,7 +2197,7 @@ Rational TheoryBitvector::Odd_coeff( const Expr& e )
 {
   int bv_size =  BVSize(e[0]);
   Expr bv_zero( newBVZeroString(bv_size));
-  
+
   DebugAssert(e.getOpKind()==EQ && e[1] == bv_zero,
 	      "TheoryBitvector::Odd_coeff: the input expression has a non valid form ");
 
@@ -2199,7 +2219,7 @@ Rational TheoryBitvector::Odd_coeff( const Expr& e )
 	    {
 	      // checking that the subterm is a leaf
 	      if( isLeaf( lhs[i] ) )
-		{ 
+		{
 		  // checking that the current subterm does not appear in other
 		  // subterms
 		  for( int j = 0; j < lhs_arity; ++j)
@@ -2211,12 +2231,12 @@ Rational TheoryBitvector::Odd_coeff( const Expr& e )
 		  {
 		    // the subterm is a BVMULT with a odd coefficient
 		    if( lhs[i][0].getOpKind() == BVCONST && computeBVConst( lhs[i][0]) % 2 != 0)
-		      { 
+		      {
 			// checking that the current subterm does not appear in other
 			// subterms
 			int flag = 0;
 			for( int j = 0; j < lhs_arity; ++j)
-			  {		  
+			  {
 			    // as we can solve also for non-leaf terms we use
 			    // isTermIn instead of isLeafIn
 			    if( j != i && isTermIn( lhs[i][1], lhs[j] ))
@@ -2225,7 +2245,7 @@ Rational TheoryBitvector::Odd_coeff( const Expr& e )
 			// if the leaf is not a subterm of other terms in the
 			// current expression then we can solve for it
 			if( flag == 0)
-			  return computeBVConst( lhs[i][0] );		
+			  return computeBVConst( lhs[i][0] );
 		      }
 		  }
 		else
@@ -2236,7 +2256,7 @@ Rational TheoryBitvector::Odd_coeff( const Expr& e )
 		      // subterms
 		      for( int j = 0; j < lhs_arity; ++j)
 			if( j != i && !isLeafIn( lhs[i][1], lhs[j] ))
-			  return 1;		
+			  return 1;
 		    }
 		  else
 		    ;
@@ -2272,10 +2292,10 @@ int TheoryBitvector::check_linear( const Expr &e )
 	    return 0;
 	}
       else
-	if( e.getOpKind() == BVUMINUS)	
+	if( e.getOpKind() == BVUMINUS)
 	  return check_linear( e[0]);
 	else
-	  if( e.getOpKind() == EQ ) 
+	  if( e.getOpKind() == EQ )
 	    return ( check_linear( e[0] ) && check_linear( e[1] ));
 	  else
 	    // all other operators are non-linear
@@ -2330,9 +2350,9 @@ int TheoryBitvector::countTermIn( const Expr& term, const Expr& e)
   // base cases recursion happen when e is a constant or a leaf
   if( e.getOpKind() == BVCONST )
     return 0;
-  if( term ==  e ) 
+  if( term ==  e )
     return 1;
-    
+
   for( int i = 0; i < e_arity; ++i)
     {
       result += countTermIn( term, e[i]);
@@ -2360,43 +2380,77 @@ bool TheoryBitvector::isLinearTerm( const Expr& e )
 }
 
 
+// returns thm if no change
+Theorem TheoryBitvector::simplifyPendingEq(const Theorem& thm, int maxEffort)
+{
+  Expr e = thm.getExpr();
+  DebugAssert(e.getKind() == EQ, "Expected EQ");
+  Expr lhs = e[0];
+  Expr rhs = e[1];
+
+  Theorem thm2 = thm;
+  if (!isLeaf(lhs)) {
+    // Carefully simplify lhs:
+    // We can't take find(lhs) because find(lhs) = find(rhs) and this would result in a trivially true equation.
+    // So, take the find of the children instead.
+    int ar = lhs.arity();
+    vector<Theorem> newChildrenThm;
+    vector<unsigned> changed;
+    Theorem thm0;
+    for (int k = 0; k < ar; ++k) {
+      thm0 = find(lhs[k]);
+      if (thm0.getLHS() != thm0.getRHS()) {
+        newChildrenThm.push_back(thm0);
+        changed.push_back(k);
+      }
+    }
+    if(changed.size() > 0) {
+      // lhs = updated_lhs
+      thm0 = substitutivityRule(lhs, changed, newChildrenThm);
+      // lhs = updated_and_rewritten_lhs
+      thm0 = transitivityRule(thm0, rewrite(thm0.getRHS()));
+      // updated_and_rewritten_lhs = rhs
+      thm2 = transitivityRule(symmetryRule(thm0), thm);
+    }
+  }
+  // updated_and_rewritten_lhs = find(rhs)
+  thm2 = transitivityRule(thm2, find(rhs));
+  // canonized EQ
+  thm2 = iffMP(thm2, d_rules->canonBVEQ(thm2.getExpr(), maxEffort));
+  if (thm2.isRewrite() && thm2.getRHS() == lhs && thm2.getLHS() == rhs) {
+    thm2 = thm;
+  }
+  return thm2;
+}
+
+
 Theorem TheoryBitvector::generalBitBlast( const Theorem& thm )
 {
-  //  cout<<"TheoryBitvector::generalBitBlast, thm: "<<thm.toString()<<" to expr(): "<<thm.getExpr().toString()<<endl;
+  // cout<<"TheoryBitvector::generalBitBlast, thm: "<<thm.toString()<<" to expr(): "<<thm.getExpr().toString()<<endl;
   Expr e = thm.getExpr();
   switch (e.getOpKind()) {
     case EQ: {
-      Expr lhs = e[0];
-      if (isLeaf(e[0])) {
-        // This is a solved equation we got after the solving was done and
-        // bitblasted, so just bitblast it.
-        DebugAssert(!isLeafIn(e[0], e[1]), "Expected solved eqn");
-        return iffMP(thm, bitBlastEqn(e));
-      }
- 
-     // Carefully simplify lhs
-      int ar = lhs.arity();
-      DebugAssert(d_bb_index > 0 || ar > 0, "Expected non-leaf");
-      vector<Theorem> newChildrenThm;
-      vector<unsigned> changed;
-      Theorem thm0;
-      for (int k = 0; k < ar; ++k) {
-        thm0 = find(lhs[k]);
-        if (thm0.getLHS() != thm0.getRHS()) {
-          newChildrenThm.push_back(thm0);
-          changed.push_back(k);
+      Theorem thm2 = simplifyPendingEq(thm, 6);
+      const Expr& e2 = thm2.getExpr();
+      switch (e2.getKind()) {
+        case TRUE_EXPR:
+        case FALSE_EXPR:
+          return thm2;
+        case EQ:
+          return iffMP(thm2, bitBlastEqn(thm2.getExpr()));
+        case AND: {
+          DebugAssert(e2.arity() == 2 && e2[0].getKind() == EQ && e2[1].getKind() == EQ,
+                      "Expected two equations");
+          Theorem t1 = bitBlastEqn(e2[0]);
+          Theorem t2 = bitBlastEqn(e2[1]);
+          Theorem thm3 = substitutivityRule(e2, t1, t2);
+          return iffMP(thm2, thm3);
         }
+        default:
+          FatalAssert(false, "Unexpected Expr");
+          break;
       }
-      if(changed.size() > 0) {
-        // lhs = updated_lhs
-        thm0 = substitutivityRule(lhs, changed, newChildrenThm);
-        // lhs = updated_and_rewritten_lhs
-        thm0 = transitivityRule(thm0, rewrite(thm0.getRHS()));
-        // updated_and_rewritten_lhs = 0
-        thm0 = transitivityRule(symmetryRule(thm0), thm);
-        return iffMP(thm0, bitBlastEqn(thm0.getExpr()));
-      }
-      return iffMP(thm, bitBlastEqn(e));
+      break;
     }
     case BVLT:
     case BVLE: {
@@ -2441,12 +2495,18 @@ Theorem TheoryBitvector::generalBitBlast( const Theorem& thm )
         }
       }
       if(changed.size() > 0) {
-        // updated_e[0]
+        // a = b <=> a' = b'
         thm0 = substitutivityRule(e[0], changed, newChildrenThm);
-        thm0 = iffMP(thm, substitutivityRule(e, thm0));
+      }
+      else thm0 = reflexivityRule(e[0]);
+      // a = b <=> canonized EQ
+      thm0 = transitivityRule(thm0, d_rules->canonBVEQ(thm0.getRHS(), 6));
+      // NOT(canonized EQ)
+      thm0 = iffMP(thm, substitutivityRule(e, thm0));
+      if (thm0.getExpr()[0].isEq()) {
         return bitBlastDisEqn(thm0);
       }
-      return bitBlastDisEqn(thm);
+      else return thm0;
     }
     default:
       FatalAssert(false, "TheoryBitvector::generalBitBlast: unknown expression kind");
@@ -2531,14 +2591,25 @@ static bool bvdump = false;
 
 void TheoryBitvector::checkSat(bool fullEffort)
 {
-  if(fullEffort) {
-    
+	if(fullEffort) {
+
+	for (unsigned i = 0; i < additionalRewriteConstraints.size(); i ++)
+		enqueueFact(additionalRewriteConstraints[i]);
+	additionalRewriteConstraints.clear();
+
     if (bvdump) {
       CDList<Theorem>::const_iterator it_list=d_eq.begin();
       unsigned int i;
       for(i=0; i<d_eq.size(); ++i)
       {
         cout<<"d_eq [" << i << "]= "<< it_list[i].getExpr().toString() << endl;
+      }
+
+      it_list=d_eqPending.begin();
+
+      for(i=0; i<d_eqPending.size(); ++i)
+      {
+        cout<<"d_eqPending [" << i << "]= "<< it_list[i].getExpr().toString() << endl;
       }
 
       it_list=d_bitblast.begin();
@@ -2548,15 +2619,63 @@ void TheoryBitvector::checkSat(bool fullEffort)
         cout<<"d_bitblast [" << i << "]= "<< it_list[i].getExpr().toString() << endl;
       }
 
-      if (d_eq.size() || d_bitblast.size()) cout << endl;
+      if (d_eq.size() || d_eqPending.size() || d_bitblast.size()) cout << endl;
     }
 
-    // Bitblast any new formulas
-    unsigned int bb_list_size = d_bitblast.size();
-    bool bbflag = d_bb_index < bb_list_size;
+    unsigned eq_list_size = d_eqPending.size();
+    bool bitBlastEq = d_eq_index < eq_list_size;
+    if (d_bb_index == 0 && bitBlastEq) {
+      bitBlastEq = false;
+      unsigned eqIdx = d_eq_index;
+      for(; eqIdx < eq_list_size; ++eqIdx) {
+        Expr eq = d_eqPending[eqIdx].getExpr();
+        DebugAssert(eq[1] == newBVConstExpr(Rational(0), BVSize(eq[0])), "Expected 0 on rhs");
+        Theorem thm = simplifyPendingEq(d_eqPending[eqIdx], 5);
+        if (thm == d_eqPending[eqIdx]) {
+          bitBlastEq = true;
+          continue;
+        }
+        const Expr& e2 = thm.getExpr();
+        switch (e2.getKind()) {
+          case TRUE_EXPR:
+            break;
+          case FALSE_EXPR:
+            enqueueFact(thm);
+            return;
+          case EQ:
+          case AND:
+            if (simplify(thm.getExpr()).getRHS() == trueExpr()) {
+              bitBlastEq = true;
+              break;
+            }
+            for (; d_eq_index < eqIdx; d_eq_index = d_eq_index + 1) {
+              d_eqPending.push_back(d_eqPending[d_eq_index]);
+            }
+            d_eq_index = d_eq_index + 1;
+            enqueueFact(thm);
+            return;
+          default:
+            FatalAssert(false, "Unexpected expr");
+            break;
+        }
+      }
+    }
+
+   // Bitblast any new formulas
+    unsigned bb_list_size = d_bitblast.size();
+    bool bbflag = d_bb_index < bb_list_size || bitBlastEq;
     if (bbflag) {
       for( ; d_bb_index < bb_list_size; d_bb_index = d_bb_index + 1) {
         Theorem bb_result = generalBitBlast( d_bitblast[ d_bb_index ]);
+        enqueueFact( bb_result);
+      }
+      if (d_bb_index == 0) {
+        // push dummy on the stack to indicate bitblasting has started
+        d_bb_index = 1;
+        d_bitblast.push_back(getCommonRules()->trueTheorem());
+      }
+      for( ; d_eq_index < eq_list_size; d_eq_index = d_eq_index + 1) {
+        Theorem bb_result = generalBitBlast( d_eqPending[ d_eq_index ]);
         enqueueFact( bb_result);
       }
       // If newly bitblasted formulas, skip the shared term check
@@ -2564,7 +2683,6 @@ void TheoryBitvector::checkSat(bool fullEffort)
     }
 
     // Check that all shared terms are distinct
-    unsigned size = d_sharedSubtermsList.size();
     Theorem thm;
     for (; d_index1 < d_sharedSubtermsList.size(); d_index1 = d_index1 + 1, d_index2 = 0) {
       const Expr& e1 = d_sharedSubtermsList[d_index1];
@@ -2626,17 +2744,14 @@ void TheoryBitvector::update(const Theorem& e, const Expr& d) {
   DebugAssert(e.getLHS().getOpKind()!=BVCONST,
 	      "TheoryBitvector::update(e="+e.getExpr().toString()
 	      +", d="+d.toString());
-  Expr lhs = e.getLHS();
-  Expr rhs = e.getRHS();
-
   if (d.isNull()) {
-    CDMap<Expr,Expr>::iterator it = d_sharedSubterms.find(lhs);
-    DebugAssert(it != d_sharedSubterms.end(), "Expected lhs to be shared");
-    if (it != d_sharedSubterms.end()) {
-      CDMap<Expr,Expr>::iterator it2 = d_sharedSubterms.find(rhs);
-      if (it2 == d_sharedSubterms.end()) {
-        addSharedTerm(rhs);
-      }
+    Expr lhs = e.getLHS();
+    Expr rhs = e.getRHS();
+    DebugAssert(d_sharedSubterms.find(lhs) != d_sharedSubterms.end(),
+                "Expected lhs to be shared");
+    CDMap<Expr,Expr>::iterator it = d_sharedSubterms.find(rhs);
+    if (it == d_sharedSubterms.end()) {
+      addSharedTerm(rhs);
     }
     return;
   }
@@ -2656,7 +2771,7 @@ void TheoryBitvector::update(const Theorem& e, const Expr& d) {
 //             DebugAssert(it2 != d_sharedSubterms.end() && (*it2).second == rhs,
 //                         "Invariant violated in TheoryBitvector::update");
 //             changed = true;
-//           }	  
+//           }
 // 	  DebugAssert(findExpr(lhs) == e.getRHS() &&
 // 		      findExpr(rhs) == e.getRHS(), "Unexpected value for finds");
 // 	  // It may be needed to check whether the two terms are the
@@ -2674,7 +2789,7 @@ void TheoryBitvector::update(const Theorem& e, const Expr& d) {
 //             }
 //           }
 
-	  
+
 // 	  // canonize and solve befor asserting it
 // 	  //	  cout<<"TheoryBitvector::update, thm.getRHS(): "<<thm.getRHS()<<" thm.getLHS():"<<thm.getLHS()<<" thm.getExpr():"<<thm.getExpr()<<endl;
 // 	  Theorem rwt_thm = rewrite( thm.getExpr() );
@@ -2683,7 +2798,7 @@ void TheoryBitvector::update(const Theorem& e, const Expr& d) {
 	  //	  assertFact( thm );
 	  //    enqueueFact(iffMP(thm, bitBlastEqn(thm.getExpr())));
 // 	}
-//       else 
+//       else
 // 	{
 // 	  d_sharedSubterms[rhs] = (*it).second;
 // 	}
@@ -2695,10 +2810,12 @@ void TheoryBitvector::update(const Theorem& e, const Expr& d) {
   if (!d.hasFind()) return;
 
   if (find(d).getRHS() == d) {
-    Theorem thm = updateSubterms(d);
-    TRACE("bvupdate", "TheoryArithOld::update(): thm = ", thm, "");
-    DebugAssert(leavesAreSimp(thm.getRHS()), "updateHelper error: "
- 		+thm.getExpr().toString());
+//     Theorem thm = updateSubterms(d);
+//     TRACE("bvupdate", "TheoryArithOld::update(): thm = ", thm, "");
+//     DebugAssert(leavesAreSimp(thm.getRHS()), "updateHelper error: "
+//  		+thm.getExpr().toString());
+    Theorem thm = simplify(d);
+    DebugAssert(thm.getRHS().isAtomic(), "Expected atomic");
     assertEqualities(thm);
   }
 }
@@ -2743,22 +2860,50 @@ Theorem TheoryBitvector::solve(const Theorem& t)
   else if (isLeaf(e[1]) && !isLeafIn(e[1], e[0])) {
     return symmetryRule(t);
   }
+  else if (e[0].getOpKind() == EXTRACT && isLeaf(e[0][0])) {
+    bool solvedForm;
+    Theorem thm;
+    if (d_rules->solveExtractOverlapApplies(e))
+    {
+      thm = iffMP(t, d_rules->solveExtractOverlap(e));
+      solvedForm = true;
+    }
+    else
+      thm = d_rules->processExtract(t, solvedForm);
 
-  Expr bvzero = newBVZeroString(BVSize(e[0]));
+    thm = getCommonRules()->skolemize(thm);
+
+    if (solvedForm) return thm;
+    else {
+      enqueueFact(getCommonRules()->andElim(thm, 1));
+      return getCommonRules()->andElim(thm, 0);
+    }
+  }
+  else if (e[1].getOpKind() == EXTRACT && isLeaf(e[1][0])) {
+    bool solvedForm;
+    Theorem thm = getCommonRules()->skolemize(d_rules->processExtract(symmetryRule(t), solvedForm));
+    if (solvedForm) return thm;
+    else {
+      enqueueFact(getCommonRules()->andElim(thm, 1));
+      return getCommonRules()->andElim(thm, 0);
+    }
+  }
 
   IF_DEBUG(
     Theorem t2 = iffMP(t, d_rules->canonBVEQ(e));
-    if (t2.getExpr()[0] == bvzero && e[0] != bvzero) {
+    if (e[0] < e[1]) {
+      DebugAssert(e[1].getOpKind() == BVCONST,
+                  "Should be only case when lhs < rhs");
       t2 = symmetryRule(t2);
     }
     DebugAssert(t2.getExpr() == e, "Expected no change");
   )
 
-  if (e[1] == bvzero) {
-    return t;
+  if (e[0].getOpKind() == BVCONST) {
+    DebugAssert(e[1].getOpKind() != BVCONST, "should not have const = const");
+    return symmetryRule(t);
   }
-  DebugAssert(e[0] == bvzero, "Expected sum = zero format");
-  return symmetryRule(t);
+  return t;
 }
 
 //   // solving just linear equations; for everything else I just return
@@ -2820,13 +2965,37 @@ Theorem TheoryBitvector::solve(const Theorem& t)
 void TheoryBitvector::checkType(const Expr& e)
 {
   switch (e.getOpKind()) {
-    case BITVECTOR: 
+    case BITVECTOR:
       //TODO: check that this is a well-formed type
       break;
     default:
       FatalAssert(false, "Unexpected kind in TheoryBitvector::checkType"
                   +getEM()->getKindName(e.getOpKind()));
   }
+}
+
+
+Cardinality TheoryBitvector::finiteTypeInfo(Expr& e, Unsigned& n,
+                                            bool enumerate, bool computeSize)
+{
+  FatalAssert(e.getKind() == BITVECTOR,
+              "Unexpected kind in TheoryBitvector::finiteTypeInfo");
+  if (enumerate || computeSize) {
+    int bitwidth = getBitvectorTypeParam(e);
+    Rational max_val = pow( bitwidth, (Rational) 2);
+
+    if (enumerate) {
+      if (n < max_val.getUnsigned()) {
+        e = newBVConstExpr(n, bitwidth);
+      }
+      else e = Expr();
+    }
+
+    if (computeSize) {
+      n = max_val.getUnsigned();
+    }
+  }
+  return CARD_FINITE;
 }
 
 
@@ -2838,12 +3007,12 @@ void TheoryBitvector::computeType(const Expr& e)
         if(!(1 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
           throw TypecheckException("Type Checking error:"\
-                                   "attempted extraction from non-bitvector \n"+ 
+                                   "attempted extraction from non-bitvector \n"+
                                    e.toString());
         int extractLength = getBoolExtractIndex(e);
         if(!(0 <= extractLength))
           throw TypecheckException("Type Checking error: \n"
-                                   "attempted out of range extraction  \n"+ 
+                                   "attempted out of range extraction  \n"+
                                    e.toString());
         e.setType(boolType());
         break;
@@ -2861,7 +3030,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
       }
       case EXTRACT:{
-        if(!(1 == e.arity() && 
+        if(!(1 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
           throw TypecheckException
             ("Not a bit-vector expression in bit-vector extraction:\n\n  "
@@ -2869,7 +3038,7 @@ void TheoryBitvector::computeType(const Expr& e)
         int bvLength = BVSize(e[0]);
         int leftExtract = getExtractHi(e);
         int rightExtract = getExtractLow(e);
-        if(!(0 <= rightExtract && 
+        if(!(0 <= rightExtract &&
              rightExtract <= leftExtract && leftExtract < bvLength))
           throw TypecheckException
             ("Wrong bounds in bit-vector extract:\n\n  "+e.toString());
@@ -2894,7 +3063,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
       }
       case LEFTSHIFT: {
-        if(!(1 == e.arity() && 
+        if(!(1 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
           throw TypecheckException
             ("Not a bit-vector expression in bit-vector shift:\n\n  "
@@ -2910,7 +3079,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
       }
       case CONST_WIDTH_LEFTSHIFT: {
-        if(!(1 == e.arity() && 
+        if(!(1 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
           throw TypecheckException
             ("Not a bit-vector expression in bit-vector shift:\n\n  "
@@ -2925,7 +3094,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
       }
       case RIGHTSHIFT: {
-        if(!(1 == e.arity() && 
+        if(!(1 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
           throw TypecheckException
             ("Not a bit-vector expression in bit-vector shift:\n\n  "
@@ -2940,7 +3109,7 @@ void TheoryBitvector::computeType(const Expr& e)
         e.setType(bvType);
         break;
       }
-      case BVTYPEPRED:    
+      case BVTYPEPRED:
         e.setType(boolType());
         break;
       case SX: {
@@ -3024,7 +3193,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
       }
       case CONCAT: {
-        if(e.arity() < 2) 
+        if(e.arity() < 2)
           throw TypecheckException
             ("Concatenation must have at least 2 bit-vectors:\n\n  "+e.toString());
 
@@ -3050,8 +3219,8 @@ void TheoryBitvector::computeType(const Expr& e)
         string kindStr((e.getOpKind()==BVAND)? "AND" :
                        ((e.getOpKind()==BVOR)? "OR" :
                         ((e.getOpKind()==BVXOR)? "BVXOR" : "BVXNOR")));
-          
-        if(e.arity() < 2) 
+
+        if(e.arity() < 2)
           throw TypecheckException
             ("Bit-wise "+kindStr+" must have at least 2 bit-vectors:\n\n  "
              +e.toString());
@@ -3081,7 +3250,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
       }
       case BVNEG:{
-        if(!(1 == e.arity() && 
+        if(!(1 == e.arity() &&
              BITVECTOR == getBaseType(e[0]).getExpr().getOpKind()))
           throw TypecheckException
             ("Not a bit-vector expression in bit-wise negation:\n\n  "
@@ -3153,7 +3322,7 @@ void TheoryBitvector::computeType(const Expr& e)
         break;
     }
   }
-  TRACE("bitvector", "TheoryBitvector::computeType => ", e.getType(), " }"); 
+  TRACE("bitvector", "TheoryBitvector::computeType => ", e.getType(), " }");
 }
 
 
@@ -3191,7 +3360,7 @@ void TheoryBitvector::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
     return;
   default: break; // It's a variable; continue processing
   }
-  
+
   Type tp(e.getType());
   switch(tp.getExpr().getOpKind()) {
   case BITVECTOR: {
@@ -3243,7 +3412,7 @@ void TheoryBitvector::computeModel(const Expr& e, std::vector<Expr>& v) {
     return;
   default: break; // It's a variable; continue processing
   }
-  
+
   Type tp(e.getType());
   switch(tp.getExpr().getOpKind()) {
   case BITVECTOR: {
@@ -3253,7 +3422,7 @@ void TheoryBitvector::computeModel(const Expr& e, std::vector<Expr>& v) {
     // rules. For now, just create a new assignment.
     for(int i=0; i<n; i++) {
       Theorem val(getModelValue(newBoolExtractExpr(e, i)));
-      DebugAssert(val.getRHS().isBoolConst(), 
+      DebugAssert(val.getRHS().isBoolConst(),
 		  "TheoryBitvector::computeModel: unassigned bit: "
 		  +val.getExpr().toString());
       bits.push_back(val.getRHS().isTrue());
@@ -3270,6 +3439,7 @@ void TheoryBitvector::computeModel(const Expr& e, std::vector<Expr>& v) {
 }
 
 
+// TODO: get rid of this - don't need type predicates for bv's, just need to share the right terms
 Expr
 TheoryBitvector::computeTypePred(const Type& t, const Expr& e) {
   DebugAssert(t.getExpr().getOpKind() == BITVECTOR,
@@ -3278,18 +3448,10 @@ TheoryBitvector::computeTypePred(const Type& t, const Expr& e) {
 //   case BVCONST:
 //     return getEM()->trueExpr();
 //   default:
-    return newBitvectorTypePred(t, e);
+  return e.getEM()->trueExpr();
+
+  //    return newBitvectorTypePred(t, e);
     //  }
-}
-
-
-Expr
-TheoryBitvector::computeTCC(const Expr& e) {
-  Expr tcc(Theory::computeTCC(e));
-  //switch(e.getOpKind()) {
-  //default:
-    return tcc;
-  //}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3335,7 +3497,7 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       os << getExtractLow(e) << push << "]";
       break;
     case BOOLEXTRACT:
-      os << "BOOLEXTRACT(" << push  << e[0] << "," 
+      os << "BOOLEXTRACT(" << push  << e[0] << ","
 	 << getBoolExtractIndex(e) << push << ")";
       break;
 
@@ -3374,7 +3536,7 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       os << "BVROTR(" << push << e[0] << "," << getBVIndex(e) << push << ")";
       break;
     case SX:
-      os << "SX(" << push  << e[0] << "," 
+      os << "SX(" << push  << e[0] << ","
 	 << push <<  getSXIndex(e) << ")";
       break;
 
@@ -3460,20 +3622,26 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       os << push << ")";
       break;
     case BVSUB:
-      os << "BVSUB(" << push << e[0] << "," << e[1] << push << ")";
+      os << "BVSUB(" << push << BVSize(e) << "," << e[0] << "," << e[1] << push << ")";
       break;
     case BVMULT:
-      os << "BVMULT(" << push
-	 << getBVMultParam(e) << "," << e[0] << "," << e[1]<<push<<")"; 
+      os << "BVMULT(" << push << getBVMultParam(e) << "," << e[0] << "," << e[1]<<push<<")";
       break;
     case BVUDIV:
+        os << "BVUDIV(" << push << e[0] << "," << e[1]<<push<<")";
+        break;
     case BVSDIV:
+        os << "BVSDIV(" << push << e[0] << "," << e[1]<<push<<")";
+        break;
     case BVUREM:
+        os << "BVUREM(" << push << e[0] << "," << e[1]<<push<<")";
+        break;
     case BVSREM:
+        os << "BVSREM(" << push << e[0] << "," << e[1]<<push<<")";
+        break;
     case BVSMOD:
-      //      FatalAssert(false, "Operators not implemented yet");
-      break;
-
+        os << "BVSMOD(" << push << e[0] << "," << e[1]<<push<<")";
+        break;
     case BVLT:
       os << "BVLT(" << push << e[0] << "," << e[1] << push << ")";
       break;
@@ -3558,7 +3726,7 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       os << space << push << e[0] << push << ")";
       break;
     case BOOLEXTRACT:
-      os << "(=" << space << push 
+      os << "(=" << space << push
          << "(extract[" << getBoolExtractIndex(e) << ":" << getBoolExtractIndex(e) << "]";
       os << space << push << e[0] << push << ")" << space << "bit1" << push << ")";
       break;
@@ -3812,31 +3980,31 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
 {
   d_theoryUsed = true;
   TRACE("parser", "TheoryBitvector::parseExprOp(", e, ")");
-  
+
   // If the expression is not a list, it must have been already
   // parsed, so just return it as is.
   if(RAW_LIST != e.getKind()) return e;
 
-  if(!(e.arity() > 0))      
+  if(!(e.arity() > 0))
     throw ParserException("TheoryBitvector::parseExprOp: wrong input:\n\n"
 			  +e.toString());
-  
+
   const Expr& c1 = e[0][0];
   int kind = getEM()->getKind(c1.getString());
   switch(kind) {
 
   case BITVECTOR:
     if(!(e.arity() == 2))
-      throw ParserException("TheoryBitvector::parseExprOp: BITVECTOR" 
-			    "kind should have exactly 1 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BITVECTOR"
+			    "kind should have exactly 1 arg:\n\n"
+			    + e.toString());
     if(!(e[1].isRational() && e[1].getRational().isInteger()))
-      throw ParserException("BITVECTOR TYPE must have an integer constant" 
+      throw ParserException("BITVECTOR TYPE must have an integer constant"
 			    "as its first argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[1].getRational().getInt() >=0 ))
       throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
+			    +e.toString());
     return newBitvectorTypeExpr(e[1].getRational().getInt());
     break;
 
@@ -3872,8 +4040,8 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
 
   case CONCAT: {
     if(!(e.arity() >= 3))
-      throw ParserException("TheoryBitvector::parseExprOp: CONCAT" 
-			    "kind should have at least 2 args:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: CONCAT"
+			    "kind should have at least 2 args:\n\n"
 			    + e.toString());
     vector<Expr> kids;
     Expr::iterator i=e.begin(), iend=e.end();
@@ -3886,35 +4054,35 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   }
   case EXTRACT: {
     if(!(e.arity() == 4))
-      throw ParserException("TheoryBitvector::parseExprOp: EXTRACT" 
-			    "kind should have exactly 3 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: EXTRACT"
+			    "kind should have exactly 3 arg:\n\n"
+			    + e.toString());
     if(!e[1].isRational() || !e[1].getRational().isInteger())
       throw ParserException("EXTRACT must have an integer constant as its "
 			    "1st argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!e[2].isRational() || !e[2].getRational().isInteger())
       throw ParserException("EXTRACT must have an integer constant as its "
 			    "2nd argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     int hi = e[1].getRational().getInt();
     int lo = e[2].getRational().getInt();
     if(!(hi >= lo && lo >=0))
       throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
+			    +e.toString());
 
     // Check for extract of left shift
     Expr arg = e[3];
     if (lo == 0 && arg.getKind() == RAW_LIST && arg[0].getKind() == ID &&
         getEM()->getKind(arg[0][0].getString()) == LEFTSHIFT) {
       if(!(arg.arity() == 3))
-        throw ParserException("TheoryBitvector::parseExprOp: LEFTSHIFT" 
-                              "kind should have exactly 2 arg:\n\n" 
-                              + arg.toString());    
+        throw ParserException("TheoryBitvector::parseExprOp: LEFTSHIFT"
+                              "kind should have exactly 2 arg:\n\n"
+                              + arg.toString());
       if(!arg[2].isRational() || !arg[2].getRational().isInteger())
         throw ParserException("LEFTSHIFT must have an integer constant as its "
                               "2nd argument:\n\n"
-                              +arg.toString());    
+                              +arg.toString());
       if(!(arg[2].getRational().getInt() >=0 ))
         throw ParserException("parameter must be an integer constant >= 0.\n"
                               +arg.toString());
@@ -3928,59 +4096,59 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   }
   case BOOLEXTRACT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BOOLEXTRACT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BOOLEXTRACT"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     if(!e[2].isRational() || !e[2].getRational().isInteger())
       throw ParserException("BOOLEXTRACT must have an integer constant as its"
 			    " 2nd argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[2].getRational().getInt() >=0 ))
       throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
+			    +e.toString());
     return newBoolExtractExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
 
   case LEFTSHIFT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: LEFTSHIFT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: LEFTSHIFT"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     if(!e[2].isRational() || !e[2].getRational().isInteger())
       throw ParserException("LEFTSHIFT must have an integer constant as its "
 			    "2nd argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[2].getRational().getInt() >=0 ))
       throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
+			    +e.toString());
     return newFixedLeftShiftExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
   case CONST_WIDTH_LEFTSHIFT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: CONST_WIDTH_LEFTSHIFT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: CONST_WIDTH_LEFTSHIFT"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     if(!e[2].isRational() || !e[2].getRational().isInteger())
       throw ParserException("CONST_WIDTH_LEFTSHIFT must have an integer constant as its "
 			    "2nd argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[2].getRational().getInt() >=0 ))
       throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
+			    +e.toString());
     return newFixedConstWidthLeftShiftExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
   case RIGHTSHIFT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: RIGHTSHIFT" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: RIGHTSHIFT"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     if(!e[2].isRational() || !e[2].getRational().isInteger())
       throw ParserException("RIGHTSHIFT must have an integer constant as its "
 			    "2nd argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[2].getRational().getInt() >=0 ))
       throw ParserException("parameter must be an integer constant >= 0.\n"
-			    +e.toString());    
+			    +e.toString());
     return newFixedRightShiftExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
   // BVSHL, BVLSHR, BVASHR handled with arith operators below
@@ -3995,7 +4163,7 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
       if(!e[2].isRational() || !e[2].getRational().isInteger())
         throw ParserException("sign_extend must have an integer constant as its"
                               " 1st argument:\n\n"
-                              +e.toString());    
+                              +e.toString());
       if(!(e[2].getRational().getInt() >=0 ))
         throw ParserException("sign_extend must have an integer constant as its"
                               " 1st argument >= 0:\n\n"
@@ -4004,17 +4172,17 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
       return newSXExpr(e3, BVSize(e3) + e[2].getRational().getInt());
     }
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: SX" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: SX"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     if(!e[2].isRational() || !e[2].getRational().isInteger())
       throw ParserException("SX must have an integer constant as its"
 			    " 2nd argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[2].getRational().getInt() >=0 ))
       throw ParserException("SX must have an integer constant as its"
 			    " 2nd argument >= 0:\n\n"
-			    +e.toString());    
+			    +e.toString());
     return newSXExpr(parseExpr(e[1]), e[2].getRational().getInt());
     break;
   case BVROTL:
@@ -4022,17 +4190,17 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   case BVREPEAT:
   case BVZEROEXTEND:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp:" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp:"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     if(!e[1].isRational() || !e[1].getRational().isInteger())
       throw ParserException("BVIndexExpr must have an integer constant as its"
 			    " 1st argument:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if (kind == BVREPEAT && !(e[1].getRational().getInt() >0 ))
       throw ParserException("BVREPEAT must have an integer constant as its"
 			    " 1st argument > 0:\n\n"
-			    +e.toString());    
+			    +e.toString());
     if(!(e[1].getRational().getInt() >=0 ))
       throw ParserException("BVIndexExpr must have an integer constant as its"
 			    " 1st argument >= 0:\n\n"
@@ -4042,8 +4210,8 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
 
   case BVAND: {
     if(!(e.arity() >= 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVAND " 
-			    "kind should have at least 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVAND "
+			    "kind should have at least 2 arg:\n\n"
 			    + e.toString());
     vector<Expr> kids;
     for(int i=1, iend=e.arity(); i<iend; ++i)
@@ -4053,8 +4221,8 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   }
   case BVOR: {
     if(!(e.arity() >= 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVOR " 
-			    "kind should have at least 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVOR "
+			    "kind should have at least 2 arg:\n\n"
 			    + e.toString());
     vector<Expr> kids;
     for(int i=1, iend=e.arity(); i<iend; ++i)
@@ -4064,55 +4232,55 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   }
   case BVXOR: {
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVXOR " 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVXOR "
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
     return newBVXorExpr(parseExpr(e[1]), parseExpr(e[2]));
     break;
   }
   case BVXNOR: {
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     return newBVXnorExpr(parseExpr(e[1]), parseExpr(e[2]));
     break;
   }
   case BVNEG:
     if(!(e.arity() == 2))
-      throw ParserException("TheoryBitvector::parseExprOp: BVNEG" 
-			    "kind should have exactly 1 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BVNEG"
+			    "kind should have exactly 1 arg:\n\n"
+			    + e.toString());
     return newBVNegExpr(parseExpr(e[1]));
     break;
   case BVNAND:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVNAND" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVNAND"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
     return newBVNandExpr(parseExpr(e[1]), parseExpr(e[2]));
     break;
   case BVNOR:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVNOR" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVNOR"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
     return newBVNorExpr(parseExpr(e[1]), parseExpr(e[2]));
     break;
   case BVCOMP: {
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR" 
-			    "kind should have exactly 2 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BVXNOR"
+			    "kind should have exactly 2 arg:\n\n"
+			    + e.toString());
     return newBVCompExpr(parseExpr(e[1]), parseExpr(e[2]));
     break;
   }
 
   case BVUMINUS:
     if(!(e.arity() == 2))
-      throw ParserException("TheoryBitvector::parseExprOp: BVUMINUS" 
-			    "kind should have exactly 1 arg:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BVUMINUS"
+			    "kind should have exactly 1 arg:\n\n"
+			    + e.toString());
     return newBVUminusExpr(parseExpr(e[1]));
     break;
   case BVPLUS: {
@@ -4143,11 +4311,11 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
            +e.toString());
       if(!(e[1].getRational().getInt() > 0))
         throw ParserException("parameter must be an integer constant > 0.\n"
-                              +e.toString());    
+                              +e.toString());
       // Skip first two elements of the vector of kids in 'e'.
       // The first element is the kind, and the second is the
       // numOfBits of the bvplus operator.
-      ++i;++i; 
+      ++i;++i;
       // Parse the kids of e and push them into the vector 'k'
       for(; i!=iend; ++i) k.push_back(parseExpr(*i));
       return newBVPlusPadExpr(e[1].getRational().getInt(), k);
@@ -4173,7 +4341,7 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
 			    +e.toString());
     if (!(e[1].getRational().getInt() > 0))
       throw ParserException("parameter must be an integer constant > 0.\n"
-                            +e.toString());    
+                            +e.toString());
     int bvsublength = e[1].getRational().getInt();
     Expr summand1 = parseExpr(e[2]);
     summand1 = pad(bvsublength, summand1);
@@ -4187,10 +4355,10 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
     Expr::iterator i = e.begin(), iend=e.end();
     if (!e[1].isRational()) {
       if (e.arity() != 3) {
-        throw ParserException("TheoryBitvector::parseExprOp: BVMULT: " 
-                              "expected exactly 2 args:\n\n" 
+        throw ParserException("TheoryBitvector::parseExprOp: BVMULT: "
+                              "expected exactly 2 args:\n\n"
                               + e.toString());
-      } 
+      }
       int maxsize = 0;
       Expr child;
       // Parse the kids of e and push them into the vector 'k'
@@ -4206,17 +4374,17 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
       return newBVMultPadExpr(maxsize, k[0], k[1]);
     }
     if(!(e.arity() == 4))
-      throw ParserException("TheoryBitvector::parseExprOp: BVMULT: " 
-			    "expected exactly 3 args:\n\n" 
-			    + e.toString());    
+      throw ParserException("TheoryBitvector::parseExprOp: BVMULT: "
+			    "expected exactly 3 args:\n\n"
+			    + e.toString());
     if(!e[1].isRational() || !e[1].getRational().isInteger())
-      throw ParserException("BVMULT: expected integer constant" 
+      throw ParserException("BVMULT: expected integer constant"
 			    "as first argument:\n\n"
 			    +e.toString());
     if(!(e[1].getRational().getInt() > 0))
       throw ParserException("parameter must be an integer constant > 0.\n"
-			    +e.toString());        
-    return newBVMultPadExpr(e[1].getRational().getInt(), 
+			    +e.toString());
+    return newBVMultPadExpr(e[1].getRational().getInt(),
                             parseExpr(e[2]), parseExpr(e[3]));
     break;
   }
@@ -4225,8 +4393,6 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   case BVUREM:
   case BVSREM:
   case BVSMOD:
-    throw ParserException("operator not implemented");
-    break;
   case BVSHL:
   case BVASHR:
   case BVLSHR: {
@@ -4260,59 +4426,59 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
 
   case BVLT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLT" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVLT"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVLTExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    return newBVLTExpr(parseExpr(e[1]),parseExpr(e[2]));
     break;
   case BVLE:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLE" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVLE"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVLEExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    return newBVLEExpr(parseExpr(e[1]),parseExpr(e[2]));
     break;
   case BVGT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGT" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVGT"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVLTExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    return newBVLTExpr(parseExpr(e[2]),parseExpr(e[1]));
     break;
   case BVGE:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGE" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVGE"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVLEExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    return newBVLEExpr(parseExpr(e[2]),parseExpr(e[1]));
     break;
   case BVSLT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLT" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVLT"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVSLTExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    return newBVSLTExpr(parseExpr(e[1]),parseExpr(e[2]));
     break;
   case BVSLE:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVLE" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVLE"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVSLEExpr(parseExpr(e[1]),parseExpr(e[2]));    
+    return newBVSLEExpr(parseExpr(e[1]),parseExpr(e[2]));
     break;
   case BVSGT:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGT" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVGT"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVSLTExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    return newBVSLTExpr(parseExpr(e[2]),parseExpr(e[1]));
     break;
   case BVSGE:
     if(!(e.arity() == 3))
-      throw ParserException("TheoryBitvector::parseExprOp: BVGE" 
-			    "kind should have exactly 2 arg:\n\n" 
+      throw ParserException("TheoryBitvector::parseExprOp: BVGE"
+			    "kind should have exactly 2 arg:\n\n"
 			    + e.toString());
-    return newBVSLEExpr(parseExpr(e[2]),parseExpr(e[1]));    
+    return newBVSLEExpr(parseExpr(e[2]),parseExpr(e[1]));
     break;
 
   case INTTOBV:
@@ -4325,7 +4491,7 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
   case BVTYPEPRED:
     throw ParserException("BVTYPEPRED is used internally");
     break;
-    
+
   default:
     FatalAssert(false,
 		"TheoryBitvector::parseExprOp: unrecognized input operator"
@@ -4511,7 +4677,7 @@ Expr TheoryBitvector::newBVXnorExpr(const Expr& t1, const Expr& t2)
   return Expr(CVC3::BVXNOR, t1, t2);
 }
 
- 
+
 Expr TheoryBitvector::newBVCompExpr(const Expr& t1, const Expr& t2)
 {
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
@@ -4526,7 +4692,7 @@ Expr TheoryBitvector::newBVCompExpr(const Expr& t1, const Expr& t2)
   return Expr(CVC3::BVCOMP, t1, t2);
 }
 
- 
+
 Expr TheoryBitvector::newBVXnorExpr(const vector<Expr>& kids)
 {
   DebugAssert(kids.size() >= 2,
@@ -4573,7 +4739,7 @@ Expr TheoryBitvector::newBVLEExpr(const Expr& t1, const Expr& t2)
 Expr TheoryBitvector::newSXExpr(const Expr& t1, int len)
 {
   DebugAssert(len >=0,
-	      " TheoryBitvector::newSXExpr:" 
+	      " TheoryBitvector::newSXExpr:"
 	      "SX index must be a non-negative integer"+
 	      int2string(len));
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
@@ -4590,7 +4756,7 @@ Expr TheoryBitvector::newBVIndexExpr(int kind, const Expr& t1, int len)
   DebugAssert(kind != BVREPEAT || len > 0,
               "repeat requires index > 0");
   DebugAssert(len >=0,
-	      "TheoryBitvector::newBVIndexExpr:" 
+	      "TheoryBitvector::newBVIndexExpr:"
 	      "index must be a non-negative integer"+
 	      int2string(len));
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
@@ -4646,7 +4812,7 @@ Expr TheoryBitvector::newBVUminusExpr(const Expr& t1)
 Expr TheoryBitvector::newBoolExtractExpr(const Expr& t1, int index)
 {
   DebugAssert(index >=0,
-	      " TheoryBitvector::newBoolExtractExpr:" 
+	      " TheoryBitvector::newBoolExtractExpr:"
 	      "bool_extract index must be a non-negative integer"+
 	      int2string(index));
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
@@ -4660,7 +4826,7 @@ Expr TheoryBitvector::newBoolExtractExpr(const Expr& t1, int index)
 Expr TheoryBitvector::newFixedLeftShiftExpr(const Expr& t1, int shiftLength)
 {
   DebugAssert(shiftLength >=0,
-	      " TheoryBitvector::newFixedleftshift:" 
+	      " TheoryBitvector::newFixedleftshift:"
 	      "fixed_shift index must be a non-negative integer"+
 	      int2string(shiftLength));
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
@@ -4674,7 +4840,7 @@ Expr TheoryBitvector::newFixedLeftShiftExpr(const Expr& t1, int shiftLength)
 Expr TheoryBitvector::newFixedConstWidthLeftShiftExpr(const Expr& t1, int shiftLength)
 {
   DebugAssert(shiftLength >=0,
-	      " TheoryBitvector::newFixedConstWidthLeftShift:" 
+	      " TheoryBitvector::newFixedConstWidthLeftShift:"
 	      "fixed_shift index must be a non-negative integer"+
 	      int2string(shiftLength));
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
@@ -4688,7 +4854,7 @@ Expr TheoryBitvector::newFixedConstWidthLeftShiftExpr(const Expr& t1, int shiftL
 Expr TheoryBitvector::newFixedRightShiftExpr(const Expr& t1, int shiftLength)
 {
   DebugAssert(shiftLength >=0,
-	      " TheoryBitvector::newFixedRightShift:" 
+	      " TheoryBitvector::newFixedRightShift:"
 	      "fixed_shift index must be a non-negative integer"+
 	      int2string(shiftLength));
   DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind(),
@@ -4719,8 +4885,8 @@ Expr TheoryBitvector::newConcatExpr(const Expr& t1, const Expr& t2,
 	      BITVECTOR == t3.getType().getExpr().getOpKind(),
 	      "TheoryBitvector::newBVConcatExpr:"
 	      "inputs must have type BITVECTOR:\n t1 = " +
-	      t1.toString() + 
-	      "\n t2 = " +t2.toString() + 
+	      t1.toString() +
+	      "\n t2 = " +t2.toString() +
 	      "\n t3 =" + t3.toString());
   return Expr(CONCAT, t1, t2, t3);
 }
@@ -4792,12 +4958,66 @@ Expr TheoryBitvector::newBVMultPadExpr(int bvLength,
   return newBVMultExpr(bvLength, pad(bvLength, t1), pad(bvLength, t2));
 }
 
+Expr TheoryBitvector::newBVUDivExpr(const Expr& t1, const Expr& t2)
+{
+	  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+		      BITVECTOR == t2.getType().getExpr().getOpKind(),
+		      "TheoryBitvector::newBVUDivExpr:"
+		      "inputs must have type BITVECTOR:\n t1 = " +
+		      t1.toString() + "\n t2 = " +t2.toString());
+	  DebugAssert(BVSize(t2) == BVSize(t1), "Expected same length");
+	  return Expr(BVUDIV, t1, t2);
+}
+
+Expr TheoryBitvector::newBVURemExpr(const Expr& t1, const Expr& t2)
+{
+	  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+		      BITVECTOR == t2.getType().getExpr().getOpKind(),
+		      "TheoryBitvector::newBVURemExpr:"
+		      "inputs must have type BITVECTOR:\n t1 = " +
+		      t1.toString() + "\n t2 = " +t2.toString());
+	  DebugAssert(BVSize(t2) == BVSize(t1), "Expected same length");
+	  return Expr(BVUREM, t1, t2);
+}
+
+Expr TheoryBitvector::newBVSDivExpr(const Expr& t1, const Expr& t2)
+{
+	  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+		      BITVECTOR == t2.getType().getExpr().getOpKind(),
+		      "TheoryBitvector::newBVSDivExpr:"
+		      "inputs must have type BITVECTOR:\n t1 = " +
+		      t1.toString() + "\n t2 = " +t2.toString());
+	  DebugAssert(BVSize(t1) == BVSize(t2), "Expected same length");
+	  return Expr(BVSDIV, t1, t2);
+}
+
+Expr TheoryBitvector::newBVSRemExpr(const Expr& t1, const Expr& t2)
+{
+	  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+		      BITVECTOR == t2.getType().getExpr().getOpKind(),
+		      "TheoryBitvector::newBVSRemExpr:"
+		      "inputs must have type BITVECTOR:\n t1 = " +
+		      t1.toString() + "\n t2 = " +t2.toString());
+	  DebugAssert(BVSize(t1) == BVSize(t2), "Expected same length");
+	  return Expr(BVSREM, t1, t2);
+}
+
+Expr TheoryBitvector::newBVSModExpr(const Expr& t1, const Expr& t2)
+{
+	  DebugAssert(BITVECTOR == t1.getType().getExpr().getOpKind() &&
+		      BITVECTOR == t2.getType().getExpr().getOpKind(),
+		      "TheoryBitvector::newBVSModExpr:"
+		      "inputs must have type BITVECTOR:\n t1 = " +
+		      t1.toString() + "\n t2 = " +t2.toString());
+	  DebugAssert(BVSize(t1) == BVSize(t2), "Expected same length");
+	  return Expr(BVSMOD, t1, t2);
+}
 
 //! produces a string of 0's of length bvLength
 Expr TheoryBitvector::newBVZeroString(int bvLength)
 {
   DebugAssert(bvLength > 0,
-	      "TheoryBitvector::newZeroBVExpr:must be >= 0: "
+	      "TheoryBitvector::newBVZeroString:must be >= 0: "
 	      + int2string(bvLength));
   std::vector<bool> bits;
   for(int count=0; count < bvLength; count++) {
@@ -4811,7 +5031,7 @@ Expr TheoryBitvector::newBVZeroString(int bvLength)
 Expr TheoryBitvector::newBVOneString(int bvLength)
 {
   DebugAssert(bvLength > 0,
-	      "TheoryBitvector::newOneBVExpr:must be >= 0: "
+	      "TheoryBitvector::newBVOneString:must be >= 0: "
 	      + int2string(bvLength));
   std::vector<bool> bits;
   for(int count=0; count < bvLength; count++) {
@@ -4855,10 +5075,10 @@ Expr TheoryBitvector::newBVConstExpr(const Rational& r, int bvLength)
     }
 
     res = newBVConstExpr(s, 2);
-  } 
+  }
   else
     res = newBVConstExpr(s, 2);
-  
+
   return res;
 }
 
@@ -4868,7 +5088,7 @@ Expr TheoryBitvector::newBVConstExpr(const std::string& s, int base)
   DebugAssert(s.size() > 0,
 	      "TheoryBitvector::newBVConstExpr:"
 	      "# of subterms must be at least 2");
-  DebugAssert(base == 2 || base == 16, 
+  DebugAssert(base == 2 || base == 16,
 	      "TheoryBitvector::newBVConstExpr: base = "
 	      +int2string(base));
   //hexadecimal
@@ -4876,7 +5096,7 @@ Expr TheoryBitvector::newBVConstExpr(const std::string& s, int base)
   if(16 == base) {
     Rational r(str, 16);
     return newBVConstExpr(r, str.size()*4);
-  } 
+  }
   else {
     BVConstExpr bv(getEM(), str, d_bvConstExprIndex);
     return getEM()->newExpr(&bv);
@@ -4884,15 +5104,15 @@ Expr TheoryBitvector::newBVConstExpr(const std::string& s, int base)
 }
 
 
-Expr 
+Expr
 TheoryBitvector::
 newBVExtractExpr(const Expr& e, int hi, int low)
 {
   DebugAssert(low>=0 && hi>=low,
-	      " TheoryBitvector::newBVExtractExpr: " 
-	      "bad bv_extract indices: hi = " 
+	      " TheoryBitvector::newBVExtractExpr: "
+	      "bad bv_extract indices: hi = "
 	      + int2string(hi)
-	      + ", low = " 
+	      + ", low = "
 	      + int2string(low));
   if (e.getOpKind() == LEFTSHIFT &&
       hi == BVSize(e[0])-1 &&
@@ -4927,7 +5147,7 @@ Expr TheoryBitvector::newBVSubExpr(const Expr& t1, const Expr& t2)
 Expr TheoryBitvector::newBVPlusExpr(int bvLength, const Expr& k1, const Expr& k2)
 {
   DebugAssert(bvLength > 0,
-	      " TheoryBitvector::newBVPlusExpr:" 
+	      " TheoryBitvector::newBVPlusExpr:"
 	      "bvplus length must be a positive integer: "+
 	      int2string(bvLength));
   DebugAssert(BITVECTOR == k1.getType().getExpr().getOpKind(),
@@ -4945,15 +5165,15 @@ Expr TheoryBitvector::newBVPlusExpr(int bvLength, const Expr& k1, const Expr& k2
 }
 
 
-Expr TheoryBitvector::newBVPlusExpr(int bvLength, 
+Expr TheoryBitvector::newBVPlusExpr(int bvLength,
 				    const vector<Expr>& k)
 {
   DebugAssert(bvLength > 0,
-	      " TheoryBitvector::newBVPlusExpr:" 
+	      " TheoryBitvector::newBVPlusExpr:"
 	      "bvplus length must be a positive integer: "+
 	      int2string(bvLength));
   DebugAssert(k.size() > 1,
-	      " TheoryBitvector::newBVPlusExpr:" 
+	      " TheoryBitvector::newBVPlusExpr:"
 	      " size of input vector must be greater than 0: ");
   for(unsigned int i=0; i<k.size(); ++i) {
     DebugAssert(BITVECTOR == k[i].getType().getExpr().getOpKind(),
@@ -4966,7 +5186,7 @@ Expr TheoryBitvector::newBVPlusExpr(int bvLength,
 }
 
 
-Expr TheoryBitvector::newBVPlusPadExpr(int bvLength, 
+Expr TheoryBitvector::newBVPlusPadExpr(int bvLength,
                                        const vector<Expr>& k)
 {
   vector<Expr> newKids;
@@ -5080,7 +5300,6 @@ int TheoryBitvector::getBVPlusParam(const Expr& e)
   return e.getOpExpr()[0].getRational().getInt();
 }
 
-
 int TheoryBitvector::getBVMultParam(const Expr& e)
 {
   DebugAssert(BVMULT == e.getOpKind() && e.isApply(),
@@ -5088,7 +5307,6 @@ int TheoryBitvector::getBVMultParam(const Expr& e)
 	      e.toString(AST_LANG));
   return e.getOpExpr()[0].getRational().getInt();
 }
-
 
 unsigned TheoryBitvector::getBVConstSize(const Expr& e)
 {
@@ -5118,7 +5336,7 @@ Expr TheoryBitvector::signed_newBVConstExpr( Rational c, int bv_size)
     {
       c = -c;
       Expr tmp = newBVConstExpr( c, bv_size);
-      Rational neg_tmp = computeNegBVConst( tmp );      
+      Rational neg_tmp = computeNegBVConst( tmp );
       return newBVConstExpr( neg_tmp, bv_size );
     }
 }
@@ -5128,7 +5346,7 @@ Expr TheoryBitvector::signed_newBVConstExpr( Rational c, int bv_size)
 Rational TheoryBitvector::computeBVConst(const Expr& e)
 {
   DebugAssert(BVCONST == e.getKind(),
-	      "TheoryBitvector::computeBVConst:" 
+	      "TheoryBitvector::computeBVConst:"
 	      "input must be a BITVECTOR CONST: " + e.toString());
   if(*d_bv32Flag) {
     int c(0);
@@ -5149,7 +5367,7 @@ Rational TheoryBitvector::computeBVConst(const Expr& e)
 Rational TheoryBitvector::computeNegBVConst(const Expr& e)
 {
   DebugAssert(BVCONST == e.getKind(),
-	      "TheoryBitvector::computeBVConst:" 
+	      "TheoryBitvector::computeBVConst:"
 	      "input must be a BITVECTOR CONST: " + e.toString());
   if(*d_bv32Flag) {
     int c(0);
@@ -5181,12 +5399,12 @@ BVConstExpr::BVConstExpr(ExprManager* em, std::string bvconst,
   DebugAssert(bvconst.size() > 0,
 	      "TheoryBitvector::newBVConstExpr:"
 	      "# of subterms must be at least 2");
-  
+
   for(;i != iend; ++i) {
     TRACE("bitvector", "BVConstExpr: bit ", *i, "");
     if('0' == *i)
       d_bvconst.push_back(false);
-    else { 
+    else {
       if('1' == *i)
 	d_bvconst.push_back(true);
       else
@@ -5206,17 +5424,92 @@ BVConstExpr::BVConstExpr(ExprManager* em, std::vector<bool> bvconst,
 	", d_bvconst.size = "+int2string(d_bvconst.size()));
 }
 
-  
+
 size_t BVConstExpr::computeHash() const
 {
   std::vector<bool>::const_iterator i = d_bvconst.begin();
-  std::vector<bool>::const_iterator iend = d_bvconst.end(); 
+  std::vector<bool>::const_iterator iend = d_bvconst.end();
   size_t hash_value = 0;
   hash_value = ExprValue::hash(BVCONST);
   for (;i != iend; i++)
     if(*i)
       hash_value = PRIME*hash_value + HASH_VALUE_ONE;
-    else 
+    else
       hash_value = PRIME*hash_value + HASH_VALUE_ZERO;
   return hash_value;
+}
+
+Expr TheoryBitvector::computeTCC(const Expr& e)
+{
+  // inline recursive computation for deeply nested bitvector Exprs
+
+  vector<Expr> operatorStack;
+  vector<Expr> operandStack;
+  vector<int> childStack;
+  Expr e2, tcc;
+
+  operatorStack.push_back(e);
+  childStack.push_back(0);
+
+  while (!operatorStack.empty()) {
+    DebugAssert(operatorStack.size() == childStack.size(), "Invariant violated");
+
+    if (childStack.back() < operatorStack.back().arity()) {
+
+      e2 = operatorStack.back()[childStack.back()++];
+
+      if (e2.isVar()) {
+        operandStack.push_back(trueExpr());
+      }
+      else {
+        ExprMap<Expr>::iterator itccCache = theoryCore()->tccCache().find(e2);
+        if (itccCache != theoryCore()->tccCache().end()) {
+          operandStack.push_back((*itccCache).second);
+        }
+        else if (theoryOf(e2) == this) {
+          if (e2.arity() == 0) {
+            operandStack.push_back(trueExpr());
+          }
+          else {
+            operatorStack.push_back(e2);
+            childStack.push_back(0);
+          }
+        }
+        else {
+          operandStack.push_back(getTCC(e2));
+        }
+      }
+    }
+    else {
+      e2 = operatorStack.back();
+      operatorStack.pop_back();
+      childStack.pop_back();
+      vector<Expr> children;
+      vector<Expr>::iterator childStart = operandStack.end() - (e2.arity());
+      children.insert(children.begin(), childStart, operandStack.end());
+      operandStack.erase(childStart, operandStack.end());
+      tcc = (children.size() == 0) ? trueExpr() :
+        (children.size() == 1) ? children[0] :
+        getCommonRules()->rewriteAnd(andExpr(children)).getRHS();
+      switch(e2.getKind()) {
+        case BVUDIV:
+        case BVSDIV:
+        case BVUREM:
+        case BVSREM:
+        case BVSMOD: {
+          DebugAssert(e2.arity() == 2, "");
+          int size = BVSize(e2);
+          tcc = getCommonRules()->rewriteAnd(tcc.andExpr(!(e2[1].eqExpr(newBVZeroString(size))))).getRHS();
+          break;
+        }
+        default:
+          break;
+      }
+      operandStack.push_back(tcc);
+      theoryCore()->tccCache()[e2] = tcc;
+    }
+  }
+  DebugAssert(childStack.empty(), "Invariant violated");
+  DebugAssert(operandStack.size() == 1, "Expected single operand left");
+  return operandStack.back();
 }

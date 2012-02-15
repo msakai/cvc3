@@ -140,6 +140,15 @@ void test1()
   vc_deleteVector(assertions);
   printf("End of counter-example\n\n");
 
+  printf("Concrete model:\n");
+  assertions = vc_getConcreteModel(vc, &size);
+  
+  for (i = 0; i < size; ++i) {
+    vc_printExpr(vc, assertions[i]);
+  }
+  vc_deleteVector(assertions);
+  printf("End of concrete model\n\n");
+
   // Reset to initial scope
   printf("Resetting\n");
   vc_pop(vc);
@@ -548,7 +557,13 @@ void test7()
 
 void test8 (void)
 {
-  VC vc = vc_createValidityChecker (((void *) 0));
+  Flags flags = vc_createFlags();
+/*   vc_setStrSeqFlag(flags, "trace", "pushpop", 1); */
+/*   vc_setStrSeqFlag(flags, "trace", "assertLit", 1); */
+/*   vc_setStrSeqFlag(flags, "trace", "assertFactCore", 1); */
+/*   vc_setStrSeqFlag(flags, "trace", "assertFormula", 1); */
+
+  VC vc = vc_createValidityChecker (flags);
   Type bv32 = vc_bvType (vc, 32);
   Expr zero = vc_bvConstExprFromInt (vc, 32, 0);
   Expr one = vc_bvConstExprFromInt (vc, 32, 1);
@@ -661,6 +676,27 @@ void test9 (void)
 }
 
 
+void test10()
+{
+  Flags flags = vc_createFlags();
+  VC vc = vc_createValidityChecker(flags);
+  Type a = vc_createType(vc, "a");
+  Type aa = vc_funType1(vc, a, a);
+  Op f1 = vc_createOp(vc, "f", aa);
+  Type aa2;
+  Op f2 = vc_lookupOp(vc, "f", &aa2);
+  FatalAssert(f2 != NULL, "Expected f2 not NULL");
+  FatalAssert(f1 == f2, "Expected equal");
+  Expr x = vc_varExpr(vc, "x", a);
+  Expr f1x = vc_funExpr1(vc, f1, x);
+  Expr f2x = vc_funExpr1(vc, f2, x);
+  Expr eq = vc_eqExpr(vc, f1x, f2x);
+  int res = vc_query(vc, eq);
+  printf("eq: %d\n", res);
+  vc_destroyValidityChecker(vc);
+}
+
+
 int main(int argc, char** argv)
 {
   int regressLevel = 2;
@@ -699,5 +735,7 @@ int main(int argc, char** argv)
     check_error("test9");
   }
   printf("\n}");
+  printf("\ntest10() {\n");
+  test10();
   return 0;
 }

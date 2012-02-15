@@ -42,6 +42,7 @@ public:
   bool isNull() const { return d_index == -1; }
   void reset() { d_index = -1; }
   int getIndex() const { return d_index; }
+  bool isVar() const { return d_index > 0; }
   bool operator==(const Var& var) const { return (d_index == var.d_index); }
 };
 inline Var::Val Var::invertValue(Var::Val v)

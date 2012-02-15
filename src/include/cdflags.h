@@ -23,6 +23,7 @@
 #define _cvc3__include__cdflags_h_
 
 #include "context.h"
+#include "os.h"
 
 namespace CVC3 {
 
@@ -33,7 +34,7 @@ namespace CVC3 {
 // Created: Thu Jan 26 16:37:46 2006					     //
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
-class CDFlags :public ContextObj {
+class CVC_DLL CDFlags :public ContextObj {
   unsigned d_flags;
 
   virtual ContextObj* makeCopy(ContextMemoryManager* cmm)

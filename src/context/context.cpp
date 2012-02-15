@@ -79,6 +79,30 @@ void Scope::check(void)
 }
 
 
+unsigned long Scope::getMemory(int verbosity)
+{
+  unsigned long memSelf = 0; // scope is allocated in cmm
+  unsigned long mem = 0;
+
+  mem += getCMM()->getMemory(verbosity - 1);
+  if (d_prevScope != NULL) {
+    mem += d_prevScope->getMemory(verbosity - 1);
+  }
+
+  // TODO: d_restoreChain?
+
+  if (verbosity > 0) {
+    cout << "Scope " << d_level << ": " << memSelf << endl;
+    cout << "  Children: " << mem << endl;
+    cout << "  Total: " << mem+memSelf << endl;
+  }
+
+  return mem + memSelf;
+
+
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // ContextObjChain methods                                                   //
 ///////////////////////////////////////////////////////////////////////////////
@@ -112,7 +136,7 @@ ContextObjChain* ContextObjChain::restore(void)
 }
 
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 std::string ContextObjChain::name() const
 {
   DebugAssert(d_master != NULL, "NULL master");
@@ -285,24 +309,16 @@ void Context::deleteNotifyObj(ContextNotifyObj* obj) {
 }
 
 
-unsigned long Context::getMemory()
+unsigned long Context::getMemory(int verbosity)
 {
-  Scope* scope = d_topScope;
-  unsigned long memory = ContextMemoryManager::getStaticMemory();
+  unsigned long memSelf = sizeof(Context);
   unsigned long mem = 0;
-  cout << "Static: " << memory << endl;
-  while (scope != NULL) {
-    mem = scope->getCMM()->getMemory();
-    cout << "Scope " << scope->level() << ": " << mem << endl;
-    memory += mem;
-    scope = scope->prevScope();
-  }
-  mem = 0;
-  for (unsigned long i = 0; i < d_cmmStack.size(); ++i) {
-    mem += d_cmmStack[i]->getMemory();
-  }
-  cout << "Stack: " << mem << endl;
-  return memory + mem;
+  mem += MemoryTracker::getString(verbosity - 1, d_name);
+  mem += d_topScope->getMemory(verbosity - 1);
+  mem += MemoryTracker::getVecAndDataP(verbosity - 1, d_notifyObjList);
+  mem += MemoryTracker::getVecAndDataP(verbosity - 1, d_cmmStack);
+  MemoryTracker::print("Context "+d_name, verbosity, memSelf, mem);
+  return mem + memSelf;
 }
 
 
@@ -345,7 +361,20 @@ Context* ContextManager::switchContext(Context* context)
 }
 
 
-unsigned long ContextManager::getMemory()
+unsigned long ContextManager::getMemory(int verbosity)
 {
-  return d_curContext->getMemory();
+  unsigned long memSelf = sizeof(ContextManager);
+  unsigned long mem = 0;
+
+  // free pages in the context memory manager need to be counted somewhere
+  // this seems as good a place as any
+  mem += ContextMemoryManager::getStaticMemory(verbosity - 1);
+
+  for (unsigned i = 0; i < d_contexts.size(); ++i) {
+    mem += d_contexts[i]->getMemory(verbosity - 1);
+  }
+
+  MemoryTracker::print("ContextManager", verbosity, memSelf, mem);
+
+  return mem + memSelf;
 }

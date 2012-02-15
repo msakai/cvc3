@@ -138,7 +138,7 @@ SearchEngineFast::wp(const Literal& literal) {
   return literal.wp();
 }
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 static void checkAssump(const Theorem& t, const Theorem& orig,
 		 const CDMap<Expr,Theorem>& assumptions) {
   const Assumptions& a(t.getAssumptionsRef());
@@ -569,7 +569,7 @@ void SearchEngineFast::recordFact(const Theorem& thm)
   
 }
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 void SearchEngineFast::fullCheck()
 {
   for (unsigned i = 0;

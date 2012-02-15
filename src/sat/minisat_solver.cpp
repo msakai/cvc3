@@ -247,7 +247,7 @@ void Solver::insertLemma(const Clause* lemma, int clauseID, int pushID) {
 
 Solver* Solver::createFrom(const Solver* oldSolver) {
   Solver* solver = new MiniSat::Solver(oldSolver->d_theoryAPI,
-				       oldSolver->d_decider, oldSolver->d_derivation);
+				       oldSolver->d_decider, oldSolver->d_derivation != NULL);
     
   // reuse literal activity
   // assigning d_activity before the clauses are added
@@ -528,7 +528,7 @@ void Solver::addClause(const Clause& clause, bool keepClauseID) {
 // without interleaving them.
 void Solver::addFormula(const SAT::CNF_Formula& cnf, bool isTheoryClause) {
   SAT::CNF_Formula::const_iterator i, iend;
-  // for comparison: this is the order used by xchaff
+  // for comparison: this is the order used by -sat sat
   //for (i = cnf.end()-1, iend = cnf.begin()-1; i != iend; --i) {
   for (i = cnf.begin(), iend = cnf.end(); i != iend; i++) {
 //     if(i->d_reason.isNull()){
@@ -2514,7 +2514,7 @@ void Solver::push() {
   // so just mark this push as useless.
   // (can happen if before checkSat initial unit propagation finds an inconsistency)
   if (!d_ok) {
-    d_pushes.push_back(PushEntry(-1, 0, 0, 0));
+    d_pushes.push_back(PushEntry(-1, 0, 0, 0, true));
     return;
   }
 
@@ -2609,10 +2609,11 @@ void Solver::push() {
   
   // can happen that conflict is detected in propagate
   // but d_ok is not immediately set to false
+
   if (isConflicting()) d_ok = false;
 
   if (d_derivation != NULL) d_derivation->push(d_clauseIDCounter - 1);
-  d_pushes.push_back(PushEntry(d_clauseIDCounter - 1, d_trail.size(), d_qhead, d_thead));
+  d_pushes.push_back(PushEntry(d_clauseIDCounter - 1, d_trail.size(), d_qhead, d_thead, d_ok));
 }
 
 
@@ -2765,12 +2766,17 @@ void Solver::pop() {
   // backtrack registered variables
   d_registeredVars.resize(d_pushes.size() + 1);
 
-  // this needs to be done _after_ clauses have been removed above,
-  // as it might deallocate removed clauses
-  if (d_derivation != NULL) d_derivation->pop(pushEntry.d_clauseID);
-
-  // not conflicting or in search anymore
-  d_conflict = NULL;
-  d_ok = true;
-  d_inSearch = false;
+  if (pushEntry.d_ok) {
+    // this needs to be done _after_ clauses have been removed above,
+    // as it might deallocate removed clauses
+    if (d_derivation != NULL) d_derivation->pop(pushEntry.d_clauseID);
+    
+    // not conflicting or in search anymore
+    d_conflict = NULL;
+    d_ok = true;
+    d_inSearch = false;
+  } else {
+    DebugAssert(d_conflict != NULL, "MiniSat::Solver::pop: not in conflict 1");
+    DebugAssert(!d_ok, "MiniSat::Solver::pop: not in conflict 2");
+  }
 }

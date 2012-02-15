@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file theory_core.h
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Thu Jan 30 16:58:05 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -25,8 +25,9 @@
 #include "theory.h"
 #include "cdmap.h"
 #include "statistics.h"
-#include <string> 
+#include <string>
 #include "notifylist.h"
+//#include "expr_transform.h"
 
 namespace CVC3 {
 
@@ -142,13 +143,22 @@ class TheoryCore :public Theory {
   //! Resource limit (0==unlimited, 1==no more resources, >=2 - available).
   /*! Currently, it is the number of enqueued facts.  Once the
    * resource is exhausted, the remaining facts will be dropped, and
-   * an incomplete flag is set. 
+   * an incomplete flag is set.
    */
   unsigned d_resourceLimit;
 
-  IF_DEBUG(bool d_inCheckSATCore;)
-  IF_DEBUG(bool d_inAddFact;)
-  IF_DEBUG(bool d_inRegisterAtom;)
+  //! Time limit (0==unlimited, >0==total available cpu time in seconds).
+  /*! Currently, if exhausted processFactQueue will not perform any more
+   * reasoning with FULL effor and an incomplete flag is set.
+   */
+  unsigned d_timeBase;
+  unsigned d_timeLimit;
+
+  bool d_inCheckSATCore;
+  bool d_inAddFact;
+  bool d_inRegisterAtom;
+  bool d_inPP;
+
   IF_DEBUG(ExprMap<bool> d_simpStack;)
 
 
@@ -208,7 +218,7 @@ public:
     /*! \param e is a literal.
      * \param priority is between -10 and 10.  A priority above 0 indicates
      * that the splitter should be favored.  A priority below 0 indicates that
-     * the splitter should be delayed. 
+     * the splitter should be delayed.
      */
     virtual void addSplitter(const Expr& e, int priority) = 0;
     //! Check the validity of e in the current context
@@ -268,8 +278,6 @@ private:
    * respectively.
    */
   void setFindLiteral(const Theorem& thm);
-  //! Derived rule for rewriting ITE
-  Theorem rewriteIte(const Expr& e);
   //! Core rewrites for literals (NOT and EQ)
   Theorem rewriteLitCore(const Expr& e);
   //! Enqueue a fact to be sent to the SearchEngine
@@ -288,6 +296,9 @@ private:
   //! Helper check functions for solve
   void checkSolved(const Theorem& thm);
 
+  // Time limit exhausted
+  bool timeLimitReached();
+
 public:
   //! Constructor
   TheoryCore(ContextManager* cm, ExprManager* em,
@@ -298,12 +309,12 @@ public:
   ~TheoryCore();
 
   //! Request a unit of resource
-  /*! It will be subtracted from the resource limit. 
+  /*! It will be subtracted from the resource limit.
    *
    * \return true if resource unit is granted, false if no more
    * resources available.
    */
-  void getResource() {    
+  void getResource() {
       getStatistics().counter("resource")++;
       if (d_resourceLimit > 1) d_resourceLimit--;
   }
@@ -314,6 +325,9 @@ public:
   //! Register a callback for every equality
   void addNotifyEq(Theory* t, const Expr& e) { d_notifyEq.add(t, e); }
 
+  //! Call theory-specific preprocess routines
+  Theorem callTheoryPreprocess(const Expr& e);
+
   ContextManager* getCM() const { return d_cm; }
   TheoremManager* getTM() const { return d_tm; }
   const CLFlags& getFlags() const { return d_flags; }
@@ -322,10 +336,17 @@ public:
   CoreProofRules* getCoreRules() const { return d_rules; }
   Translator* getTranslator() const { return d_translator; }
 
+  //! Access to tcc cache (needed by theory_bitvector)
+  ExprMap<Expr>& tccCache() { return d_tccCache; }
+
   //! Get list of terms
   const CDList<Expr>& getTerms() { return d_terms; }
 
   int getCurQuantLevel();
+
+  //! Set the flag for the preprocessor
+  void setInPP() { d_inPP = true; }
+  void clearInPP() { d_inPP = false; }
 
   //! Get theorem which was responsible for introducing this term
   Theorem getTheoremForTerm(const Expr& e);
@@ -335,6 +356,9 @@ public:
   const CDList<Expr>& getPredicates() { return d_predicates; }
   //! Whether updates are being processed
   bool inUpdate() { return d_inUpdate > 0; }
+  //! Whether its OK to add new facts (for use in rewrites)
+  bool okToEnqueue()
+    { return d_inAddFact || d_inCheckSATCore || d_inRegisterAtom || d_inPP; }
 
   // Implementation of Theory API
   /*! Variables of uninterpreted types may be sent here, and they
@@ -352,6 +376,8 @@ public:
 
   Theorem simplifyOp(const Expr& e);
   void checkType(const Expr& e);
+  Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                             bool enumerate, bool computeSize);
   void computeType(const Expr& e);
   Type computeBaseType(const Type& t);
   Expr computeTCC(const Expr& e);
@@ -361,6 +387,7 @@ public:
 
   //! Calls for other theories to add facts to refine a coutnerexample.
   void refineCounterExample();
+  bool refineCounterExample(Theorem& thm);
   void computeModelBasic(const std::vector<Expr>& v);
 
   // User-level API methods
@@ -378,7 +405,7 @@ public:
   bool inconsistent() { return d_inconsistent ; }
   //! Get the proof of inconsistency for the current context
   /*! \return Theorem(FALSE) */
-  Theorem inconsistentThm() { return d_incThm; } 
+  Theorem inconsistentThm() { return d_incThm; }
   /*! @brief To be called by SearchEngine when it believes the context
    * is satisfiable.
    *
@@ -436,6 +463,7 @@ public:
   void collectBasicVars();
   //! Calls theory specific computeModel, results are placed in map
   void buildModel(ExprMap<Expr>& m);
+  bool buildModel(Theorem& thm);
   //! Recursively build a compound-type variable assignment for e
   void collectModelValues(const Expr& e, ExprMap<Expr>& m);
 
@@ -445,6 +473,12 @@ public:
   unsigned getResourceLimit() { return d_resourceLimit; }
   //! Return true if resources are exhausted
   bool outOfResources() { return d_resourceLimit == 1; }
+
+  //! Initialize base time used for !setTimeLimit
+  void initTimeLimit();
+
+  //! Set the time limit in seconds (0==unlimited).
+  void setTimeLimit(unsigned limit);
 
   //! Called by search engine
   Theorem rewriteLiteral(const Expr& e);
@@ -482,7 +516,7 @@ public:
 };
 
 //! Printing NotifyList class
-std::ostream& operator<<(std::ostream& os, const NotifyList& l); 
+std::ostream& operator<<(std::ostream& os, const NotifyList& l);
 
 }
 

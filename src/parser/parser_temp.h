@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file parser_temp.h
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Wed Feb  5 17:53:02 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  * A class used to communicate with the actual parser.  No one else
  * should use it.
  */
@@ -59,9 +59,11 @@ namespace CVC3 {
     bool bvFlag;
     // Size of bit-vectors for smt-lib format
     int bvSize;
+    // Did we encounter a formula query (smtlib)
+    bool queryParsed;
     // Default constructor
     ParserTemp() : d_uid(0), prompt1("CVC> "), prompt2("- "),
-      prompt("CVC> "), lineNum(1), done(false), arrFlag(false) { }
+      prompt("CVC> "), lineNum(1), done(false), arrFlag(false), queryParsed(false) { }
     // Parser error handling (implemented in parser.cpp)
     int error(const std::string& s);
     // Get the next uniqueID as a string

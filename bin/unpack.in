@@ -43,7 +43,7 @@ for(my $i=0; $i<=$#inFiles; $i++) {
 	$countLibs++;
 	if($inFiles[$i] =~ m/lib(\w+).a$/) {
 	    $libName{$inFiles[$i]} = $1;
-	    my $lines=`ar t $inFiles[$i]`;
+	    my $lines=`ar t '$inFiles[$i]'`;
 	    my @lines = split(/\n/, $lines);
 	    $countMembers += ($#lines + 1);
 	    $members{$inFiles[$i]} = [@lines];
@@ -81,12 +81,12 @@ for(my $i=0; $i<=$#inFiles; $i++) {
     print STDERR "Unpacking $libName\n";
     mkdir("$tmpDir/$libName", 0755)
 	or die "Cannot create $tmpDir/$libName: $?";
-    system("cd $tmpDir/$libName; ar x $file")
+    system("cd '$tmpDir/$libName'; ar x '$file'")
 	&& die "Cannot extract from archive $file: $?";
     my @names=@{$members{$inFiles[$i]}};
     for(my $j=0; $j<=$#names; $j++) {
         if ($names[$j] =~ /^.*\.o/i) {
-	    push @allMembers, "$tmpDir/$libName/$names[$j]";
+	    push @allMembers, "'$tmpDir/$libName/$names[$j]'";
         }
     }
 }

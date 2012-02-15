@@ -24,13 +24,13 @@
 
 #include "arith_proof_rules.h"
 #include "theorem_producer.h"
-#include "theory_arith.h"
+#include "theory_arith_new.h"
 
 namespace CVC3 {
-  class TheoryArith;
+  class TheoryArithNew;
   
   class ArithTheoremProducer: public ArithProofRules, public TheoremProducer {
-    TheoryArith* d_theoryArith;
+    TheoryArithNew* d_theoryArith;
   private:
     /*! \name Auxiliary functions for eqElimIntRule()
      * Methods that compute the subterms used in eqElimIntRule()
@@ -60,10 +60,11 @@ namespace CVC3 {
     //! Compute floor(i/m+1/2) + mod(i,m)
     Rational f(const Rational& i, const Rational& m);
     Expr substitute(const Expr& term, ExprMap<Expr>& eMap);
+
     /*@}*/
   public:
     //! Constructor
-    ArithTheoremProducer(TheoremManager* tm, TheoryArith* theoryArith):
+    ArithTheoremProducer(TheoremManager* tm, TheoryArithNew* theoryArith):
       TheoremProducer(tm), d_theoryArith(theoryArith) { }
 
     //! Create Expr from Rational (for convenience)
@@ -282,6 +283,7 @@ namespace CVC3 {
     
     Theorem intVarEqnConst(const Expr& eqn, const Theorem& isIntx);
 
+    Theorem IsIntegerElim(const Theorem& isIntx);
     Theorem eqElimIntRule(const Theorem& eqn, const Theorem& isIntx,
 			  const std::vector<Theorem>& isIntVars);
 

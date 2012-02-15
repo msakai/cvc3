@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -55,8 +55,8 @@ void CDFlags::update(unsigned mask, int scope, bool setMask)
       pastFlags = (CDFlags*)((*lastPtr)->d_data);
       DebugAssert(pastFlags != NULL, "expected non-NULL data");
       if (pastFlags->d_scope->level() >= scope) {
-        DebugAssert(on && (pastFlags->d_flags & mask) ||
-                    !on && !(pastFlags->d_flags & mask),
+        DebugAssert((on && (pastFlags->d_flags & mask))
+        		 || (!on && !(pastFlags->d_flags & mask)),
                     "Expected no change in flag since scope");
         if (setMask) {
           pastFlags->d_flags = pastFlags->d_flags | mask;

@@ -59,7 +59,7 @@ class SmartCDO {
     bool d_delay; //!< Whether to delay our own deletion
 
     class RefNotifyObj : public ContextNotifyObj {
-      friend class RefCDO<U>;
+      friend class RefCDO;
       RefCDO<U>* d_ref;
       //! Constructor
       RefNotifyObj(RefCDO<U>* ref, Context* context)

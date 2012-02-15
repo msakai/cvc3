@@ -54,12 +54,6 @@ namespace CVC3 {
     virtual Theorem rewriteNotIff(const Expr& e) = 0;
     //! ==> NOT ITE(a,b,c) IFF ITE(a,NOT b,NOT c)
     virtual Theorem rewriteNotIte(const Expr& e) = 0;
-    //! ==> ITE(TRUE, e1, e2) == e1
-    virtual Theorem rewriteIteTrue(const Expr& e) = 0;
-    //! ==> ITE(FALSE, e1, e2) == e2
-    virtual Theorem rewriteIteFalse(const Expr& e) = 0;
-    //! ==> ITE(c, e, e) == e
-    virtual Theorem rewriteIteSame(const Expr& e) = 0;
     //! a |- b == d ==> ITE(a, b, c) == ITE(a, d, c)
     virtual Theorem rewriteIteThen(const Expr& e, const Theorem& thenThm) = 0;
     //! !a |- c == d ==> ITE(a, b, c) == ITE(a, b, d)

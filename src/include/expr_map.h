@@ -112,6 +112,8 @@ namespace CVC3 {
 	++(*this);
 	return tmp;
       }
+      // Prefix decrement
+      const_iterator& operator--() { --d_it; return *this; }
     }; // end of class const_iterator
 
     class iterator: public std::iterator<std::input_iterator_tag, std::pair<Expr,Data>,std::ptrdiff_t> {
@@ -151,6 +153,8 @@ namespace CVC3 {
 	++(*this);
 	return tmp;
       }
+      // Prefix decrement
+      iterator& operator--() { --d_it; return *this; }
     }; // end of class iterator
 
     //////////////////////////////////////////////////////////////////////////
@@ -208,19 +212,51 @@ namespace CVC3 {
 
   public:
 
-    //////////////////////////////////////////////////////////////////////////
-    // Class: ExprHashMap::iterator
-    // Author: Sergey Berezin
-    // Created: Tue Dec 10 16:25:19 2002
-    // Description: 
-    //////////////////////////////////////////////////////////////////////////
-
-    class iterator: public std::iterator<std::input_iterator_tag, std::pair<Expr,Data>,std::ptrdiff_t> {
+    class const_iterator: public std::iterator<std::input_iterator_tag, std::pair<Expr,Data>,std::ptrdiff_t> {
       friend class ExprHashMap;
     private:
       typename ExprHashMapType::const_iterator d_it;
       // Private constructor
-      iterator(const typename ExprHashMapType::const_iterator& it)
+      const_iterator(const typename ExprHashMapType::const_iterator& it)
+	: d_it(it) { }
+    public:
+      // Default constructor
+      const_iterator() { }
+      // (Dis)equality
+      bool operator==(const const_iterator& i) const { return d_it == i.d_it; }
+      bool operator!=(const const_iterator& i) const { return d_it != i.d_it; }
+      // Dereference operators.
+      const std::pair<const Expr,Data>& operator*() const { return *d_it; }
+      const std::pair<const Expr,Data>* operator->() const {
+	return d_it.operator->();
+      }
+      // Prefix increment
+      const_iterator& operator++() { ++d_it; return *this; }
+      // Postfix increment: requires a Proxy object to hold the
+      // intermediate value for dereferencing
+      class Proxy {
+	const std::pair<const Expr,Data>& d_pair;
+      public:
+	Proxy(const std::pair<Expr,Data>& pair) : d_pair(pair) { }
+	std::pair<const Expr,Data> operator*() { return d_pair; }
+      }; // end of class Proxy
+      // Actual postfix increment: returns Proxy with the old value.
+      // Now, an expression like *i++ will return the current *i, and
+      // then advance the iterator.  However, don't try to use Proxy for
+      // anything else.
+      Proxy operator++(int) {
+	Proxy tmp(*(*this));
+	++(*this);
+	return tmp;
+      }
+    }; // end of class const_iterator
+
+    class iterator: public std::iterator<std::input_iterator_tag, std::pair<Expr,Data>,std::ptrdiff_t> {
+      friend class ExprHashMap;
+    private:
+      typename ExprHashMapType::iterator d_it;
+      // Private constructor
+      iterator(const typename ExprHashMapType::iterator& it)
 	: d_it(it) { }
     public:
       // Default constructor
@@ -229,8 +265,8 @@ namespace CVC3 {
       bool operator==(const iterator& i) const { return d_it == i.d_it; }
       bool operator!=(const iterator& i) const { return d_it != i.d_it; }
       // Dereference operators.
-      const std::pair<const Expr,Data>& operator*() const { return *d_it; }
-      const std::pair<const Expr,Data>* operator->() const {
+      std::pair<const Expr,Data>& operator*() const { return *d_it; }
+      std::pair<const Expr,Data>* operator->() const {
 	return d_it.operator->();
       }
       // Prefix increment
@@ -238,9 +274,9 @@ namespace CVC3 {
       // Postfix increment: requires a Proxy object to hold the
       // intermediate value for dereferencing
       class Proxy {
-	const std::pair<const Expr,Data>& d_pair;
+	std::pair<const Expr,Data>& d_pair;
       public:
-	Proxy(const std::pair<Expr,Data>& pair) : d_pair(pair) { }
+	Proxy(std::pair<const Expr,Data>& pair) : d_pair(pair) { }
 	std::pair<const Expr,Data> operator*() { return d_pair; }
       }; // end of class Proxy
       // Actual postfix increment: returns Proxy with the old value.
@@ -286,16 +322,20 @@ namespace CVC3 {
       }
     }
 
-    iterator begin() const { return iterator(d_map.begin()); }
-    iterator end() const { return iterator(d_map.end()); }
-    iterator find(const Expr& e) const { return iterator(d_map.find(e)); }
+    iterator begin() { return iterator(d_map.begin()); }
+    iterator end() { return iterator(d_map.end()); }
+    const_iterator begin() const { return const_iterator(d_map.begin()); }
+    const_iterator end() const { return const_iterator(d_map.end()); }
+    iterator find(const Expr& e) { return iterator(d_map.find(e)); }
+    const_iterator find(const Expr& e) const { return const_iterator(d_map.find(e)); }
 
-    friend bool operator==(const ExprHashMap& m1, const ExprHashMap& m2) {
-      return m1.d_map == m2.d_map;
-    }
-    friend bool operator!=(const ExprHashMap& m1, const ExprHashMap& m2) {
-      return !(m1 == m2);
-    }
+    // These aren't implemented
+//     friend bool operator==(const ExprHashMap& m1, const ExprHashMap& m2) {
+//       return m1.d_map == m2.d_map;
+//     }
+//     friend bool operator!=(const ExprHashMap& m1, const ExprHashMap& m2) {
+//       return !(m1 == m2);
+//     }
   }; // end of class ExprHashMap
 
 } // end of namespace CVC3

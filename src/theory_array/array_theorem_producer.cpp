@@ -39,9 +39,15 @@ using namespace CVC3;
 
 
 ArrayProofRules* TheoryArray::createProofRules() {
-  return new ArrayTheoremProducer(theoryCore()->getTM());
+  return new ArrayTheoremProducer(this);
 }
   
+
+ArrayTheoremProducer::ArrayTheoremProducer(TheoryArray* theoryArray)
+  : TheoremProducer(theoryArray->theoryCore()->getTM()),
+    d_theoryArray(theoryArray)
+{}
+
 
 ////////////////////////////////////////////////////////////////////
 // Proof rules
@@ -156,6 +162,31 @@ ArrayTheoremProducer::rewriteReadWrite(const Expr& e)
   if (withProof()) pf = newPf("rewriteReadWrite", e);
   return newRWTheorem(e, indexCond.iteExpr(value,
                                            Expr(READ, store, index2)), Assumptions::emptyAssump(), pf);
+}
+
+
+// e = read(write(store, index1, value), index2):
+// ==> ite(index1 = index2,
+//         read(write(store, index1, value), index2) = value,
+//         read(write(store, index1, value), index2) = read(store, index2))
+Theorem
+ArrayTheoremProducer::rewriteReadWrite2(const Expr& e)
+{
+  IF_DEBUG(
+    DebugAssert(isRead(e), "Read expected");
+    DebugAssert(isWrite(e[0]), "Expected Read(Write)");
+  )
+  Proof pf;
+  const Expr& store = e[0][0];
+  const Expr& index1 = e[0][1];
+  const Expr& value = e[0][2];
+  const Expr& index2 = e[1];
+  Expr indexCond = (index1.getType().isBool())?
+    index1.iffExpr(index2) : index1.eqExpr(index2);
+  if (withProof()) pf = newPf("rewriteReadWrite2", e);
+  return newTheorem(indexCond.iteExpr(e.eqExpr(value),
+                                      e.eqExpr(Expr(READ, store, index2))),
+                    Assumptions::emptyAssump(), pf);
 }
 
 
@@ -301,4 +332,30 @@ Theorem ArrayTheoremProducer::liftReadIte(const Expr& e)
   return newRWTheorem(e, Expr(ITE, ite[0], Expr(READ, ite[1], e[1]),
                               Expr(READ, ite[2], e[1])),
                       Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem ArrayTheoremProducer::arrayNotEq(const Theorem& e)
+{
+  if(CHECK_PROOFS) {
+    CHECK_SOUND(e.getExpr().getKind() == NOT &&
+                e.getExpr()[0].getKind() == EQ &&
+                isArray(d_theoryArray->getBaseType(e.getExpr()[0][0])),
+		"ArrayTheoremProducer::arrayNotEq("+e.toString()
+		+"):\n\n  expression is ill-formed");
+  }
+
+  Expr eq = e.getExpr()[0];
+
+  Proof pf;
+  if (withProof())
+    pf = newPf("array_not_eq", e.getProof());
+
+  Type arrType = d_theoryArray->getBaseType(eq[0]);
+  Type indType = Type(arrType.getExpr()[0]);
+  Expr var = d_theoryArray->getEM()->newBoundVarExpr(indType);
+  eq = Expr(READ, eq[0], var).eqExpr(Expr(READ, eq[1], var));
+
+  return newTheorem(d_theoryArray->getEM()->newClosureExpr(EXISTS, var, !eq),
+                    Assumptions(e), pf);
 }

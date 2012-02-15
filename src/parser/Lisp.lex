@@ -32,7 +32,7 @@ namespace CVC3 {
 extern int Lisp_inputLine;
 extern char *Lisptext;
 
-extern int Lisperror (char *msg);
+extern int Lisperror (const char *msg);
 
 static int Lispinput(std::istream& is, char* buf, int size) {
   int res;

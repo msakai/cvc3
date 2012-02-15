@@ -367,7 +367,7 @@ foreach my $testcase (@testcases) {
 	# Create a temporary dir, but first delete it; there may be
 	# junk there
 	system("/bin/rm -rf $tmpdir");
-	mkdir $tmpdir or die "Cannot create directory $tmpdir: $?";
+	mkdir $tmpdir or print "Cannot create directory $tmpdir\n";
 	chdir $tmpdir or die "Cannot chdir to $tmpdir: $?";
 
 	# Compute arguments
@@ -381,16 +381,18 @@ foreach my $testcase (@testcases) {
 	my $timeLimit = ($timeMax > 0)? "-t $timeMax" : "";
 	my $limits = "ulimit -c 0 -d 1000000 -m 1000000 ".
 	    "-s 50000 -v 1000000 $timeLimit";
+	# Windows ulimit dies if you pass -m
+	$limits = "ulimit -c 0 -d 1000000 -s 50000 -v 1000000 $timeLimit" if `uname -o` eq 'Cygwin';
 	my $logging = ($verbose)? " 2>&1 | tee output" : "> output 2>&1";
 	my $timing = "'@TIME@' -f \"User+Sys Time: %U+%S\" ";
 	if($verbose) {
 	    print "***\n";
-	    print "Running $prog $progArgs < $file\n";
+	    print "Running '$prog' $progArgs < '$file'\n";
 	    print "***\n";
 	}
 	my $time = time;
-	my $exitVal = system("$limits; $timing $prog $progArgs "
-			     . "< $file $logging");
+	my $exitVal = system("$limits; $timing '$prog' $progArgs "
+			     . "< '$file' $logging");
 	$time = time - $time;
 	# OK, let's see what happened
 	$testsTotal++;

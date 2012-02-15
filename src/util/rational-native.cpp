@@ -4,9 +4,9 @@
  *
  * \brief Implementation of class Rational using native (bounded
  * precision) computer arithmetic
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Mon Jul 28 12:18:03 2003
  *
  * <hr>
@@ -14,7 +14,7 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
  *
  */
@@ -26,11 +26,12 @@
 #include "rational.h"
 // For atol() (ASCII to long)
 #include <stdlib.h>
+#include <limits.h>
 #include <errno.h>
 #include <sstream>
 #include <math.h>
 
-#define OVERFLOW_MSG "\nThis is NOT a bug, but an explicit feature to preserve soundness\nwhen CVC3 uses native computer arithmetic (finite precision).  To\navoid this type of errors, please recompile CVC3 with GMP library."
+#define OVERFLOW_MSG "\nThis is NOT a bug, but an explicit feature to preserve soundness\nwhen CVC3 uses native computer arithmetic (finite precision).  To\navoid these types of errors, please recompile CVC3 with GMP library."
 
 namespace CVC3 {
 
@@ -122,7 +123,7 @@ namespace CVC3 {
     friend bool operator!=(const Impl& x, const Impl& y) {
       return (x.d_num != y.d_num || x.d_denom != y.d_denom);
     }
-    /*! 
+    /*!
      * Compare x=n1/d1 and y=n2/d2 as n1*f2 < n2*f1, where f1=d1/f,
      * f2=d2/f, and f=lcm(d1,d2)
      */
@@ -164,7 +165,7 @@ namespace CVC3 {
       return res;
     }
 
-    /*! 
+    /*!
      * Multiplication of x=n1/d1, y=n2/d2:
      * (n1/g1)*(n2/g2)/(d1/g2)*(d2/g1), where g1=gcd(n1,d2) and
      * g2=gcd(n2,d1)
@@ -176,7 +177,7 @@ namespace CVC3 {
       return Impl(n,d);
     }
 
-    /*! 
+    /*!
      * Division of x=n1/d1, y=n2/d2:
      * (n1/g1)*(d2/g2)/(d1/g2)*(n2/g1), where g1=gcd(n1,n2) and
      * g2=gcd(d1,d2)
@@ -244,7 +245,7 @@ namespace CVC3 {
     friend ostream& operator<<(ostream& os, const Rational::Impl& n) {
       return os << n.toString();
     }
-      
+
   };
 
   // Make the rational number canonical
@@ -411,7 +412,7 @@ namespace CVC3 {
     checkInt(y, "gcd(x,*y*)");
     return Rational(Rational::Impl(gcd(x.d_n->getNum(), y.d_n->getNum()), 1));
   }
- 
+
   Rational gcd(const vector<Rational> &v) {
     long int g(1);
     if(v.size() > 0) {
@@ -476,7 +477,7 @@ namespace CVC3 {
     long int r = x.d_n->getNum() % y.d_n->getNum();
     return(Rational(Rational::Impl(r,1)));
   }
-  
+
   Rational intRoot(const Rational& base, unsigned long int n) {
     checkInt(base, "intRoot(*x*,y)");
     checkInt(n, "intRoot(x,*y*)");
@@ -485,7 +486,7 @@ namespace CVC3 {
     root = 1/root;
     b = ::pow(b, root);
     long res = (long) ::floor(b);
-    if (res ^ ((long)n) == base.d_n->getNum()) {
+    if (::pow((long double)res, (int)n) == base.d_n->getNum()) {
       return Rational(Rational::Impl(res,1));
     }
     return Rational(Rational::Impl((long)0,(long)1));
@@ -499,7 +500,7 @@ namespace CVC3 {
     std::hash<const char *> h;
     return h(toString().c_str());
   }
-  
+
   void Rational::print() const {
     cout << (*this) << endl;
   }
@@ -508,22 +509,22 @@ namespace CVC3 {
   Rational Rational::operator-() const {
     return Rational(Rational::Impl(-(d_n->getNum()), d_n->getDen()));
   }
-  
+
   Rational &Rational::operator+=(const Rational &n2) {
     *this = (*this) + n2;
     return *this;
   }
-  
+
   Rational &Rational::operator-=(const Rational &n2) {
     *this = (*this) - n2;
     return *this;
   }
-  
+
   Rational &Rational::operator*=(const Rational &n2) {
     *this = (*this) * n2;
     return *this;
   }
-  
+
   Rational &Rational::operator/=(const Rational &n2) {
     *this = (*this) / n2;
     return *this;
@@ -533,7 +534,8 @@ namespace CVC3 {
     checkInt(*this, "getInt()");
     long int res = d_n->getNum();
     FatalAssert(res >= INT_MIN && res <= INT_MAX,
-                "Rational::getInt(): overflow on "+toString());
+                "Rational::getInt(): arithmetic overflow on "+toString() +
+                OVERFLOW_MSG);
     return (int)res;
   }
 
@@ -541,7 +543,8 @@ namespace CVC3 {
     checkInt(*this, "getUnsigned()");
     long int res = d_n->getNum();
     FatalAssert(res >= 0 && res <= (long int)UINT_MAX,
-                "Rational::getUnsigned(): overflow on "+toString());
+                "Rational::getUnsigned(): arithmetic overflow on " + toString() +
+		OVERFLOW_MSG);
     return (unsigned int)res;
   }
 
@@ -599,7 +602,7 @@ namespace CVC3 {
     }
 
     Rational operator%(const Rational &n1, const Rational &n2) {
-      return Rational(Rational::Impl(*n1.d_n + *n2.d_n));
+      return Rational(Rational::Impl(*n1.d_n % *n2.d_n));
     }
 
 } /* close namespace */

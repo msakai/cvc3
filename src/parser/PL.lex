@@ -32,7 +32,7 @@ namespace CVC3 {
 extern int PL_inputLine;
 extern char *PLtext;
 
-extern int PLerror (char *msg);
+extern int PLerror (const char *msg);
 
 static int PLinput(std::istream& is, char* buf, int size) {
   int res;
@@ -206,7 +206,7 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 "BVLE"          { return BVLE_TOK;}
 "BVGE"          { return BVGE_TOK;}
 
-
+"DISTINCT"      { return DISTINCT_TOK; }
 "BVTOINT"       { return BVTOINT_TOK;}
 "INTTOBV"       { return INTTOBV_TOK;}
 "BOOLEXTRACT"   { return BOOLEXTRACT_TOK;}
@@ -253,7 +253,9 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 "WITH"		{ return WITH_TOK; }
 "XOR"		{ return XOR_TOK; }
 "TCC"		{ return TCC_TOK; }
+"PATTERN"       { return PATTERN_TOK; }
 
+"ARITH_VAR_ORDER" { return ARITH_VAR_ORDER_TOK; }
 "ASSERT"	{ return ASSERT_TOK; }
 "QUERY"	        { return QUERY_TOK; }
 "CHECKSAT"      { return CHECKSAT_TOK; }
@@ -266,6 +268,7 @@ ANYTHING ({LETTER}|{DIGIT}|{OPCHAR})
 "HELP"	        { return HELP_TOK; }
 "TRANSFORM"	{ return TRANSFORM_TOK; }
 "PRINT"	        { return PRINT_TOK; }
+"PRINT_TYPE"    { return PRINT_TYPE_TOK; }
 "CALL"	        { return CALL_TOK; }
 "ECHO"	        { return ECHO_TOK; }
 "INCLUDE"       { return INCLUDE_TOK; }

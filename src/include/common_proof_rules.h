@@ -237,6 +237,13 @@ namespace CVC3 {
      */
     virtual Theorem implContrapositive(const Theorem& thm) = 0;
 
+    //! ==> ITE(TRUE, e1, e2) == e1
+    virtual Theorem rewriteIteTrue(const Expr& e) = 0;
+    //! ==> ITE(FALSE, e1, e2) == e2
+    virtual Theorem rewriteIteFalse(const Expr& e) = 0;
+    //! ==> ITE(c, e, e) == e
+    virtual Theorem rewriteIteSame(const Expr& e) = 0;
+
     // NOT e ==> e IFF FALSE
     //! \f[\frac{\vdash\neg e}{\vdash e\Leftrightarrow\mathrm{FALSE}}\f]
     virtual Theorem notToIff(const Theorem& not_e) = 0;
@@ -322,6 +329,11 @@ namespace CVC3 {
     virtual void clearSkolemAxioms() = 0;
 
     virtual Theorem ackermann(const Expr& e1, const Expr& e2) = 0;
+
+    // Given a propositional atom containing embedded ite's, lifts first ite condition
+    // to form a Boolean ITE
+    // |- P(...ite(a,b,c)...) <=> ite(a,P(...b...),P(...c...))
+    virtual Theorem liftOneITE(const Expr& e) = 0;
 
   }; // end of class CommonProofRules
 

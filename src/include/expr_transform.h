@@ -30,25 +30,27 @@ namespace CVC3 {
   class TheoryCore;
   class CommonProofRules;
   class CoreProofRules;
+  class TheoryArith;
 
 class ExprTransform {
 
   TheoryCore* d_core;
+  TheoryArith* d_theoryArith;
   CommonProofRules* d_commonRules;
   CoreProofRules* d_rules;
 
   //! Cache for pushNegation()
   ExprMap<Theorem> d_pushNegCache;
+  //! Cache for newPP
+  ExprMap<Theorem> d_newPPCache;
+  //! Budget limit for newPP
+  int d_budgetLimit;
 
 public:
   ExprTransform(TheoryCore* core);
   ~ExprTransform() {}
 
-  //! Simplification that avoids stack overflow
-  /*! Stack overflow is avoided by traversing the expression to depths that are
-    multiples of 5000 until the bottom is reached.  Then, simplification is done
-    bottom-up.
-   */
+  void setTheoryArith(TheoryArith* arith) { d_theoryArith = arith; }
   
 // <UFTeam Junk>
 
@@ -119,8 +121,12 @@ public:
 
 
 
-
-Theorem smartSimplify(const Expr& e, ExprMap<bool>& cache);
+  //! Simplification that avoids stack overflow
+  /*! Stack overflow is avoided by traversing the expression to depths that are
+    multiples of 5000 until the bottom is reached.  Then, simplification is done
+    bottom-up.
+   */
+  Theorem smartSimplify(const Expr& e, ExprMap<bool>& cache);
   Theorem preprocess(const Expr& e);
   Theorem preprocess(const Theorem& thm);
   //! Push all negations down to the leaves
@@ -131,6 +137,26 @@ Theorem smartSimplify(const Expr& e, ExprMap<bool>& cache);
   Theorem pushNegationRec(const Theorem& e, bool neg);
   //! Push negation one level down.  Takes 'e' which is 'NOT e[0]'
   Theorem pushNegation1(const Expr& e);
+  //! Helper for newPP
+  Theorem specialSimplify(const Expr& e, ExprHashMap<Theorem>& cache);
+  //! new preprocessing code
+  Theorem newPP(const Expr& e, int& budget);
+  //! main new preprocessing code
+  Theorem newPPrec(const Expr& e, int& budget);
+
+private:
+  //! Helper for simplifyWithCare
+  void updateQueue(ExprMap<std::set<Expr>* >& queue,
+                   const Expr& e,
+                   const std::set<Expr>& careSet);
+  //! Helper for simplifyWithCare
+  Theorem substitute(const Expr& e,
+                     ExprHashMap<Theorem>& substTable,
+                     ExprHashMap<Theorem>& cache);
+public:
+  //! ITE simplification from Burch paper
+  Theorem simplifyWithCare(const Expr& e);
+
   /*@}*/ // end of preprocessor stuff
 
 };

@@ -63,13 +63,13 @@ class CNF_Manager {
   std::vector<Varinfo> d_varInfo;
 
   //! Map from Exprs to Vars representing those Exprs
-  CVC3::ExprMap<Var> d_cnfVars;
+  CVC3::ExprHashMap<Var> d_cnfVars;
 
   //! Cached translation of term-ite-containing expressions
-  CVC3::ExprMap<CVC3::Theorem> d_iteMap;
+  CVC3::ExprHashMap<CVC3::Theorem> d_iteMap;
 
   //! Map of possibly useful lemmas
-  CVC3::ExprMap<int> d_usefulLemmas;
+  //  CVC3::ExprMap<int> d_usefulLemmas;
 
   //! Maps a clause id to the theorem justifying that clause
   /*! Note that clauses created by simple CNF translation are not given id's.
@@ -100,6 +100,9 @@ class CNF_Manager {
 
   //! Reference to command-line flags
   const CVC3::CLFlags& d_flags;
+
+  //! Reference to null Expr
+  const CVC3::Expr& d_nullExpr;
 
 public:
   //! Abstract class for callbacks
@@ -172,46 +175,55 @@ public:
    *  translating the ITE leaf y.
    *  \sa isITELeaf()
    */
-  unsigned numFanins(Lit c) {
+  unsigned numFanins(Var c) {
     if (!c.isVar()) return 0;
-    int index = c.getVar();
-    if ((unsigned)index >= d_varInfo.size()) return 0;
-    return d_varInfo[index].fanins.size();
+    if (unsigned(c) >= d_varInfo.size()) return 0;
+    return d_varInfo[c].fanins.size();
   }
 
   //! Returns the ith fanin of c.
-  Lit getFanin(Lit c, unsigned i) {
+  Lit getFanin(Var c, unsigned i) {
     DebugAssert(i < numFanins(c), "attempt to access unknown fanin");
-    return d_varInfo[c.getVar()].fanins[i];
+    return d_varInfo[c].fanins[i];
   }
 
   //! Return number of fanins for c
   /*! x is a fanout of y if y is a fanin of x
    *  \sa numFanins
    */
-  unsigned numFanouts(Lit c) {
+  unsigned numFanouts(Var c) {
     if (!c.isVar()) return 0;
-    int index = c.getVar();
-    if ((unsigned)index >= d_varInfo.size()) return 0;
-    return d_varInfo[index].fanouts.size();
+    if (unsigned(c) >= d_varInfo.size()) return 0;
+    return d_varInfo[c].fanouts.size();
   }
 
   //! Returns the ith fanout of c.
-  Lit getFanout(Lit c, unsigned i) {
+  Lit getFanout(Var c, unsigned i) {
     DebugAssert(i < numFanouts(c), "attempt to access unknown fanin");
-    return Lit(d_varInfo[c.getVar()].fanouts[i]);
+    return Lit(d_varInfo[c].fanouts[i]);
+  }
+
+  //! Convert a CNF literal to an Expr literal
+  /*! Returns a NULL Expr if there is no corresponding Expr for l
+   */
+  const CVC3::Expr& concreteVar(Var v) {
+    if (v.isNull()) return d_nullExpr;
+    if (unsigned(v) >= d_varInfo.size() ||
+        (!d_varInfo[v].expr.isTranslated()))
+      return d_nullExpr;
+    return d_varInfo[v].expr;
   }
 
   //! Convert a CNF literal to an Expr literal
   /*! Returns a NULL Expr if there is no corresponding Expr for l
    */
   CVC3::Expr concreteLit(Lit l, bool checkTranslated = true) {
-    if (l.isNull()) return CVC3::Expr();
+    if (l.isNull()) return d_nullExpr;
     bool inverted = !l.isPositive();
     int index = l.getVar();
     if ((unsigned)index >= d_varInfo.size() ||
         (checkTranslated && !d_varInfo[index].expr.isTranslated()))
-      return CVC3::Expr();
+      return d_nullExpr;
     return inverted ? !d_varInfo[index].expr : d_varInfo[index].expr;
   }
 
@@ -222,7 +234,7 @@ public:
     if (e.isFalse()) return Lit::getFalse();
     if (e.isTrue()) return Lit::getTrue();
     if (e.isNot()) return !getCNFLit(e[0]);
-    CVC3::ExprMap<Var>::iterator i = d_cnfVars.find(e);
+    CVC3::ExprHashMap<Var>::iterator i = d_cnfVars.find(e);
     if (!e.isTranslated() || i == d_cnfVars.end()) return Lit();
     return Lit((*i).second);
   }

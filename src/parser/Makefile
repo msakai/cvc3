@@ -3,7 +3,7 @@ MODULE = parser
 LIBRARY=libparser.a
 
 # Do not optimize the parser code - it compiles forever in some gcc versions
-#EXTRAFLAGS = -O0
+EXTRAFLAGS = -O0
 
 TRANSIENT_CPP = \
  parsePL.cpp lexPL.cpp \
@@ -11,9 +11,9 @@ TRANSIENT_CPP = \
  parsesmtlib.cpp lexsmtlib.cpp
 
 TRANSIENT = $(TRANSIENT_CPP) \
-  parsePL_defs.h \
-  parseLisp_defs.h \
-  parsesmtlib_defs.h
+  parsePL_defs.h parsePL.output \
+  parseLisp_defs.h parseLisp.output \
+  parsesmtlib_defs.h parsesmtlib.output
 
 SRC = $(TRANSIENT_CPP) parser.cpp
 

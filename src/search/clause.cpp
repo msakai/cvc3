@@ -187,7 +187,7 @@ string CompactClause::toString() const {
   return ss.str();
 }
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 bool CVC3::Clause::wpCheck() const
 {
   if (sat(true))

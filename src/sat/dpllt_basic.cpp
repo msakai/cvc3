@@ -13,7 +13,7 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
  */
 /*****************************************************************************/
@@ -169,7 +169,7 @@ void DPLLTBasic::generate_CDB (CNF_Formula_Impl& cnf)
 
 void DPLLTBasic::handle_result(SatSolver::SATStatus outcome)
 {
-  char * result = "UNKNOWN";
+  const char * result = "UNKNOWN";
   switch (outcome) {
     case SatSolver::SATISFIABLE:
 //         if (d_printStats) {
@@ -196,12 +196,12 @@ void DPLLTBasic::handle_result(SatSolver::SATStatus outcome)
         if (d_printStats) cout << "Instance unsatisfiable" << endl;
 	break;
     case SatSolver::BUDGET_EXCEEDED:
-	result  = "ABORT : TIME OUT"; 
+	result  = "ABORT : TIME OUT";
 	cout << "Time out, unable to determine the satisfiablility of the instance";
 	cout << endl;
 	break;
     case SatSolver::OUT_OF_MEMORY:
-	result  = "ABORT : MEM OUT"; 
+	result  = "ABORT : MEM OUT";
 	cout << "Memory out, unable to determing the satisfiablility of the instance";
 	cout << endl;
 	break;
@@ -238,7 +238,7 @@ void DPLLTBasic::verify_solution()
 
 DPLLTBasic::DPLLTBasic(TheoryAPI* theoryAPI, Decider* decider, ContextManager* cm,
                        bool printStats)
-  : DPLLT(theoryAPI, decider), d_cm(cm), d_ready(true), 
+  : DPLLT(theoryAPI, decider), d_cm(cm), d_ready(true),
     d_printStats(printStats),
     d_pushLevel(cm->getCurrentContext(), 0),
     d_readyPrev(cm->getCurrentContext(), true),
@@ -342,7 +342,7 @@ void DPLLTBasic::pop()
     d_cnf = d_cnfStack.back();
     d_cnfStack.pop_back();
     DebugAssert(d_mngStack.size() == d_cnfStack.size(), "size mismatch");
-  }    
+  }
 
   if (d_mngStack.size() == 0) {
     if (readyPrev && !d_ready) {
@@ -368,7 +368,7 @@ void DPLLTBasic::pop()
 std::vector<SAT::Lit> DPLLTBasic::getCurAssignments(){
   std::vector<SAT::Lit> nothing;
   return nothing;
-} 
+}
 
 std::vector<std::vector<SAT::Lit> > DPLLTBasic::getCurClauses(){
   std::vector<std::vector<SAT::Lit> > nothing;

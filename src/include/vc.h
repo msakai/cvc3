@@ -2,9 +2,9 @@
 /*!
  * \file vc.h
  * \brief Generic API for a validity checker
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Tue Nov 26 17:45:10 2002
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -25,6 +25,7 @@
 #include "os.h"
 #include "queryresult.h"
 #include "expr.h"
+#include "formula_value.h"
 
 /*****************************************************************************/
 /*!
@@ -115,7 +116,7 @@ public:
    */
   /***************************************************************************/
 
-  //! Create the set of command line flags with default values; 
+  //! Create the set of command line flags with default values;
   /*!
     \return the set of flags by value
   */
@@ -255,7 +256,7 @@ public:
   //! Return the ExprManager
   virtual ExprManager* getEM() = 0;
 
-  //! Create a variable with a given name and type 
+  //! Create a variable with a given name and type
   /*!
     \param name is the name of the variable
     \param type is its type.  The type cannot be a function type.
@@ -267,7 +268,7 @@ public:
   virtual Expr varExpr(const std::string& name, const Type& type,
 		       const Expr& def) = 0;
 
-  //! Get the variable associated with a name, and its type 
+  //! Get the variable associated with a name, and its type
   /*!
     \param name is the variable name
     \param type is where the type value is returned
@@ -295,11 +296,11 @@ public:
   //! Create an ID Expr
   virtual Expr idExpr(const std::string& name) = 0;
 
-  //! Create a list Expr 
+  //! Create a list Expr
   /*! Intermediate representation for DP-specific expressions.
    *  Normally, the first element of the list is a string Expr
    *  representing an operator, and the rest of the list are the
-   *  arguments.  For example, 
+   *  arguments.  For example,
    *
    *  kids.push_back(vc->stringExpr("PLUS"));
    *  kids.push_back(x); // x and y are previously created Exprs
@@ -368,6 +369,13 @@ public:
   /*! \sa getType() */
   virtual Type importType(const Type& t) = 0;
 
+  //! Parse a sequence of commands from a presentation language string
+  virtual void cmdsFromString(const std::string& s,
+                              InputLanguage lang=PRESENTATION_LANG) = 0;
+
+  //! Parse an expression from a presentation language string
+  virtual Expr exprFromString(const std::string& e) = 0;
+
   /*@}*/ // End of General Expr Methods
 
   /***************************************************************************/
@@ -390,7 +398,7 @@ public:
   //! Create negation
   virtual Expr notExpr(const Expr& child) = 0;
 
-  //! Create 2-element conjunction 
+  //! Create 2-element conjunction
   virtual Expr andExpr(const Expr& left, const Expr& right) = 0;
 
   //! Create n-element conjunction
@@ -424,6 +432,12 @@ public:
   virtual Expr iteExpr(const Expr& ifpart, const Expr& thenpart,
 		       const Expr& elsepart) = 0;
 
+  /**
+   * Create an expression asserting that all the children are different.
+   * @param children the children to be asserted different
+   */
+  virtual Expr distinctExpr(const std::vector<Expr>& children) = 0;
+
   /*@}*/ // End of Core expression methods
 
   /***************************************************************************/
@@ -435,7 +449,7 @@ public:
   /***************************************************************************/
 
   //! Create a named uninterpreted function with a given type
-  /*! 
+  /*!
     \param name is the new function's name (as ID Expr)
     \param type is a function type ( [range -> domain] )
   */
@@ -444,6 +458,16 @@ public:
   //! Create a named user-defined function with a given type
   virtual Op createOp(const std::string& name, const Type& type,
 		      const Expr& def) = 0;
+
+  //! Get the Op associated with a name, and its type
+  /*!
+    \param name is the operator name
+    \param type is where the type value is returned
+
+    \return an Op by the name. If there is no such Op, a NULL \
+    Op is returned.
+  */
+  virtual Op lookupOp(const std::string& name, Type* type) = 0;
 
   //! Unary function application (op must be of function type)
   virtual Expr funExpr(const Op& op, const Expr& child) = 0;
@@ -471,6 +495,14 @@ public:
    */
   /***************************************************************************/
 
+  /*!
+   * Add the pair of variables to the variable ordering for aritmetic solving.
+   * Terms that are not arithmetic will be ignored.
+   * \param smaller the smaller variable
+   * \param bigger the bigger variable
+   */
+  virtual bool addPairToArithOrder(const Expr& smaller, const Expr& bigger) = 0;
+
   //! Create a rational number with numerator n and denominator d.
   /*!
     \param n the numerator
@@ -485,8 +517,8 @@ public:
   */
   virtual Expr ratExpr(const std::string& n, const std::string& d, int base) = 0;
 
-  //! Create a rational from a single string.  
-  /*!  
+  //! Create a rational from a single string.
+  /*!
     \param n can be a string containing an integer, a pair of integers
     "nnn/ddd", or a number in the fixed or floating point format.
     \param base is the base in which to interpret the string.
@@ -498,6 +530,9 @@ public:
 
   //! Create 2-element sum (left + right)
   virtual Expr plusExpr(const Expr& left, const Expr& right) = 0;
+
+  //! Create n-element sum
+  virtual Expr plusExpr(const std::vector<Expr>& children) = 0;
 
   //! Make a difference (left - right)
   virtual Expr minusExpr(const Expr& left, const Expr& right) = 0;
@@ -647,8 +682,15 @@ public:
   virtual Expr newBVSubExpr(const Expr& t1, const Expr& t2) = 0;
   //! 'numbits' is the number of bits in the result
   virtual Expr newBVPlusExpr(int numbits, const std::vector<Expr>& k) = 0;
+  virtual Expr newBVPlusExpr(int numbits, const Expr& t1, const Expr& t2) = 0;
   virtual Expr newBVMultExpr(int numbits,
                              const Expr& t1, const Expr& t2) = 0;
+
+  virtual Expr newBVUDivExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVURemExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVSDivExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVSRemExpr(const Expr& t1, const Expr& t2) = 0;
+  virtual Expr newBVSModExpr(const Expr& t1, const Expr& t2) = 0;
 
   // Left shift by r bits: result is old size + r bits
   virtual Expr newFixedLeftShiftExpr(const Expr& t1, int r) = 0;
@@ -688,7 +730,7 @@ public:
   //! Datatype tester expression
   virtual Expr datatypeTestExpr(const std::string& constructor, const Expr& arg) = 0;
 
-  //! Create a bound variable with a given name, unique ID (uid) and type 
+  //! Create a bound variable with a given name, unique ID (uid) and type
   /*!
     \param name is the name of the variable
     \param uid is the unique ID (a string), which must be unique for
@@ -702,22 +744,29 @@ public:
 
   //! Universal quantifier
   virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body) = 0;
+  //! Universal quantifier with triggers
+  virtual Expr forallExpr(const std::vector<Expr>& vars, const Expr& body,
+			  const std::vector<std::vector<Expr> >& triggers) = 0;
 
   //! Set triggers for quantifier instantiation
   /*!
-   * \param e is the expression for which triggers are being set.
-   * \param Each entry in triggers is a listExpr containing one or more patterns.
-   * A pattern is a term or Atomic predicate sub-expression of e.
-   * A list containing more than one pattern is treated as a multi-trigger.
-   * Patterns will be matched in the order they occur in the vector.
+   * \param e is the expression for which triggers are being set.  \param
+   * Each item in triggers is a vector of Expr containing one or more
+   * patterns.  A pattern is a term or Atomic predicate sub-expression of
+   * e.  A vector containing more than one pattern is treated as a
+   * multi-trigger.  Patterns will be matched in the order they occur in
+   * the vector.
   */
-  virtual void setTriggers(const Expr& e, const std::vector<Expr>& triggers) = 0;
+  virtual void setTriggers(const Expr& e, const std::vector<std::vector<Expr> > & triggers) = 0;
 
   //! Existential quantifier
   virtual Expr existsExpr(const std::vector<Expr>& vars, const Expr& body) = 0;
 
   //! Lambda-expression
   virtual Op lambdaExpr(const std::vector<Expr>& vars, const Expr& body) = 0;
+
+  //! Transitive closure of a binary predicate
+  virtual Op transClosure(const Op& op) = 0;
 
   //! Symbolic simulation expression
   /*!
@@ -748,6 +797,13 @@ public:
   //! Set the resource limit (0==unlimited, 1==exhausted).
   /*! Currently, the limit is the total number of processed facts. */
   virtual void setResourceLimit(unsigned limit) = 0;
+
+  //! Set a time limit in tenth of a second,
+  /*! counting the cpu time used by the current process from now on.
+   *  Currently, when the limit is reached, cvc3 tries to quickly
+   *  terminate, probably with the status unknown.
+   */
+  virtual void setTimeLimit(unsigned limit) = 0;
 
   //! Assert a new formula in the current context.
   /*! This creates the assumption e |- e.  The formula must have Boolean type.
@@ -820,6 +876,7 @@ public:
   //! Returns the set of assumptions used in the proof of queried formula.
   /*! It returns a subset of getAssumptions().  If the last query was false
    *  or there has not yet been a query, it does nothing.
+   *  NOTE: this functionality is not supported yet
    *  \param assumptions should be empty on entry.
   */
   virtual void getAssumptionsUsed(std::vector<Expr>& assumptions) = 0;
@@ -841,15 +898,30 @@ public:
 
   //! Will assign concrete values to all user created variables
   /*! This function should only be called after a query which return false.
-  */  
+  */
   virtual void getConcreteModel(ExprMap<Expr> & m) = 0;
+
+  //! If the result of the last query was UNKNOWN try to actually build the model
+  //! to verify the result.
+  /*! This function should only be called after a query which return unknown.
+  */
+  virtual QueryResult tryModelGeneration() = 0;
+
+  //:ALEX: returns the current truth value of a formula
+  // returns UNKNOWN_VAL if e is not associated
+  // with a boolean variable in the SAT module,
+  // i.e. if its value can not determined without search.
+  virtual FormulaValue value(const Expr& e) = 0;
 
   //! Returns true if the current context is inconsistent.
   /*! Also returns a minimal set of assertions used to determine the
-   inconsistency.  
+   inconsistency.
    \param assumptions should be empty on entry.
   */
   virtual bool inconsistent(std::vector<Expr>& assumptions) = 0;
+
+  //! Returns true if the current context is inconsistent.
+  virtual bool inconsistent() = 0;
 
   //! Returns true if the invalid result from last query() is imprecise
   /*!
@@ -974,7 +1046,7 @@ public:
    *@{
    */
   /***************************************************************************/
-  
+
   //! Read and execute the commands from a file given by name ("" means stdin)
   virtual void loadFile(const std::string& fileName,
 			InputLanguage lang = PRESENTATION_LANG,
@@ -995,7 +1067,7 @@ public:
    *@{
    */
   /***************************************************************************/
-  
+
   //! Get statistics object
   virtual Statistics& getStatistics() = 0;
 

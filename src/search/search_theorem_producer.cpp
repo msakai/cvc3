@@ -1390,11 +1390,211 @@ Expr SearchEngineTheoremProducer::findInLocalCache(const Expr& i,
   return v;
 }
 
+class LFSCPrinter{
+  const Expr d_bool_res_str;
+  const Expr d_assump_str;
+  ExprMap<string> d_assump_map; 
+  ExprMap<string> d_let_map; 
+  ExprMap<bool> d_visited;
+  void collect_assumps(const Expr& pf, ExprMap<bool>&);
+  string new_name();
+  void print_helper(const Expr& pf, bool definition = false);
+  void print_clause(const Expr& );
+ public:
+  LFSCPrinter(const Expr, const Expr);
+  void print(const Expr& pf);
+};
+
+string LFSCPrinter::new_name(){
+  static int count = 1;
+  ostringstream name;
+  name << "c" << count++;
+  return name.str();
+}
+
+bool is_leaf(const Expr & e){
+  if (0 == e.arity()) return true;
+  if ( 1 == e.arity() && e.isNot() ) return true;
+  return false;
+}
+
+void LFSCPrinter::collect_assumps(const Expr& pf, ExprMap<bool>& visited){
+  // If seen before, and it's not something trivial, add to d_dagMap
+  if( visited.count(pf) > 0 && ( ! is_leaf(pf))) {
+    if (pf.arity() > 0 && pf[0] == d_assump_str){ 
+      return; // this is a assumption, we will deal this later
+    }
+    d_let_map[pf] = new_name();
+    return;
+  }
+
+  visited[pf] = true;
+  
+  if (pf.arity() > 0 && pf[0] == d_assump_str){ 
+    d_assump_map[pf[1]] = new_name();
+    return;
+  }
+
+  for(Expr::iterator i = pf.begin(), iend = pf.end(); i!=iend; ++i)
+    collect_assumps(*i, visited);
+}
+
+
+LFSCPrinter::LFSCPrinter(const Expr b_str, const Expr a_str):
+  d_bool_res_str(b_str), d_assump_str(a_str){}
+
+
+void LFSCPrinter::print_clause(const Expr& clause){
+  if ( ! clause.isOr()){
+    cout << "ERROR2 " << endl;
+  }
+  
+  int num_lit = clause.arity();
+  
+  cout << "(holds ";
+  
+  for (int i = 0; i < num_lit; i++){
+    cout <<"(clc " ; 
+    if (clause[i].isNot()){
+      cout << "(neg " << clause[i][0] << ") "; 
+    }
+    else {
+      cout << "(pos " << clause[i] << ") " ;
+    }
+  }
+  cout << "cln";
+  for (int i = 0; i < num_lit; i++){
+    cout <<")";
+  }
+  cout << ")\n";
+}
+
+void LFSCPrinter::print(const Expr& pf){
+  ExprMap<bool> visited;
+  collect_assumps(pf, visited);
+  ExprMap<string>::iterator i = d_assump_map.begin(), iend = d_assump_map.end();
+  int num_clause = 0; 
+  while( i != iend){
+    num_clause++;
+    cout << "(% " << (*i).second << " "  ; 
+    print_clause((*i).first);
+    i++;
+  }
+  
+  cout << "(: (holds cln) \n";
+  
+  ExprMap<string>::iterator j = d_let_map.begin(), jend = d_let_map.end();
+  int num_lets = 0; 
+  while( j != jend){
+    num_lets++;
+    cout << "(satlem _ _ " ;
+    print_helper((*j).first, true);
+    cout << "(\\ "<< (*j).second << " "  ; 
+    cout << endl;
+    j++;
+  }
+
+  print_helper(pf);
+  for ( int i = 0; i < num_clause; i++){
+    cout <<")";
+  }
+  for ( int i = 0; i < num_lets; i++){
+    cout <<"))";
+  }
+
+}
+
+void LFSCPrinter::print_helper(const Expr& pf, bool is_definition){
+  if (d_let_map.count(pf) > 0 && (! is_definition)){
+    cout << d_let_map[pf] << " " ;
+    return;
+  }
+  if (pf.arity() > 0 &&  pf[0] == d_bool_res_str){
+    cout << "(R _ _ _ " ;
+
+    Expr v = pf[1];
+    if (v.isNot()){
+      print_helper(pf[3]);
+      print_helper(pf[2]);
+      cout << v[0] ;
+    }
+    else{
+      print_helper(pf[2]);
+      print_helper(pf[3]);
+      cout << v;
+    }
+    cout <<")";
+  }
+  else if (pf.arity() > 0 && pf[0] == d_assump_str){
+    Expr clause = pf[1];
+    cout << d_assump_map[clause] << " " ;
+  }
+  else {
+    cout << "ERROR1" << endl;
+    cout << pf << endl;
+  }
+}
+
+
+
+// for LFSC proof style, by yeting 
+void collectVars(const Expr& e, ExprMap<bool>& varCache, ExprMap<bool>& visited) {
+  // If seen before, and it's not something trivial, add to d_dagMap
+  if( visited.count(e) > 0) {
+    return;
+  }
+
+  visited[e] = true;
+
+  if (e.getKind() == UCONST){ //this is for bool vars
+    //    cout << "var is " << e << endl;
+    //    cout << "kind string" << e.getEM()->getKindName(e.getKind()) << endl;
+    varCache[e] = true;
+  }
+  for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)
+    collectVars(*i, varCache,visited);
+}
+
 // theorem for minisat generated proofs,  by yeting
 Theorem SearchEngineTheoremProducer::satProof(const Expr& queryExpr, const Proof& satProof) {
   Proof pf;
   if(withProof())
     pf = newPf("minisat_proof", queryExpr, satProof);
+  {
+    Expr pf_expr =  pf.getExpr()[2] ;
+    //     cout << pf_expr << endl;
+    ExprMap<bool> vars,visited;
+    collectVars(pf_expr,vars,visited);
+
+    cout << "(check \n" ; 
+    
+    vector<Expr> vars_vec ;
+    ExprMap<bool>::iterator i = vars.begin(), iend = vars.end();
+    while (i != iend){
+      vars_vec.push_back((*i).first);
+      //      cout << "var " << (*i).first << endl;
+      i++;
+    }
+    int num_vars = vars_vec.size();
+    for (int i = 0; i < num_vars; i++){
+      cout << "(% " << vars_vec[i] << " var " << endl;
+    }
+
+
+
+    const Expr bool_res_string = pf_expr.getEM()->newStringExpr("bool_resolution");
+    const Expr assump_string = pf_expr.getEM()->newStringExpr("assumptions");
+    LFSCPrinter lfsc_printer(bool_res_string, assump_string);
+    lfsc_printer.print(pf_expr);
+    
+    for (int i = 0; i < num_vars; i++){
+      cout << ")";
+    }
+    cout << ")" << endl;
+    cout << ")" << endl;
+  }
   return newTheorem(queryExpr, Assumptions::emptyAssump() , pf);
 }
 
+
+//  LocalWords:  clc

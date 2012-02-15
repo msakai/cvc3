@@ -47,7 +47,7 @@ TheoryDatatypeLazy::TheoryDatatypeLazy(TheoryCore* core)
 { }
 
 
-void TheoryDatatypeLazy::instantiate(const Expr& e, const bigunsigned& u)
+void TheoryDatatypeLazy::instantiate(const Expr& e, const Unsigned& u)
 {
   DebugAssert(e.hasFind() && findExpr(e) == e,
               "datatype: instantiate: Expected find(e)=e");
@@ -60,7 +60,7 @@ void TheoryDatatypeLazy::instantiate(const Expr& e, const bigunsigned& u)
   ExprMap<unsigned>& c = d_datatypes[e.getType().getExpr()];
   ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
   for (; c_it != c_end; ++c_it) {
-    if (u & (1 << bigunsigned((*c_it).second))) break;
+    if (u & (1 << Unsigned((*c_it).second))) break;
   }
   DebugAssert(c_it != c_end,
               "datatype: instantiate: couldn't find constructor");
@@ -101,16 +101,16 @@ void TheoryDatatypeLazy::initializeLabels(const Expr& e, const Type& t)
     DebugAssert(c.find(cons) != c.end(),
                 "datatype: initializeLabels: Couldn't find constructor "
                 +cons.toString());
-    bigunsigned position = c[cons];
+    Unsigned position = c[cons];
     d_labels.insert(e,
-      SmartCDO<bigunsigned>(theoryCore()->getCM()->getCurrentContext(),
+      SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             1 << position, 0));
   }
   else {
     DebugAssert(c.size() > 0, "No constructors?");
-    bigunsigned value = (1 << bigunsigned(c.size())) - 1;
+    Unsigned value = (1 << Unsigned(c.size())) - 1;
     d_labels.insert(e,
-      SmartCDO<bigunsigned>(theoryCore()->getCM()->getCurrentContext(),
+      SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             value, 0));
     if (value == 1) instantiate(e, 1);
     else if (!d_typeComplete) {
@@ -131,8 +131,8 @@ void TheoryDatatypeLazy::mergeLabels(const Theorem& thm,
               d_labels.find(f) != d_labels.end(),
               "mergeLabels: expr is not labeled");
   DebugAssert(e1.getType() == f.getType(), "Expected same type");
-  bigunsigned u = d_labels[f].get().get();
-  bigunsigned uNew = u & d_labels[e1].get().get();
+  Unsigned u = d_labels[f].get().get();
+  Unsigned uNew = u & d_labels[e1].get().get();
   if (u != uNew) {
     if (e2 != f) d_facts.push_back(fthm);
     if (!thm.isNull()) d_facts.push_back(thm);
@@ -157,8 +157,8 @@ void TheoryDatatypeLazy::mergeLabels(const Theorem& thm, const Expr& e,
   const Expr& f = fthm.getRHS();
   DebugAssert(d_labels.find(f) != d_labels.end(),
               "mergeLabels2: expr is not labeled");
-  bigunsigned u = d_labels[f].get().get();
-  bigunsigned uNew = 1 << bigunsigned(position);
+  Unsigned u = d_labels[f].get().get();
+  Unsigned uNew = 1 << Unsigned(position);
   if (positive) {
     uNew = u & uNew;
     if (u == uNew) return;
@@ -183,7 +183,7 @@ void TheoryDatatypeLazy::checkSat(bool fullEffort)
     if (findExpr(e) == e) {
       DebugAssert(d_labels.find(e) != d_labels.end(),
                   "checkSat: expr is not labeled");
-      bigunsigned u = d_labels[e].get().get();
+      Unsigned u = d_labels[e].get().get();
       if ((u & (u-1)) != 0) {
         done = true;
         DebugAssert(!d_splitterAsserted || !fullEffort,
@@ -196,7 +196,7 @@ void TheoryDatatypeLazy::checkSat(bool fullEffort)
           ExprMap<unsigned>& c = d_datatypes[e.getType().getExpr()];
           ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
           for (; c_it != c_end; ++c_it) {
-            if (u & (1 << bigunsigned((*c_it).second))) break;
+            if (u & (1 << Unsigned((*c_it).second))) break;
           }
           DebugAssert(c_it != c_end,
               "datatype: checkSat: couldn't find constructor");
@@ -314,6 +314,7 @@ void TheoryDatatypeLazy::update(const Theorem& e, const Expr& d)
           }
           d.setSig(thm);
           sigNew.setRep(thm);
+          getEM()->invalidateSimpCache();
         }
       }
     }

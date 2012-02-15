@@ -60,6 +60,14 @@ public:
   bool isBool() const { return d_expr.getKind() == BOOLEAN; }
   bool isSubtype() const { return d_expr.getKind() == SUBTYPE; }
   bool isFunction() const { return d_expr.getKind() == ARROW; }
+  //! Return cardinality of type
+  Cardinality card() const { return d_expr.typeCard(); }
+  //! Return nth (starting with 0) element in a finite type
+  /*! Returns NULL Expr if unable to compute nth element
+   */
+  Expr enumerateFinite(Unsigned n) const { return d_expr.typeEnumerateFinite(n); }
+  //! Return size of a finite type; returns 0 if size cannot be determined
+  Unsigned sizeFinite() const { return d_expr.typeSizeFinite(); }
 
   // Core constructors
   static Type typeBool(ExprManager* em) { return Type(em->boolExpr(), true); }

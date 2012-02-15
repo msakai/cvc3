@@ -25,6 +25,7 @@
 #include "smtlib_exception.h"
 #include "command_line_flags.h"
 #include "theory_core.h"
+#include "translator.h"
 // HACK: include theory_records.h to access the TUPLE_TYPE kind
 #include "theory_records.h"
 
@@ -316,6 +317,53 @@ void TheoryUF::checkType(const Expr& e)
 }
 
 
+Cardinality TheoryUF::finiteTypeInfo(Expr& e, Unsigned& n,
+                                     bool enumerate, bool computeSize)
+{
+  DebugAssert(e.getKind() == ARROW,
+              "Unexpected kind in TheoryUF::finiteTypeInfo");
+  Expr::iterator i = e.begin(), iend = e.end();
+  Cardinality card = CARD_FINITE, cardTmp;
+  Unsigned thisSize = 1, size;
+  bool getSize = enumerate || computeSize;
+  for (; i != iend; ) {
+    Expr e2 = (*i);
+    cardTmp = theoryOf(e2)->finiteTypeInfo(e2, size, getSize, false);
+    if (cardTmp == CARD_INFINITE) {
+      return CARD_INFINITE;
+    }
+    else if (cardTmp == CARD_UNKNOWN) {
+      card = CARD_UNKNOWN;
+      getSize = false;
+      // Keep looking to see if we can determine it is infinite
+    }
+    else if (getSize) {
+      thisSize = thisSize * size;
+      // Give up if it gets too big
+      if (thisSize > 1000000) thisSize = 0;
+      if (thisSize == 0) {
+        getSize = false;
+      }
+    }
+  }
+
+  if (card == CARD_FINITE) {
+
+    if (enumerate) {
+      // TODO: enumerate functions? maybe at least n == 0
+      e = Expr();
+    }
+
+    if (computeSize) {
+      n = thisSize;
+    }
+
+  }
+
+  return card;
+}
+
+
 void TheoryUF::computeType(const Expr& e)
 {
   switch (e.getKind()) {
@@ -456,7 +504,8 @@ void TheoryUF::computeModel(const Expr& e, std::vector<Expr>& vars) {
     DebugAssert(tp.isFunction(), "TheoryUF::computeModel("+e.toString()
 		+" : "+tp.toString()+")");
     for(int i=0, iend=tp.arity()-1; i<iend; ++i) {
-      Expr v = getEM()->newBoundVarExpr("uf", int2string(count++));
+      string str = "uf_"+int2string(count);
+      Expr v = getEM()->newBoundVarExpr(str, int2string(count++));
       v.setType(tp[i]);
       args.push_back(v);
     }
@@ -667,7 +716,7 @@ ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
 	  }
 	  os << push << ")" << pop << pop;
 	}
-	os << space << "-> " << space << e[e.arity()-1];
+	os << space << "->" << space << e[e.arity()-1];
       }
       break;
     case TYPEDECL:
@@ -734,12 +783,14 @@ ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
       }
       d_theoryUsed = true;
       os << push;
+      bool oldDagFlag = os.dagFlag(false);
       int iend = e.arity();
       if (e[iend-1].getKind() == BOOLEAN) --iend;
       for(int i=0; i<iend; ++i) {
         if (i != 0) os << space;
 	os << e[i];
       }
+      os.dagFlag(oldDagFlag);
       break;
     }
     case TYPEDECL:
@@ -772,7 +823,7 @@ ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
       break;
     case UFUNC:
       DebugAssert(e.isSymbol(), "Expected symbol");
-      os << e.getName();
+      os << theoryCore()->getTranslator()->fixConstName(e.getName());
       break;
     default: {
       DebugAssert(false, "TheoryUF::print: SMTLIB_LANG: Unexpected expression: "
@@ -859,9 +910,21 @@ TheoryUF::parseExprOp(const Expr& e) {
 
   DebugAssert(e.arity() > 0,
 	      "TheoryUF::parseExprOp:\n e = "+e.toString());
-  
-  const Expr& c1 = e[0][0];
-  int kind = getEM()->getKind(c1.getString());
+
+  if (e[0].getKind() == RAW_LIST) {
+    if(e.arity() < 2)
+      throw ParserException("Bad function application: "+e.toString());
+    Expr::iterator i=e.begin(), iend=e.end();
+    Expr op(parseExpr(*i)); ++i;
+    vector<Expr> args;
+    for(; i!=iend; ++i) args.push_back(parseExpr(*i));
+    return Expr(op.mkOp(), args);
+  }
+
+  DebugAssert(e[0].getKind() == ID || e[0][0].getKind() == ID,
+              "Expected identifier");
+  int kind = e[0].getKind();
+  if (kind == ID) kind = getEM()->getKind(e[0][0].getString());
   switch(kind) {
   case OLD_ARROW: {
     if (!theoryCore()->getFlags()["old-func-syntax"].getBool()) {
@@ -939,7 +1002,7 @@ TheoryUF::parseExprOp(const Expr& e) {
     return lambdaExpr(boundVars, body);
     break;
   }
-    // case APPLY: 
+  case RAW_LIST: // Lambda application
   default: { // Application of an uninterpreted function
     if(e.arity() < 2)
       throw ParserException("Bad function application: "+e.toString());

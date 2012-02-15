@@ -49,7 +49,7 @@ Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
   if(getFlag()) return visited[*this];
 
   ExprIndex minIndex = 0;
-  for(ExprHashMap<Expr>::iterator i = subst.begin(),iend=subst.end();i!=iend;++i) {
+  for(ExprHashMap<Expr>::const_iterator i = subst.begin(),iend=subst.end();i!=iend;++i) {
     if(minIndex > (i->first).getIndex())
       minIndex = (i->first).getIndex();
   }
@@ -93,7 +93,7 @@ Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
       clearFlags();
       visited = subst;
       // Restore the flags on the original substitutions
-      for (ExprHashMap<Expr>::iterator i = subst.begin(), iend=subst.end();
+      for (ExprHashMap<Expr>::const_iterator i = subst.begin(), iend=subst.end();
 	   i != iend; ++i)
 	i->first.setFlag();
     } else {
@@ -102,20 +102,26 @@ Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
                                 getBody().recursiveSubst(subst, visited));
     }
   } else { // Not a Closure
-      int changed=0;
-      vector<Expr> children;      
-      for(Expr::iterator i=begin(), iend=end(); i!=iend; ++i){	
-	Expr repChild = *i;
-	if(repChild.getIndex() >= minIndex)
-	  repChild = (*i).recursiveSubst(subst, visited);
-	if(repChild != *i)
-	  changed++;
-	children.push_back(repChild);
-      }
-      if(changed > 0)
-	replaced = Expr(getOp(), children);
-      else
-	replaced = *this;
+    int changed=0;
+    vector<Expr> children;      
+    for(Expr::iterator i=begin(), iend=end(); i!=iend; ++i){	
+      Expr repChild = *i;
+      if(repChild.getIndex() >= minIndex)
+        repChild = (*i).recursiveSubst(subst, visited);
+      if(repChild != *i)
+        changed++;
+      children.push_back(repChild);
+    }
+    Expr opExpr;
+    if (isApply()) {
+      opExpr = getOpExpr().recursiveSubst(subst, visited);
+      if (opExpr != getOpExpr()) ++changed;
+    }
+    if(changed > 0) {
+      Op op = opExpr.isNull() ? getOp() : opExpr.mkOp();
+      replaced = Expr(op, children);
+    }
+    else replaced = *this;
   }
   visited.insert(*this, replaced);
   setFlag();
@@ -176,7 +182,7 @@ Expr Expr::substExpr(const ExprHashMap<Expr>& oldToNew) const
   clearFlags();
   // Flag all the LHS expressions in oldToNew map.  We'll be checking
   // all flagged expressions (and only those) for substitution.
-  for(ExprHashMap<Expr>::iterator i=oldToNew.begin(), iend=oldToNew.end();
+  for(ExprHashMap<Expr>::const_iterator i=oldToNew.begin(), iend=oldToNew.end();
       i!=iend; ++i) {
     (*i).first.setFlag();
   }
@@ -206,10 +212,10 @@ Expr Expr::substExprQuant(const vector<Expr>& oldTerms,
   ExprHashMap<Expr> oldToNew(10);
 
   //  clearFlags();
-   for(unsigned int i=0; i<oldTerms.size(); i++) {
-     oldToNew.insert(oldTerms[i], newTerms[i]);
-     //     oldTerms[i].setFlag();
-   }
+  for(unsigned int i=0; i<oldTerms.size(); i++) {
+    oldToNew.insert(oldTerms[i], newTerms[i]);
+    //     oldTerms[i].setFlag();
+  }
   // For cache, initialized by the substitution
   ExprHashMap<Expr> visited(oldToNew);
   Expr returnExpr = recursiveQuantSubst(oldToNew, visited);;
@@ -222,20 +228,21 @@ Expr Expr::substExprQuant(const vector<Expr>& oldTerms,
 
 
 
-Expr Expr::recursiveQuantSubst(const ExprHashMap<Expr>& substMap,
+Expr Expr::recursiveQuantSubst(ExprHashMap<Expr>& substMap,
 			       ExprHashMap<Expr>& visited) const {
 
   if (!containsBoundVar()){
-    std::cout <<"no bound var " << *this << std::endl;
+    //    std::cout <<"no bound var " << *this << std::endl;
     return *this;
   }
 
   // Check the cache.
   // INVARIANT: visited contains all the flagged expressions, and only those
-  // the above invarian is no longer true.  yeting
+  // the above invariant is no longer true.  yeting
   
    if(getKind() == BOUND_VAR ) {
-     Expr ret  = visited[*this];
+     //     Expr ret  = visited[*this];
+     const Expr ret  = substMap[*this];
      if (!ret.isNull()){
        return ret; 
      }
@@ -409,7 +416,6 @@ ExprStream& Expr::printAST(ExprStream& os) const {
 
 ExprStream& Expr::print(ExprStream& os) const {
   if(isNull()) return os << "Null" << endl;
-  DebugAssert(arity() == 0, "Expected arity 0");
   if (isSymbol()) return os << getName();
   switch(getKind()) {
     case TRUE_EXPR: return os << "TRUE";
@@ -475,28 +481,48 @@ void Expr::addToNotify(Theory* i, const Expr& e) const {
 }
 
 
+bool Expr::containsTermITE() const
+{
+  if (getType().isBool()) {
+
+    // We overload the isAtomicFlag to mean !containsTermITE for exprs
+    // of Boolean type
+    if (validIsAtomicFlag()) {
+      return !getIsAtomicFlag();
+    }
+
+    for (int k = 0; k < arity(); ++k) {
+      if ((*this)[k].containsTermITE()) {
+        setIsAtomicFlag(false);
+        return true;
+      }
+    }
+
+    setIsAtomicFlag(true);
+    return false;
+
+  }
+  else return !isAtomic();
+}
+
+
 bool Expr::isAtomic() const
 {
-  //  TRACE("isAtomic", "isAtomic(", *this, ") {");
+  if (getType().isBool()) {
+    return isBoolConst();
+  }
+
   if (validIsAtomicFlag()) {
-    //    TRACE("isAtomic", "isAtomic[cached] => ",
-    //	  getIsAtomicFlag()? "true" : "false", " }");
     return getIsAtomicFlag();
   }
-  if (getType().isBool() && !isBoolConst()) {
-    setIsAtomicFlag(false);
-    //    TRACE_MSG("isAtomic", "isAtomic[bool] => false }");
-    return false;
-  }
+
   for (int k = 0; k < arity(); ++k) {
     if (!(*this)[k].isAtomic()) {
       setIsAtomicFlag(false);
-      //      TRACE_MSG("isAtomic", "isAtomic[kid] => false }");
       return false;
     }
   }
   setIsAtomicFlag(true);
-  //  TRACE_MSG("isAtomic", "isAtomic[kid] => true }");
   return true;
 }
 
@@ -534,7 +560,14 @@ int compare(const Expr& e1, const Expr& e2) {
     
   if(e1.d_expr == NULL) return -1;
   if(e2.d_expr == NULL) return 1;
-  // Both are non-Null.  Compare the indices.
+
+  // Both are non-Null.  Check for constant
+  bool e1c = e1.isConstant();
+  if (e1c != e2.isConstant()) {
+    return e1c ? -1 : 1;
+  }
+
+  // Compare the indices
   return (e1.getIndex() < e2.getIndex())? -1 : 1;
 }
 

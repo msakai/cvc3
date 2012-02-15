@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file vc_cmd.cpp
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Fri Dec 13 22:39:02 2002
  *
  * <hr>
@@ -11,9 +11,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -55,13 +55,13 @@ void VCCmd::findAxioms(const Expr& e,  ExprMap<bool>& skolemAxioms,
     for(Expr::iterator i = e.begin(); i!=end; ++i)
       findAxioms(*i, skolemAxioms, visited);
   }
-  
+
 }
 
 Expr VCCmd::skolemizeAx(const Expr& e)
 {
   vector<Expr>vars;
-  const vector<Expr>boundVars = e.getVars(); 
+  const vector<Expr>boundVars = e.getVars();
   for(unsigned int i=0; i<boundVars.size(); i++) {
     Expr skolV(e.skolemExpr(i));
     vars.push_back(skolV);
@@ -79,7 +79,7 @@ readAgain:
     TRACE_MSG("commands", "** [commands] Parsing command...");
     e = d_parser->next();
     TRACE("commands verbose", "evaluateNext(", e, ")");
-  } 
+  }
   catch(Exception& e) {
     cerr << "*** " << e << endl;
     IF_DEBUG(++(debugger.counter("parse errors"));)
@@ -144,8 +144,118 @@ void VCCmd::reportResult(QueryResult qres, bool checkingValidity)
     }
     cout << flush;
   }
-//     d_vc->printStatistics();
-//     exit(0);
+  //d_vc->printStatistics();
+  //  exit(0);
+}
+
+
+void VCCmd::printModel()
+{
+  ExprMap<Expr> m;
+  d_vc->getConcreteModel(m);
+
+  cout << "Current scope level is " << d_vc->scopeLevel() << "." << endl;
+  ExprMap<Expr>::iterator it = m.begin(), end = m.end();
+  if(it == end)
+    cout << " Did not find concrete model for any vars" << endl;
+  else {
+    cout << "%Satisfiable  Variable Assignment: % \n";
+    for(; it!= end; it++) {
+      Expr eq;
+      if(it->first.getType().isBool()) {
+        DebugAssert((it->second).isBoolConst(),
+                    "Bad variable assignement: e = "+(it->first).toString()
+                    +"\n\n val = "+(it->second).toString());
+        if((it->second).isTrue())
+          eq = it->first;
+        else
+          eq = !(it->first);
+      }
+      else
+        eq = (it->first).eqExpr(it->second);
+      cout << Expr(ASSERT,  eq) << "\n";
+    }
+  }
+}
+
+
+// For debugging: there are missing cases: user-defined types, symbols inside of quantifiers, etc.
+void VCCmd::printSymbols(Expr e, ExprMap<bool>& cache)
+{
+  if (cache.find(e) != cache.end()) return;
+  switch (e.getKind()) {
+    case SKOLEM_VAR:
+    case UCONST: {
+      cout << e << " : ";
+      ExprStream os(d_vc->getEM());
+      os.dagFlag(false);
+      os << e.getType().getExpr();
+      cout << ";" << endl;
+      break;
+    }
+    case APPLY: {
+      Expr op = e.getOpExpr();
+      if ((op.getKind() == UFUNC) && (cache.find(op) == cache.end())) {
+        cout << op << " : ";
+        ExprStream os(d_vc->getEM());
+        os.dagFlag(false);
+        os << op.getType().getExpr();
+        cout << ";" << endl;
+        cache[op] = true;
+      }
+      // fall through
+    }
+    default: {
+      Expr::iterator i = e.begin(), iend = e.end();
+      for (; i != iend; ++i) {
+        printSymbols(*i, cache);
+      }
+      break;
+    }
+  }
+  cache[e] = true;
+}
+
+
+bool debug_skolem = false;
+
+
+void VCCmd::printCounterExample()
+{
+  vector<Expr> assertions;
+  ExprMap<bool> skolemAxioms;
+  ExprMap<bool> visited;
+
+  d_vc->getCounterExample(assertions);
+
+  // get variable information
+  ExprMap<bool> cache;
+  unsigned i;
+  for (i = 0; i < assertions.size(); i++) {
+    printSymbols(assertions[i], cache);
+  }
+
+  cout << "% Current scope level is " << d_vc->scopeLevel() << "." << endl;
+  if (assertions.size() == 0) {
+    cout << "% There are no assertions\n";
+  } else {
+
+    cout << "% Assertions which make the QUERY invalid:\n";
+
+    for (i = 0; i < assertions.size(); i++) {
+      cout << Expr(ASSERT, assertions[i]) << "\n";
+      findAxioms(assertions[i], skolemAxioms, visited);
+    }
+
+    if (debug_skolem) {
+      cout << "% Including skolemization axioms:\n";
+
+      ExprMap<bool>::iterator end = skolemAxioms.end();
+      for(ExprMap<bool>::iterator it = skolemAxioms.begin(); it!=end; it++)
+        cout << "ASSERT " << skolemizeAx((*it).first) << ";" << endl;
+    }
+  }
+  cout << endl;
 }
 
 
@@ -197,7 +307,7 @@ bool VCCmd::evaluateCommand(const Expr& e0)
       DebugAssert(e[1].getKind() == ID, "Expected ID kind");
       Type t(d_vc->parseExpr(e[2]));
       Expr def(d_vc->parseExpr(e[3]));
-      
+
       if(t.isFunction()) {
 	d_vc->createOp(e[1][0].getString(), t, def);
 	TRACE("commands verbose", "evaluateNext: define new function: ",
@@ -207,7 +317,7 @@ bool VCCmd::evaluateCommand(const Expr& e0)
 	TRACE("commands verbose", "evaluateNext: define new variable: ",
 	      e[1][0].getString(), "");
       }
-    } else 
+    } else
       throw EvalException("Wrong number of arguments in CONST: "+e.toString());
     break;
   }
@@ -252,6 +362,40 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     break;
   }
   case TYPEDEF: {
+    if (e.arity() == 2) {
+      // Datatype command
+      DebugAssert(e.arity() == 2, "Bad TYPEDEF");
+      Expr res = d_vc->parseExpr(e[1]);
+      // convert res to vectors
+
+      Expr eNames = res[0];
+      Expr eCons = res[1];
+      Expr eSel = res[2];
+      Expr eTypes = res[3];
+
+      vector<string> names;
+      vector<vector<string> > constructors(eNames.arity());
+      vector<vector<vector<string> > > selectors(eNames.arity());
+      vector<vector<vector<Expr> > > types(eNames.arity());
+
+      int i, j, k;
+      for (i = 0; i < eNames.arity(); ++i) {
+        names.push_back(eNames[i].getString());
+        selectors[i].resize(eSel[i].arity());
+        types[i].resize(eTypes[i].arity());
+        for (j = 0; j < eCons[i].arity(); ++j) {
+          constructors[i].push_back(eCons[i][j].getString());
+          for (k = 0; k < eSel[i][j].arity(); ++k) {
+            selectors[i][j].push_back(eSel[i][j][k].getString());
+            types[i][j].push_back(eTypes[i][j][k]);
+          }
+        }
+      }
+
+      vector<Type> returnTypes;
+      d_vc->dataType(names, constructors, selectors, types, returnTypes);
+      break;
+    }
     DebugAssert(e.arity() == 3, "Bad TYPEDEF");
     Expr def(d_vc->parseExpr(e[2]));
     Type t = d_vc->createType(e[1][0].getString(), def);
@@ -285,8 +429,17 @@ bool VCCmd::evaluateCommand(const Expr& e0)
 			  +int2string(e.arity()-1)+":\n "+e.toString());
     TRACE_MSG("commands", "** [commands] Query formula");
     QueryResult qres = d_vc->query(d_vc->parseExpr(e[1]));
+    if (qres == UNKNOWN && d_vc->getFlags()["unknown-check-model"].getBool())
+		qres = d_vc->tryModelGeneration();
     reportResult(qres);
-
+    if (qres == INVALID) {
+      if (d_vc->getFlags()["counterexample"].getBool()) {
+        printCounterExample();
+      }
+      if (d_vc->getFlags()["model"].getBool()) {
+        printModel();
+      }
+    }
     break;
   }
   case CHECKSAT: {
@@ -302,8 +455,17 @@ bool VCCmd::evaluateCommand(const Expr& e0)
       throw EvalException("CHECKSAT requires no more than one argument, but is given "
 			  +int2string(e.arity()-1)+":\n "+e.toString());
     }
-
+    if (qres == UNKNOWN && !d_vc->getFlags()["translate"].getBool() && d_vc->getFlags()["unknown-check-model"].getBool())
+    	qres = d_vc->tryModelGeneration();
     reportResult(qres, false);
+    if (qres == SATISFIABLE) {
+      if (d_vc->getFlags()["counterexample"].getBool()) {
+        printCounterExample();
+      }
+      if (d_vc->getFlags()["model"].getBool()) {
+        printModel();
+      }
+    }
 //     {//for debug only by yeting
 //       Proof p = d_vc->getProof();
 //       if (d_vc->getFlags()["printResults"].getBool()) {
@@ -348,7 +510,7 @@ bool VCCmd::evaluateCommand(const Expr& e0)
         default:
           FatalAssert(false, "Unexpected case");
       }
-      cout << flush;          
+      cout << flush;
     }
     break;
   }
@@ -359,6 +521,14 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     TRACE_MSG("commands", "** [commands] Restart formula");
     QueryResult qres = d_vc->restart(d_vc->parseExpr(e[1]));
     reportResult(qres);
+    if (qres == INVALID) {
+      if (d_vc->getFlags()["counterexample"].getBool()) {
+        printCounterExample();
+      }
+      if (d_vc->getFlags()["model"].getBool()) {
+        printModel();
+      }
+    }
     break;
   }
   case TRANSFORM: {
@@ -464,7 +634,7 @@ bool VCCmd::evaluateCommand(const Expr& e0)
         cout << "% No active assumptions\n";
       } else {
         cout << "% Active assumptions:\n";
-        for (unsigned i = 0; i < assertions.size(); i++) {	
+        for (unsigned i = 0; i < assertions.size(); i++) {
           cout << "ASSERT " << assertions[i] << ";" << endl;
           findAxioms(assertions[i], skolemAxioms, visited);
         }
@@ -481,64 +651,23 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     break;
   }
   case COUNTEREXAMPLE: {
-    vector<Expr> assertions;
-    ExprMap<bool> skolemAxioms;
-    ExprMap<bool> visited;
-
-    d_vc->getCounterExample(assertions);
-
     if (d_vc->getFlags()["printResults"].getBool()) {
-      cout << "Current scope level is " << d_vc->scopeLevel() << "." << endl;
-      if (assertions.size() == 0) {
-        cout << "% There are no assertions\n";
-      } else {
-
-        cout << "% Assertions which make the QUERY invalid:\n";
-
-        for (unsigned i = 0; i < assertions.size(); i++) {
-          cout << Expr(ASSERT, assertions[i]) << "\n";
-          findAxioms(assertions[i], skolemAxioms, visited);
-        }
-        ExprMap<bool>::iterator end = skolemAxioms.end();
-        for(ExprMap<bool>::iterator it = skolemAxioms.begin(); it!=end; it++)
-          cout << "ASSERT " << skolemizeAx((*it).first) << ";" << endl;
-      }
-      cout << endl;
+      printCounterExample();
     }
     break;
   }
   case COUNTERMODEL: {
-    ExprMap<Expr> m;
-    d_vc->getConcreteModel(m);
-
     if (d_vc->getFlags()["printResults"].getBool()) {
-      cout << "Current scope level is " << d_vc->scopeLevel() << "." << endl;
-      ExprMap<Expr>::iterator it = m.begin(), end = m.end();
-      if(it == end)
-        cout << " Did not find concrete model for any vars" << endl;
-      else {
-        cout << "%Satisfiable  Variable Assignment: % \n";
-        for(; it!= end; it++) {
-          Expr eq;
-          if(it->first.getType().isBool()) {
-            DebugAssert((it->second).isBoolConst(),
-                        "Bad variable assignement: e = "+(it->first).toString()
-                        +"\n\n val = "+(it->second).toString());
-            if((it->second).isTrue())
-              eq = it->first;
-            else
-              eq = !(it->first);
-          }
-          else
-            eq = (it->first).eqExpr(it->second);
-          cout << Expr(ASSERT,  eq) << "\n";
-        }
+      try {
+        printModel();
+      } catch (Exception& e) {
+        throw EvalException(e.toString());
       }
     }
     break;
   }
   case TRACE: { // Set a trace flag
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
     if(e.arity() != 2)
       throw EvalException("TRACE takes exactly one string argument");
     if(!e[1].isString())
@@ -548,7 +677,7 @@ bool VCCmd::evaluateCommand(const Expr& e0)
   }
     break;
   case UNTRACE: { // Unset a trace flag
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
     if(e.arity() != 2)
       throw EvalException("UNTRACE takes exactly one string argument");
     if(!e[1].isString())
@@ -710,6 +839,19 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     }
     return success;
   }
+  case ARITH_VAR_ORDER: {
+	  if (e.arity() <= 2)
+		  throw EvalException("ARITH_VAR_ORDER takes at least two arguments");
+	  Expr smaller;
+	  Expr bigger = d_vc->parseExpr(e[1]);
+	  for (int i = 2; i < e.arity(); i ++) {
+		  smaller = bigger;
+		  bigger = d_vc->parseExpr(e[i]);
+		  if (!d_vc->addPairToArithOrder(smaller, bigger))
+			  throw EvalException("ARITH_VAR_ORDER only takes arithmetic terms");
+	  }
+	  return true;
+  }
   case INCLUDE: { // read in the specified file
     if(e.arity() != 2)
       throw EvalException("INCLUDE takes exactly one string argument");
@@ -720,7 +862,7 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     if(!fs.is_open()) {
       fs.close();
       throw EvalException("File "+e[1].getString()+" does not exist");
-    } 
+    }
     fs.close();
     d_vc->loadFile(e[1].getString(),
                    d_vc->getEM()->getInputLang(),
@@ -737,9 +879,10 @@ bool VCCmd::evaluateCommand(const Expr& e0)
   case GET_CHILD:
   case GET_TYPE:
   case CHECK_TYPE:
-    throw EvalException("Unknown command: " + e.toString());
+  case FORGET:
+  case CALL:
   default:
-    d_vc->parseExpr(e);
+    throw EvalException("Unknown command: " + e.toString());
     break;
   }
   TRACE_MSG("commands", "evaluateCommand => true }");
@@ -767,17 +910,20 @@ void VCCmd::processCommands()
         cerr << "*** Eval Error:\n  " << e << endl;
       }
     }
+    
   }
-  catch(Exception& e) { 
+
+  catch(Exception& e) {
     cerr << "*** Fatal exception:\n" << e << endl;
     error= true;
   } catch(...) {
     cerr << "*** Unknown fatal exception caught" << endl;
     error= true;
-  }
+  } 
+  
   if (error)
   {
     d_parser->printLocation(cerr);
     cerr << ": this is the location of the error" << endl;
-  }    
+  }
 }

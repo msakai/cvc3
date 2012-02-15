@@ -59,6 +59,12 @@ namespace CVC3 {
     //   ite(index1 = index2, value, read(store, index2))
     virtual Theorem rewriteReadWrite(const Expr& e) = 0;
 
+    // e = read(write(store, index1, value), index2):
+    // ==> ite(index1 = index2,
+    //         read(write(store, index1, value), index2) = value,
+    //         read(write(store, index1, value), index2) = read(store, index2))
+    virtual Theorem rewriteReadWrite2(const Expr& e) = 0;
+
     // value = read(store, index) ==>
     //   write(store, index, value) = store
     virtual Theorem rewriteRedundantWrite1(const Theorem& v_eq_r,
@@ -77,6 +83,9 @@ namespace CVC3 {
 
     //! Lift ite over read
     virtual Theorem liftReadIte(const Expr& e) = 0;
+
+    //! a /= b |- exists i. a[i] /= b[i]
+    virtual Theorem arrayNotEq(const Theorem& e) = 0;
 
   }; // end of class ArrayProofRules
 

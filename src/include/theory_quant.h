@@ -93,9 +93,99 @@ class QuantProofRules;
    dynTrig(Trigger t, ExprMap<Expr> b, size_t id);
  } dynTrig;
  
+
+ class CompleteInstPreProcessor {
  
-class TheoryQuant :public Theory {
+   TheoryCore* d_theoryCore; //needed by plusOne and minusOne;
+   QuantProofRules* d_quant_rules;
+
+   std::set<Expr> d_allIndex; //a set contains all index
+
+   ExprMap<Polarity> d_expr_pol ;//map a expr to its polarity
+
+   ExprMap<Expr> d_quant_equiv_map ; //map a quant to its equivalent form
+
+   std::vector<Expr> d_gnd_cache; //cache of all ground formulas, before index can be collected, all such ground terms must be put into d_expr_pol.
+   
+   ExprMap<bool> d_is_macro_def;//if a quant is a macro quant
+
+   ExprMap<Expr> d_macro_quant;//map a macro to its macro quant.
+
+   ExprMap<Expr> d_macro_def;//map a macro head to its def.
+
+   ExprMap<Expr> d_macro_lhs;//map a macro to its lhs.
+   
+   //! if all formulas checked so far are good
+   bool d_all_good ;
+
+   //! if e satisfies the shiled property, that is all bound vars are parameters of uninterpreted functions/predicates and array reads/writes
+   bool isShield(const Expr& e);
+
+   //! insert an index
+   void addIndex(const Expr& e);
+   
+   void collect_shield_index(const Expr& e);
+
+   void collect_forall_index(const Expr& forall_quant);
+
+   //! if e is a quant in the array property fragmenet
+   bool isGoodQuant(const Expr& e);
+
+   //! return e+1
+   Expr plusOne(const Expr& e);
+
+   //! return e-1
+   Expr minusOne(const Expr& e);
+
+   void collectHeads(const Expr& assert, std::set<Expr>& heads);
+   
+   //! if assert is a macro definition
+   bool isMacro(const Expr& assert);
+
+   Expr recInstMacros(const Expr& assert);
+
+   Expr substMacro(const Expr&);
+
+   Expr recRewriteNot(const Expr&, ExprMap<Polarity>&);
+
+   //! rewrite neg polarity forall / exists to pos polarity
+   Expr rewriteNot(const Expr &);
+   
+   Expr recSkolemize(const Expr &, ExprMap<Polarity>&);
+
+   Expr pullVarOut(const Expr&);
+
+ public :
+
+   CompleteInstPreProcessor(TheoryCore * , QuantProofRules*);
+
+   //! if e is a formula in the array property fragment 
+   bool isGood(const Expr& e);
+
+   //! collect index for instantiation
+   void collectIndex(const Expr & e);
+
+   //! inst forall quant using index from collectIndex
+   Expr inst(const Expr & e);
+
+   //! if there are macros
+   bool hasMacros(const std::vector<Expr>& asserts);
+
+   //! substitute a macro in assert
+   Expr instMacros(const Expr& , const Expr );
+
+   //! simplify a=a to True
+   Expr simplifyEq(const Expr &);
+   
+   //! put all quants in postive form and then skolemize all exists 
+   Expr simplifyQuant(const Expr &);
+ };
+ 
+ class TheoryQuant :public Theory {
+   
    Theorem rewrite(const Expr& e);
+
+   Theorem theoryPreprocess(const Expr& e);
 
    class  TypeComp { //!< needed for typeMap
    public:
@@ -140,6 +230,13 @@ class TheoryQuant :public Theory {
   
   //! the last decision level on which partial instantion is called
   CDO<size_t> d_lastPartLevel;
+
+  CDO<bool> d_partCalled;
+  
+  //! the max instantiation level reached
+  CDO<bool> d_maxILReached;
+
+
   
   //!useful gterms for matching
   CDList<Expr> d_usefulGterms; 
@@ -187,7 +284,6 @@ class TheoryQuant :public Theory {
   
   const int* d_maxQuantInst; //!< Command line option
 
-
   /*! \brief categorizes all the terms contained in an expressions by
    *type.
    *
@@ -227,13 +323,12 @@ class TheoryQuant :public Theory {
   const bool* d_useNew;//!use new way of instantiation
   const bool* d_useLazyInst;//!use lazy instantiation
   const bool* d_useSemMatch;//!use semantic matching
-  const bool* d_useAtomSem;
+  const bool* d_useCompleteInst; //! Try complete instantiation 
   const bool* d_translate;//!translate only
 
-  const bool* d_useTrigNew;//!use new trig class, to be deleted
   const bool* d_usePart;//!use partial instantiaion
   const bool* d_useMult;//use 
-  const bool* d_useInstEnd;
+  //  const bool* d_useInstEnd;
   const bool* d_useInstLCache;
   const bool* d_useInstGCache;
   const bool* d_useInstThmCache;
@@ -243,6 +338,7 @@ class TheoryQuant :public Theory {
   const int* d_useTrigLoop;
   const int* d_maxInst;
   //  const int* d_maxUserScore;
+  const int*  d_maxIL;
   const bool* d_useTrans;
   const bool* d_useTrans2;
   const bool* d_useManTrig;
@@ -254,6 +350,7 @@ class TheoryQuant :public Theory {
   const bool* d_useNewEqu;
   const int* d_maxNaiveCall;
   const bool* d_useNaiveInst;
+
 
   CDO<int> d_curMaxExprScore;
 
@@ -340,6 +437,19 @@ class TheoryQuant :public Theory {
   void inline iterFWList(const Expr& sr, const Expr& dt, size_t univ_id, const Expr& gterm);
   void inline iterBKList(const Expr& sr, const Expr& dt, size_t univ_id, const Expr& gterm);
 
+  Expr defaultWriteExpr;
+  Expr defaultReadExpr;
+  Expr defaultPlusExpr;
+  Expr  defaultMinusExpr ;
+  Expr  defaultMultExpr ;
+  Expr  defaultDivideExpr;
+  Expr  defaultPowExpr ;
+
+  Expr getHead(const Expr& e) ;
+  Expr getHeadExpr(const Expr& e) ;
+
+
+
   CDList<Expr> null_cdlist;
 
   Theorem d_transThm;
@@ -395,7 +505,7 @@ class TheoryQuant :public Theory {
   //  size_t d_trueInstCount;
   //  size_t d_abInstCount;
   
-  CDO<bool> d_partCalled;
+
 
   std::vector<Theorem> d_cacheTheorem;
   size_t d_cacheThmPos;
@@ -654,7 +764,7 @@ class TheoryQuant :public Theory {
   virtual Expr parseExprOp(const Expr& e);
 
   ExprStream& print(ExprStream& os, const Expr& e);
-};
+ };
  
 }
 

@@ -3,9 +3,9 @@
  * \file rational-gmp.cpp
  *
  * \brief Implementation of class Rational using GMP library (C interface)
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Mon Aug  4 10:06:04 2003
  *
  * <hr>
@@ -13,7 +13,7 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
  *
  */
@@ -26,6 +26,7 @@
 
 #include <sstream>
 #include <gmp.h>
+#include <limits.h>
 
 namespace CVC3 {
 
@@ -76,7 +77,7 @@ namespace CVC3 {
       mpq_set(d_n, x.d_n);
       return *this;
     }
-    
+
     //! Get numerator
     Impl getNum() const {
       return Impl(mpq_numref(const_cast<Impl*>(this)->d_n));
@@ -247,7 +248,7 @@ namespace CVC3 {
     friend ostream& operator<<(ostream& os, const Rational::Impl& n) {
       return os << n.toString();
     }
-      
+
   };
 
   // Constructor from a pair of integers
@@ -378,12 +379,12 @@ namespace CVC3 {
   }
   // Destructor
   Rational::~Rational() {
-    delete d_n;
 #ifdef _DEBUG_RATIONAL_
     int &num_deleted = getDeleted();
     num_deleted++;
     printStats();
 #endif
+    delete d_n;
   }
 
   // Get components
@@ -425,7 +426,7 @@ namespace CVC3 {
     checkInt(y, "gcd(x,*y*)");
     return Rational(gcd(*x.d_n, *y.d_n));
   }
- 
+
   Rational gcd(const vector<Rational> &v) {
     Rational::Impl g(1,1), zero;
     if(v.size() > 0) {
@@ -481,7 +482,7 @@ namespace CVC3 {
     checkInt(base, "intRoot(*x*,y)");
     return Rational(intRoot(*base.d_n, n));
   }
-  
+
   string Rational::toString(int base) const {
     return(d_n->toString(base));
   }
@@ -490,7 +491,7 @@ namespace CVC3 {
     std::hash<const char *> h;
     return h(toString().c_str());
   }
-  
+
   void Rational::print() const {
     cout << (*this) << endl;
   }
@@ -499,22 +500,22 @@ namespace CVC3 {
   Rational Rational::operator-() const {
     return Rational(-(*d_n));
   }
-  
+
   Rational &Rational::operator+=(const Rational &n2) {
     *this = (*this) + n2;
     return *this;
   }
-  
+
   Rational &Rational::operator-=(const Rational &n2) {
     *this = (*this) - n2;
     return *this;
   }
-  
+
   Rational &Rational::operator*=(const Rational &n2) {
     *this = (*this) * n2;
     return *this;
   }
-  
+
   Rational &Rational::operator/=(const Rational &n2) {
     *this = (*this) / n2;
     return *this;

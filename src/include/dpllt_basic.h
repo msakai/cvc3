@@ -1,7 +1,7 @@
 /*****************************************************************************/
 /*!
  *\file dpllt_basic.h
- *\brief Basic implementation of dpllt module based on xchaff
+ *\brief Basic implementation of dpllt module
  *
  * Author: Clark Barrett
  *

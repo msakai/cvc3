@@ -46,7 +46,7 @@ namespace CVC3 {
 /* stuff that lives in Lisp.lex */
 extern int Lisplex(void);
 
-int Lisperror(char *s)
+int Lisperror(const char *s)
 {
   std::ostringstream ss;
   ss << CVC3::parserTemp->fileName << ":" << CVC3::parserTemp->lineNum

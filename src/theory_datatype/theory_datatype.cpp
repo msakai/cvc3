@@ -50,12 +50,14 @@ TheoryDatatype::TheoryDatatype(TheoryCore* core)
   d_rules = createProofRules();
 
   // Register new local kinds with ExprManager
+  getEM()->newKind(DATATYPE_DECL, "_DATATYPE_DECL");
   getEM()->newKind(DATATYPE, "_DATATYPE", true);
   getEM()->newKind(CONSTRUCTOR, "_CONSTRUCTOR");
   getEM()->newKind(SELECTOR, "_SELECTOR");
   getEM()->newKind(TESTER, "_TESTER");
 
   vector<int> kinds;
+  kinds.push_back(DATATYPE_DECL);
   kinds.push_back(DATATYPE);
   kinds.push_back(TESTER);
   kinds.push_back(CONSTRUCTOR);
@@ -70,7 +72,7 @@ TheoryDatatype::~TheoryDatatype() {
 }
 
 
-void TheoryDatatype::instantiate(const Expr& e, const bigunsigned& u)
+void TheoryDatatype::instantiate(const Expr& e, const Unsigned& u)
 {
   DebugAssert(!e.hasFind() || findExpr(e) == e,
               "datatype: instantiate: Expected find(e)=e");
@@ -83,7 +85,7 @@ void TheoryDatatype::instantiate(const Expr& e, const bigunsigned& u)
   ExprMap<unsigned>& c = d_datatypes[getBaseType(e).getExpr()];
   ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
   for (; c_it != c_end; ++c_it) {
-    if (u & (1 << bigunsigned((*c_it).second))) break;
+    if (u & (1 << Unsigned((*c_it).second))) break;
   }
   DebugAssert(c_it != c_end,
               "datatype: instantiate: couldn't find constructor");
@@ -121,16 +123,16 @@ void TheoryDatatype::initializeLabels(const Expr& e, const Type& t)
     DebugAssert(c.find(cons) != c.end(),
                 "datatype: initializeLabels: Couldn't find constructor "
                 +cons.toString());
-    bigunsigned position = c[cons];
+    Unsigned position = c[cons];
     d_labels.insert(e,
-      SmartCDO<bigunsigned>(theoryCore()->getCM()->getCurrentContext(),
+      SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             1 << position, 0));
   }
   else {
     DebugAssert(c.size() > 0, "No constructors?");
-    bigunsigned value = (1 << bigunsigned(c.size())) - 1;
+    Unsigned value = (1 << Unsigned(c.size())) - 1;
     d_labels.insert(e,
-      SmartCDO<bigunsigned>(theoryCore()->getCM()->getCurrentContext(),
+      SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             value, 0));
     if (value == 1) instantiate(e, 1);
     else {
@@ -149,8 +151,8 @@ void TheoryDatatype::mergeLabels(const Theorem& thm,
               d_labels.find(e2) != d_labels.end(),
               "mergeLabels: expr is not labeled");
   DebugAssert(getBaseType(e1) == getBaseType(e2), "Expected same type");
-  bigunsigned u = d_labels[e2].get().get();
-  bigunsigned uNew = u & d_labels[e1].get().get();
+  Unsigned u = d_labels[e2].get().get();
+  Unsigned uNew = u & d_labels[e1].get().get();
   if (u != uNew) {
     if (!thm.isNull()) d_facts.push_back(thm);
     d_labels[e2].get().set(uNew);
@@ -170,8 +172,8 @@ void TheoryDatatype::mergeLabels(const Theorem& thm, const Expr& e,
               "datatype: mergeLabels2: Expected find(e)=e");
   DebugAssert(d_labels.find(e) != d_labels.end(),
               "mergeLabels2: expr is not labeled");
-  bigunsigned u = d_labels[e].get().get();
-  bigunsigned uNew = 1 << bigunsigned(position);
+  Unsigned u = d_labels[e].get().get();
+  Unsigned uNew = 1 << Unsigned(position);
   if (positive) {
     uNew = u & uNew;
     if (u == uNew) return;
@@ -206,10 +208,51 @@ void TheoryDatatype::assertFact(const Theorem& e)
                   getConsPos(getConsForTester(expr.getOpExpr())),
                   true);
     }
-    else if (expr.isNot() && expr[0].getOpKind() == TESTER) {
-      mergeLabels(e, expr[0][0],
-                  getConsPos(getConsForTester(expr[0].getOpExpr())),
-                  false);
+    else if (expr.isNot()) {
+      if (expr[0].getOpKind() == TESTER) {
+        mergeLabels(e, expr[0][0],
+                    getConsPos(getConsForTester(expr[0].getOpExpr())),
+                    false);
+      }
+      else if (expr[0].isEq() &&
+               getBaseType(expr[0][0]).getExpr().getKind() == DATATYPE) {
+        // Propagate disequality down
+        if (d_labels.find(expr[0][0]) == d_labels.end()) {
+          initializeLabels(expr[0][0], getBaseType(expr[0][0]));
+          expr[0][0].addToNotify(this, Expr());
+        }
+        if (d_labels.find(expr[0][1]) == d_labels.end()) {
+          initializeLabels(expr[0][1], getBaseType(expr[0][1]));
+          expr[0][1].addToNotify(this, Expr());
+        }
+        Unsigned u1 = d_labels[expr[0][0]].get().get();
+        Unsigned u2 = d_labels[expr[0][1]].get().get();
+        ExprMap<unsigned>& c = d_datatypes[getBaseType(expr[0][0]).getExpr()];
+        ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
+        Expr bigConj;
+        for (; c_it != c_end; ++c_it) {
+          if (u1 & u2 & (1 << Unsigned((*c_it).second))) {
+            vector<Expr>& selectors = d_constructorMap[(*c_it).first];
+            Expr conj;
+            for (unsigned i = 0; i < selectors.size(); ++i) {
+              Expr e1 = Expr(selectors[i].mkOp(), expr[0][0]);
+              Expr e2 = e1.eqExpr(Expr(selectors[i].mkOp(), expr[0][1]));
+              if (conj.isNull()) conj = e2;
+              else conj = conj.andExpr(e2);
+            }
+            if (!conj.isNull()) {
+              Expr e1 = datatypeTestExpr((*c_it).first.getName(), expr[0][0]);
+              Expr e2 = datatypeTestExpr((*c_it).first.getName(), expr[0][1]);
+              conj = (e1 && e2).impExpr(!conj);
+              if (bigConj.isNull()) bigConj = conj;
+              else bigConj = bigConj.andExpr(conj);
+            }
+          }
+        }
+        if (!bigConj.isNull()) {
+          enqueueFact(d_rules->dummyTheorem(d_facts, bigConj));
+        }          
+      }
     }
   }
 }
@@ -224,7 +267,7 @@ void TheoryDatatype::checkSat(bool fullEffort)
         findExpr(e) == e) {
       DebugAssert(d_labels.find(e) != d_labels.end(),
                   "checkSat: expr is not labeled");
-      bigunsigned u = d_labels[e].get().get();
+      Unsigned u = d_labels[e].get().get();
       if ((u & (u-1)) != 0) {
         done = true;
         DebugAssert(!d_splitterAsserted || !fullEffort,
@@ -238,7 +281,7 @@ void TheoryDatatype::checkSat(bool fullEffort)
           ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
           vector<Expr> vec;
           for (; c_it != c_end; ++c_it) {
-            if (u & (1 << bigunsigned((*c_it).second))) {
+            if (u & (1 << Unsigned((*c_it).second))) {
               vec.push_back(datatypeTestExpr((*c_it).first.getName(), e));
             }
           }
@@ -252,10 +295,10 @@ void TheoryDatatype::checkSat(bool fullEffort)
       Expr f = findExpr(e[0]);
       DebugAssert(d_labels.find(f) != d_labels.end(),
                   "checkSat: expr is not labeled");
-      bigunsigned u = d_labels[f].get().get();
+      Unsigned u = d_labels[f].get().get();
       if ((u & (u-1)) != 0) {
         pair<Expr, unsigned> selectorInfo = getSelectorInfo(e.getOpExpr());
-        bigunsigned pos = getConsPos(selectorInfo.first);
+        Unsigned pos = getConsPos(selectorInfo.first);
         if (u & (1 << pos)) {
           done = true;
           DebugAssert(!d_splitterAsserted || !fullEffort,
@@ -325,6 +368,13 @@ void TheoryDatatype::update(const Theorem& e, const Expr& d)
       enqueueFact(d_rules->decompose(e));
     }
     else {
+      // Possible for rhs to never have been seen: initialize it here
+      DebugAssert(getBaseType(rhs).getExpr().getKind() == DATATYPE,
+                  "Expected datatype");
+      if (d_labels.find(rhs) == d_labels.end()) {
+        initializeLabels(rhs, getBaseType(rhs));
+        rhs.addToNotify(this, Expr());
+      }
       Theorem thm(e);
       if (lhs.isSelected() && !rhs.isSelected()) {
         d_facts.push_back(e);
@@ -365,6 +415,7 @@ void TheoryDatatype::update(const Theorem& e, const Expr& d)
           }
           d.setSig(thm);
           sigNew.setRep(thm);
+          getEM()->invalidateSimpCache();
         }
       }
     }
@@ -398,9 +449,114 @@ void TheoryDatatype::checkType(const Expr& e)
     case TESTER:
       throw Exception("Non-type: "+e.toString());
     default:
-      DebugAssert(false, "Unexpected kind in TheoryDatatype::checkType"
+      FatalAssert(false, "Unexpected kind in TheoryDatatype::checkType"
                   +getEM()->getKindName(e.getKind()));
   }
+}
+
+
+Cardinality TheoryDatatype::finiteTypeInfo(Expr& e, Unsigned& n,
+                                           bool enumerate, bool computeSize)
+{
+  DebugAssert(e.getKind() == DATATYPE,
+              "Unexpected kind in TheoryDatatype::finiteTypeInfo");
+  if (d_getConstantStack.count(e) != 0) {
+    return CARD_INFINITE;
+  }
+  d_getConstantStack[e] = true;
+
+  Expr typeExpr = e;
+  ExprMap<unsigned>& c = d_datatypes[typeExpr];
+  ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
+  Cardinality card = CARD_FINITE, cardTmp;
+  bool getSize = enumerate || computeSize;
+  Unsigned totalSize = 0, thisSize, size;
+  vector<Unsigned> sizes;
+  int j;
+
+  // Loop through constructors, and check if each one only has a finite number
+  // of possibilities
+  for (; c_it != c_end; ++c_it) {
+    const Expr& cons = (*c_it).first;
+    Expr funType = cons.getType().getExpr();
+    thisSize = 1;
+    for (j = 0; j < funType.arity()-1; ++j) {
+      Expr e2 = funType[j];
+      cardTmp = theoryOf(e2)->finiteTypeInfo(e2, size, false, getSize);
+      if (cardTmp == CARD_INFINITE) {
+        card = CARD_INFINITE;
+        break;
+      }
+      else if (cardTmp == CARD_UNKNOWN) {
+        card = CARD_UNKNOWN;
+        getSize = false;
+        // Keep looking to see if we can determine it is infinite
+      }
+      else if (getSize) {
+        thisSize = thisSize * size;
+        // Give up if it gets too big
+        if (thisSize > 1000000) thisSize = 0;
+        if (thisSize == 0) {
+          totalSize = 0;
+          getSize = false;
+        }
+      }
+    }
+    if (card == CARD_INFINITE) break;
+    if (getSize) {
+      sizes.push_back(thisSize);
+      totalSize = totalSize + thisSize;
+    }
+  }
+  
+  if (card == CARD_FINITE) {
+
+    if (enumerate) {
+      c_it = c.begin();
+      unsigned i = 0;
+      for (; i < sizes.size(); ++i, ++c_it) {
+        if (n < sizes[i]) {
+          break;
+        }
+        else n = n - sizes[i];
+      }
+      if (i == sizes.size() && n != 0) {
+        e = Expr();
+      }
+      else {
+        const Expr& cons = (*c_it).first;
+        Expr funType = cons.getType().getExpr();
+        if (funType.arity() == 1) {
+          e = cons;
+        }
+        else {
+          vector<Expr> kids(funType.arity()-1);
+          Unsigned thisSize;
+          Unsigned elem;
+          for (int j = funType.arity()-2; j >= 0; --j) {
+            if (n == 0) {
+              elem = 0;
+            }
+            else {
+              thisSize = funType[j].typeSizeFinite();
+              elem = n % thisSize;
+              n = n - elem;
+              n = n / thisSize;
+            }
+            kids[j] = funType[j].typeEnumerateFinite(elem);
+          }
+          e = Expr(cons.mkOp(), kids);
+        }
+      }
+    }
+
+    if (computeSize) {
+      n = totalSize;
+    }
+
+  }
+  d_getConstantStack.erase(typeExpr);
+  return card;
 }
 
 
@@ -485,6 +641,47 @@ ExprStream& TheoryDatatype::print(ExprStream& os, const Expr& e) {
   switch (os.lang()) {
     case PRESENTATION_LANG:
       switch (e.getKind()) {
+        case DATATYPE_DECL: {
+          os << "DATATYPE" << endl;
+          bool first(true);
+          for (Expr::iterator i = e.begin(), iend = e.end(); i != iend; ++i) {
+            if (first) first = false;
+            else os << "," << endl;
+            os << "  " << push << *i << space << "= " << push;
+            DebugAssert(d_datatypes.find(*i) != d_datatypes.end(),
+                        "Unknown datatype: "+(*i).toString());
+            ExprMap<unsigned>& c = d_datatypes[*i];
+            ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
+            bool firstCons(true);
+            for (; c_it != c_end; ++c_it) {
+              if (!firstCons) {
+                os << space << "| ";
+              }
+              else firstCons = false;
+              const Expr& cons = (*c_it).first;
+              os << cons;
+              vector<Expr>& sels = d_constructorMap[cons];
+              bool firstSel(true);
+              for (unsigned j = 0; j < sels.size(); ++j) {
+                if (firstSel) {
+                  firstSel = false;
+                  os << "(";
+                } else {
+                  os << ", ";
+                }
+                os << sels[j] << space << ": ";
+                os << sels[j].getType().getExpr()[1];
+              }
+              if (!firstSel) {
+                os << ")";
+              }
+            }
+            os << pop;
+          }
+          os << pop << endl;
+          os << "END;";
+          break;
+        }
         case DATATYPE:
           if (e.arity() == 1 && e[0].isString()) {
             os << e[0].getString();
@@ -552,10 +749,19 @@ Expr TheoryDatatype::parseExprOp(const Expr& e)
                   "Empty DATATYPE expression\n"
                   " (expected at least one datatype): "+e.toString());
 
-      vector<string> names;
-      vector<vector<string> > allConstructorNames(e.arity()-1);
-      vector<vector<vector<string> > > allSelectorNames(e.arity()-1);
-      vector<vector<vector<Expr> > > allTypes(e.arity()-1);
+      vector<Expr> names;
+
+      vector<Expr> allConstructorNames;
+      vector<Expr> constructorNames;
+
+      vector<Expr> allSelectorNames;
+      vector<Expr> selectorNames;
+      vector<Expr> selectorNamesKids;
+
+      vector<Expr> allTypes;
+      vector<Expr> types;
+      vector<Expr> typesKids;
+
       int i,j,k;
       Expr dt, constructor, selectors, selector;
 
@@ -569,9 +775,9 @@ Expr TheoryDatatype::parseExprOp(const Expr& e)
         DebugAssert(dt[0].getKind() == ID,
                     "Expected ID kind for datatype name"
                     +dt.toString());
-        names.push_back(dt[0][0].getString());
+        names.push_back(dt[0][0]);
         if (namesMap.count(dt[0][0]) != 0) {
-          throw ParserException("Datatype name used more than once"+names.back());
+          throw ParserException("Datatype name used more than once"+dt[0][0].getString());
         }
         namesMap.insert(dt[0][0], true);
       }
@@ -583,12 +789,7 @@ Expr TheoryDatatype::parseExprOp(const Expr& e)
                     "Expected non-empty list for datatype constructors"
                     +dt.toString());
         dt = dt[1];
-        vector<string>& constructorNames = allConstructorNames[i];
-        vector<vector<string> >& selectorNames = allSelectorNames[i];
-        selectorNames.resize(dt.arity());
-        vector<vector<Expr> >& types = allTypes[i];
-        types.resize(dt.arity());
-        
+
         // Loop through constructors for this datatype
         for(j = 0; j < dt.arity(); ++j) {
           constructor = dt[j];
@@ -598,7 +799,7 @@ Expr TheoryDatatype::parseExprOp(const Expr& e)
           DebugAssert(constructor[0].getKind() == ID,
                       "Expected ID kind for constructor name"
                       +constructor.toString());
-          constructorNames.push_back(constructor[0][0].getString());
+          constructorNames.push_back(constructor[0][0]);
 
           if (constructor.arity() == 2) {
             selectors = constructor[1];
@@ -615,25 +816,37 @@ Expr TheoryDatatype::parseExprOp(const Expr& e)
               DebugAssert(selector[0].getKind() == ID,
                           "Expected ID kind for selector name"
                           +selector.toString());
-              selectorNames[j].push_back(selector[0][0].getString());
-              DebugAssert(selector[1].getKind() == ID,
-                          "Expected ID kind for selector type"
-                          +selector.toString());
-              if (namesMap.count(selector[1][0]) > 0) {
-                types[j].push_back(selector[1][0]);
+              selectorNamesKids.push_back(selector[0][0]);
+              if (selector[1].getKind() == ID && namesMap.count(selector[1][0]) > 0) {
+                typesKids.push_back(selector[1][0]);
               }
-              else {              
-                types[j].push_back(parseExpr(selector[1]));
+              else {
+                typesKids.push_back(parseExpr(selector[1]));
               }
             }
+            selectorNames.push_back(Expr(RAW_LIST, selectorNamesKids));
+            selectorNamesKids.clear();
+            types.push_back(Expr(RAW_LIST, typesKids));
+            typesKids.clear();
+          }
+          else {
+            selectorNames.push_back(Expr(RAW_LIST, selectorNamesKids, getEM()));
+            types.push_back(Expr(RAW_LIST, typesKids, getEM()));
           }
         }
+        allConstructorNames.push_back(Expr(RAW_LIST, constructorNames));
+        constructorNames.clear();
+        allSelectorNames.push_back(Expr(RAW_LIST, selectorNames));
+        selectorNames.clear();
+        allTypes.push_back(Expr(RAW_LIST, types));
+        types.clear();
       }
 
-      vector<Type> returnTypes;
-      dataType(names, allConstructorNames, allSelectorNames, allTypes,
-               returnTypes);
-      return returnTypes[0].getExpr();
+      return Expr(DATATYPE,
+                  Expr(RAW_LIST, names),
+                  Expr(RAW_LIST, allConstructorNames),
+                  Expr(RAW_LIST, allSelectorNames),
+                  Expr(RAW_LIST, allTypes));
     }
 
     default: {
@@ -644,7 +857,7 @@ Expr TheoryDatatype::parseExprOp(const Expr& e)
 }
 
 
-Type TheoryDatatype::dataType(const string& name,
+Expr TheoryDatatype::dataType(const string& name,
                               const vector<string>& constructors,
                               const vector<vector<string> >& selectors,
                               const vector<vector<Expr> >& types)
@@ -653,24 +866,23 @@ Type TheoryDatatype::dataType(const string& name,
   vector<vector<string> > constructors2;
   vector<vector<vector<string> > > selectors2;
   vector<vector<vector<Expr> > > types2;
-  vector<Type> returnTypes;
   names.push_back(name);
   constructors2.push_back(constructors);
   selectors2.push_back(selectors);
   types2.push_back(types);
-  dataType(names, constructors2, selectors2, types2, returnTypes);
-  return returnTypes[0];
+  return dataType(names, constructors2, selectors2, types2);
 }
  
 
 // Elements of types are either the expr from an existing type or a string
 // naming one of the datatypes being defined
-void TheoryDatatype::dataType(const vector<string>& names,
+Expr TheoryDatatype::dataType(const vector<string>& names,
                               const vector<vector<string> >& allConstructors,
                               const vector<vector<vector<string> > >& allSelectors,
-                              const vector<vector<vector<Expr> > >& allTypes,
-                              vector<Type>& returnTypes)
+                              const vector<vector<vector<Expr> > >& allTypes)
 {
+  vector<Expr> returnTypes;
+
   //  bool wellFounded = false, infinite = false, 
   bool thisWellFounded;
 
@@ -703,9 +915,11 @@ void TheoryDatatype::dataType(const vector<string>& names,
     }
     e = Expr(DATATYPE, getEM()->newStringExpr(names[i]));
     installID(names[i], e);
-    returnTypes.push_back(Type(e));
+    returnTypes.push_back(e);
     d_reach[e] = reach;
   }
+
+  vector<Expr> selectorVec;
 
   for (i = 0; i < names.size(); ++i) {
 
@@ -723,7 +937,7 @@ void TheoryDatatype::dataType(const vector<string>& names,
         ("dataType: vector sizes at index "+int2string(i)+" don't match");
     }
 
-    ExprMap<unsigned>& constMap = d_datatypes[returnTypes[i].getExpr()];
+    ExprMap<unsigned>& constMap = d_datatypes[returnTypes[i]];
 
     for (j = 0; j < constructors.size(); ++j) {
       Expr c = resolveID(constructors[j]);
@@ -771,21 +985,24 @@ void TheoryDatatype::dataType(const vector<string>& names,
         }
         
         selTypes.push_back(Type(t));
-        s.setType(returnTypes[i].funType(Type(t)));
+        s.setType(Type(returnTypes[i]).funType(Type(t)));
         if (isDatatype(Type(t)) && !t.getExpr().isWellFounded()) {
           thisWellFounded = false;
         }
         d_selectorMap[s] = pair<Expr,unsigned>(c,k);
         installID(sels[k], s);
+        selectorVec.push_back(s);
       }
       if (thisWellFounded) c.setWellFounded();
       if (selTypes.size() == 0) {
-        c.setType(returnTypes[i]);
+        c.setType(Type(returnTypes[i]));
         c.setFinite();
       }
-      else c.setType(Type::funType(selTypes, returnTypes[i]));
+      else c.setType(Type::funType(selTypes, Type(returnTypes[i])));
       installID(constructors[j], c);
       constMap[c] = j;
+      d_constructorMap[c] = selectorVec;
+      selectorVec.clear();
 
       string testerString = "is_"+constructors[j];
       e = resolveID(testerString);
@@ -795,7 +1012,7 @@ void TheoryDatatype::dataType(const vector<string>& names,
            "This variable is already defined.");
       }
       e = getEM()->newSymbolExpr(testerString, TESTER);
-      e.setType(returnTypes[i].funType(boolType()));
+      e.setType(Type(returnTypes[i]).funType(boolType()));
       d_testerMap[e] = c;
       installID(testerString, e);
     }
@@ -809,7 +1026,7 @@ void TheoryDatatype::dataType(const vector<string>& names,
     changed = false;
     firstNotWellFounded = -1;
     for (i = 0; i < names.size(); ++i) {
-      ExprMap<unsigned>& c = d_datatypes[returnTypes[i].getExpr()];
+      ExprMap<unsigned>& c = d_datatypes[returnTypes[i]];
       ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
       thisWellFounded = false;
       thisFinite = true;
@@ -846,14 +1063,14 @@ void TheoryDatatype::dataType(const vector<string>& names,
         if (firstNotWellFounded == -1) firstNotWellFounded = i;
       }
       else {
-        if (!returnTypes[i].getExpr().isWellFounded()) {
+        if (!returnTypes[i].isWellFounded()) {
           changed = true;
-          returnTypes[i].getExpr().setWellFounded();
+          returnTypes[i].setWellFounded();
         }
       }
-      if (thisFinite && !returnTypes[i].getExpr().isFinite()) {
+      if (thisFinite && !returnTypes[i].isFinite()) {
         changed = true;
-        returnTypes[i].getExpr().setFinite();
+        returnTypes[i].setFinite();
       }
     }
   } while (changed);
@@ -864,6 +1081,7 @@ void TheoryDatatype::dataType(const vector<string>& names,
       ("Datatype "+names[firstNotWellFounded]+" has no finite terms");
   }
 
+  return Expr(DATATYPE_DECL, returnTypes);
 }
 
 Expr TheoryDatatype::datatypeConsExpr(const string& constructor,
@@ -943,7 +1161,13 @@ unsigned TheoryDatatype::getConsPos(const Expr& e)
 
 Expr TheoryDatatype::getConstant(const Type& t)
 {
-  //TODO: this could still cause an infinite loop
+  // if a cycle is detected, backtrack from this branch
+  if (d_getConstantStack.count(t.getExpr()) != 0) {
+    return Expr();
+  }
+  DebugAssert(d_getConstantStack.size() < 1000,
+	      "TheoryDatatype::getconstant: too deep recursion depth");
+  d_getConstantStack[t.getExpr()] = true;
   if (isDatatype(t)) {
    DebugAssert(d_datatypes.find(t.getExpr()) != d_datatypes.end(),
                "Unknown datatype: "+t.getExpr().toString());
@@ -951,12 +1175,29 @@ Expr TheoryDatatype::getConstant(const Type& t)
    ExprMap<unsigned>::iterator i = c.begin(), iend = c.end();
    for (; i != iend; ++i) {
      const Expr& cons = (*i).first;
-     if (!getBaseType(cons).isFunction()) return cons;
+     if (!getBaseType(cons).isFunction()) {
+       d_getConstantStack.erase(t.getExpr());
+       return cons;
+     }
    }
    for (i = c.begin(), iend = c.end(); i != iend; ++i) {
      const Expr& cons = (*i).first;
-     if (!cons.isWellFounded()) continue;
-     if (!getBaseType(cons).isFunction()) return cons;
+     Expr funType = getBaseType(cons).getExpr();
+     vector<Expr> args;
+     int j = 0;
+     for (; j < funType.arity()-1; ++j) {
+       Type t_j = Type(funType[j]);
+       if (t_j == t || isDatatype(t_j)) break;
+       args.push_back(getConstant(t_j));
+       DebugAssert(!args.back().isNull(), "Expected non-null");
+     }
+     if (j == funType.arity()-1) {
+       d_getConstantStack.erase(t.getExpr());
+       return Expr(cons.mkOp(), args);
+     }
+   }
+   for (i = c.begin(), iend = c.end(); i != iend; ++i) {
+     const Expr& cons = (*i).first;
      Expr funType = getBaseType(cons).getExpr();
      vector<Expr> args;
      int j = 0;
@@ -964,16 +1205,22 @@ Expr TheoryDatatype::getConstant(const Type& t)
        Type t_j = Type(funType[j]);
        if (t_j == t) break;
        args.push_back(getConstant(t_j));
+       if (args.back().isNull()) break;
      }
-     if (j == funType.arity()-1) return Expr(cons.mkOp(), args);
+     if (j == funType.arity()-1) {
+       d_getConstantStack.erase(t.getExpr());
+       return Expr(cons.mkOp(), args);
+     }
    }
-   FatalAssert(false, "Couldn't find well-founded constructor for"
+   FatalAssert(false, "Couldn't find constant for"
                +t.toString());
   }
   DebugAssert(!t.isBool() && !t.isFunction(),
               "Expected non-bool, non-function type");
+  //TODO: this name could be an illegal identifier (i.e. could include spaces)
   string name = "datatype_"+t.getExpr().toString();
   Expr e = resolveID(name);
+  d_getConstantStack.erase(t.getExpr());
   if (e.isNull()) return newVar(name, t);
   return e;
 }
@@ -996,9 +1243,9 @@ bool TheoryDatatype::canCollapse(const Expr& e)
   if (d_labels.find(e[0]) == d_labels.end()) return false;
   DebugAssert(e[0].hasFind() && findExpr(e[0]) == e[0],
               "canCollapse: Expected find(e[0])=e[0]");
-  bigunsigned u = d_labels[e[0]].get().get();
+  Unsigned u = d_labels[e[0]].get().get();
   Expr cons = getSelectorInfo(e.getOpExpr()).first;
-  bigunsigned uCons = 1 << bigunsigned(getConsPos(cons));
+  Unsigned uCons = 1 << Unsigned(getConsPos(cons));
   if ((u & uCons) == 0) return true;
   return false;
 }

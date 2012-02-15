@@ -1,40 +1,33 @@
 /*!\page LICENSE LICENSE
 
-Copyright (C) 2003-2007 by the Board of Trustees of Leland Stanford Junior
+Copyright (C) 2003-2009 by the Board of Trustees of Leland Stanford Junior
 University, New York University, and the University of Iowa, hereafter
 designated as the Copyright Owners.
 
-License to use, copy, modify, sell and/or distribute this software and
-its documentation for any purpose is hereby granted without royalty,
-subject to the following terms and conditions:
+All rights reserved.
 
-1.  The above copyright notice and this permission notice must
-appear in all copies of the software and related documentation.
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
 
-2.  The names of the Copyright Owners may not be used in advertising or
-publicity pertaining to distribution of the software without the specific,
-prior written permission of the Copyright Owners.
+* Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+* Neither the names of the Copyright Owners nor the names of any contributors
+may be used to endorse or promote products derived from this software
+without specific prior written permission.
 
-3.  This software may not be called "CVC3" if it has been modified
-in any way, without the specific prior written permission of Clark Barrett.
-
-4.  THE SOFTWARE IS PROVIDED "AS-IS" AND THE COPYRIGHT OWNERS MAKE NO
-REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED, BY WAY OF EXAMPLE, BUT NOT
-LIMITATION.  THE COPYRIGHT OWNERS MAKE NO REPRESENTATIONS OR WARRANTIES OF
-MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE
-SOFTWARE WILL NOT INFRINGE ANY PATENTS, COPYRIGHTS TRADEMARKS OR OTHER
-RIGHTS. THE COPYRIGHT OWNERS SHALL NOT BE LIABLE FOR ANY LIABILITY OR DAMAGES
-WITH RESPECT TO ANY CLAIM BY LICENSEE OR ANY THIRD PARTY ON ACCOUNT OF, OR
-ARISING FROM THE LICENSE, OR ANY SUBLICENSE OR USE OF THE SOFTWARE OR ANY
-SERVICE OR SUPPORT.
-
-LICENSEE shall indemnify, hold harmless and defend the Copyright Owners and
-their trustees, officers, employees, students and agents against any and all
-claims arising out of the exercise of any rights under this Agreement,
-including, without limiting the generality of the foregoing, against any
-damages, losses or liabilities whatsoever with respect to death or injury to
-person or damage to property arising from or out of the possession, use, or
-operation of Software or Licensed Program(s) by LICENSEE or its customers.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT OWNERS AND CONTRIBUTORS ''AS IS'' AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNERS OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Note:
 

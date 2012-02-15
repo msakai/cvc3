@@ -52,6 +52,9 @@ namespace CVC3 {
     //! Mapping of e to "|- e = v" for fresh Skolem vars v
     CDMap<Expr, Theorem> d_skolemVars;
 
+    //! Helper function for liftOneITE
+    void findITE(const Expr& e, Expr& condition, Expr& thenpart, Expr& elsepart);
+
   public:
     CommonTheoremProducer(TheoremManager* tm);
     virtual ~CommonTheoremProducer() { }
@@ -95,6 +98,9 @@ namespace CVC3 {
     Theorem andIntro(const std::vector<Theorem>& es);
     Theorem implIntro(const Theorem& phi, const std::vector<Expr>& assump);
     Theorem implContrapositive(const Theorem& thm);
+    Theorem rewriteIteTrue(const Expr& e);
+    Theorem rewriteIteFalse(const Expr& e);
+    Theorem rewriteIteSame(const Expr& e);
     Theorem notToIff(const Theorem& not_e);
     Theorem xorToIff(const Expr& e);
     Theorem rewriteIff(const Expr& e);
@@ -115,6 +121,7 @@ namespace CVC3 {
     Theorem rewriteAnd(const Theorem& e);
     Theorem rewriteOr(const Theorem& e);
     Theorem ackermann(const Expr& e1, const Expr& e2);
+    Theorem liftOneITE(const Expr& e);
 
     std::vector<Theorem>& getSkolemAxioms() { return d_skolem_axioms; }
     void clearSkolemAxioms() { d_skolem_axioms.clear(); }

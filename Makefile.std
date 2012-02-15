@@ -53,25 +53,52 @@
 # How about library version information?
 ##################################################
 
+# Force shell to Bash so we can rely on some process management
+# tricks like ${PIPESTATUS[0]} and <( ... ) for process redirection
+SHELL = /bin/bash
+
+##################################################
+# Special versions of dir/notdir built-ins that 
+# can handle paths with spaces
+# Note that, unlike dir/notdir, these functions
+# take a *single* path and assume that any spaces
+# are part of the path (they need not be escaped).
+##################################################
+
+s? = $(subst $(empty) ,?,$(1))
+?s = $(subst ?, ,$(1))
+notdirx = $(call ?s,$(notdir $(call s?,$(1))))
+dirx = $(call ?s,$(dir $(call s?,$(1))))
+
 ##################################################
 # Compute flags and platform based on options
 ##################################################
 
 #Default platform is generic
 ifndef PLATFORM
-  PLATFORM = generic
+  PLATFORM := generic
 endif
 
+ifeq ($(SMTCOMP),1)
+  LOCAL_CXXFLAGS = -O9 -funroll-all-loops -fexpensive-optimizations
+  DEBUG_PLATFORM =-smtcomp
+else
 ifeq ($(OPTGDB),1)
   LOCAL_CXXFLAGS = -g
-  DEBUG_PLATFORM =
+  DEBUG_PLATFORM = -optgdb
+else
+ifeq ($(OPTDEBUG),1)
+  LOCAL_CXXFLAGS = -O2 -D_CVC3_DEBUG_MODE
+  DEBUG_PLATFORM = -optdbg
 else
 ifeq ($(OPTIMIZED),1)
-  LOCAL_CXXFLAGS = -O9 -funroll-all-loops -fexpensive-optimizations
+  LOCAL_CXXFLAGS = -O2
   DEBUG_PLATFORM =
 else
-  LOCAL_CXXFLAGS = -DDEBUG -g -O0
+  LOCAL_CXXFLAGS = -D_CVC3_DEBUG_MODE -g -O0
   DEBUG_PLATFORM = -debug
+endif
+endif
 endif
 endif
 
@@ -164,7 +191,7 @@ OBJ = $(patsubst %.$(CPPSUFFIX), $(OBJ_DIR)/%.o, $(SRC))
 
 $(OBJ_DIR)/%.o :	%.$(CPPSUFFIX)
 	@mkdir -p $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) $(LOCAL_CXXFLAGS) $(CPPFLAGS) -c $< -o $@ 
+	$(CXX) $(CXXFLAGS) $(LOCAL_CXXFLAGS) $(CPPFLAGS) -c $< -o '$@'
 
 ##################################################
 # executables and libraries
@@ -177,7 +204,6 @@ ifeq ($(STATIC),1)
   LIB_SUFFIX = $(STATIC_LIB_SUFFIX)
   EXE_DIR_STATIC_OR_DYNAMIC = $(EXE_DIR)/static
 else
-  CXXFLAGS += $(DYNAMIC_FLAG)
   STATIC_FLAG_TARGET =
   LIB_SUFFIX = $(SHARED_LIB_SUFFIX)
   EXE_DIR_STATIC_OR_DYNAMIC = $(EXE_DIR)
@@ -186,8 +212,8 @@ endif
 ifdef EXECUTABLE
 # Compile executable
 
-BUILD_SPECIFIC_TARGET = $(EXE_DIR_STATIC_OR_DYNAMIC)/$(EXECUTABLE)
-BUILD_INDEPENDENT_TARGET = $(BASE_DIR)/bin/$(EXECUTABLE)
+BUILD_SPECIFIC_TARGET = $(EXE_DIR_STATIC_OR_DYNAMIC)/$(EXECUTABLE)$(EXEEXT)
+BUILD_INDEPENDENT_TARGET = $(BASE_DIR)/bin/$(EXECUTABLE)$(EXEEXT)
 
 all:
 	$(MAKE) $(BUILD_SPECIFIC_TARGET)
@@ -196,7 +222,7 @@ all:
 
 $(BUILD_SPECIFIC_TARGET): $(OBJ) $(OTHER_OBJ) $(OTHER_DEPENDENCIES)
 	@mkdir -p $(EXE_DIR_STATIC_OR_DYNAMIC)
-	$(LD) $(STATIC_FLAG_TARGET) $(LOCAL_CXXFLAGS) $(LDFLAGS) -o $@ $(OBJ) \
+	$(LD) $(STATIC_FLAG_TARGET) $(CXXFLAGS) $(LOCAL_CXXFLAGS) $(LDFLAGS) -o '$@' $(OBJ) \
 	$(OTHER_OBJ) $(LD_LIB_DIR) $(LD_LIBS)
 else
 ifdef LIBRARY
@@ -219,12 +245,12 @@ all: $(BUILD_SPECIFIC_TARGET)
 
 $(SHARED_LIB_TARGET): $(OBJ) $(OTHER_OBJ)
 	@mkdir -p $(LIB_DIR)
-	$(CXX) $(SHARED) -o $@ $(OBJ) $(OTHER_OBJ)
+	$(CXX) $(SHARED) -o '$@' $(OBJ) $(OTHER_OBJ)
 
 $(STATIC_LIB_TARGET): $(OBJ) $(OTHER_OBJ)
 	@mkdir -p $(LIB_DIR)
-	ar ruvs $@ $(OBJ) $(OTHER_OBJ)
-	@#ranlib $@
+	ar ruvs '$@' $(OBJ) $(OTHER_OBJ)
+	@#ranlib '$@'
 
 else
   LIB_OR_EXE = 0
@@ -309,6 +335,6 @@ print_src:
              src/$(MODULE)/Makefile \
       >> $(FILELIST)
 
-include $(MAKEFILE_DEPS)
+-include $(MAKEFILE_DEPS)
 
 endif

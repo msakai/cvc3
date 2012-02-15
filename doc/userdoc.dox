@@ -42,6 +42,7 @@ that is not answered here.-->
        <li>\ref user_doc_pres_lang_commands_checksat</li>
        <li>\ref user_doc_pres_lang_commands_restart</li>
        </ul>
+   <li>\ref user_doc_pres_lang_patterns</li>
    <li>\ref user_doc_pres_lang_subtypes
        <ul>
        <li>\ref user_doc_pres_lang_subtyping</li>
@@ -101,10 +102,10 @@ respectively existential, quantifiers),
 CVC3 is in fact a decision procedure: 
 it is always guaranteed (well, modulo bugs and memory limits) to return a correct "valid" or 
 "invalid" answer. 
-In all other cases, CVC3 is only guaranteed to be sound: 
-it will never say that an invalid formula is valid.
-However, it may either never return or give up and return "unknown" even if 
-\f$\Gamma \models_T \phi\f$.
+In all other cases, CVC3 is sound but incomplete: 
+it will never say that an invalid formula is valid
+but it may either never return or give up and return "unknown" 
+in some cases when \f$\Gamma \models_T \phi\f$.
 
 
 When CVC3 returns "valid" it can return a formal proof of the validity 
@@ -130,18 +131,11 @@ providing a concrete assignment of values for the free symbols in
 \f$\Gamma\f$ and \f$\phi\f$ 
 (see \ref user_doc_pres_lang_commands_query for more details).
 
-CVC3 can be used in two modes: as a 
-C/C++ library, 
+CVC3 can be used in two modes: as a library
 or as a command-line executable (implemented as a command-line interface to
-the library).  
+the library).
+Interfaces to the library are available in C/C++, Java and .NET.
 This manual mainly describes the command-line interface on a unix-type platform. 
-<!--
-C/C++/.NET library, 
-[CT: removed because we do not have the windows version yet]
-
-The behavior of the command-line interface on Windows platforms is similar.
-[CT: removed because we do not have the windows version yet]
--->
 
 
 \section user_doc_command_line Running CVC3 from a Command Line
@@ -253,8 +247,9 @@ as the set of all bit vectors of size <i>n</i>.
 
 \subsubsection user_doc_pres_lang_unint_types User-defined Atomic Types
 
-User-defined atomic types are each interpreted as a set 
-disjoint from any other type and are created by declarations like the following:
+User-defined atomic types are each interpreted as a set of unspecified cardinality
+but disjoint from any other type.
+They are created by declarations like the following:
 
 \verbatim
 % User declarations of atomic types:
@@ -285,7 +280,11 @@ But that is just CVC3's way,
 inherited from the previous systems of the CVC family,
 to say that <tt>f</tt> is a predicate symbol.
 
-CVC3 does have a Boolean type proper, that is, a value type with only two elements
+<!--
+CT: next line slightly reworded: 
+-->
+CVC3 does have a type that behaves like a Boolean Value type,
+that is, a value type with only two elements
 and with the usual Boolean operations defined on it:
 it is <tt>BITVECTOR(1)</tt>.
 
@@ -418,7 +417,12 @@ RecordType: TYPE = [# number: INT, value: REAL, info: TupleType #];
 
 The order of the fields in a record type is meaningful.
 In other words, permuting the field names gives a different type.
-Note that records are (at the moment) non-recursive.
+Note that records are
+<!-- 
+CT: removed
+(at the moment) 
+-->
+non-recursive.
 For instance,
 it is not possible to declare a record type called <tt>Person</tt>
 containing a field of type <tt>Person</tt>.
@@ -644,7 +648,7 @@ with different types.
 
 As with types, a new free symbol can be defined as the name of a term
 of the corresponding type.
-With constant symbols this is done a declaration of the form \f$f:T = t;\f$ :
+With constant symbols this is done with a declaration of the form \f$f:T = t;\f$ :
 
 \verbatim
 c: INT;
@@ -729,11 +733,11 @@ for constant symbols, and of the form
 \f[
 \begin{array}{rlcl}
 \mathrm{LET}
- & f_1 & = &\mathrm{LAMBDA}(x_1:T_{1,1}, \ldots, x:T_{1,n}):\; t_1,
+ & f_1 & = &\mathrm{LAMBDA}(x^1_1:T^1_1, \ldots, x^{n_1}_1:T^{n_1}_1):\; t_1,
  \\
  & & \vdots &
  \\
- & f_m & = & \mathrm{LAMBDA}(x_1:T_{m,1}, \ldots, x:T_{m,n}):\; t_n\ 
+ & f_m & = & \mathrm{LAMBDA}(x^1_m:T^1_m, \ldots, x^{n_m}_m:T^{n_m}_m):\; t_m
  \\
  \mathrm{IN} & t ;
 \end{array}
@@ -769,6 +773,7 @@ They are described next, with the theory symbols grouped by theory.
 The logical symbols in CVC3's language include 
 the equality and disequality predicate symbols,
 respectively written as <tt>=</tt> and <tt>/=</tt>,
+the multiarity disequality symbol <tt>DISTINCT</tt>,
 together with the logical constants <tt>TRUE</tt>, <tt>FALSE</tt>,
 the connectives <tt>NOT</tt>, <tt>AND</tt>, <tt>OR</tt>,
 <tt>XOR</tt>, <tt>=&gt;</tt>, <tt>&lt;=&gt;</tt>, 
@@ -781,6 +786,14 @@ The symbols <tt>=</tt> and <tt>/=</tt>, which are also infix, are instead polymo
 having type \f$(T,T) \to \mathrm{BOOLEAN}\f$
 for every predefined or user-defined value type \f$T\f$.
 They are interpreted respectively as the identity relation and its complement. 
+
+The \f$\mathrm{DISTINCT}\f$ symbol is both overloaded and polymorphic.
+It has type \f$(T,...,T) \to \mathrm{BOOLEAN}\f$
+for every tuple \f$(T,...,T)\f$ of length \f$n > 0\f$
+where \f$T\f$ is a predefined or user-defined value type.
+For each \f$n > 0\f$,  
+it is interpreteted as the relation that holds exactly
+for tuples of pairwise distinct elements.
 
 The syntax for quantifiers is similar to that of the lambda binder.
 
@@ -801,7 +814,7 @@ with the same name as one of the variables it quantifies:
 
 \verbatim
 A: TYPE;
-i,j:INT;
+i,j: INT;
 
 % The first occurrence of i and of j in f are constant symbols,
 % the others are variables.
@@ -809,7 +822,63 @@ i,j:INT;
 f: BOOLEAN =  i = j AND FORALL (i,j: A): i = j OR i /= j;
 \endverbatim
 
-In addition to these standard constructs,
+Optionally, it is also possible to specify
+<em>instantiation patterns</em> for quantified variables.
+The general syntax for a quantified formula \f$\psi\f$ with patterns is 
+
+\f[
+ Q\:(x_1:T_1, \ldots, x_k:T_k):\; 
+ p_1: \ldots\; p_n:\;
+ \varphi
+\f]
+
+where 
+\f$n \geq 0\f$,
+\f$Q\f$ is either \f$\mathrm{FORALL}\f$ or \f$\mathrm{EXISTS}\f$,
+\f$\varphi\f$ is a term of type \f$\mathrm{BOOLEAN}\f$,
+and
+each of the \f$p_i\f$'s,
+a <em>pattern for the quantifier</em> \f$Q\:(x_1:T_1, \ldots, x_k:T_k)\f$,
+has the form
+\f[
+ \mathrm{PATTERN}\; (t_1, \ldots, t_m)
+\f]
+where
+\f$m > 0\f$
+and
+\f$t_1, \ldots, t_m\f$ are arbitrary binder-free terms (no lets, no quantifiers).
+Those terms can contain (free) variables,
+typically, but not exclusively, drawn from \f$x_1, \ldots, x_k\f$.
+(Additional variables can occur 
+if \f$\psi\f$ occurs in a bigger formula binding those variables.)
+
+\verbatim
+A: TYPE;
+b, c: A;
+p, q: A -> BOOLEAN;
+r: (A, A) -> BOOLEAN;
+
+ASSERT FORALL (x0, x1, x2: A):
+         PATTERN (r(x0, x1), r(x1, x2)): 
+         (r(x0, x1) AND r(x1, x2)) => r(x0, x2) ;
+
+ASSERT FORALL (x: A):
+         PATTERN (r(x, b)): 
+         PATTERN (r(x, c)): 
+         p(x) => q(x) ;
+
+ASSERT EXISTS (y: A):
+         FORALL (x: A):
+           PATTERN (r(x, y), p(y)): 
+           r(x, y) => q(x) ;
+\endverbatim
+
+Patterns have no logical meaning: adding them to a formula does not change its semantics.
+Their purpose is purely operational,
+as explained in Section \ref user_doc_pres_lang_patterns.
+
+
+In addition to these constructs,
 CVC3 also has a general mixfix conditional operator of the form
 \f[
 \mathrm{IF}\ b\ 
@@ -865,18 +934,16 @@ depending on whether it defines a finite or an infinite term algebra.
 
 \subsubsection user_doc_pres_lang_expr_arith Arithmetic
 
-The rational arithmetic theory has predefined symbols for the usual arithmetic 
+The real arithmetic theory has predefined symbols for the usual arithmetic 
 constants and operators 
 over the type \f$\mathrm{REAL}\f$, each with the expected type:
 all numerals <tt>0</tt>, <tt>1</tt>, ...,
 as well as <tt>-</tt>
 (both unary and binary), <tt>+</tt>, <tt>*</tt>, <tt>/</tt>, <tt>&lt;</tt>,
 <tt>&gt;</tt>, <tt>&lt;=</tt>, <tt>&gt;=</tt>.
-Non-integer constants are written in fractional form: e.g., 1/2, 3/4, etc.
+Rational values can be expressed in fractional form: e.g., 1/2, 3/4, etc.
 
-Since CVC3 uses infinite precision rational arithmetic, 
-the size of natural constants expressible in the presentation language is 
-bounded in practice only by the amount of available memory.
+The size of numerals used in the representation of natural and rational numbers is unbounded (or more accurately, bounded only by the amount of available memory).
 
 
 \subsubsection user_doc_pres_lang_expr_bit Bit vectors
@@ -1476,6 +1543,62 @@ implication introduction rule.  See the next section on
 \ref user_doc_pres_lang_tccs for details.
 -->
 
+\subsection user_doc_pres_lang_patterns Instantiation Patterns
+
+CVC3 processes each universally quantified formula in the current context
+by generating <em>instances</em> of 
+the formula obtained by replacing its universal variables with ground terms.
+Patterns restrict the choice of ground terms for the quantified variables,
+with the goal of controlling the potential explosion of ground instances.
+In essence, adding patterns to a formula is a way for the user to tell CVC3 
+to focus only on certain instances which, in the user's opinion, will be most
+helpful during a proof.
+
+In more detail, 
+patterns have the following effect on formulas that are found in the logical context 
+or get later added to it
+while CVC3 is trying to prove the validity of some formula \f$\varphi\f$.
+
+If a formula in the current context starts with an existential quantifier,
+CVC3 Skolemizes it, that is, replaces it in the context 
+by the formula obtained by substituting the existentially quantified variables 
+by fresh constants and dropping the quantifier.
+Any patterns for the existential quantifier are simply ignored.
+
+If a formula starts with a universal quantifier \f$\mathrm{FORALL}\; (x_1:T_1, \ldots, x_n:T_n)\f$,
+CVC3 adds to the context a number of instances 
+of the formula---with the goal of using them to prove the query \f$\varphi\f$ valid.
+An instance is obtained by replacing each \f$x_i\f$ with 
+a ground term of the same type occurring in one of the formulas in the context, 
+and dropping the universal quantifier.
+If \f$x_i\f$ occurs in a pattern \f$\mathrm{PATTERN}\; (t_1, \ldots, t_m)\f$
+for the quantifier,
+it will be instantiated only with terms obtained by simultaneously matching 
+all the terms in the pattern against ground terms in the current context \f$\Gamma\f$.
+
+Specifically, the matching process produces one or more substitutions \f$\sigma\f$ 
+for the variables in \f$(t_1, \ldots, t_m)\f$
+which satisfy the following invariant:
+for each \f$i = 1, \ldots, m\f$,
+\f$\sigma(t_i)\f$ is a ground term
+and
+there is a ground term \f$s_i\f$ in \f$\Gamma\f$ such that
+\f$\Gamma \models_T \sigma(t_i) = s_i\f$.
+The variables of \f$(x_1:T_1, \ldots, x_n:T_n)\f$ that occur in the pattern
+are instantiated only with those substitutions (while any remaining variables are instantiated arbitrarily).
+
+The Skolemized version or the added instances of a context formula may
+themselves start with a quantifier.
+The same instantiation process is applied to them too, recursively.
+
+Note that the matching mechanism is not limited to syntactic matching but is modulo 
+the equations asserted in the context. 
+Because of decidability and/or efficiency limitations, 
+the matching process is not exhaustive.
+CVC3 will typically miss some substitutions that satisfy the invariant above.
+As a consequence, it might fail to prove the validity of the query formula \f$\varphi\f$, which makes CVC3 incomplete for contexts containing quantified formulas.
+It should be noted though that exhaustive matching, which can be achieved simply by not specifying any patterns, does not yield completeness anyway since the instantiation of universal variables is still restricted to just the ground terms in the context (whereas in general additional ground terms might be needed).
+
 
 
 \subsection user_doc_pres_lang_subtypes Subtypes
@@ -1994,112 +2117,6 @@ ASSERT y + 1/2 = x AND f(y + 3/2) < 15
 is also accepted because the conjunction of the two formulas
 is well-subtyped in the empty context.
 
-
-
-<!--
-
-[CT: original text of TCC section]
-
-Partial functions are ubiquitous in real-life examples.  The simplest
-one is division by 0.  Is the formula <tt>x/y = x/y</tt> always true
-(valid)?  What about the case when <tt>y=0</tt>?
-
-CVC3 supports partial using <em>Type Correctness Conditions</em>,
-or TCCs for short.  A TCC for a formula or a term <tt>t</tt> is a
-formula \f$D_t\f$ such that \f$D_t\f$ is true if and only if the term
-<tt>t</tt> is defined.
-
-For example, the expression <tt>x/y</tt> is defined when
-<tt>y/=0</tt>, and therefore, \f$D_{x/y}\equiv y\ne 0\f$.  Similarly,
-the entire equality <tt>x/y=x/y</tt> has exactly the same TCC.
-
-Not all terms and subformulas need to be defined in order for a
-formula to have a well-defined meaning.  For instance, a formula
-\f[y\ne 0 \Rightarrow x/y = x/y\f] is always true, even when y=0,
-since then the antecedent of the implication becomes false, and the
-value of the conclusion becomes irrelevant (in particular, it may be
-undefined).
-
-More formally, CVC3 adopts a <em>Kleene version</em> of the
-3-valued semantics.  Under this semantics, undefined value
-"propagates" up through the terms and predicates (so they are
-<em>strict</em>), but the logical connectives and if-then-else
-operators allow irrelevant subterms and subformulas to be undefined
-(they are <em>non-strict</em>).
-
-For example, an expression <tt>f(x/(y+1), 42)</tt> is undefined for
-<tt>y=-1</tt>, but the expression
-
-\verbatim
-IF y > 0 THEN f(x/(y+1), 42) ELSE 0 ENDIF
-\endverbatim
-
-is always defined, provided <tt>f</tt> is a total function.
-Similarly, the formula \f[(x/y < x/y) \Rightarrow y = 0\f] is a valid
-formula, since the antecedent is always false (and hence, the formula
-is always true) except when y=0, in which case the antecedent is
-irrelevant (and, in fact, it is undefined).  This formula might look
-bizarre at first, but it is consistent with the classical (total)
-first-order logic, and with our general mathematical intuition (think
-what a high school math teacher would say about it!).
-
-Division is not the only partial function in CVC3.  User-defined
-functions can be partial if they are defined on a subtype.  For
-example, <tt>INT</tt> is a subtype of \f$\mathrm{REAL}\f$, and any subrange
-is a subtype of <tt>INT</tt>.  Therefore, an uninterpreted function
-
-\verbatim
-f: [0..100] -> INT;
-\endverbatim
-
-is a partial function defined only on integer values from 0 to 100.
-It is possible, however, to apply this function to a term of type
-\f$\mathrm{REAL}\f$, and the formula may still make sense.  For example:
-
-\verbatim
-x: [5..10];
-y: REAL;
-
-ASSERT y+1/2 = x;
-ASSERT f(y+3/2) < 15;
-\endverbatim
-
-is a perfectly reasonable sequence of assertions (from the
-mathematical point of view), and therefore, is accepted by CVC3.
-However, changing the order of these assertions becomes problematic:
-
-\verbatim
-x: [5..10];
-y: REAL;
-
-ASSERT f(y+3/2) < 15;
-ASSERT y+1/2 = x;
-\endverbatim
-
-This will result in a TCC failure, since at the time of the first
-ASSERT it is not yet known that <tt>y+3/2</tt> is an integer between 0
-and 100.  CVC3 enforces a rule that the TCC for a formula in
-ASSERT or QUERY is valid in the <em>current logical context</em>.  It
-will not "look into the future" for possible justification of a failed
-TCC.  Think of it as an extension of the well-known programming
-paradigm: an object must be defined before its use; similarly, a
-formula must make mathematical sense in the context it appears.
-
-Whenever an ASSERT or QUERY command is executed, the corresponding TCC
-is first checked for validity in the current context (before the
-formula is added to the logical context).  If the TCC is proven valid,
-then the formula itself is added to the context (in ASSERT) or checked
-for validity (in QUERY).
-
-The command <tt>DUMP_TCC</tt> prints out the TCC for the latest ASSERT
-or QUERY, and <tt>DUMP_TCC_PROOF</tt> produces the corresponding proof
-(assuming TCC has been proven successfully).
-
-The proofs of the corresponding TCCs are also used in the proof of the
-closure of a valid formula (see <tt>DUMP_CLOSURE_PROOF</tt> in the
-previous section).
-
--->
 
 \section user_doc_smtlib_lang SMT-LIB Input Language
 

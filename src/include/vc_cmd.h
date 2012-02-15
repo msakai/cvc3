@@ -45,6 +45,8 @@ class VCCmd {
   CtxtMap d_map;
   bool d_calledFromParser;
 
+  //! Print the symbols in e, cache results
+  void printSymbols(Expr e, ExprMap<bool>& cache);
   //! Take a parsed Expr and evaluate it
   bool evaluateCommand(const Expr& e);
   // Fetch the next command and evaluate it.  Return true if
@@ -55,6 +57,8 @@ class VCCmd {
 		  ExprMap<bool>& visited);
   Expr skolemizeAx(const Expr& e);
   void reportResult(QueryResult qres, bool checkingValidity = true);
+  void printModel();
+  void printCounterExample();
 
 public:
   VCCmd(ValidityChecker* vc, Parser* parser, bool calledFromParser=false);

@@ -2,9 +2,9 @@
 /*!
  * \file bitvector_theorem_producer.h
  * \brief TRUSTED implementation of bitvector proof rules
- * 
+ *
  * Author: Vijay Ganesh
- * 
+ *
  * Created: Wed May  5 16:10:28 PST 2004
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -36,9 +36,9 @@ namespace CVC3 {
   */
   /*!
     Author: Vijay Ganesh, May-August, 2004
-    
+
   */
-  class BitvectorTheoremProducer: 
+  class BitvectorTheoremProducer:
     public BitvectorProofRules, public TheoremProducer {
   private:
     TheoryBitvector* d_theoryBitvector; //! instance of bitvector DP
@@ -54,10 +54,10 @@ namespace CVC3 {
     //! Collect all of: a*x1+b*x1 + c*x2-x2 + d*x3 + ~x3 + ~x4 +e into
     //!  (a+b, x1) , (c-1 , x2), (d-1, x3), (-1, x4) and the constant e-2.
     //! The constant is calculated from the formula -x = ~x+1 (or -x-1=~x).
-    void collectLikeTermsOfPlus(const Expr& e, 
+    void collectLikeTermsOfPlus(const Expr& e,
 				ExprMap<Rational> & likeTerms,
 				Rational & plusConstant);
-    
+
     //! Collect a single coefficient*var pair into likeTerms.
     //! Update the counter of likeTerms[var] += coefficient.
     //! Potentially update the constant additive plusConstant.
@@ -72,7 +72,7 @@ namespace CVC3 {
 				 const ExprMap<Rational> & likeTerms,
 				 Rational & plusConstant,
 				 std::vector<Expr> & result);
-    
+
     //! Create expression by applying plus to all elements.
     //! All elements should be normalized and ready.
     //! If there are too few elements, a non BVPLUS expression will be created.
@@ -81,8 +81,8 @@ namespace CVC3 {
 
     void getPlusTerms(const Expr& e, Rational& known_term, ExprMap<Rational>& sumHashMap);
     Expr buildPlusTerm(int bv_size, Rational& known_term, ExprMap<Rational>& sumHashMap);
-    Expr processExtract(const Expr& ext, const Expr& rhs);
     Expr chopConcat(int bv_size, Rational c, std::vector<Expr>& concatKids);
+    bool okToSplit(const Expr& e);
 
   public:
     //! Constructor: constructs an instance of bitvector DP
@@ -91,30 +91,30 @@ namespace CVC3 {
 
     //ExprMap<Expr> d_bvPlusCarryCacheLeftBV;
     //ExprMap<Expr> d_bvPlusCarryCacheRightBV;
-    
+
     ////////////////////////////////////////////////////////////////////
     // Partial Canonization rules
     ////////////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////////////
     // Bitblasting rules for equations
-    ////////////////////////////////////////////////////////////////////    
-    
+    ////////////////////////////////////////////////////////////////////
+
     /*! \param thm input theorem: (e1[i]<=>e2[i])<=>false
-     *  
+     *
      *  \result (e1=e2)<=>false
      */
     Theorem bitvectorFalseRule(const Theorem& thm);
 
     /*! \param thm input theorem: (~e1[i]<=>e2[i])<=>true
-     *  
+     *
      *  \result (e1!=e2)<=>true
      */
     Theorem bitvectorTrueRule(const Theorem& thm);
 
-    /*! \param e input equation: e1=e2 over bitvector terms 
+    /*! \param e input equation: e1=e2 over bitvector terms
      *  \param f formula over the bits of bitvector variables in e:
-     *           
+     *
      *  \result \f[\frac{e_1 = e_2}{\bigwedge_{i=1}^n (e_{1}[i]
      *  \iff e_{2}[i]) } \f] where each of \f[ e_{1}[i], e{2}[i] \f] denotes a
      *  formula over variables in \f[ e_{1}, e_{2} \f] respectively
@@ -123,7 +123,7 @@ namespace CVC3 {
 
     /*! \param e : input disequality: e1 != e2 over bitvector terms
      *  \param f : formula over the bits of bitvector variables in e:
-     *           
+     *
      *  \result \f[\frac{e_1 \not = e_2}{\bigwedge_{i=1}^n ((\neg e_{1}[i])
      *  \iff e_{2}[i]) } \f] where each of \f[ e_{1}[i], e{2}[i] \f] denotes a
      *  formula over variables in \f[ e_{1}, e_{2} \f] respectively
@@ -137,10 +137,10 @@ namespace CVC3 {
 
     //! sign extend the input SX(e) appropriately
     Theorem signExtendRule(const Expr& e);
- 
+
     //! Pad the kids of BVLT/BVLE to make their length equal
     Theorem padBVLTRule(const Expr& e, int len);
- 
+
     //! Sign Extend the kids of BVSLT/BVSLE to make their length equal
     Theorem padBVSLTRule(const Expr& e, int len);
 
@@ -148,21 +148,21 @@ namespace CVC3 {
      *  e0 and e1 are constants. If they are constants then optimizations
      *  are done, otherwise the following rule is implemented.
      *
-     *  e0 <=(s) e1 <==> (e0[n-1] AND NOT e1[n-1]) OR 
-     *                   (e0[n-1] AND e1[n-1] AND e1[n-2:0] <= e0[n-2:0]) OR 
+     *  e0 <=(s) e1 <==> (e0[n-1] AND NOT e1[n-1]) OR
+     *                   (e0[n-1] AND e1[n-1] AND e1[n-2:0] <= e0[n-2:0]) OR
      *                   (NOT e0[n-1] AND NOT e1[n-1] AND e0[n-2:0] <= e1[n-2:0])
      */
-    Theorem signBVLTRule(const Expr& e, 
-			 const Theorem& topBit0, 
+    Theorem signBVLTRule(const Expr& e,
+			 const Theorem& topBit0,
 			 const Theorem& topBit1);
 
     /*! NOT(e[0][0] = e[0][1]) <==> e[0][0] = ~e[0][1]
      */
     Theorem notBVEQ1Rule(const Expr& e);
 
-    /*! NOT(e[0][0] < e[0][1]) <==> (e[0][1] <= e[0][0]), 
+    /*! NOT(e[0][0] < e[0][1]) <==> (e[0][1] <= e[0][0]),
      *  NOT(e[0][0] <= e[0][1]) <==> (e[0][1] < e[0][0])
-     */    
+     */
     Theorem notBVLTRule(const Expr& e);
 
     //! if(lhs==rhs) then we have (lhs < rhs <==> false),(lhs <= rhs <==> true)
@@ -171,8 +171,8 @@ namespace CVC3 {
     Theorem zeroLeq(const Expr& e);
     Theorem bvConstIneqn(const Expr& e, int kind);
 
-    Theorem generalIneqn(const Expr& e, 
-			 const Theorem& lhs_i, 
+    Theorem generalIneqn(const Expr& e,
+			 const Theorem& lhs_i,
 			 const Theorem& rhs_i, int kind);
 
     ////////////////////////////////////////////////////////////////////
@@ -189,8 +189,8 @@ namespace CVC3 {
     //! t[i] <=> t[i:i][0]   (to use rewriter for simplifying t[i:i])
     Theorem bitExtractRewrite(const Expr& x);
 
-    /*! \param x : input1 is bitvector constant 
-     *  \param i : input2 is extracted bitposition 
+    /*! \param x : input1 is bitvector constant
+     *  \param i : input2 is extracted bitposition
      *
      *  \result \f[ \frac{}{\mathrm{BOOLEXTRACT(x,i)} \iff
      *  \mathrm{TRUE}} \f], if bitposition has a 1; \f[
@@ -208,7 +208,7 @@ namespace CVC3 {
      *  \f[\frac{}{(t_{[m]}@q_{[n]})[i] \iff (t_{[m]})[i-n]} \f],
      *  where \f[ n \geq i \geq m+n-1 \f]
      */
-    Theorem bitExtractConcatenation(const Expr & x, int i); 
+    Theorem bitExtractConcatenation(const Expr & x, int i);
 
     /*! \param t : input1 is bitvector binary BVMULT. x[0] must be BVCONST
      *  \param i : input2 is extracted bitposition
@@ -244,13 +244,13 @@ namespace CVC3 {
      *  \oplus c(t,q,i)} \f], where c(t,q,i) is the carry generated
      *  by the addition of bits from 0 to i-1
      */
-    Theorem bitExtractBVPlus(const std::vector<Theorem>& t1, 
+    Theorem bitExtractBVPlus(const std::vector<Theorem>& t1,
 			     const std::vector<Theorem>& t2,
 			     const Expr& bvPlusTerm, int i);
 
-    Theorem bitExtractBVPlusPreComputed(const Theorem& t1_i, 
+    Theorem bitExtractBVPlusPreComputed(const Theorem& t1_i,
 					const Theorem& t2_i,
-					const Expr& bvPlusTerm, 
+					const Expr& bvPlusTerm,
 					int bitPos,
 					int precomputed);
 
@@ -270,24 +270,8 @@ namespace CVC3 {
      */
     Theorem bitExtractNot(const Expr & x, int i);
 
-    //! Auxiliary function for bitExtractAnd() and bitExtractOr()
+    //! Extract from bitwise AND, OR, or XOR
     Theorem bitExtractBitwise(const Expr& x, int i, int kind);
-
-    /*! \param x : input1 is bitwise AND
-     *  \param i : input2 is extracted bitposition
-     *
-     *  \result \f[ \frac{}{(t_{[n]} \& q_{[n]})[i] \iff (t_{[n]}[i]
-     *  \wedge q_{[n]}[i])} \f]
-     */
-    Theorem bitExtractAnd(const Expr & x, int i);   
-
-    /*! \param x : input1 is bitwise OR
-     *  \param i : input2 is extracted bitposition
-     *
-     *  \result \f[ \frac{}{(t_{[n]} \mid q_{[n]})[i] \iff (t_{[n]}[i]
-     *  \vee q_{[n]}[i])} \f]
-     */
-    Theorem bitExtractOr(const Expr & x, int i);   
 
     /*! \param x : input1 is bitvector FIXED SHIFT \f[ e_{[n]} \ll k \f]
      *  \param i : input2 is extracted bitposition
@@ -296,9 +280,9 @@ namespace CVC3 {
      *  \f], if 0 <= i < k. however, if k <= i < n then, result is
      *  \f[\frac{}{(e_{[n]} \ll k)[i] \iff e_{[n]}[i]} \f]
      */
-    Theorem bitExtractFixedLeftShift(const Expr & x, int i);   
+    Theorem bitExtractFixedLeftShift(const Expr & x, int i);
 
-    Theorem bitExtractFixedRightShift(const Expr & x, int i);   
+    Theorem bitExtractFixedRightShift(const Expr & x, int i);
 
     // BOOLEXTRACT(bvshl(t,s),i) <=> ((s = 0) AND BOOLEXTRACT(t,i)) OR
     //                               ((s = 1) AND BOOLEXTRACT(t,i-1)) OR ...
@@ -339,12 +323,14 @@ namespace CVC3 {
     Theorem rightShiftToConcat(const Expr& e);
     //! BVSHL(t,c) = t[n-c,0] @ 0bin00...00
     Theorem bvshlToConcat(const Expr& e);
+    //! BVSHL(t,c) = IF (c = 0) THEN t ELSE IF (c = 1) ...
+    Theorem bvshlSplit(const Expr& e);
     //! BVLSHR(t,c) = 0bin00...00 @ t[n-1,c]
     Theorem bvlshrToConcat(const Expr& e);
+    //! All shifts over a 0 constant = 0
+    Theorem bvShiftZero(const Expr& e);
     //! BVASHR(t,c) = SX(t[n-1,c], n-1)
     Theorem bvashrToConcat(const Expr& e);
-    //! a XOR b <=> (a & ~b) | (~a & b)
-    Theorem rewriteXOR(const Expr& e);
     //! a XNOR b <=> (~a & ~b) | (a & b)
     Theorem rewriteXNOR(const Expr& e);
     //! a NAND b <=> ~(a & b)
@@ -412,7 +398,7 @@ namespace CVC3 {
     //! (t1 @ t2)[i:j] = t1[...] @ t2[...]  (push extraction through concat)
     Theorem extractConcat(const Expr& e);
 
-    //! Auxiliary function: (t1 op t2)[i:j] = t1[i:j] op t2[i:j] 
+    //! Auxiliary function: (t1 op t2)[i:j] = t1[i:j] op t2[i:j]
     Theorem extractBitwise(const Expr& e, int kind, const std::string& name);
     //! (t1 & t2)[i:j] = t1[i:j] & t2[i:j]  (push extraction through OR)
     Theorem extractAnd(const Expr& e);
@@ -440,78 +426,25 @@ namespace CVC3 {
     //! ~(t1 xnor t2) = t1 xor t2
     Theorem negBVxnor(const Expr& e);
 
-    // Bit-wise AND rules
-    //! Auxiliary method for andConst() and orConst()
+    // Bit-wise rules
+    //! Combine constants in bitwise AND, OR, XOR
     Theorem bitwiseConst(const Expr& e, const std::vector<int>& idxs,
-			 bool isAnd);
-    //! Auxiliary method for andConcat() and orConcat()
-    Theorem bitwiseConcat(const Expr& e, int idx, bool isAnd);
-    //! Auxiliary method for andFlatten() and orFlatten()
-    Theorem bitwiseFlatten(const Expr& e, bool isAnd);
+			 int kind);
+    //! Lifts concatenation above bitwise operators.
+    Theorem bitwiseConcat(const Expr& e, int kind);
+    //! Flatten bitwise operation
+    Theorem bitwiseFlatten(const Expr& e, int kind);
+    //! Simplify bitwise operator containing a constant child
+    /*! \param e is the bit-wise expr
+     *  \param idx is the index of the constant bitvector
+     *  \param kind is the kind of e
+     */
+    Theorem bitwiseConstElim(const Expr& e, int idx, int kind);
 
-    //! c1&c2&t = c&t -- compute bit-wise AND of constant bitvector arguments
-    /*!\param e is the bit-wise AND expression;
-     *
-     * \param idxs are the indices of the constant bitvectors.  There
-     *  must be at least constant expressions in this rule.
-     *
-     * \return Theorem(e==e'), where e' is either a constant
-     * bitvector, or is a bit-wise AND with a single constant
-     * bitvector in e'[0].
-     */
-    Theorem andConst(const Expr& e, const std::vector<int>& idxs);
-    //! 0bin0...0 & t = 0bin0...0  -- bit-wise AND with zero bitvector
-    /*! \param e is the bit-wise AND expr
-     *  \param idx is the index of the zero bitvector
-     */
-    Theorem andZero(const Expr& e, int idx);
-    Theorem andOne(const Expr& e, const std::vector<int> idxs);
-    //! ... & (t1\@...\@tk) & ... = (...& t1 &...)\@...\@(...& tk &...)
-    /*!
-     * Lifts concatenation to the top of bit-wise AND.  Takes the
-     * bit-wise AND expression 'e' and the index 'i' of the
-     * concatenation.
-     */
-    Theorem andConcat(const Expr& e, int idx);
-    //! (t1 & (t2 & t3) & t4) = t1 & t2 & t3 & t4  -- flatten bit-wise AND
-    /*! Also reorders the terms according to a fixed total ordering */
-    Theorem andFlatten(const Expr& e);
-
-    // Bit-wise OR rules
-
-    //! c1|c2|t = c|t -- compute bit-wise OR of constant bitvector arguments
-    /*!\param e is the bit-wise OR expression;
-     *
-     * \param idxs are the indices of the constant bitvectors.  There
-     *  must be at least constant expressions in this rule.
-     *
-     * \return Theorem(e==e'), where e' is either a constant
-     * bitvector, or is a bit-wise OR with a single constant
-     * bitvector in e'[0].
-     */
-    Theorem orConst(const Expr& e, const std::vector<int>& idxs);
-    //! 0bin1...1 | t = 0bin1...1  -- bit-wise OR with bitvector of 1's
-    /*! \param e is the bit-wise OR expr
-     *  \param idx is the index of the bitvector of 1's
-     */
-    Theorem orOne(const Expr& e, int idx);
-    Theorem orZero(const Expr& e, const std::vector<int> idxs);
-    //! ... | (t1\@...\@tk) | ... = (...| t1 |...)\@...\@(...| tk |...)
-    /*!
-     * Lifts concatenation to the top of bit-wise OR.  Takes the
-     * bit-wise OR expression 'e' and the index 'i' of the
-     * concatenation.
-     */
-    Theorem orConcat(const Expr& e, int idx);
-    //! (t1 | (t2 | t3) | t4) = t1 | t2 | t3 | t4  -- flatten bit-wise OR
-    /*! Also reorders the terms according to a fixed total ordering */
-    Theorem orFlatten(const Expr& e);
-
-    
-    /*! checks if e is already present in likeTerms without conflicts. 
+    /*! checks if e is already present in likeTerms without conflicts.
      *  if yes return 1, else{ if conflict return -1 else return 0 }
-     *  we have conflict if 
-     *          1. the kind of e is BVNEG, 
+     *  we have conflict if
+     *          1. the kind of e is BVNEG,
      *                 and e[0] is already present in likeTerms
      *          2. ~e is present in likeTerms already
      */
@@ -555,7 +488,7 @@ namespace CVC3 {
      *  from bit i-1 to 0
      *
      *  \param t2BitExtractThms : input2 is vector of bitblasts of t2,
-     *  from bit i-1 to 0 
+     *  from bit i-1 to 0
      *
      *  \param bitPos : input3 is extracted * bitposition
      *
@@ -577,7 +510,7 @@ namespace CVC3 {
 				 int precomputedFlag);
 
     /*Beginning of Lorenzo PLatania's methods*/
-    
+
     //    virtual Theorem multiply_coeff( Rational mult_inv, const Expr& e);
     //! isolate a variable with coefficient = 1 on the Lhs of an
     //equality expression
@@ -594,17 +527,24 @@ namespace CVC3 {
     // BVPLUS(N, a@b, y) = BVPLUS(N-n,a,BVPLUS(N,b,y)[N-1:n])@BVPLUS(n,b,y)
     // where n = BVSize(b)
     virtual Theorem liftConcatBVPlus(const Expr& e);
-    
+
     //! canonize BVPlus expressions in order to get just one
     //coefficient multiplying each variable in the expression
     virtual Theorem canonBVPlus( const Expr& e );
-    
+
     //! canonize BVMinus expressions: push the minus to the leafs in
     //BVPLUS expr; simplify minus in BVMULT and BVMINUS expr
     virtual Theorem canonBVUMinus( const Expr& e );
 
-    // puts the equation in the form \sum a_i*x_i = c
-    virtual Theorem canonBVEQ( const Expr& e );
+    // Input: t[hi:lo] = rhs
+    // if t appears as leaf in rhs, then:
+    //    t[hi:lo] = rhs |- Exists x,y,z. (t = x @ y @ z AND y = rhs), solvedForm = false
+    // else
+    //    t[hi:lo] = rhs |- Exists x,y,z. (t = x @ rhs @ z AND y = rhs), solvedForm = true
+    virtual Theorem processExtract(const Theorem& e, bool& solvedForm);
+
+    // normalizes equation
+    virtual Theorem canonBVEQ( const Expr& e, int maxEffort = 3 );
 
     //! apply the distributive rule on the BVMULT expression e
     virtual Theorem distributive_rule( const Expr& e );
@@ -628,9 +568,98 @@ namespace CVC3 {
     // rewrite BVROTR into CONCAT
     virtual Theorem rotrRule(const Expr& e);
 
-    //ExprMap<Expr> carryCache(void);
-  }; // end of class BitvectorTheoremProducer
-} // end of namespace CVC3
+    // Dejan: Division rewrites
+
+    /**
+     * Divide a with b unsigned and return the bit-vector constant result
+     */
+    virtual Theorem bvUDivConst(const Expr& divExpr);
+
+    /**
+     * Rewrite x/y to
+     * \exists s: s = x/y \wedge (y \neq 0 \implies x = y * s + m & 0 <= m < y)
+     */
+    virtual Theorem bvUDivTheorem(const Expr& divExpr);
+
+    /**
+     * Compute the remainder
+     */
+    virtual Theorem bvURemConst(const Expr& remExpr);
+
+    /**
+     * Rewrite a%b in terms of a/b, i.e. a - a/b
+     */
+    virtual Theorem bvURemRewrite(const Expr& remExpr);
+
+    /**
+     * Bit-blast the multiplication a_times_b given the bits in a_bits and b_bits.
+     * The resulting output bits will be in the vector output_bits. The return value
+     * is a theorem saying there is no overflow for this multiplication. (TODO, it's
+     * just an empty theorem for now).
+     */
+    virtual Theorem bitblastBVMult(const std::vector<Theorem>& a_bits,
+    		                       const std::vector<Theorem>& b_bits,
+    		                       const Expr& a_times_b,
+    		                       std::vector<Theorem>& output_bits);
+
+    /**
+     * Bit-blast the sum a_plus_b given the bits in a_bits and b_bits.
+     * The resulting output bits will be in the vector output_bits. The return value
+     * is a theorem saying there is no overflow for this sum. (TODO, it's
+     * just an empty theorem for now).
+     */
+    virtual Theorem bitblastBVPlus(const std::vector<Theorem>& a_bits,
+    		                       const std::vector<Theorem>& b_bits,
+    		                       const Expr& a_plus_b,
+    		                       std::vector<Theorem>& output_bits);
+
+    /**
+     * Rewrite the signed divide in terms of the unsigned one.
+     */
+    virtual Theorem bvSDivRewrite(const Expr& sDivExpr);
+
+    /**
+     * Rewrite the signed remainder in terms of the unsigned one.
+     */
+    virtual Theorem bvSRemRewrite(const Expr& sRemExpr);
+
+    /**
+     * Rewrite the signed mod in terms of the unsigned one.
+     */
+    virtual Theorem bvSModRewrite(const Expr& sModExpr);
+
+    /**
+     * Rewrite x_1 \vee x_2 \vee \ldots \vee x_n = 0 into
+     * x_1 = 0 \wedge x_2 = 0 \wedge \ldots \wedge x_n = 0.
+     */
+    virtual Theorem zeroBVOR(const Expr& orEqZero);
+
+    /**
+     * Rewrite x_1 \wedge x_2 \wedge \ldots \wedge x_n = 1^n into
+     * x_1 = 1^n \wedge x_2 = 1^n \wedge \ldots \wedge x_n = 1^n.
+     */
+    virtual Theorem oneBVAND(const Expr& andEqOne);
+
+    /**
+     * Equalities over constants go to true/false.
+     */
+    virtual Theorem constEq(const Expr& eq);
+
+    /**
+     * Returns true if equation is of the form x[i:j] = x[k:l], where the
+     * extracted segments overlap, i.e. i > j >= k > l or k > i >= l > j.
+     */
+    bool solveExtractOverlapApplies(const Expr& eq);
+
+    /**
+     * Returns the theorem that simplifies the equality of two overlapping
+     * extracts over the same term.
+     */
+    Theorem solveExtractOverlap(const Expr& eq);
+
+
+}; // end of class BitvectorTheoremProducer
+} // end of name-space CVC3
 
 
 #endif

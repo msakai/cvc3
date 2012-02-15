@@ -1,10 +1,10 @@
 /*****************************************************************************/
 /*!
  * \file c_interface.h
- * 
+ *
  * Authors: Clark Barrett
  *          Cristian Cadar
- * 
+ *
  * Created: Thu Jun  5 10:34:02 2003
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -148,7 +148,7 @@ Type vc_lookupType(VC vc, char* typeName);
 //! Return the ExprManager
 ExprManager* vc_getEM(VC vc);
 
-//! Create a variable with a given name and type 
+//! Create a variable with a given name and type
 /*! The type cannot be a function type. */
 Expr vc_varExpr(VC vc, char* name, Type type);
 
@@ -178,11 +178,11 @@ Expr vc_stringExpr(VC vc, char* str);
 //! Create an ID Expr
 Expr vc_idExpr(VC vc, char* name);
 
-//! Create a list Expr 
+//! Create a list Expr
 /*! Intermediate representation for DP-specific expressions.
  *  Normally, the first element of the list is a string Expr
  *  representing an operator, and the rest of the list are the
- *  arguments.  For example, 
+ *  arguments.  For example,
  *
  *  kids.push_back(vc->stringExpr("PLUS"));
  *  kids.push_back(x); // x and y are previously created Exprs
@@ -233,6 +233,9 @@ Type vc_importType(Type t);
 //! Create an equality expression.  The two children must have the same type.
 Expr vc_eqExpr(VC vc, Expr child0, Expr child1);
 
+//! Create an all distinct expression. All children must ahve the same type.
+Expr vc_distinctExpr(VC vc, Expr* children, int numChildren);
+
 // Boolean expressions
 
 // The following functions create Boolean expressions.  The children provided
@@ -257,6 +260,12 @@ Op vc_createOp(VC vc, char* name, Type type);
 //! Create a named user-defined function with a given type
 Op vc_createOpDef(VC vc, char* name, Type type, Expr def);
 
+//! Lookup an operator by name.
+/*! Returns the operator and the type if the operator exists.
+ * Returns NULL otherwise
+ */
+Op vc_lookupOp(VC vc, char* name, Type* type);
+
 //! Create expressions with a user-defined operator.
 /*!  op must have a function type. */
 Expr vc_funExpr1(VC vc, Op op, Expr child);
@@ -266,7 +275,7 @@ Expr vc_funExprN(VC vc, Op op, Expr* children, int numChildren);
 
 // Arithmetic
 
-//! Create a rational number with numerator n and denominator d.  
+//! Create a rational number with numerator n and denominator d.
 /*! d cannot be 0. */
 Expr vc_ratExpr(VC vc, int n, int d);
 
@@ -275,8 +284,8 @@ Expr vc_ratExpr(VC vc, int n, int d);
  *  the given base.  d cannot be 0.  */
 Expr vc_ratExprFromStr(VC vc, char* n, char* d, int base);
 
-//! Create a rational from a single string.  
-/*!  
+//! Create a rational from a single string.
+/*!
   \param n can be a string containing an integer, a pair of integers
   "nnn/ddd", or a number in the fixed or floating point format.
   \param base is the base in which to interpret the string.
@@ -288,6 +297,7 @@ Expr vc_uminusExpr(VC vc, Expr child);
 
 // plus, minus, mult.  Children must have numeric types.
 Expr vc_plusExpr(VC vc, Expr left, Expr right);
+Expr vc_plusExprN(VC vc, Expr* children, int numChildren);
 Expr vc_minusExpr(VC vc, Expr left, Expr right);
 Expr vc_multExpr(VC vc, Expr left, Expr right);
 Expr vc_powExpr(VC vc, Expr pow, Expr base);
@@ -371,6 +381,11 @@ Expr vc_bvMinusExpr(VC vc, int n_bits, Expr left, Expr right);
 Expr vc_bv32MinusExpr(VC vc, Expr left, Expr right);
 Expr vc_bvMultExpr(VC vc, int n_bits, Expr left, Expr right);
 Expr vc_bv32MultExpr(VC vc, Expr left, Expr right);
+Expr vc_bvUDivExpr(VC vc, Expr left, Expr right);
+Expr vc_bvURemExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSDivExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSRemExpr(VC vc, Expr left, Expr right);
+Expr vc_bvSModExpr(VC vc, Expr left, Expr right);
 
 // Shift operators
 Expr vc_bvLeftShiftExpr(VC vc, int sh_amt, Expr child);
@@ -383,10 +398,10 @@ Expr vc_bvVar32DivByPowOfTwoExpr(VC vc, Expr child, Expr rhs);
 
 /*C pointer support:  C interface to support C memory arrays in CVC3 */
 Expr vc_bvCreateMemoryArray(VC vc, char * arrayName);
-Expr vc_bvReadMemoryArray(VC vc, 
+Expr vc_bvReadMemoryArray(VC vc,
 			  Expr array, Expr byteIndex, int numOfBytes);
-Expr vc_bvWriteToMemoryArray(VC vc, 
-			     Expr array, Expr  byteIndex, 
+Expr vc_bvWriteToMemoryArray(VC vc,
+			     Expr array, Expr  byteIndex,
 			     Expr element, int numOfBytes);
 
 // Tuples
@@ -414,22 +429,22 @@ Expr vc_datatypeTestExpr(VC vc, char* constructor, Expr arg);
 
 // Quantifiers
 
-//! Create a bound variable.  
+//! Create a bound variable.
 /*! \param name
- * \param uid is a fresh unique string to distinguish this variable 
+ * \param uid is a fresh unique string to distinguish this variable
  * from other bound variables with the same name
  * \param type
  */
 Expr vc_boundVarExpr(VC vc, char* name, char *uid, Type type);
 
-//! Create a FORALL quantifier.  
+//! Create a FORALL quantifier.
 /*! Bvars is an array of bound variables of length numBvars. */
 Type vc_forallExpr(VC vc, Expr* Bvars, int numBvars, Expr f);
 
 //! Set triggers for a forallExpr
 void vc_setTriggers(VC vc, Expr e, int numTrigs, Expr* triggers);
 
-//! Create an EXISTS quantifier.  
+//! Create an EXISTS quantifier.
 /*! Bvars is an array of bound variables of length numBvars. */
 Expr vc_existsExpr(VC vc, Expr* Bvars, int numBvars, Expr f);
 
@@ -444,7 +459,7 @@ Op vc_lambdaExpr(VC vc, int numVars, Expr* vars, Expr body);
 /*! Currently, the limit is the total number of processed facts. */
 void vc_setResourceLimit(VC vc, unsigned limit);
 
-//! Assert a new formula in the current context.  
+//! Assert a new formula in the current context.
 /*! The formula must have Boolean type. */
 void vc_assertFormula(VC vc, Expr e);
 
@@ -508,7 +523,7 @@ Expr* vc_getInternalAssumptions(VC vc, int* size);
  */
 Expr* vc_getAssumptions(VC vc, int* size);
 
-//yeting, for proof translation, get the assumptions used.  
+//yeting, for proof translation, get the assumptions used.
 //the assumptions used are different from the user assumptions.
 //the assumptions used are preprocessed if 'preprocess' is ena
 Expr vc_getProofAssumptions(VC vc);
@@ -538,8 +553,8 @@ Expr* vc_getCounterExample(VC vc, int* size);
  * Returns an array of Exprs with size *size.
  * The caller is responsible for freeing the array when finished with it by
  * calling vc_deleteVector.
- */  
-Expr* getConcreteModel(VC vc, int* size);
+ */
+Expr* vc_getConcreteModel(VC vc, int* size);
 
 // Returns true if the current context is inconsistent.
 /*! Also returns a minimal set of assertions used to determine the
@@ -634,7 +649,7 @@ Expr vc_isVar(Expr e);
 int vc_arity(Expr e);
 int vc_getKind(Expr e);
 Expr vc_getChild(Expr e, int i);
-Expr vc_getNumVars(Expr e);
+int vc_getNumVars(Expr e);
 Expr vc_getVar(Expr e, int i);
 Expr vc_getBody(Expr e);
 Expr vc_getExistential(Expr e);

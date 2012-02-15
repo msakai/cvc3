@@ -2,9 +2,9 @@
 /*!
  * \file arith_theorem_producer_old.h
  * \brief TRUSTED implementation of arithmetic proof rules
- * 
+ *
  * Author: Vijay Ganesh, Sergey Berezin
- * 
+ *
  * Created: Dec 13 02:09:04 GMT 2002
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -24,13 +24,12 @@
 
 #include "arith_proof_rules.h"
 #include "theorem_producer.h"
-#include "theory_arith.h"
+#include "theory_arith_old.h"
 
 namespace CVC3 {
-  class TheoryArith;
-  
+
   class ArithTheoremProducerOld: public ArithProofRules, public TheoremProducer {
-    TheoryArith* d_theoryArith;
+    TheoryArithOld* d_theoryArith;
   private:
     /*! \name Auxiliary functions for eqElimIntRule()
      * Methods that compute the subterms used in eqElimIntRule()
@@ -60,10 +59,11 @@ namespace CVC3 {
     //! Compute floor(i/m+1/2) + mod(i,m)
     Rational f(const Rational& i, const Rational& m);
     Expr substitute(const Expr& term, ExprMap<Expr>& eMap);
+    void getLeaves(const Expr& e, std::set<Rational>& s, ExprHashMap<bool>& cache);
     /*@}*/
   public:
     //! Constructor
-    ArithTheoremProducerOld(TheoremManager* tm, TheoryArith* theoryArith):
+    ArithTheoremProducerOld(TheoremManager* tm, TheoryArithOld* theoryArith):
       TheoremProducer(tm), d_theoryArith(theoryArith) { }
 
     //! Create Expr from Rational (for convenience)
@@ -119,8 +119,8 @@ namespace CVC3 {
     // 2) Arithmetic Leaf (var or term from another theory)
     // 3) (POW rational leaf)
     // 4) (MULT rational mterm'_1 ...) where each mterm' is of type (2) or (3)
-    // 5) (PLUS rational sterm_1 sterm_2 ...) where each sterm is of 
-    //     type (2) or (3) or (4) 
+    // 5) (PLUS rational sterm_1 sterm_2 ...) where each sterm is of
+    //     type (2) or (3) or (4)
 
     static bool greaterthan(const Expr &, const Expr &);
     virtual Expr simplifiedMultExpr(std::vector<Expr> & mulKids);
@@ -131,7 +131,7 @@ namespace CVC3 {
     virtual Expr canonMultLeafLeaf(const Expr & e1, const Expr & e2);
     virtual Expr canonMultLeafOrPowMult(const Expr & e1, const Expr & e2);
     virtual Expr canonCombineLikeTerms(const std::vector<Expr> & sumExprs);
-    virtual Expr 
+    virtual Expr
 	canonMultLeafOrPowOrMultPlus(const Expr & e1, const Expr & e2);
     virtual Expr canonMultPlusPlus(const Expr & e1, const Expr & e2);
     virtual Theorem canonMultMtermMterm(const Expr& e);
@@ -143,17 +143,17 @@ namespace CVC3 {
     virtual Theorem canonInvert(const Expr & e);
 
     /**
-     * Transform e = (SUM r t1 ... tn) @ 0 into (SUM t1 ... tn) @ -r. The first 
+     * Transform e = (SUM r t1 ... tn) @ 0 into (SUM t1 ... tn) @ -r. The first
      * sum term (r) must be a rational and t1 ... tn terms must be canonised.
-     * 
-     * @param e the expression to transform 
-     * @return rewrite theorem representing the transformation  
+     *
+     * @param e the expression to transform
+     * @return rewrite theorem representing the transformation
      */
     virtual Theorem moveSumConstantRight(const Expr& e);
 
     /** e[0]/e[1] ==> e[0]*(e[1])^-1 */
     virtual Theorem canonDivide(const Expr & e);
-    
+
     /** Multiply out the operands of the multiplication (each of them is expected to be canonised */
     virtual Theorem canonMult(const Expr & e);
 
@@ -165,10 +165,10 @@ namespace CVC3 {
     virtual Theorem canonMultZero(const Expr& e);
     // 1*t ==> t, takes 1*t
     virtual Theorem canonMultOne(const Expr& e);
-    // c1*c2 ==> c', takes constant c1*c2 
+    // c1*c2 ==> c', takes constant c1*c2
     virtual Theorem canonMultConstConst(const Expr& c1, const Expr& c2);
     // c1*(c2*t) ==> c'*t, takes c1 and c2 and t
-    virtual Theorem 
+    virtual Theorem
       canonMultConstTerm(const Expr& c1, const Expr& c2, const Expr&t);
     // c1*(+ c2 v1 ...) ==> (+ c' c1v1 ...), takes c1 and the sum
     virtual Theorem canonMultConstSum(const Expr& c1, const Expr& sum);
@@ -178,11 +178,11 @@ namespace CVC3 {
     // Rules for addition
     // flattens the input. accepts a PLUS expr
     virtual Theorem canonFlattenSum(const Expr& e);
-    
+
     // Rules for addition
     // combine like terms. accepts a flattened PLUS expr
     virtual Theorem canonComboLikeTerms(const Expr& e);
-    
+
     // 0 = (* e1 e2 ...) <=> 0 = e1 OR 0 = e2 OR ...
     virtual Theorem multEqZero(const Expr& expr);
 
@@ -215,8 +215,8 @@ namespace CVC3 {
     virtual Theorem leftMinusRight(const Expr& e);
 
     // x kind y <==> x + z kind y + z
-    virtual Theorem plusPredicate(const Expr& x, 
-				  const Expr& y, 
+    virtual Theorem plusPredicate(const Expr& x,
+				  const Expr& y,
 				  const Expr& z, int kind);
 
     // x = y <==> x * z = y * z
@@ -234,7 +234,7 @@ namespace CVC3 {
 
     // "op1 GE|GT op2" <==> op2 LE|LT op1
     virtual Theorem flipInequality(const Expr& e);
-    
+
     // NOT (op1 LT op2)  <==> (op1 GE op2)
     // NOT (op1 LE op2)  <==> (op1 GT op2)
     // NOT (op1 GT op2)  <==> (op1 LE op2)
@@ -245,19 +245,19 @@ namespace CVC3 {
     Theorem realShadowEq(const Theorem& alphaLEt, const Theorem& tLEalpha);
     Theorem finiteInterval(const Theorem& aLEt, const Theorem& tLEac,
 			   const Theorem& isInta, const Theorem& isIntt);
-    
-    Theorem darkGrayShadow2ab(const Theorem& betaLEbx, 
+
+    Theorem darkGrayShadow2ab(const Theorem& betaLEbx,
 			      const Theorem& axLEalpha,
 			      const Theorem& isIntAlpha,
 			      const Theorem& isIntBeta,
 			      const Theorem& isIntx);
-      
-    Theorem darkGrayShadow2ba(const Theorem& betaLEbx, 
+
+    Theorem darkGrayShadow2ba(const Theorem& betaLEbx,
 			      const Theorem& axLEalpha,
 			      const Theorem& isIntAlpha,
 			      const Theorem& isIntBeta,
 			      const Theorem& isIntx);
-        
+
     Theorem expandDarkShadow(const Theorem& darkShadow);
     Theorem expandGrayShadow0(const Theorem& grayShadow);
     Theorem splitGrayShadow(const Theorem& grayShadow);
@@ -276,12 +276,13 @@ namespace CVC3 {
 
     Theorem lessThanToLE(const Theorem& less, const Theorem& isIntLHS,
 			 const Theorem& isIntRHS, bool changeRight);
-    
+
     Theorem lessThanToLERewrite(const Expr& ineq, const Theorem& isIntLHS,
     			 const Theorem& isIntRHS, bool changeRight);
 
-    
+
     Theorem intVarEqnConst(const Expr& eqn, const Theorem& isIntx);
+    Theorem IsIntegerElim(const Theorem& isIntx);
 
     Theorem eqElimIntRule(const Theorem& eqn, const Theorem& isIntx,
 			  const std::vector<Theorem>& isIntVars);
@@ -294,49 +295,51 @@ namespace CVC3 {
     Theorem equalLeaves4(const Theorem& e);
 
     Theorem diseqToIneq(const Theorem& diseq);
-    
+
     Theorem dummyTheorem(const Expr& e);
-    
+
     Theorem oneElimination(const Expr& x);
-    
+
     Theorem clashingBounds(const Theorem& lowerBound, const Theorem& upperBound);
-    
+
     Theorem addInequalities(const Theorem& thm1, const Theorem& thm2);
     Theorem addInequalities(const std::vector<Theorem>& thms);
-    
+
     Theorem implyWeakerInequality(const Expr& expr1, const Expr& expr2);
-    
+
     Theorem implyNegatedInequality(const Expr& expr1, const Expr& expr2);
 
     Theorem integerSplit(const Expr& intVar, const Rational& intPoint);
-    
+
     Theorem trustedRewrite(const Expr& expr1, const Expr& expr2);
-	
+
     Theorem rafineStrictInteger(const Theorem& isIntConstrThm, const Expr& constr);
 
     Theorem simpleIneqInt(const Expr& ineq, const Theorem& isIntRHS);
-    
+
     Theorem intEqualityRationalConstant(const Theorem& isIntConstrThm, const Expr& constr);
-    
+
     Theorem cycleConflict(const std::vector<Theorem>& inequalitites);
-    
+
     Theorem implyEqualities(const std::vector<Theorem>& inequalities);
-    
+
     Theorem implyWeakerInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied);
 
     Theorem implyNegatedInequalityDiffLogic(const std::vector<Theorem>& antecedentThms, const Expr& implied);
-    
+
     Theorem expandGrayShadowRewrite(const Expr& theShadow);
-    
+
     Theorem compactNonLinearTerm(const Expr& nonLinear);
-    
+
     Theorem nonLinearIneqSignSplit(const Theorem& ineqThm);
-    
-    Theorem implyDiffLogicBothBounds(const Expr& x, std::vector<Theorem>& c1_le_x, Rational c1, 
+
+    Theorem implyDiffLogicBothBounds(const Expr& x, std::vector<Theorem>& c1_le_x, Rational c1,
         							 std::vector<Theorem>& x_le_c2, Rational c2);
-    
+
     Theorem powerOfOne(const Expr& e);
-    
+
+    Theorem rewriteLeavesConst(const Expr& e);
+
   }; // end of class ArithTheoremProducerOld
 
 } // end of namespace CVC3

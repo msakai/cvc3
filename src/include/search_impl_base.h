@@ -25,6 +25,7 @@
 #include "search.h"
 #include "theory_core.h"
 #include "variable.h"
+#include "formula_value.h"
 
 namespace CVC3 {
 
@@ -280,6 +281,12 @@ public:
 
   //! Process result of checkValid
   void processResult(const Theorem& res, const Expr& e);
+
+  //:ALEX:
+  inline virtual FormulaValue getValue(const CVC3::Expr& e) {
+    FatalAssert(false, "not implemented");
+    return UNKNOWN_VAL;
+  }
 
   /* @} */ // end of group SE
 

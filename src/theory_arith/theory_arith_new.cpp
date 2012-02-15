@@ -719,7 +719,10 @@ TheoryArithNew::solvedForm(const vector<Theorem>& solvedEqs)
   for(ExprMap<Theorem>::iterator i=subst.begin(), iend=subst.end();
       i!=iend; ++i)
     thms.push_back(i->second);
-  return getCommonRules()->andIntro(thms);
+  if (thms.size() > 1)
+    return getCommonRules()->andIntro(thms);
+  else
+    return thms.back();
 }
 
 
@@ -1901,6 +1904,35 @@ void TheoryArithNew::checkType(const Expr& e)
   }
 }
 
+
+Cardinality TheoryArithNew::finiteTypeInfo(Expr& e, Unsigned& n,
+                                           bool enumerate, bool computeSize)
+{
+  Cardinality card = CARD_INFINITE;
+  switch (e.getKind()) {
+    case SUBRANGE: {
+      card = CARD_FINITE;
+      Expr typeExpr = e;
+      if (enumerate) {
+        Rational r = typeExpr[0].getRational() + n;
+        if (r <= typeExpr[1].getRational()) {
+          e = rat(r);
+        }
+        else e = Expr();
+      }
+      if (computeSize) {
+        Rational r = typeExpr[1].getRational() - typeExpr[0].getRational() + 1;
+        n = r.getUnsigned();
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return card;
+}
+
+
 void TheoryArithNew::computeType(const Expr& e)
 {
   switch (e.getKind()) {
@@ -2702,7 +2734,7 @@ QueryResult TheoryArithNew::assertUpper(const Expr& x_i, const EpsRational& c, c
 	TRACE("simplex", "TheoryArithNew::assertUpper(", x_i.toString() + ", " + c.toString(), ")");
 
 	// Check if the given expression is actually a variable
-	DebugAssert(isLeaf(x_i), "TheoryArithNew::assertUpper wronk kind, expected an arithmetic leaf (variable) got " + x_i.toString());
+	DebugAssert(isLeaf(x_i), "TheoryArithNew::assertUpper wrong kind, expected an arithmetic leaf (variable) got " + x_i.toString());
 	
 	// Check if the upper bound is worse then the last one
 	if (getUpperBound(x_i) <= c) return (consistent == UNKNOWN? UNKNOWN : SATISFIABLE); 
@@ -2736,7 +2768,7 @@ QueryResult TheoryArithNew::assertUpper(const Expr& x_i, const EpsRational& c, c
 QueryResult TheoryArithNew::assertLower(const Expr& x_i, const EpsRational& c, const Theorem& thm) {
 
 	// Check if the given expression is actually a variable
-	DebugAssert(isLeaf(x_i), "TheoryArithNew::assertLower wronk kind, expected an arithmetic leaf (variable) got " + x_i.toString());
+	DebugAssert(isLeaf(x_i), "TheoryArithNew::assertLower wrong kind, expected an arithmetic leaf (variable) got " + x_i.toString());
 
 	// If trace is on for the simplex, print it out
 	TRACE("simplex", "TheoryArithNew::assertLower(", x_i.toString() + ", " + c.toString(), ")");
@@ -3115,9 +3147,9 @@ void TheoryArithNew::assertFact(const Theorem& assertThm)
 	int kind        = expr.getKind();   // The relational symbol, should be one of LT, LE, GT, GE. EQ was rewritten as LE and GE so its not here
 	
 	// The expression must be an inequality (sum a_1*x_1 .. a_n*x_n) @ b
-	DebugAssert(isIneq(expr)         , "TheoryArithNew::assertFact wronk kind, expected inequality"                 + expr.toString());
-	DebugAssert(isPlus(rightSide) || (isMult(rightSide) && isRational(rightSide[0]) && isLeaf(rightSide[1])), "TheoryArithNew::assertFact wronk kind, expected sum on the right side opr a simple 1*x"      + expr.toString());
-	DebugAssert(isRational(leftSide), "TheoryArithNew::assertFact wronk kind, expected rational on the right side" + expr.toString());
+	DebugAssert(isIneq(expr)         , "TheoryArithNew::assertFact wrong kind, expected inequality"                 + expr.toString());
+	DebugAssert(isPlus(rightSide) || (isMult(rightSide) && isRational(rightSide[0]) && isLeaf(rightSide[1])), "TheoryArithNew::assertFact wrong kind, expected sum on the right side opr a simple 1*x"      + expr.toString());
+	DebugAssert(isRational(leftSide), "TheoryArithNew::assertFact wrong kind, expected rational on the right side" + expr.toString());
 
 	// Get the rational value on the right side	
 	Rational leftSideValue = leftSide.getRational(); 

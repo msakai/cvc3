@@ -2,9 +2,9 @@
 /*!
  * \file translator.cpp
  * \brief Description: Code for translation between languages
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Sat Jun 25 18:06:52 2005
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -101,6 +101,23 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
 
   Rational r;
   switch (e2.getKind()) {
+    case RATIONAL_EXPR:
+      if (d_convertToBV) {
+        Rational r = e2.getRational();
+        if (!r.isInteger()) {
+          FatalAssert(false, "Cannot convert non-integer constant to BV");
+        }
+        Rational limit = pow(d_convertToBV-1, 2);
+        if (r >= limit) {
+          FatalAssert(false, "Cannot convert to BV: integer too big");
+        }
+        else if (r < -limit) {
+          FatalAssert(false, "Cannot convert to BV: integer too small");
+        }
+        e2 = d_theoryBitvector->signed_newBVConstExpr(r, d_convertToBV);
+        break;
+      }
+
     case READ:
       if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
         if (e2[1].getKind() != UCONST) break;
@@ -115,6 +132,7 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
         }
       }
       break;
+
     case WRITE:
       if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
         map<string, Type>::iterator i;
@@ -142,31 +160,35 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
         }
       }
       break;
+
     case APPLY:
       // Expand lambda applications
       if (e2.getOpKind() == LAMBDA) {
         Expr lambda(e2.getOpExpr());
         Expr body(lambda.getBody());
         const vector<Expr>& vars = lambda.getVars();
-        FatalAssert(vars.size() == (size_t)e2.arity(), 
+        FatalAssert(vars.size() == (size_t)e2.arity(),
                     "wrong number of arguments applied to lambda\n");
         body = body.substExpr(vars, e2.getKids());
         e2 = preprocessRec(body, cache);
       }
       break;
+
     case EQ:
       if (d_theoryArith->getBaseType(e2[0]) != d_theoryArith->realType())
         break;
       if (d_theoryCore->getFlags()["convert2array"].getBool() &&
-          (e2[0].getKind() == UCONST &&
-           d_arrayConvertMap->find(e2[0].getName()) == d_arrayConvertMap->end()) ||
-          (e2[1].getKind() == UCONST &&
-           d_arrayConvertMap->find(e2[1].getName()) == d_arrayConvertMap->end())) {
+          ((e2[0].getKind() == UCONST && d_arrayConvertMap->find(e2[0].getName()) == d_arrayConvertMap->end()) ||
+          (e2[1].getKind() == UCONST && d_arrayConvertMap->find(e2[1].getName()) == d_arrayConvertMap->end()))) {
         d_equalities.push_back(e2);
       }
       goto arith_rewrites;
 
     case UMINUS:
+      if (d_convertToBV) {
+        e2 = Expr(BVUMINUS, e2[0]);
+        break;
+      }
       if (d_theoryArith->isSyntacticRational(e2, r)) {
         e2 = preprocessRec(d_em->newRatExpr(r), cache);
         break;
@@ -174,6 +196,10 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       goto arith_rewrites;
 
     case DIVIDE:
+      if (d_convertToBV) {
+        FatalAssert(false, "Conversion of DIVIDE to BV not implemented yet");
+        break;
+      }
       if (d_theoryArith->isSyntacticRational(e2, r)) {
         e2 = preprocessRec(d_em->newRatExpr(r), cache);
         break;
@@ -189,6 +215,10 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       goto arith_rewrites;
 
     case MINUS:
+      if (d_convertToBV) {
+        e2 = Expr(BVSUB, e2[0], e2[1]);
+        break;
+      }
       if (d_convertArith) {
         if (e2[0].isRational() && e2[1].isRational()) {
           e2 = d_em->newRatExpr(e2[0].getRational() - e2[1].getRational());
@@ -198,6 +228,10 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       goto arith_rewrites;
 
     case PLUS:
+      if (d_convertToBV) {
+        e2 = Expr(Expr(BVPLUS, d_em->newRatExpr(d_convertToBV)).mkOp(), e2.getKids());
+        break;
+      }
       if (d_convertArith) {
         // Flatten and combine constants
         vector<Expr> terms;
@@ -249,6 +283,10 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       goto arith_rewrites;
 
     case MULT:
+      if (d_convertToBV) {
+        e2 = Expr(Expr(BVMULT, d_em->newRatExpr(d_convertToBV)).mkOp(), e2.getKids());
+        break;
+      }
       if (d_convertArith) {
         // Flatten and combine constants
         vector<Expr> terms;
@@ -300,6 +338,10 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       goto arith_rewrites;
 
     case POW:
+      if (d_convertToBV) {
+        FatalAssert(false, "Conversion of POW to BV not implemented");
+        break;
+      }
       if (d_convertArith && e2[0].isRational()) {
         r = e2[0].getRational();
         if (r.isInteger() && r.getNumerator() == 2) {
@@ -310,9 +352,30 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       // fall through
 
     case LT:
+      if (d_convertToBV) {
+        e2 = Expr(BVSLT, e2[0], e2[1]);
+        break;
+      }
+
     case GT:
+      if (d_convertToBV) {
+        e2 = Expr(BVSLT, e2[1], e2[0]);
+        break;
+      }
+
     case LE:
+      if (d_convertToBV) {
+        e2 = Expr(BVSLE, e2[0], e2[1]);
+        break;
+      }
+
     case GE:
+      if (d_convertToBV) {
+        e2 = Expr(BVSLE, e2[1], e2[0]);
+        break;
+      }
+      
+
     case INTDIV:
     case MOD:
 
@@ -354,6 +417,11 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
 
       break;
     default:
+      if (d_convertToBV && isInt(e2.getType())) {
+        FatalAssert(e2.isVar(), "Cannot convert non-variables yet");
+        e2 = d_theoryCore->newVar(e2.getName()+"_bv", d_theoryBitvector->newBitvectorType(d_convertToBV));
+      }
+
       break;
   }
 
@@ -425,8 +493,7 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
 
     case EQ:
       if (d_theoryArith->getBaseType(e2[0]) != d_theoryArith->realType() ||
-          e2[0].getType() == d_theoryArith->intType() &&
-          d_theoryCore->getFlags()["convert2array"].getBool())
+          (e2[0].getType() == d_theoryArith->intType() && d_theoryCore->getFlags()["convert2array"].getBool()))
         break;
     case LT:
     case GT:
@@ -628,7 +695,8 @@ Translator::Translator(ExprManager* em,
                        const string& expResult,
                        const string& category,
                        bool convertArray,
-                       bool combineAssump)
+                       bool combineAssump,
+                       int convertToBV)
   : d_em(em), d_translate(translate),
     d_real2int(real2int),
     d_convertArith(convertArith),
@@ -643,7 +711,7 @@ Translator::Translator(ExprManager* em,
     d_ax(false), d_unknown(false),
     d_realUsed(false), d_intUsed(false), d_intConstUsed(false),
     d_langUsed(NOT_USED), d_UFIDL_ok(true), d_arithUsed(false),
-    d_zeroVar(NULL)
+    d_zeroVar(NULL), d_convertToBV(convertToBV)
 {
   d_arrayConvertMap = new map<string, Type>;
 }
@@ -813,6 +881,9 @@ Expr Translator::processType(const Expr& e)
     case TYPEDECL:
       return e;
     case INT:
+      if (d_convertToBV) {
+        return d_theoryBitvector->newBitvectorType(d_convertToBV).getExpr();
+      }
       if (d_theoryCore->getFlags()["convert2array"].getBool()) {
         return d_elementType->getExpr();
       }
@@ -842,11 +913,33 @@ Expr Translator::processType(const Expr& e)
             DebugAssert(e[1].arity() == 1, "expected arity 1");
             if (e[1][0].getString() == "Element") {
               d_ax = true;
-              return e;
+              break;
             }
           }
         }
       }
+      else if (isInt(Type(e[0]))) {
+        if (isInt(Type(e[1]))) {
+          d_intIntArray = true;
+          break;
+        }
+        else if (isReal(Type(e[1]))) {
+          d_intRealArray = true;
+          break;
+        }
+        else if (isArray(Type(e[1])) &&
+                 isInt(Type(e[1][0])) &&
+                 isReal(Type(e[1][1]))) {
+          d_intIntRealArray = true;
+          break;
+        }
+      }
+      else if (e[0].getKind() == BITVECTOR &&
+               e[1].getKind() == BITVECTOR) {
+        break;
+      }
+      d_unknown = true;
+      break;
     default:
       break;
   }
@@ -924,7 +1017,13 @@ void Translator::finish()
               if (d_theoryCore->getFlags()["convert2array"].getBool()) break;
               Expr e2 = processType(e[1]);
               if (e[1] == e2) break;
-              *i = Expr(CONST, e[0], e2);
+              if (d_convertToBV) {
+                Expr newName = Expr(ID, d_em->newStringExpr(e[0][0].getString()+"_bv"));
+                *i = Expr(CONST, newName, e2);
+              }
+              else {
+                *i = Expr(CONST, e[0], e2);
+              }
               break;
             }
             default:
@@ -979,7 +1078,7 @@ void Translator::finish()
       }
 
       // Step 2: If both int and real are used, try to separate them
-      if (!d_unknown && (d_intUsed && d_realUsed) || (d_theoryCore->getFlags()["convert2array"].getBool())) {
+      if ((!d_unknown && (d_intUsed && d_realUsed)) || (d_theoryCore->getFlags()["convert2array"].getBool())) {
         ExprMap<Expr> cache;
         vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
         for (; i != iend; ++i) {
@@ -1051,10 +1150,10 @@ void Translator::finish()
           }
 
           // Promote undefined subset logics
-          else if (!QF && !d_theoryBitvector->theoryUsed()) {
-            A = true;
-            *d_osdump << "A";
-          }
+//           else if (!QF && !d_theoryBitvector->theoryUsed()) {
+//             A = true;
+//             *d_osdump << "A";
+//           }
 
           if (d_theoryUF->theoryUsed() ||
               (d_theoryArray->theoryUsed() && d_convertArray)) {
@@ -1063,11 +1162,11 @@ void Translator::finish()
           }
 
           // Promote undefined subset logics
-          else if (!QF &&
-                   !d_theoryBitvector->theoryUsed()) {
-            UF = true;
-            *d_osdump << "UF";
-          }
+//           else if (!QF &&
+//                    !d_theoryBitvector->theoryUsed()) {
+//             UF = true;
+//             *d_osdump << "UF";
+//           }
 
           if (d_arithUsed) {
             if (d_intUsed && d_realUsed) {
@@ -1080,27 +1179,27 @@ void Translator::finish()
               if (d_langUsed <= DIFF_ONLY) {
 
                 // Promote undefined subset logics
-                if (!QF) {
-                  *d_osdump << "LIRA";
-                } else
+//                 if (!QF) {
+//                   *d_osdump << "LIRA";
+//                 } else
 
                   *d_osdump << "RDL";
               }
               else if (d_langUsed <= LINEAR) {
 
                 // Promote undefined subset logics
-                if (!QF) {
-                  *d_osdump << "LIRA";
-                } else
+//                 if (!QF) {
+//                   *d_osdump << "LIRA";
+//                 } else
 
                   *d_osdump << "LRA";
               }
               else {
 
                 // Promote undefined subset logics
-                if (!QF) {
-                  *d_osdump << "NIRA";
-                } else
+//                 if (!QF) {
+//                   *d_osdump << "NIRA";
+//                 } else
 
                   *d_osdump << "NRA";
               }
@@ -1125,7 +1224,7 @@ void Translator::finish()
                     UF = true;
                     *d_osdump << "UF";
                   }
-                  *d_osdump << "LIA";                  
+                  *d_osdump << "LIA";
                 } else
 
                   *d_osdump << "IDL";
@@ -1133,10 +1232,10 @@ void Translator::finish()
               else if (d_langUsed <= LINEAR) {
 
                 // Promote undefined subset logics
-                if (QF && A && !UF) {
-                  UF = true;
-                  *d_osdump << "UF";
-                }
+//                 if (QF && A && !UF) {
+//                   UF = true;
+//                   *d_osdump << "UF";
+//                 }
 
                 if (QF && !A && (!d_realUsed && d_langUsed <= LINEAR && d_UFIDL_ok)) {
                   *d_osdump << "UFIDL";
@@ -1148,10 +1247,10 @@ void Translator::finish()
               else {
 
                 // Promote undefined subset logics
-                if (!QF) {
-                  *d_osdump << "NIRA";
-                } else
-                
+//                 if (!QF) {
+//                   *d_osdump << "NIRA";
+//                 } else
+
                   *d_osdump << "NIA";
               }
             }
@@ -1176,7 +1275,7 @@ void Translator::finish()
             else if (!QF || (A && UF)) {
               *d_osdump << "LIA";
             } else {
-            
+
               // Default logic
               if (!A && !UF) {
                 UF = true;
@@ -1295,7 +1394,7 @@ bool Translator::printArrayExpr(ExprStream& os, const Expr& e)
       os << "]";
       return true;
     }
-    os << "Array";
+    os << "UnknownArray";
     d_unknown = true;
     return true;
   }

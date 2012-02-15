@@ -32,7 +32,7 @@ namespace CVC3 {
 extern int smtlib_inputLine;
 extern char *smtlibtext;
 
-extern int smtliberror (char *msg);
+extern int smtliberror (const char *msg);
 
 static int smtlibinput(std::istream& is, char* buf, int size) {
   int res;
@@ -184,12 +184,6 @@ IDCHAR  ({LETTER}|{DIGIT}|{OPCHAR})
 "flet"          { return FLET_TOK; }
 "notes"         { return NOTES_TOK; }
 "cvc_command"   { return CVC_COMMAND_TOK; }
-"sorts"         { return SORTS_TOK; }
-"funs"          { return FUNS_TOK; }
-"preds"         { return PREDS_TOK; }
-"extensions"    { return EXTENSIONS_TOK; }
-"definition"    { return DEFINITION_TOK; }
-"axioms"        { return AXIOMS_TOK; }
 "logic"         { return LOGIC_TOK; }
 "sat"           { return SAT_TOK; }
 "unsat"         { return UNSAT_TOK; }
@@ -201,9 +195,8 @@ IDCHAR  ({LETTER}|{DIGIT}|{OPCHAR})
 "extrasorts"    { return EXTRASORTS_TOK; }
 "extrafuns"     { return EXTRAFUNS_TOK; }
 "extrapreds"    { return EXTRAPREDS_TOK; }
-"language"      { return LANGUAGE_TOK; }
 "distinct"      { return DISTINCT_TOK; }
-":pattern"          { return PAT_TOK; } 
+":pattern"      { return PAT_TOK; } 
 ":"             { return COLON_TOK; }
 "\["            { return LBRACKET_TOK; }
 "\]"            { return RBRACKET_TOK; }

@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file search.cpp
- * 
+ *
  * Author: Clark Barrett, Vijay Ganesh (CNF Converter)
- * 
+ *
  * Created: Fri Jan 17 14:19:54 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -45,6 +45,39 @@ SearchEngine::~SearchEngine()
   delete d_rules;
 }
 
+bool SearchEngine::tryModelGeneration(Theorem& thm) {
+
+	if(!lastThm().isNull()) throw EvalException("Method tryModelGenereation() (or command COUNTERMODEL)\n must be called only after failed QUERY");
+
+	// Save the scope level, to recover on errors
+	push();
+	d_core->collectBasicVars();
+	bool success = d_core->refineCounterExample(thm);
+	if (!success) {
+		pop();
+		return false;
+	}
+
+	QueryResult qres = checkValid(d_core->falseExpr(), thm);
+	if(qres == VALID) {
+		pop();
+		return false;
+	}
+
+	success = d_core->buildModel(thm);
+	if (!success) {
+	    pop();
+	    return false;
+	}
+
+	qres = checkValid(d_core->falseExpr(), thm);
+	if(qres == VALID) {
+	    pop();
+	    return false;
+	}
+
+	return true;
+}
 
 void SearchEngine::getConcreteModel(ExprMap<Expr>& m)
 {
@@ -74,7 +107,7 @@ void SearchEngine::getConcreteModel(ExprMap<Expr>& m)
     throw Exception
       ("Model Creation failed after refining counterexample\n"
        "due to the following assumptions:\n "
-       +a.toString()       
+       +a.toString()
        +"\n\nYou might be using an incomplete fragment of the theory");
   }
 //   else if (qres != INVALID) {
@@ -103,5 +136,5 @@ void SearchEngine::getConcreteModel(ExprMap<Expr>& m)
 //     throw EvalException
 //       ("Unable to build concrete model");
 //   }
-  TRACE("model" ,  "Building a concrete model", "", "}"); 
+  TRACE("model" ,  "Building a concrete model", "", "}");
 }

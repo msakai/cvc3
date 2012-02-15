@@ -96,6 +96,125 @@ void sort2(std::vector<std::string>& keys, std::vector<T>& vals) {
   }
 }
 
+/*! @brief A class which sets a boolean value to true when created,
+ * and resets to false when deleted.
+ *
+ * Useful for tracking when the control is within a certain method or
+ * not.  For example, TheoryCore::addFact() uses d_inAddFact to check
+ * that certain other methods are only called from within addFact().
+ * However, when an exception is thrown, this variable is not reset.
+ * The watcher class will reset the variable even in those cases.
+ */
+class ScopeWatcher {
+ private:
+  bool *d_flag;
+public:
+  ScopeWatcher(bool *flag): d_flag(flag) { *d_flag = true; }
+  ~ScopeWatcher() { *d_flag = false; }
+};
+
+
+// For memory calculations
+class MemoryTracker {
+public:
+  static void print(std::string name, int verbosity,
+                    unsigned long memSelf, unsigned long mem)
+  {
+    if (verbosity > 0) {
+      std::cout << name << ": " << memSelf << std::endl;
+      std::cout << "  Children: " << mem << std::endl;
+      std::cout << "  Total: " << mem+memSelf << std::endl;
+    }
+  }
+
+  template <typename T>
+  static unsigned long getVec(int verbosity, const std::vector<T>& v)
+  {
+    unsigned long memSelf = sizeof(std::vector<T>);
+    unsigned long mem = 0;
+    print("vector", verbosity, memSelf, mem);
+    return memSelf + mem;
+  }
+
+  template <typename T>
+  static unsigned long getVecAndData(int verbosity, const std::vector<T>& v)
+  {
+    unsigned long memSelf = sizeof(std::vector<T>);
+    unsigned long mem = 0;
+    for (unsigned i = 0; i < v.size(); ++i) {
+      mem += v[i].getMemory(verbosity - 1);
+    }
+    print("vector+data", verbosity, memSelf, mem);
+    return memSelf + mem;
+  }
+
+  template <typename T>
+  static unsigned long getVecAndDataP(int verbosity, const std::vector<T>& v)
+  {
+    unsigned long memSelf = sizeof(std::vector<T>);
+    unsigned long mem = 0;
+    for (unsigned i = 0; i < v.size(); ++i) {
+      mem += v[i]->getMemory(verbosity - 1);
+    }
+    print("vector+data(p)", verbosity, memSelf, mem);
+    return memSelf + mem;
+  }
+
+  static unsigned long getString(int verbosity, const std::string& s)
+  {
+    unsigned long memSelf = sizeof(std::string);
+    unsigned long mem = s.capacity() * sizeof(char);
+    print("string", verbosity, memSelf, mem);
+    return memSelf + mem;
+  }
+
+//   template <class _Key, class _Value,
+// 	    class _HashFcn, class _EqualKey, class _ExtractKey>
+//     unsigned long get(int verbosity, const hash_table<_Key, _Value, _HashFcn, 
+//         unsigned long memSelf = sizeof(BucketNode);
+//         unsigned long mem = 0;
+//         BucketNode* node = this;
+//         do {
+//           if (getMemoryData) {
+//             mem += d_value.getMemory(verbosity
+//           node = node->d_next;
+//         } while (node != NULL)          
+//         unsigned long mem = 0;
+
+//         mem += getMemoryVec(verbosity - 1, d_data, false, true);
+//         printMemory("hash_table", verbosity, memSelf, mem);
+//         return mem+memSelf;
+//       }
+
+//   unsigned long getMemory(int verbosity, hash_table) {
+//       unsigned long memSelf = sizeof(hash_table);
+//       unsigned long mem = 0;
+//       mem += d_hash.getmemory(verbosity - 1) - sizeof(hasher);
+//       mem += d_equal.getmemory(verbosity - 1) - sizeof(key_equal);
+//       mem += d_extractKey.getmemory(verbosity - 1) - sizeof(_ExtractKey);
+
+//       // handle data
+//       mem += sizeof(Data);
+//       mem += sizeof(Bucket*)*d_data.capacity();
+//       for (unsigned i = 0; i < d_data.size(); ++i) {
+//         mem += d_data[i]->getMemory(verbosity - 1, getMemoryData, getMemoryDataP);
+//       }
+
+//       printMemory("hash_table", verbosity, memSelf, mem);
+//       return mem+memSelf;
+//     }
+  
+//     unsigned long getMemory(int verbosity, hash_map) const {
+//       unsigned long memSelf = sizeof(hash_map);
+//       unsigned long mem = 0;
+//       mem += d_table.getMemory(verbosity - 1) - sizeof(_hash_table);
+//       MemoryTracker::print("hash_map", verbosity, memSelf, mem);
+//       return mem+memSelf;
+//     }
+
+
+}; // End of MemoryTracker
+  
 }
 
 #endif

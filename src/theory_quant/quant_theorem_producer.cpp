@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
 * \file quant_theorem_producer.cpp
- * 
+ *
  * Author: Daniel Wichs, Yeting Ge
- * 
+ *
  * Created: Jul 07 22:22:38 GMT 2003
  *
  * <hr>
@@ -12,14 +12,14 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  * CLASS: QuantProofRules
- * 
- * 
+ *
+ *
  * Description: TRUSTED implementation of arithmetic proof rules.
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -39,7 +39,7 @@ using namespace CVC3;
 QuantProofRules* TheoryQuant::createProofRules() {
   return new QuantTheoremProducer(theoryCore()->getTM(), this);
 }
-  
+
 
 #define CLASS_NAME "CVC3::QuantTheoremProducer"
 
@@ -85,9 +85,9 @@ QuantTheoremProducer::normalizeQuant(const Expr& quant) {
 		"normalizeQuant: expr must be FORALL or EXISTS\n"
 		+quant.toString());
   }
-  
 
-  std::map<Expr,int>::iterator typeIter; 
+
+  std::map<Expr,int>::iterator typeIter;
   std::string base("_BD");
   int counter(0);
 
@@ -98,7 +98,7 @@ QuantTheoremProducer::normalizeQuant(const Expr& quant) {
     int typeIndex ;
 
     typeIter = d_typeFound.find(t.getExpr());
-    
+
     if(d_typeFound.end() ==  typeIter){
       typeIndex = d_typeFound.size();
       d_typeFound[t.getExpr()] = typeIndex;
@@ -115,27 +115,28 @@ QuantTheoremProducer::normalizeQuant(const Expr& quant) {
     newExpr.setType(t);
     newVars.push_back(newExpr);
   }
-  
-  vector<Expr> trigs = quant.getTrigs();
+
+  vector<vector<Expr> > trigs = quant.getTrigs();
   for(size_t i = 0 ; i < trigs.size(); i++){
-    trigs[i] = trigs[i].substExpr(cur_vars,newVars);
+    for(size_t j = 0 ; j < trigs[i].size(); j++){
+      trigs[i][j] = trigs[i][j].substExpr(cur_vars,newVars);
+    }
   }
 
   Expr normBody = quant.getBody().substExpr(cur_vars,newVars);
   Expr normQuant = d_theoryQuant->getEM()->newClosureExpr(quant.isForall()?FORALL:EXISTS, newVars, normBody, trigs);
 
   Proof pf;
-  if(withProof())    
+  if(withProof())
     pf = newPf("normalizeQuant", quant, normQuant);
-  
+
   return newRWTheorem(quant, normQuant, Assumptions::emptyAssump(), pf);
-  
+
 }
 
 
 //! ==> NOT EXISTS (vars): e  IFF FORALL (vars) NOT e
-Theorem
-QuantTheoremProducer::rewriteNotExists(const Expr& e) {
+Theorem QuantTheoremProducer::rewriteNotExists(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.isNot() && e[0].isExists(),
 		"rewriteNotExists: expr must be NOT FORALL:\n"
@@ -154,16 +155,16 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
   if(CHECK_PROOFS) {
-    CHECK_SOUND(boundVars.size() == terms.size(), 
+    CHECK_SOUND(boundVars.size() == terms.size(),
 		"Universal instantiation: size of terms array does "
 		"not match quanitfied variables array size");
     CHECK_SOUND(e.isForall(),
 		"universal instantiation: expr must be FORALL:\n"
 		+e.toString());
-     for(unsigned int i=0; i<terms.size(); i++)
-       CHECK_SOUND(d_theoryQuant->getBaseType(boundVars[i]) ==
-                   d_theoryQuant->getBaseType(terms[i]),
- 	      "Universal instantiation: type mismatch");
+    for(unsigned int i=0; i<terms.size(); i++)
+      CHECK_SOUND(d_theoryQuant->getBaseType(boundVars[i]) ==
+		  d_theoryQuant->getBaseType(terms[i]),
+		  "Universal instantiation: type mismatch");
   }
 
   //build up a conjunction of type predicates for expression
@@ -185,7 +186,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
 
   //  Expr inst = e.getBody().substExprQuant(e.getVars(), terms);
   Expr inst = e.getBody().substExpr(e.getVars(), terms);
-  
+
   //  Expr inst = e.getBody().substExpr(e.getVars(), terms);
 
 
@@ -198,8 +199,12 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
     es.push_back(Expr(RAW_LIST,terms));
     //    es.insert(es.end(), terms.begin(), terms.end());
     es.push_back(inst);
-    es.push_back(gterm);
-    pf= newPf("universal_elimination", es, pfs);
+    if (gterm.isNull()) {
+      es.push_back( d_theoryQuant->getEM()->newRatExpr(0));
+    }
+    else {es.push_back(gterm);
+    }
+    pf= newPf("universal_elimination1", es, pfs);
   }
 
 
@@ -207,14 +212,15 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
 
 
    Expr imp;
-   if(typePred == tr) //just for a easy life, yeting, change this assp
+   //   if(typePred == tr || true ) //just for a easy life, yeting, change this assp
+   if(typePred == tr ) //just for a easy life, yeting, change this assp
      imp = inst;
    else
-     imp = typePred.impExpr(inst); 
+     imp = typePred.impExpr(inst);
    Theorem ret = newTheorem(imp, t1.getAssumptionsRef(), pf);
 
    int thmLevel = t1.getQuantLevel();
-   if(quantLevel  >= thmLevel) { 
+   if(quantLevel  >= thmLevel) {
       ret.setQuantLevel(quantLevel+1);
     }
     else{
@@ -231,7 +237,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
  * from e by instantiating bound variables with terms in
  * vector<Expr>& terms.  The vector of terms should be the same
  * size as the vector of bound variables in e. Also elements in
- * each position i need to have matching base types. psi is the conjunction of 
+ * each position i need to have matching base types. psi is the conjunction of
  * subtype predicates for the bound variables of the quanitfied expression.
  * \param t1 is the quantifier (a Theorem)
  * \param terms are the terms to instantiate.
@@ -241,7 +247,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
   if(CHECK_PROOFS) {
-    CHECK_SOUND(boundVars.size() == terms.size(), 
+    CHECK_SOUND(boundVars.size() == terms.size(),
 		"Universal instantiation: size of terms array does "
 		"not match quanitfied variables array size");
     CHECK_SOUND(e.isForall(),
@@ -271,7 +277,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
 
   //Expr inst = e.getBody().substExprQuant(e.getVars(), terms);
   Expr inst = e.getBody().substExpr(e.getVars(), terms);
-  
+
 
   //  Expr inst = e.getBody().substExpr(e.getVars(), terms);
 
@@ -285,7 +291,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
     es.push_back(Expr(RAW_LIST,terms));
     //    es.insert(es.end(), terms.begin(), terms.end());
     es.push_back(inst);
-    pf= newPf("universal_elimination", es, pfs);
+    pf= newPf("universal_elimination2", es, pfs);
   }
 
   //   Expr inst = e.getBody().substExpr(e.getVars(), terms);
@@ -295,11 +301,11 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
    if(typePred == tr) //just for a easy life, yeting, change this assp
      imp = inst;
    else
-     imp = typePred.impExpr(inst); 
+     imp = typePred.impExpr(inst);
    Theorem ret = newTheorem(imp, t1.getAssumptionsRef(), pf);
 
    int thmLevel = t1.getQuantLevel();
-   if(quantLevel >= thmLevel) { 
+   if(quantLevel >= thmLevel) {
       ret.setQuantLevel(quantLevel+1);
     }
     else{
@@ -315,7 +321,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
   if(CHECK_PROOFS) {
-    CHECK_SOUND(boundVars.size() == terms.size(), 
+    CHECK_SOUND(boundVars.size() == terms.size(),
 		"Universal instantiation: size of terms array does "
 		"not match quanitfied variables array size");
     CHECK_SOUND(e.isForall(),
@@ -358,7 +364,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
     es.push_back(Expr(RAW_LIST,terms));
     //    es.insert(es.end(), terms.begin(), terms.end());
     es.push_back(inst);
-    pf= newPf("universal_elimination", es, pfs);
+    pf= newPf("universal_elimination3", es, pfs);
   }
 
   //   Expr inst = e.getBody().substExpr(e.getVars(), terms);
@@ -367,12 +373,12 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
    if( typePred == tr ) //just for easy life, yeting, change this asap
      imp = inst;
    else
-     imp = typePred.impExpr(inst); 
+     imp = typePred.impExpr(inst);
    Theorem ret = newTheorem(imp, t1.getAssumptionsRef(), pf);
 
 
-   int thmLevel = t1.getQuantLevel();
-   if(qlevel >= thmLevel) { 
+   unsigned thmLevel = t1.getQuantLevel();
+   if(qlevel >= thmLevel) {
       ret.setQuantLevel(qlevel+1);
     }
     else{
@@ -391,7 +397,7 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vect
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
   if(CHECK_PROOFS) {
-    CHECK_SOUND(boundVars.size() >= terms.size(), 
+    CHECK_SOUND(boundVars.size() >= terms.size(),
 		"Universal instantiation: size of terms array does "
 		"not match quanitfied variables array size");
     CHECK_SOUND(e.isForall(),
@@ -425,7 +431,7 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vect
     es.insert(es.end(), terms.begin(), terms.end());
     pf= newPf("partial_universal_instantiation", es, pfs);
   }
-   
+
 
   if(terms.size() == boundVars.size()){
     Expr inst = e.getBody().substExpr(e.getVars(), terms);
@@ -433,7 +439,7 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vect
     if(typePred == tr)
       imp = inst;
     else
-      imp = typePred.impExpr(inst); 
+      imp = typePred.impExpr(inst);
     return(newTheorem(imp, t1.getAssumptionsRef(), pf));
   }
   else{
@@ -441,12 +447,12 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vect
     for(size_t i=0; i<terms.size(); i++) {
       newBoundVars.push_back(boundVars[i]);
     }
-    
+
     vector<Expr>leftBoundVars;
     for(size_t i=terms.size(); i<boundVars.size(); i++) {
       leftBoundVars.push_back(boundVars[i]);
     }
-    
+
     Expr tempinst = e.getBody().substExpr(newBoundVars, terms);
     Expr inst = d_theoryQuant->getEM()->newClosureExpr(FORALL, leftBoundVars, tempinst);
 
@@ -455,10 +461,10 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vect
       imp = inst;
     else
       imp = typePred.impExpr(inst);
-    
+
     Theorem res = (newTheorem(imp, t1.getAssumptionsRef(), pf));
     int thmLevel = t1.getQuantLevel();
-    if(quantLevel >= thmLevel) { 
+    if(quantLevel >= thmLevel) {
       res.setQuantLevel(quantLevel+1);
     }
     else{
@@ -466,13 +472,13 @@ Theorem QuantTheoremProducer::partialUniversalInst(const Theorem& t1, const vect
       res.setQuantLevel(thmLevel);
     }
     return res;
-    
+
   }
 }
 
 //! find all bound variables in e and maps them to true in boundVars
-void QuantTheoremProducer::recFindBoundVars(const Expr& e, 
-		           ExprMap<bool> & boundVars, ExprMap<bool> &visited) 
+void QuantTheoremProducer::recFindBoundVars(const Expr& e,
+		           ExprMap<bool> & boundVars, ExprMap<bool> &visited)
 {
   if(visited.count(e)>0)
     return;
@@ -484,7 +490,7 @@ void QuantTheoremProducer::recFindBoundVars(const Expr& e,
     recFindBoundVars(e.getBody(), boundVars, visited);
   for(Expr::iterator it = e.begin(); it!=e.end(); ++it)
     recFindBoundVars(*it, boundVars, visited);
-  
+
 }
 
 //!adjust the order of bound vars, newBvs begin first
@@ -499,30 +505,30 @@ Theorem QuantTheoremProducer::adjustVarUniv(const Theorem& t1, const std::vector
 
   const vector<Expr>& origVars = e.getVars();
 
- 
-  ExprMap<bool> oldmap; 
-  for(vector<Expr>::const_iterator it = origVars.begin(), 
+
+  ExprMap<bool> oldmap;
+  for(vector<Expr>::const_iterator it = origVars.begin(),
 	iend=origVars.end(); it!=iend; ++it)    {
     oldmap[*it]=true;
   }
-  
+
   vector<Expr> quantVars;
-  for(vector<Expr>::const_iterator it = newBvs.begin(), 
+  for(vector<Expr>::const_iterator it = newBvs.begin(),
 	iend=newBvs.end(); it!=iend; ++it)    {
     if(oldmap.count(*it) > 0)
       quantVars.push_back(*it);
   }
-  
+
   if(quantVars.size() == origVars.size())
     return t1;
 
-  ExprMap<bool> newmap; 
-  for(vector<Expr>::const_iterator it = newBvs.begin(), 
+  ExprMap<bool> newmap;
+  for(vector<Expr>::const_iterator it = newBvs.begin(),
 	iend=newBvs.end(); it!=iend; ++it)    {
     newmap[*it]=true;
   }
 
-  for(vector<Expr>::const_iterator it = origVars.begin(), 
+  for(vector<Expr>::const_iterator it = origVars.begin(),
 	iend=origVars.end(); it!=iend; ++it)    {
     if(newmap.count(*it)<=0){
       quantVars.push_back(*it);
@@ -538,7 +544,7 @@ Theorem QuantTheoremProducer::adjustVarUniv(const Theorem& t1, const std::vector
     pfs.push_back(t1.getProof());
     pf= newPf("adjustVarUniv", es, pfs);
   }
-  
+
   Expr newQuantExpr;
   newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, quantVars, body);
 
@@ -556,11 +562,11 @@ Theorem QuantTheoremProducer::packVar(const Theorem& t1){
   }
 
   vector<Expr> bVars = out_forall.getVars();
-  
+
   if(!out_forall.getBody().isForall()){
     return t1;
-  } 
-  
+  }
+
   Expr cur_body = out_forall.getBody();
 
   while(cur_body.isForall()){
@@ -580,7 +586,7 @@ Theorem QuantTheoremProducer::packVar(const Theorem& t1){
     pfs.push_back(t1.getProof());
     pf= newPf("packVar", es, pfs);
   }
-  
+
   Expr newQuantExpr;
   newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVars, cur_body);
 
@@ -588,95 +594,136 @@ Theorem QuantTheoremProducer::packVar(const Theorem& t1){
   //  return (newRWTheorem(t1,newQuantExpr, t1.getAssumptionsRef(), pf));
 }
 
-//!pack (forall (x) ... forall (y)) into (forall (x y)...)
+//! convert (forall (x) ... forall (y)) into (forall (x y)...)
+//! convert (exists (x) ... exists (y)) into (exists (x y)...)
 Theorem QuantTheoremProducer::pullVarOut(const Theorem& t1){
-  const Expr outForall=t1.getExpr();
-
+  const Expr thm_expr=t1.getExpr();
+  
   if(CHECK_PROOFS) {
-      CHECK_SOUND(outForall.isForall(),
+    CHECK_SOUND(thm_expr.isForall() || thm_expr.isExists(),
 		"pullVarOut: "
-		+outForall.toString());
+		+thm_expr.toString());
   }
 
-  const Expr outBody = outForall.getBody();
+  const Expr outBody = thm_expr.getBody();
+
+//   if(((outBody.isAnd() && outBody[1].isForall()) ||
+//        (outBody.isImpl() && outBody[1].isForall()) ||
+//        (outBody.isNot() && outBody[0].isAnd() && outBody[0][1].isExists()) )){
+//     return t1;
+//   }
+
+  if (thm_expr.isForall()){
+    if((outBody.isNot() && outBody[0].isAnd() && outBody[0][1].isExists())){
+      
+      vector<Expr> bVarsOut = thm_expr.getVars();
+      
+      const Expr innerExists =outBody[0][1];
+      const Expr innerBody = innerExists.getBody();
+      vector<Expr> bVarsIn = innerExists.getVars();
+      
+      for(vector<Expr>::iterator i=bVarsIn.begin(), iend=bVarsIn.end(); i!=iend; i++){
+	bVarsOut.push_back(*i);
+      }
+      
+      Proof pf;
+      if(withProof()) {
+	vector<Expr> es;
+	vector<Proof> pfs;
+	es.push_back(thm_expr);
+	es.insert(es.end(), bVarsIn.begin(), bVarsIn.end());
+	pfs.push_back(t1.getProof());
+	pf= newPf("pullVarOut", es, pfs);
+      }
+      
+      Expr newbody;
+      
+      newbody=(outBody[0][0].notExpr()).orExpr(innerBody.notExpr());
+      
+      Expr newQuantExpr;
+      newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVarsOut, newbody);
+      
+      return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
+    }
+    
+    else if ((outBody.isAnd() && outBody[1].isForall()) ||
+	     (outBody.isImpl() && outBody[1].isForall())){
+      
+      vector<Expr> bVarsOut = thm_expr.getVars();
+      
+      const Expr innerForall=outBody[1];
+      const Expr innerBody = innerForall.getBody();
+      vector<Expr> bVarsIn = innerForall.getVars();
+      
+      for(vector<Expr>::iterator i=bVarsIn.begin(), iend=bVarsIn.end(); i!=iend; i++){
+	bVarsOut.push_back(*i);
+      }
+      
+      Proof pf;
+      if(withProof()) {
+	vector<Expr> es;
+	vector<Proof> pfs;
+	es.push_back(thm_expr);
+	es.insert(es.end(), bVarsIn.begin(), bVarsIn.end());
+	pfs.push_back(t1.getProof());
+	pf= newPf("pullVarOut", es, pfs);
+      }
+      
+      Expr newbody;
+      if(outBody.isAnd()){
+	newbody=outBody[0].andExpr(innerBody);
+      }
+      else if(outBody.isImpl()){
+	newbody=outBody[0].impExpr(innerBody);
+      }
+      
+      Expr newQuantExpr;
+      newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVarsOut, newbody);
+      
+      return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
+    }
+    return t1; // case cannot be handled now. 
+  }
   
-  if(!((outBody.isAnd() && outBody[1].isForall()) || 
-       (outBody.isImpl() && outBody[1].isForall()) ||
-       (outBody.isNot() && outBody[0].isAnd() && outBody[0][1].isExists()) )){
-    return t1;
+  else if (thm_expr.isExists()){
+    if ((outBody.isAnd() && outBody[1].isExists()) ||
+	(outBody.isImpl() && outBody[1].isExists())){
+      
+      vector<Expr> bVarsOut = thm_expr.getVars();
+      
+      const Expr innerExists = outBody[1];
+      const Expr innerBody = innerExists.getBody();
+      vector<Expr> bVarsIn = innerExists.getVars();
+      
+      for(vector<Expr>::iterator i=bVarsIn.begin(), iend=bVarsIn.end(); i!=iend; i++){
+	bVarsOut.push_back(*i);
+      }
+      
+      Proof pf;
+      if(withProof()) {
+	vector<Expr> es;
+	vector<Proof> pfs;
+	es.push_back(thm_expr);
+	es.insert(es.end(), bVarsIn.begin(), bVarsIn.end());
+	pfs.push_back(t1.getProof());
+	pf= newPf("pullVarOut", es, pfs);
+      }
+      
+      Expr newbody;
+      if(outBody.isAnd()){
+	newbody=outBody[0].andExpr(innerBody);
+      }
+      else if(outBody.isImpl()){
+	newbody=outBody[0].impExpr(innerBody);
+      }
+      
+      Expr newQuantExpr;
+      newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(EXISTS, bVarsOut, newbody);
+      
+      return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
+    }
   }
-  
-  if((outBody.isNot() && outBody[0].isAnd() && outBody[0][1].isExists())){
-
-    vector<Expr> bVarsOut = outForall.getVars();
-    
-    const Expr innerExists =outBody[0][1];
-    const Expr innerBody = innerExists.getBody();
-    vector<Expr> bVarsIn = innerExists.getVars();
-        
-    for(vector<Expr>::iterator i=bVarsIn.begin(), iend=bVarsIn.end(); i!=iend; i++){
-      bVarsOut.push_back(*i);
-    }
-    
-    Proof pf;
-    if(withProof()) {
-      vector<Expr> es;
-      vector<Proof> pfs;
-      es.push_back(outForall);
-      es.insert(es.end(), bVarsIn.begin(), bVarsIn.end());
-      pfs.push_back(t1.getProof());
-      pf= newPf("pullVarOut", es, pfs);
-    }
-    
-    Expr newbody;
-    
-    
-    newbody=(outBody[0][0].notExpr()).orExpr(innerBody.notExpr());
-        
-    Expr newQuantExpr;
-    newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVarsOut, newbody);
-
-    return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
-  }
-  else if ((outBody.isAnd() && outBody[1].isForall()) || 
-	   (outBody.isImpl() && outBody[1].isForall())){
-    
-    vector<Expr> bVarsOut = outForall.getVars();
-    
-    const Expr innerForall=outBody[1];
-    const Expr innerBody = innerForall.getBody();
-    vector<Expr> bVarsIn = innerForall.getVars();
-    
-    for(vector<Expr>::iterator i=bVarsIn.begin(), iend=bVarsIn.end(); i!=iend; i++){
-      bVarsOut.push_back(*i);
-    }
-    
-    Proof pf;
-    if(withProof()) {
-      vector<Expr> es;
-      vector<Proof> pfs;
-      es.push_back(outForall);
-      es.insert(es.end(), bVarsIn.begin(), bVarsIn.end());
-      pfs.push_back(t1.getProof());
-      pf= newPf("pullVarOut", es, pfs);
-    }
-    
-    Expr newbody;
-    if(outBody.isAnd()){
-      newbody=outBody[0].andExpr(innerBody);
-    }
-    else if(outBody.isImpl()){
-      newbody=outBody[0].impExpr(innerBody);
-    }
-    
-    
-    Expr newQuantExpr;
-    newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, bVarsOut, newbody);
-    
-    return(newTheorem(newQuantExpr, t1.getAssumptionsRef(), pf));
-  }
-  FatalAssert(false, "Should be unreachable");
-  return Theorem(); // to disable compiler warning
+  return t1; 
 }
 
 
@@ -700,7 +747,7 @@ Theorem QuantTheoremProducer::boundVarElim(const Theorem& t1)
   recFindBoundVars(body, boundVars, visited);
   vector<Expr> quantVars;
   const vector<Expr>& origVars = e.getVars();
-  for(vector<Expr>::const_iterator it = origVars.begin(), 
+  for(vector<Expr>::const_iterator it = origVars.begin(),
 	iend=origVars.end(); it!=iend; ++it)
     {
     if(boundVars.count(*it) > 0)
@@ -722,7 +769,7 @@ Theorem QuantTheoremProducer::boundVarElim(const Theorem& t1)
   }
   if(quantVars.size() == 0)
     return(newTheorem(e.getBody(), t1.getAssumptionsRef(), pf));
-  
+
   Expr newQuantExpr;
   if(e.isForall())
     newQuantExpr = d_theoryQuant->getEM()->newClosureExpr(FORALL, quantVars, body);

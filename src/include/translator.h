@@ -82,6 +82,7 @@ class Translator {
   bool d_arithUsed;
 
   Expr* d_zeroVar;
+  int d_convertToBV;
 
   TheoryCore* d_theoryCore;
   TheoryUF* d_theoryUF;
@@ -120,10 +121,17 @@ public:
              const std::string& expResult,
              const std::string& category,
              bool convertArray,
-             bool combineAssump);
+             bool combineAssump,
+             int convertToBV);
   ~Translator();
 
   bool start(const std::string& dumpFile);
+  /*! Dump the expression in the current output language
+      \param dumpOnly When false, the expression is output both when
+      translating and when producing a trace of commands.  When true, the
+      expression is only output when producing a trace of commands
+      (i.e. ignored during translation).
+   */
   void dump(const Expr& e, bool dumpOnly = false);
   bool dumpAssertion(const Expr& e);
   bool dumpQuery(const Expr& e);

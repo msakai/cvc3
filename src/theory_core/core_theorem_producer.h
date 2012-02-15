@@ -53,9 +53,6 @@ namespace CVC3 {
     Theorem rewriteNotOr(const Expr& e);
     Theorem rewriteNotIff(const Expr& e);
     Theorem rewriteNotIte(const Expr& e);
-    Theorem rewriteIteTrue(const Expr& e);
-    Theorem rewriteIteFalse(const Expr& e);
-    Theorem rewriteIteSame(const Expr& e);
     Theorem rewriteIteThen(const Expr& e, const Theorem& thenThm);
     Theorem rewriteIteElse(const Expr& e, const Theorem& elseThm);
     Theorem rewriteIteBool(const Expr& c,

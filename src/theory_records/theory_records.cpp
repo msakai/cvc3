@@ -377,6 +377,14 @@ void TheoryRecords::checkType(const Expr& e)
 }
 
 
+//TODO: implement finiteTypeInfo
+Cardinality TheoryRecords::finiteTypeInfo(Expr& e, Unsigned& n,
+                                          bool enumerate, bool computeSize)
+{
+  return CARD_UNKNOWN;
+}
+
+
 void TheoryRecords::computeType(const Expr& e)
 {
   switch (e.getOpKind()) {

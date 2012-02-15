@@ -60,7 +60,7 @@ Proof TheoremProducer::newLabel(const Expr& e)
   //TODO: Get rid of hack storing expr in Type field
   Expr var = d_tm->getEM()->newBoundVarExpr(s_prefix, ss.str(), Type(e, true));
   return Proof(var);
-  //  return newPf("assumptions", var , e);
+  //return newPf("assumptions", var , e);
 }
 
 

@@ -171,8 +171,8 @@ namespace CVC3 {
     void depth(int d) { d_depth = d; }
     //! Set the line width
     void lineWidth(int w) { d_lineWidth = w; }
-    //! Set the DAG flag
-    void dagFlag(bool flag = true) { d_dag = flag; }
+    //! Set the DAG flag (return previous value)
+    bool dagFlag(bool flag = true) { bool old = d_dag; d_dag = flag; return old; }
     //! Set the indentation to the current column
     /*! The value will be restorted automatically after the DP print()
       function returns */

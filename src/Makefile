@@ -39,6 +39,7 @@ HEADER_NAMES = \
   expr_stream.h \
   expr_transform.h \
   expr_value.h \
+  formula_value.h \
   fdstream.h \
   hash_fun.h \
   hash_table.h \
@@ -114,17 +115,36 @@ MODULES = cvc_util \
 	c_interface
 
 CVC_EXE = $(TOP)/bin/$(PROJECTNAME)
-LIB_BASE=$(LIB_DIR)/lib$(PROJECTNAME)
-LIB_STATIC=$(LIB_BASE).$(STATIC_LIB_SUFFIX)
-LIB_SHARED=$(LIB_BASE).$(SHARED_LIB_SUFFIX)
+ifneq ($(CYGWIN),)
+LIB_BASE_NAME=cyg$(PROJECTNAME)
+else
+LIB_BASE_NAME=lib$(PROJECTNAME)
+endif
+LIB_BASE=$(LIB_DIR)/$(LIB_BASE_NAME)
+LIB_STATIC_NAME=$(LIB_BASE_NAME).$(STATIC_LIB_SUFFIX)
+LIB_SHARED_BASE=$(LIB_BASE_NAME).$(SHARED_LIB_SUFFIX)
+ifneq ($(MAC_OSX),)
+    LIB_SHARED_MAJOR=$(LIB_BASE_NAME).$(LIB_MAJOR_VERSION).$(SHARED_LIB_SUFFIX)
+    LIB_SHARED_COMPAT=$(LIB_BASE_NAME).$(LIB_COMPAT_VERSION).$(SHARED_LIB_SUFFIX)
+    LIB_SHARED_FULL=$(LIB_BASE_NAME).$(LIB_VERSION).$(SHARED_LIB_SUFFIX)
+else
+    LIB_SHARED_MAJOR=$(LIB_SHARED_BASE).$(LIB_MAJOR_VERSION)
+    LIB_SHARED_COMPAT=$(LIB_SHARED_BASE).$(LIB_COMPAT_VERSION)
+    LIB_SHARED_FULL=$(LIB_SHARED_BASE).$(LIB_VERSION)
+endif
+# LIB_SONAME=$(LIB_SHARED_FULL).$(SONAME)
+LIB_STATIC=$(LIB_DIR)/$(LIB_STATIC_NAME)
+LIB_SHARED=$(LIB_DIR)/$(LIB_SHARED_FULL)
 LIBS = $(patsubst %, $(LIB_DIR)/lib%.$(STATIC_LIB_SUFFIX), $(MODULES))
 ifeq ($(STATIC),1)
   LIB_TO_BUILD = $(LIB_STATIC)
-  CVC_LIB = $(TOP)/lib/lib$(PROJECTNAME).$(STATIC_LIB_SUFFIX)
 else
   LIB_TO_BUILD = $(LIB_SHARED)
-  CVC_LIB = $(TOP)/lib/lib$(PROJECTNAME).$(SHARED_LIB_SUFFIX)
 endif
+# Using notdirx, in case path has spaces
+CVC_LIB_NAME = $(call notdirx, $(LIB_TO_BUILD))
+CVC_LIB_DIR = $(TOP)/lib
+CVC_LIB = $(CVC_LIB_DIR)/$(CVC_LIB_NAME)
 
 .PHONY: all build depend clean spotty install print_src distclean
 
@@ -152,9 +172,8 @@ build:
 	cd vcl && $(MAKE) $(TARGET)
 	cd c_interface && $(MAKE) $(TARGET)
 ifndef TARGET
-	$(MAKE) $(LIB_TO_BUILD)
-	@rm -f $(CVC_LIB)
-	ln -sf $(LIB_TO_BUILD) $(CVC_LIB)
+	@rm -rf $(CVC_LIB)
+	$(MAKE) $(CVC_LIB)
 endif
 	cd cvc3 && $(MAKE) $(TARGET) VERSION=$(VERSION)
 
@@ -162,14 +181,53 @@ endif
 
 UNPACKTMPDIR=$(TOP)/unpack_tmp
 
+
 $(LIB_STATIC): $(LIBS)
-	@ar ruvs $@ `$(TOP)/bin/unpack $(UNPACKTMPDIR) $(LIBS)`
-	@rm -rf $(UNPACKTMPDIR)
+	-rm -rf $(UNPACKTMPDIR)
+	$(TOP)/bin/unpack $(UNPACKTMPDIR) $(LIBS) > UNPACKED
+	cat UNPACKED | xargs $(AR) ruvs '$@.$(LIB_VERSION)'
+	rm -rf $(UNPACKTMPDIR) UNPACKED
+	@echo Linking $(LIB_STATIC_NAME) to $@
+	ln -sf $(LIB_STATIC_NAME).$(LIB_VERSION) '$@'
 
 $(LIB_SHARED): $(LIBS)
-	@echo $(CXX) $(SHARED) "-o" $@ "..."
-	@$(CXX) $(SHARED) -o $@ `$(TOP)/bin/unpack $(UNPACKTMPDIR) $(LIBS)` $(LD_LIBS)
-	@rm -rf $(UNPACKTMPDIR)
+	@echo Building shared library $(LIB_SHARED)
+	-rm -rf $(UNPACKTMPDIR)
+	$(TOP)/bin/unpack $(UNPACKTMPDIR) $(LIBS) > UNPACKED
+ifneq ($(MAC_OSX),)
+	cat UNPACKED | xargs $(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
+    -install_name $(libdir)/$(LIB_SHARED_MAJOR) \
+    -compatibility_version $(LIB_COMPAT_VERSION) \
+    -current_version $(LIB_VERSION) \
+    -o '$(LIB_SHARED)' `` $(LD_LIBS)
+else
+ifneq ($(CYGWIN),)
+	eval $(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
+    -Wl,-soname,$(LIB_SHARED_MAJOR) -o \''$(LIB_SHARED)'\' `cat UNPACKED` $(LD_LIBS)
+	-ldconfig -nv $(LIB_DIR)
+else
+	cat UNPACKED | xargs $(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
+    -Wl,-soname,$(LIB_SHARED_MAJOR) -o '$(LIB_SHARED)' `` $(LD_LIBS)
+	-ldconfig -nv $(LIB_DIR)
+endif
+endif
+	ln -sf $(LIB_SHARED_FULL) $(LIB_DIR)/$(LIB_SHARED_COMPAT)
+	ln -sf $(LIB_SHARED_FULL) $(LIB_DIR)/$(LIB_SHARED_MAJOR)
+	ln -sf $(LIB_SHARED_FULL) $(LIB_DIR)/$(LIB_SHARED_BASE)
+	@rm -rf $(UNPACKTMPDIR) UNPACKED
+
+ifeq ($(STATIC),1)
+$(CVC_LIB): $(LIB_STATIC)
+	ln -sf $(LIB_STATIC).$(LIB_VERSION) '$(call dirx,$@)/$(LIB_STATIC_NAME).$(LIB_VERSION)'
+	ln -sf $(LIB_STATIC_NAME).$(LIB_VERSION) '$@'
+else
+$(CVC_LIB): $(LIB_SHARED)
+	ln -sf $(LIB_SHARED) '$(call dirx,$@)/$(LIB_SHARED_FULL)'
+	-ldconfig -nv '$(call dirx,$@)'
+	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_COMPAT)'
+	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_MAJOR)'
+	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_BASE)'
+endif
 
 # Standard make targets
 
@@ -178,7 +236,7 @@ depend:
 
 clean:
 	$(MAKE) build TARGET=clean
-	rm -f $(LIB_STATIC) $(LIB_SHARED) $(CVC_LIB)
+	rm -f $(LIB_STATIC)* $(LIB_SHARED)* $(CVC_LIB)
 
 distclean:
 	$(MAKE) build TARGET=distclean
@@ -195,6 +253,14 @@ install: $(HEADERS)
 	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(HEADERS) $(incdir)
 	mkdir -p $(libdir)
 	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(CVC_LIB) $(libdir)
+ifeq ($(STATIC),1)
+	ln -sf $(CVC_LIB_NAME).$(LIB_VERSION) $(libdir)/$(call notdirx,$(CVC_LIB))
+else
+	-ldconfig -nv $(libdir)
+	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_COMPAT) 
+	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_MAJOR)
+	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_BASE)
+endif
 	mkdir -p $(bindir)
 	$(INSTALL) $(INSTALL_FLAGS) -m 755 $(CVC_EXE) $(bindir)
 

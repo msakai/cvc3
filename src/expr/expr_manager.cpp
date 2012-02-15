@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file expr_manager.cpp
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Wed Dec  4 14:20:56 2002
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -33,6 +33,39 @@ using namespace std;
 // kinds (defined below)
 static void registerKinds(ExprManager& em);
 
+void ExprManager::installExprValue(ExprValue* p_ev)
+{
+  DebugAssert(isActive(), "ExprManager::installExprValue(ExprValue*)");
+//   int maxHeight = 0;
+//   p_ev->d_highestKid = 0;
+//   for (unsigned i = 0; i < p_ev->arity(); i++)
+//   {
+//     int height = p_ev->getKids()[i].getHeight();
+//     if (height > maxHeight)
+//     {
+//       maxHeight = height;
+//       p_ev->d_highestKid = i;
+//     }
+//   }
+
+//   if (p_ev->d_kind == ITE && p_ev->arity() == 3)
+//   {
+//     if (p_ev->getKids()[1].getHeight() > p_ev->getKids()[2].getHeight())
+//       p_ev->d_highestKid = 1;
+//     else
+//       p_ev->d_highestKid = 2;
+//   }
+
+//   switch (p_ev->d_kind) {
+//   case NOT: case AND: case OR: case ITE: case IFF: case IMPLIES:
+//     maxHeight++;
+//   }
+//   p_ev->d_height = maxHeight;
+
+  d_exprSet.insert(p_ev);
+}
+
+
 // Constructor
 ExprManager::ExprManager(ContextManager* cm, const CLFlags& flags)
   // Initial number of buckets is 1024 (it's kinda arbitrary)
@@ -48,7 +81,7 @@ ExprManager::ExprManager(ContextManager* cm, const CLFlags& flags)
     d_exprSet(1024, HashEV(this), EqEV()),
     d_mm(EXPR_VALUE_TYPE_LAST),
     d_simpCacheTagCurrent(1), d_disableGC(false), d_postponeGC(false),
-    d_typeComputer(NULL)
+    d_inGC(false), d_typeComputer(NULL)
 {
   // Initialize the notifier
   d_notifyObj = new ExprManagerNotifyObj(this, d_cm->getCurrentContext());
@@ -65,7 +98,6 @@ ExprManager::ExprManager(ContextManager* cm, const CLFlags& flags)
     d_mm[EXPR_BOUND_VAR] = new MemoryManagerChunks(sizeof(ExprBoundVar));
     d_mm[EXPR_CLOSURE] = new MemoryManagerChunks(sizeof(ExprClosure));
     d_mm[EXPR_SKOLEM] = new MemoryManagerChunks(sizeof(ExprSkolem));
-    d_mm[EXPR_THEOREM] = new MemoryManagerChunks(sizeof(ExprTheorem));
   } else {
     d_mm[EXPR_VALUE] = new MemoryManagerMalloc();
     d_mm[EXPR_NODE] = new MemoryManagerMalloc();
@@ -77,10 +109,9 @@ ExprManager::ExprManager(ContextManager* cm, const CLFlags& flags)
     d_mm[EXPR_BOUND_VAR] = new MemoryManagerMalloc();
     d_mm[EXPR_CLOSURE] = new MemoryManagerMalloc();
     d_mm[EXPR_SKOLEM] = new MemoryManagerMalloc();
-    d_mm[EXPR_THEOREM] = new MemoryManagerMalloc();
   }
   registerKinds(*this);
-  
+
   d_bool = newLeafExpr(BOOLEAN);
   d_false = newLeafExpr(FALSE_EXPR);
   d_false.setType(Type::typeBool(this));
@@ -157,18 +188,29 @@ bool ExprManager::isActive() { return !d_disableGC; }
 void ExprManager::gc(ExprValue* ev) {
   if(!d_disableGC) {
     d_exprSet.erase(ev);
-    if(d_postponeGC) d_postponed.push_back(ev);
+    if (d_inGC) d_pending.push_back(ev);
+    else if (d_postponeGC) d_postponed.push_back(ev);
     else {
-      size_t tp(ev->getMMIndex());
+      IF_DEBUG(FatalAssert(d_pending.size() == 0, "Expected size 1");)
+      d_inGC = true;
+      size_t tp = ev->getMMIndex();
       delete ev;
       d_mm[tp]->deleteData(ev);
+      while (d_pending.size() > 0) {
+        ev = d_pending.front();
+        d_pending.pop_front();
+        tp = ev->getMMIndex();
+        delete ev;
+        d_mm[tp]->deleteData(ev);
+      }
+      d_inGC = false;
     }
   }
 }
 
 void
 ExprManager::resumeGC() {
-  d_postponeGC = false; 
+  d_postponeGC = false;
   while(d_postponed.size()>0) {
     ExprValue* ev = d_postponed.back();
     size_t tp(ev->getMMIndex());
@@ -212,7 +254,7 @@ Expr ExprManager::rebuildRec(const Expr& e) {
   ExprHashMap<Expr>::iterator j=d_rebuildCache.find(e),
     jend=d_rebuildCache.end();
   if(j!=jend) return (*j).second;
-  
+
   ExprValue* ev = e.d_expr->rebuild(this);
   // Uniquify the pointer
   ExprValueSet::iterator i(d_exprSet.find(ev)), iend(d_exprSet.end());
@@ -287,40 +329,8 @@ ExprValue* ExprManager::newExprValue(ExprValue* ev) {
 // }
 
 
-void ExprManager::installExprValue(ExprValue* p_ev)
-{
-  DebugAssert(isActive(), "ExprManager::installExprValue(ExprValue*)");
-//   int maxHeight = 0;
-//   p_ev->d_highestKid = 0;
-//   for (unsigned i = 0; i < p_ev->arity(); i++)
-//   {
-//     int height = p_ev->getKids()[i].getHeight();
-//     if (height > maxHeight)
-//     {
-//       maxHeight = height;
-//       p_ev->d_highestKid = i;
-//     }
-//   }
-
-//   if (p_ev->d_kind == ITE && p_ev->arity() == 3)
-//   {
-//     if (p_ev->getKids()[1].getHeight() > p_ev->getKids()[2].getHeight())
-//       p_ev->d_highestKid = 1;
-//     else
-//       p_ev->d_highestKid = 2;
-//   }
-
-//   switch (p_ev->d_kind) {
-//   case NOT: case AND: case OR: case ITE: case IFF: case IMPLIES:
-//     maxHeight++;
-//   }
-//   p_ev->d_height = maxHeight;
-
-  d_exprSet.insert(p_ev);
-}
-
 //! Set initial indentation.  Returns the previous permanent value.
-int 
+int
 ExprManager::indent(int n, bool permanent) {
   int ret(d_indent);
   d_indentTransient = n;
@@ -344,7 +354,7 @@ InputLanguage
 ExprManager::getInputLang() const {
   return getLanguage(*d_inputLang);
 }
- 
+
 
 InputLanguage
 ExprManager::getOutputLang() const {
@@ -362,7 +372,7 @@ void ExprManager::newKind(int kind, const string &name, bool isType) {
   else if(d_kindMap[kind] != name) {
     DebugAssert(false, "CVC3::ExprManager::newKind(kind = "
 		+ int2string(kind) + ", name = " + name
-		+ "): \n" + 
+		+ "): \n" +
 		"this kind is already registered with a different name: "
 		+ d_kindMap[kind]);
   }
@@ -371,7 +381,7 @@ void ExprManager::newKind(int kind, const string &name, bool isType) {
   else if(d_kindMapByName[name] != kind) {
     DebugAssert(false, "CVC3::ExprManager::newKind(kind = "
 		+ int2string(kind) + ", name = " + name
-		+ "): \n" + 
+		+ "): \n" +
 		"this kind name is already registered with a different index: "
 		+ int2string(d_kindMapByName[name]));
   }
@@ -420,6 +430,38 @@ size_t ExprManager::registerSubclass(size_t sizeOfSubclass) {
 }
 
 
+unsigned long ExprManager::getMemory(int verbosity)
+{
+  unsigned long memSelf = sizeof(ExprManager);
+  unsigned long mem = 0;
+
+  //  mem += MemoryTracker::getHashMap(verbosity - 1, d_kindMap);
+
+//   mem += d_typeKinds.getMemory(verbosity - 1);
+//   mem += d_kindMapByName.getMemory(verbosity - 1);
+//   mem += d_prettyPrinter->getMemory(verbosity - 1);
+  mem += MemoryTracker::getString(verbosity - 1, d_mmFlag);
+
+//   mem += d_exprSet.getMemory(verbosity - 1);
+//  mem += getMemoryVec(d_mm);
+//   for (i = 0; i < d_mm.size(); ++i) {
+//     mem += d_mm->getMemory(verbosity - 1);
+//   }
+
+//   mem += d_pointerHash.getMemory(verbosity - 1) - sizeof(hash<void*>);
+
+//  mem += getMemoryVec(d_emptyVec);
+  //  mem += getMemoryVec(d_postponed);
+//   mem += d_rebuildCache.getMemory(verbosity - 1) - sizeof(ExprHashMap<Expr>);
+
+//   mem += d_typecomputer->getMemory(verbosity - 1);
+
+  MemoryTracker::print("ExprManager", verbosity, memSelf, mem);
+
+  return mem + memSelf;
+}
+
+
 void ExprManager::computeType(const Expr& e) {
   DebugAssert(d_typeComputer, "No type computer installed");
   d_typeComputer->computeType(e);
@@ -431,6 +473,16 @@ void ExprManager::checkType(const Expr& e) {
   DebugAssert(d_typeComputer, "No type computer installed");
   if (!e.isValidType()) d_typeComputer->checkType(e);
   DebugAssert(e.isValidType(), "Type not checked by checkType");
+}
+
+
+Cardinality ExprManager::finiteTypeInfo(Expr& e,
+                                        Unsigned& n,
+                                        bool enumerate,
+                                        bool computeSize)
+{
+  DebugAssert(d_typeComputer, "No type computer installed");
+  return d_typeComputer->finiteTypeInfo(e, n, enumerate, computeSize);
 }
 
 
@@ -449,7 +501,7 @@ static void registerKinds(ExprManager& em) {
   em.newKind(TYPEDEF, "_TYPEDEF", true);
   em.newKind(SUBTYPE, "_SUBTYPE", true);
 
-  // Register expression (non-type) kinds 
+  // Register expression (non-type) kinds
   em.newKind(NULL_KIND, "_NULL_KIND");
 
   em.newKind(RAW_LIST, "_RAW_LIST");
@@ -457,11 +509,11 @@ static void registerKinds(ExprManager& em) {
   em.newKind(RATIONAL_EXPR, "_RATIONAL_EXPR");
   em.newKind(TRUE_EXPR, "_TRUE_EXPR");
   em.newKind(FALSE_EXPR, "_FALSE_EXPR");
-  
+
   em.newKind(EQ, "_EQ");
   em.newKind(NEQ, "_NEQ");
   em.newKind(DISTINCT, "_DISTINCT");
-  
+
   em.newKind(NOT, "_NOT");
   em.newKind(AND, "_AND");
   em.newKind(OR, "_OR");
@@ -474,10 +526,10 @@ static void registerKinds(ExprManager& em) {
   em.newKind(ITE_R, "_ITE_R");
 
   em.newKind(ITE, "_ITE");
-  
+
   em.newKind(FORALL, "_FORALL");
   em.newKind(EXISTS, "_EXISTS");
-  
+
   em.newKind(UFUNC, "_UFUNC");
   em.newKind(APPLY, "_APPLY");
 
@@ -523,6 +575,7 @@ static void registerKinds(ExprManager& em) {
   em.newKind(GET_CHILD, "_GET_CHILD");
   em.newKind(SUBSTITUTE, "_SUBSTITUTE");
   em.newKind(SEQ, "_SEQ");
+  em.newKind(ARITH_VAR_ORDER, "_ARITH_VAR_ORDER");
 
   // Kinds used mostly in the parser
 

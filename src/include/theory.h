@@ -158,6 +158,11 @@ public:
   */
   virtual Theorem rewrite(const Expr& e) { return reflexivityRule(e); }
 
+  //! Theory-specific preprocessing
+  /*! This gets called each time a new assumption or query is preprocessed.
+    By default it does nothing. */
+  virtual Theorem theoryPreprocess(const Expr& e) { return reflexivityRule(e); }
+
   //! Set up the term e for call-backs when e or its children change.
   /*! setup is called once for each expression associated with the theory.  It
     is typically used to setup theory-specific data for an expression and to
@@ -230,6 +235,23 @@ public:
   //! Check that e is a valid Type expr
   virtual void checkType(const Expr& e)
     { throw Exception("Cannot construct type from expr: "+e.toString()); }
+
+  //! Compute information related to finiteness of types
+  /*! Used by the TypeComputer defined in TheoryCore (theories should not call this
+   *  funtion directly -- they should use the methods in Type instead).  Each theory
+   *  should implement this if it contains any types that could be non-infinite.
+   *
+   * 1. Returns Cardinality of the type (finite, infinite, or unknown)
+   * 2. If cardinality = finite and enumerate is true,
+   *    sets e to the nth element of the type if it can
+   *    sets e to NULL if n is out of bounds or if unable to compute nth element
+   * 3. If cardinality = finite and computeSize is true,
+   *    sets n to the size of the type if it can
+   *    sets n to 0 otherwise
+   */
+  virtual Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                                     bool enumerate, bool computeSize)
+  { return CARD_INFINITE; }
 
   //! Compute and store the type of e
   /*!
@@ -365,7 +387,7 @@ public:
   virtual void registerAtom(const Expr& e) { }
 
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
   //! Theory-specific debug function
   virtual void debug(int i) { }
   //! help function, as debug(int i). yeting
@@ -473,6 +495,8 @@ public:
   //! Return the find as a reference: expr must have a find
   const Theorem& findRef(const Expr& e);
 
+  //! Return find-reduced version of e
+  Theorem findReduce(const Expr& e);
   //! Return true iff e is find-reduced
   bool findReduced(const Expr& e);
   //! Return the find of e, or e if it has no find
@@ -571,6 +595,13 @@ public:
    */
   Op newFunction(const std::string& name, const Type& type,
                  bool computeTransClosure);
+
+  //! Look up a function by name.
+  /*! Returns the function and sets type to the type of the function if it
+   * exists.  If not, returns a NULL Op object.
+   */
+  Op lookupFunction(const std::string& name, Type* type);
+
   //! Create a new defined function
   /*! Add the definition to the database for resolving IDs in parseExpr
    */
@@ -693,6 +724,9 @@ public:
   Theorem rewriteOr(const Expr& e) {
     return d_commonRules->rewriteOr(e);
   }
+  
+  //! Derived rule for rewriting ITE
+  Theorem rewriteIte(const Expr& e);
   
   /*@}*/ // End of Commonly Used Proof Rules
 

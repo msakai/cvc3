@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file command_line_flags.h
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Mon Feb 10 16:22:00 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -22,6 +22,7 @@
 #define _cvc3__command_line_flags_h_
 
 #include <sstream>
+#include <cstring>
 #include <vector>
 #include <map>
 #include "command_line_exception.h"
@@ -31,7 +32,7 @@ namespace CVC3 {
 
   //! Different types of command line flags
   typedef enum {
-    CLFLAG_NULL, 
+    CLFLAG_NULL,
     CLFLAG_BOOL,
     CLFLAG_INT,
     CLFLAG_STRING,
@@ -42,9 +43,9 @@ namespace CVC3 {
     Class CLFlag (for Command Line Flag)
 
     Author: Sergey Berezin
-    
+
     Date: Fri May 30 14:10:48 2003
-    
+
     This class implements a data structure to hold a value of a single
     command line flag.
   */
@@ -64,36 +65,38 @@ class CLFlag {
   bool d_modified;
   //! Help string
   std::string d_help;
+  //! Whether to display this flag when user invokes cvc3 -h
+  bool d_display;
  public:
   //! Constructor for a boolean flag
-  CLFlag(bool b, const std::string& help)
-    : d_tp(CLFLAG_BOOL), d_modified(0), d_help(help)
+  CLFlag(bool b, const std::string& help, bool display = true)
+    : d_tp(CLFLAG_BOOL), d_modified(0), d_help(help), d_display(display)
     { d_data.b = b; }
   //! Constructor for an integer flag
-  CLFlag(int i, const std::string& help)
-    : d_tp(CLFLAG_INT), d_modified(0), d_help(help)
+  CLFlag(int i, const std::string& help, bool display = true)
+    : d_tp(CLFLAG_INT), d_modified(0), d_help(help), d_display(display)
     { d_data.i = i; }
   //! Constructor for a string flag
-  CLFlag(const std::string& s, const std::string& help)
-    : d_tp(CLFLAG_STRING), d_modified(0), d_help(help) {
+  CLFlag(const std::string& s, const std::string& help, bool display = true)
+    : d_tp(CLFLAG_STRING), d_modified(0), d_help(help), d_display(display) {
     d_data.s = new std::string(s);
   }
   //! Constructor for a string flag from char*
-  CLFlag(const char* s, const std::string& help)
-    : d_tp(CLFLAG_STRING), d_modified(0), d_help(help) {
+  CLFlag(const char* s, const std::string& help, bool display = true)
+    : d_tp(CLFLAG_STRING), d_modified(0), d_help(help), d_display(display) {
     d_data.s = new std::string((char*)s);
   }
   //! Constructor for a vector flag
   CLFlag(const std::vector<std::pair<std::string,bool> >& sv,
-	 const std::string& help)
-    : d_tp(CLFLAG_STRVEC), d_modified(0), d_help(help) {
+	 const std::string& help, bool display = true)
+    : d_tp(CLFLAG_STRVEC), d_modified(0), d_help(help), d_display(display) {
     d_data.sv = new std::vector<std::pair<std::string,bool> >(sv);
   }
   //! Default constructor
-  CLFlag(): d_tp(CLFLAG_NULL), d_modified(0), d_help("Undefined flag") { }
+  CLFlag(): d_tp(CLFLAG_NULL), d_modified(0), d_help("Undefined flag"), d_display(false) { }
   //! Copy constructor
   CLFlag(const CLFlag& f)
-    : d_tp(f.d_tp), d_modified(f.d_modified), d_help(f.d_help) {
+    : d_tp(f.d_tp), d_modified(f.d_modified), d_help(f.d_help), d_display(f.d_display) {
     switch(d_tp) {
     case CLFLAG_STRING:
       d_data.s = new std::string(*f.d_data.s); break;
@@ -137,6 +140,7 @@ class CLFlag {
     d_tp = f.d_tp;
     d_modified = f.d_modified;
     d_help = f.d_help;
+    d_display = f.d_display;
     return *this;
   }
   //! Assignment of a boolean value
@@ -194,6 +198,8 @@ class CLFlag {
   /*! @brief Return true if the flag was modified from the default
     value (e.g. set on the command line) */
   bool modified() const { return d_modified; }
+  //! Return true if flag should be displayed in regular help
+  bool display() const { return d_display; }
 
   // The value accessors return a reference.  For the system-wide
   // flags, this reference will remain valid throughout the run of the
@@ -230,10 +236,10 @@ class CLFlag {
 
 ///////////////////////////////////////////////////////////////////////
 // Class CLFlag (for Command Line Flag)
-// 
+//
 // Author: Sergey Berezin
 // Date: Fri May 30 14:10:48 2003
-// 
+//
 // Database of command line flags.
 ///////////////////////////////////////////////////////////////////////
 
@@ -262,7 +268,7 @@ class CLFlags {
     size_t res(0), len(name.size());
     for(CharMap::const_iterator i=d_map.begin(), iend=d_map.end();
 	i!=iend; ++i) {
-      if(strncmp(name.c_str(), (*i).first.c_str(), len) == 0) res++;
+      if(std::strncmp(name.c_str(), (*i).first.c_str(), len) == 0) res++;
     }
     return res;
   }
@@ -272,7 +278,7 @@ class CLFlags {
     size_t res(0), len(name.size());
     for(CharMap::const_iterator i=d_map.begin(), iend=d_map.end();
 	i!=iend; ++i) {
-      if(strncmp(name.c_str(), (*i).first.c_str(), len) == 0) {
+      if(std::strncmp(name.c_str(), (*i).first.c_str(), len) == 0) {
 	names.push_back((*i).first);
 	res++;
       }

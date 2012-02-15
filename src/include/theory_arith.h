@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file theory_arith.h
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Fri Jan 17 18:34:55 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -29,6 +29,11 @@ namespace CVC3 {
   class ArithProofRules;
 
   typedef enum {
+    // New constants
+    REAL_CONST = 30, // wrapper around constants to indicate that they should be real
+    NEGINF = 31,
+    POSINF = 32,
+
     REAL = 3000,
     INT,
     SUBRANGE,
@@ -46,12 +51,9 @@ namespace CVC3 {
     GT,
     GE,
     IS_INTEGER,
-    NEGINF,
-    POSINF,
     DARK_SHADOW,
-    GRAY_SHADOW,
+    GRAY_SHADOW
 
-    REAL_CONST // wrapper around constants to indicate that they should be real
   } ArithKinds;
 
 /*****************************************************************************/
@@ -96,6 +98,14 @@ class TheoryArith :public Theory {
     : Theory(core, name) {}
   ~TheoryArith() {}
 
+  virtual void addMultiplicativeSignSplit(const Theorem& case_split_thm) {};
+
+  /**
+   * Record that smaller should be smaller than bigger in the variable order.
+   * Should be implemented in decision procedures that support it.
+   */
+  virtual bool addPairToArithOrder(const Expr& smaller, const Expr& bigger) { return true; };
+
   // Used by translator
   //! Return whether e is syntactically identical to a rational constant
   bool isSyntacticRational(const Expr& e, Rational& r);
@@ -127,6 +137,8 @@ class TheoryArith :public Theory {
   virtual Theorem solve(const Theorem& e) = 0;
   virtual void checkAssertEqInvariant(const Theorem& e) = 0;
   virtual void checkType(const Expr& e) = 0;
+  virtual Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                                     bool enumerate, bool computeSize) = 0;
   virtual void computeType(const Expr& e) = 0;
   virtual Type computeBaseType(const Type& t) = 0;
   virtual void computeModelTerm(const Expr& e, std::vector<Expr>& v) = 0;
@@ -153,6 +165,7 @@ class TheoryArith :public Theory {
 		  const Rational& c1, const Rational& c2) {
     return Expr(GRAY_SHADOW, v, e, rat(c1), rat(c2));
   }
+  bool leavesAreNumConst(const Expr& e);
 };
 
 // Arith testers
@@ -192,7 +205,7 @@ inline Expr minusExpr(const Expr& left, const Expr& right)
   { return Expr(MINUS, left, right); }
 inline Expr multExpr(const Expr& left, const Expr& right)
   { return Expr(MULT, left, right); }
-// Begin Deepak: 
+// Begin Deepak:
 //! a Mult expr with two or more children
 inline Expr multExpr(const std::vector<Expr>& children) {
   DebugAssert(children.size() > 0, "multExpr()");

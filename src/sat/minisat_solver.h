@@ -179,10 +179,13 @@ struct PushEntry {
   size_type d_trailSize;
   size_type d_qhead;
   size_type d_thead;
+  // conflict detected in initial propagation phase of push
+  bool d_ok;
 
-  PushEntry(int clauseID, size_type trailSize, size_type qhead, size_type thead) :
-    d_clauseID(clauseID), d_trailSize(trailSize),
-    d_qhead(qhead), d_thead(thead)
+PushEntry(int clauseID, size_type trailSize, size_type qhead, size_type thead, bool ok) :
+  d_clauseID(clauseID),
+  d_trailSize(trailSize), d_qhead(qhead), d_thead(thead),
+  d_ok(ok)
   {}
 };
 

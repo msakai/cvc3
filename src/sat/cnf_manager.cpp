@@ -42,6 +42,7 @@ CNF_Manager::CNF_Manager(TheoremManager* tm, Statistics& statistics,
     d_bottomScope(-1),
     d_statistics(statistics),
     d_flags(flags),
+    d_nullExpr(tm->getEM()->getNullExpr()),
     d_cnfCallback(NULL)
 {
   d_rules = createProofRules(tm, flags);
@@ -78,7 +79,7 @@ Theorem CNF_Manager::replaceITErec(const Expr& e, Var v, bool translateOnly)
   // Check cache
   Theorem thm;
   bool foundInCache = false;
-  ExprMap<Theorem>::iterator iMap = d_iteMap.find(e);
+  ExprHashMap<Theorem>::iterator iMap = d_iteMap.find(e);
   if (iMap != d_iteMap.end()) {
     thm = (*iMap).second;
     foundInCache = true;
@@ -109,7 +110,7 @@ Theorem CNF_Manager::replaceITErec(const Expr& e, Var v, bool translateOnly)
     else {
       for(i = e.begin(), iend = e.end(); i!=iend; ++i, ++index) {
         thm = replaceITErec(*i, v, translateOnly);
-        if(thm.getLHS() != thm.getRHS()) {
+        if (!thm.isRefl()) {
           thms.push_back(thm);
           changed.push_back(index);
         }
@@ -142,7 +143,7 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
   if (e.isTrue()) return Lit::getTrue();
   if (e.isNot()) return !translateExprRec(e[0], cnf, thmIn);
 
-  ExprMap<Var>::iterator iMap = d_cnfVars.find(e);
+  ExprHashMap<Var>::iterator iMap = d_cnfVars.find(e);
 
   if (e.isTranslated()) {
     DebugAssert(iMap != d_cnfVars.end(), "Translated expr should be in map");
@@ -165,12 +166,12 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
   }
 
   Expr::iterator i, iend;
-
   bool isAnd = false;
   switch (e.getKind()) {
     case AND:
       isAnd = true;
     case OR: {
+      
       vector<Lit> lits;
       unsigned idx;
       for (i = e.begin(), iend = e.end(); i != iend; ++i) {
@@ -201,6 +202,7 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       Expr after = e ;
 
       cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, 0)); // by yeting
+      DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
     case IMPLIES: {
@@ -229,7 +231,7 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       cnf.addLiteral(arg1);
 
       cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 2)); // by yeting
-
+      DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
     case IFF: {
@@ -267,6 +269,7 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       cnf.addLiteral(arg1,true);
 
       cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 3)); // by yeting
+      DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
     case XOR: {
@@ -306,6 +309,7 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       cnf.addLiteral(arg1,true);
 
       cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 3)); // by yeting
+      DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
     case ITE:
@@ -385,7 +389,7 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       cnf.addLiteral(arg2);
 
       cnf.getCurrentClause().setClauseTheorem(d_rules->CNFITEtranslate(e, after,thms, 6)); // by yeting
-      
+      DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
     default:
@@ -396,6 +400,8 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
         registerAtom(e, thmIn);
         return Lit(v);
       }
+
+      DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
 
       Theorem thm = replaceITErec(e, v, translateOnly);
       const Expr& e2 = thm.getRHS();
@@ -424,7 +430,8 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       }
       else {
         e2.setTranslated(d_bottomScope);
-        registerAtom(e2, thmIn);
+        // Corner case: don't register reflexive equality
+        if (!e2.isEq() || e2[0] != e2[1]) registerAtom(e2, thmIn);
         if (!translateOnly) {
           if (d_cnfVars.find(e2) == d_cnfVars.end()) {
             d_varInfo[v].expr = e2;
@@ -552,6 +559,8 @@ void CNF_Manager::convertLemma(const Theorem& thm, CNF_Formula& cnf)
   
   vector<Theorem>::iterator i = clauses.begin(), iend = clauses.end();
   for (; i < iend; ++i) {
+    // for dumping lemmas:
+    //    cerr << "QUERY " << (*i).getExpr() << ";" << endl;
     cnf.newClause();
     Expr e = (*i).getExpr();
     if (!e.isOr()) {
@@ -574,6 +583,31 @@ void CNF_Manager::convertLemma(const Theorem& thm, CNF_Formula& cnf)
 
 Lit CNF_Manager::addAssumption(const Theorem& thm, CNF_Formula& cnf)
 {
+  if (d_flags["cnf-formula"].getBool()) {
+    Expr e = thm.getExpr();
+    DebugAssert(e.isOr() 
+		|| (e.isNot() && e[0].isFalse()) 
+		|| (e.isNot() && e[0].isTrue()), 
+		"expr:" + e.toString() + " is not an OR Expr or Ture or False" ); 
+    cnf.newClause();
+    if (e.isOr()){
+      for (int i = 0; i < e.arity(); i++){
+	Lit l = (translateExprRec(e[i], cnf, thm));
+	cnf.addLiteral(l);
+      }
+      cnf.getCurrentClause().setClauseTheorem(thm);
+      return translateExprRec(e[0], cnf, thm) ;;
+    }
+    else  {
+      Lit l = translateExpr(thm, cnf);
+      cnf.addLiteral(l);
+      cnf.registerUnit();
+      cnf.getCurrentClause().setClauseTheorem(thm);
+      return l;
+    }
+  }
+  
+
   Lit l = translateExpr(thm, cnf);
   cnf.newClause();
   cnf.addLiteral(l);
@@ -600,6 +634,7 @@ Lit CNF_Manager::addAssumption(const Theorem& thm, CNF_Formula& cnf)
 
 Lit CNF_Manager::addLemma(Theorem thm, CNF_Formula& cnf)
 {
+
   vector<Theorem> clauses;
   d_rules->learnedClauses(thm, clauses, true);
   DebugAssert(clauses.size() == 1, "expected single clause");

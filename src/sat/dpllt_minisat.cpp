@@ -234,7 +234,9 @@ void DPLLTMiniSat::addAssertion(const CNF_Formula& cnf) {
   // Immediately assert unit clauses -
   // the intention is to make these immediately available for interactive use
   for (CNF_Formula::const_iterator i = cnf.begin(); i != cnf.end(); ++i) {
-    if ((*i).isUnit()) d_theoryAPI->assertLit(*(*i).begin());
+    if ((*i).isUnit() && getActiveSolver()->isConsistent()) {
+      d_theoryAPI->assertLit(*(*i).begin());
+    }
   }
 }
 

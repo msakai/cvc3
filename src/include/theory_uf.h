@@ -80,6 +80,8 @@ public:
   void setup(const Expr& e);
   void update(const Theorem& e, const Expr& d);
   void checkType(const Expr& e);
+  Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                             bool enumerate, bool computeSize);
   void computeType(const Expr& e);
   Type computeBaseType(const Type& t);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);

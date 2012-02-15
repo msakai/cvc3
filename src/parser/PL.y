@@ -47,7 +47,7 @@ namespace CVC3 {
 /* stuff that lives in PL.lex */
 extern int PLlex(void);
 
-int PLerror(char *s)
+int PLerror(const char *s)
 {
   std::ostringstream ss;
   ss << CVC3::parserTemp->fileName << ":" << CVC3::parserTemp->lineNum
@@ -189,6 +189,7 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 /* strings are for better error messages.  
    "_TOK" is so macros don't conflict with kind names */
 
+%token  DISTINCT_TOK    "DISTINCT"
 %token	AND_TOK			"AND"
 %token	ARRAY_TOK		"ARRAY"
 %token	BOOLEAN_TOK		"BOOLEAN"
@@ -219,6 +220,7 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %token	WITH_TOK		"WITH"
 %token	XOR_TOK			"XOR"
 %token	TCC_TOK			"TCC"
+%token	PATTERN_TOK		"PATTERN"
 %token '_'
 %token  DONE_TOK
 
@@ -286,6 +288,7 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 
 
 /* commands given in prefix syntax */
+%token  ARITH_VAR_ORDER_TOK     "ARITH_VAR_ORDER"
 %token  ASSERT_TOK              "ASSERT"
 %token  QUERY_TOK               "QUERY"
 %token  CHECKSAT_TOK            "CHECKSAT"
@@ -298,6 +301,7 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %token  OPTION_TOK              "OPTION"
 %token  TRANSFORM_TOK           "TRANSFORM"
 %token  PRINT_TOK               "PRINT"
+%token  PRINT_TYPE_TOK          "PRINT_TYPE"
 %token  CALL_TOK                "CALL"
 %token  ECHO_TOK                "ECHO"
 %token  INCLUDE_TOK             "INCLUDE"
@@ -355,9 +359,11 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %left BVUMINUS_TOK BVPLUS_TOK BVSUB_TOK 
 %left BVUDIV_TOK BVSDIV_TOK BVUREM_TOK BVSREM_TOK BVSMOD_TOK BVSHL_TOK BVASHR_TOK BVLSHR_TOK
 %left SX_TOK BVZEROEXTEND_TOK BVREPEAT_TOK BVROTL_TOK BVROTR_TOK
+%left LEFTSHIFT_TOK RIGHTSHIFT_TOK
 %nonassoc BVLT_TOK BVLE_TOK BVGT_TOK BVGE_TOK 
 %nonassoc BVSLT_TOK BVSLE_TOK BVSGT_TOK BVSGE_TOK 
 %right IS_INTEGER_TOK
+%left ARROW_TOK
 
 %nonassoc '[' 
 %nonassoc '{' '.' '('
@@ -365,10 +371,11 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 
 %type <vec> FieldDecls TypeList IDs reverseIDs SingleDataTypes Constructors
 %type <vec> LetDecls TypeLetDecls BoundVarDecls ElseRest VarDecls 
-%type <vec> Exprs AndExpr OrExpr
+%type <vec> Exprs AndExpr OrExpr Pattern Patterns
 %type <vec> RecordEntries UpdatePosition Updates
 
-%type <node> Type /* IndexType */ TypeNotIdentifier TypeDef DataType SingleDataType Constructor
+%type <node> Type /* IndexType */ TypeNotIdentifier TypeDef
+%type <node> DataType SingleDataType Constructor
 %type <node> FunctionType RecordType Real Int BitvectorType
 %type <node> FieldDecl TupleType
 %type <node> ArrayType ScalarType SubType BasicType SubrangeType 
@@ -381,15 +388,14 @@ static Expr PLprocessUpdates(const CVC3::Expr& e,
 %type <node> ConstDecl TypeDecl 
 %type <node> Identifier StringLiteral Numeral Binary Hex
 
-%type <node> Assert Query Help Dbg Trace Option 
+%type <node> Assert Query Help Dbg Trace Option  
 %type <node> Transform Print Call Echo DumpCommand
 %type <node> Include Where Push Pop PopTo
 %type <node> Context Forget Get_Child Get_Op Get_Type Check_Type Substitute
 %type <node> other_cmd
+%type <node> Arith_Var_Order
 
 %token <str> ID_TOK STRINGLIT_TOK NUMERAL_TOK HEX_TOK BINARY_TOK
-
-%token DONE
 
 %%
 
@@ -446,6 +452,14 @@ other_cmd       :       Assert { $$ = $1; }
                 |       Get_Type { $$ = $1; }
                 |       Check_Type { $$ = $1; }
                 |       Forget { $$ = $1; }
+                |       Arith_Var_Order { $$ = $1; }
+                ;
+
+Arith_Var_Order :       ARITH_VAR_ORDER_TOK '(' Exprs ')'
+                        {
+                            $$ = new CVC3::Expr(VC->listExpr("_ARITH_VAR_ORDER", *$3));
+                            delete $3;
+                        }
                 ;
 
 Assert          :       ASSERT_TOK Expr { 
@@ -496,6 +510,13 @@ Option          :       OPTION_TOK StringLiteral Numeral {
 			  delete $2;
 			  delete $3;
                         }
+                |       OPTION_TOK StringLiteral MINUS_TOK Numeral {
+			  CVC3::Rational value= -$4->getRational();
+                          CVC3::Expr e = CVC3::Expr(VC->ratExpr(value.toString()));
+                          $$ = new CVC3::Expr(VC->listExpr("_OPTION",  *$2, e));
+			  delete $2;
+			  delete $4;
+                        }
                 |       OPTION_TOK StringLiteral StringLiteral { 
                           $$ = new CVC3::Expr(VC->listExpr("_OPTION",  *$2,  *$3));
 			  delete $2;
@@ -521,7 +542,7 @@ Print           :       PRINT_TOK Expr {
                           $$ = new CVC3::Expr(VC->listExpr("_PRINT", *$2));
 			  delete $2;
                         }
-                |       PRINT_TOK Type { 
+                |       PRINT_TYPE_TOK Type { 
                           $$ = new CVC3::Expr(VC->listExpr("_PRINT", *$2));
 			  delete $2;
                         }
@@ -656,19 +677,11 @@ Get_Type        :       GET_TYPE_TOK Expr {
                           $$ = new CVC3::Expr(VC->listExpr("_GET_TYPE", *$2));
 			  delete $2;
                         }
-                |       GET_TYPE_TOK TypeNotIdentifier { 
-                          $$ = new CVC3::Expr(VC->listExpr("_GET_TYPE", *$2));
-			  delete $2;
-                        }
                 ;
-Check_Type      :       CHECK_TYPE_TOK Expr Type { 
-                          $$ = new CVC3::Expr(VC->listExpr("_CHECK_TYPE",*$2, *$3));
+Check_Type      :       CHECK_TYPE_TOK Expr ':' Type { 
+                          $$ = new CVC3::Expr(VC->listExpr("_CHECK_TYPE",*$2, *$4));
 			  delete $2;
-			  delete $3;
-                        }
-                |       CHECK_TYPE_TOK Type TYPE_TOK { 
-                          $$ = new CVC3::Expr(VC->listExpr("_CHECK_TYPE", *$2));
-			  delete $2;
+			  delete $4;
                         }
                 ;
 Get_Child       :       GET_CHILD_TOK Expr Numeral { 
@@ -740,11 +753,11 @@ Type		:	Identifier { $$ = $1; }
 		|	TypeNotIdentifier { $$ = $1; }
 		;
 
-TypeNotIdentifier :	BasicType { $$ = $1; }
-		|	SubrangeType { $$ = $1; }
-		|	ArrayType { $$ = $1; }
-		|	TupleType { $$ = $1; }
+TypeNotIdentifier:      ArrayType { $$ = $1; }
 		|	FunctionType { $$ = $1; }
+                |	BasicType { $$ = $1; }
+		|	SubrangeType { $$ = $1; }
+		|	TupleType { $$ = $1; }
 		|	RecordType { $$ = $1; }
 		|	TypeLetExpr { $$ = $1; }
                 |       BitvectorType {$$ = $1;}
@@ -758,7 +771,9 @@ TypeDef		:	Type { $$ = $1; }
 
 DataType	:       DATATYPE_TOK SingleDataTypes END_TOK
 			{
-			  $$ = new CVC3::Expr(VC->listExpr("_DATATYPE", *$2));
+			  $$ = new CVC3::Expr(
+                            VC->listExpr("_TYPEDEF",
+                                         VC->listExpr("_DATATYPE", *$2)));
 			  delete $2;
 			}
 		;
@@ -887,7 +902,6 @@ FieldDecl	:	Identifier ':' Type
 			}
 		;
 
-/* anomaly here:  seems you can declare a tuple type of length 1 here. */
 TupleType	:	'[' TypeList ']' 
                          {
 			   $$ = new CVC3::Expr(VC->listExpr("_TUPLE_TYPE", *$2));
@@ -895,11 +909,13 @@ TupleType	:	'[' TypeList ']'
 			 }
 		;
 
-TypeList	:	Type 
+TypeList	:	Type ',' Type
                         {
 			  $$ = new std::vector<CVC3::Expr>;
 			  $$->push_back(*$1);
+                          $$->push_back(*$3);
 			  delete $1;
+                          delete $3;
 			}
 		|	TypeList ',' Type 
                         {
@@ -985,14 +1001,24 @@ LeftBound	:	'_'
                         {
 			  $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_NEGINF")));
 			}
-		|	Expr { $$ = $1; }
+		|	Numeral { $$ = $1; }
+                |       MINUS_TOK Numeral {
+                          CVC3::Rational value= -$2->getRational();
+			  $$ = new CVC3::Expr(VC->ratExpr(value.toString()));
+			  delete $2;
+                        }
 		;
 
 RightBound	:	'_' 
                         {
 			  $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_POSINF")));
 			}
-		|	Expr { $$ = $1; }
+		|	Numeral { $$ = $1; }
+                |       MINUS_TOK Numeral {
+                          CVC3::Rational value= -$2->getRational();
+			  $$ = new CVC3::Expr(VC->ratExpr(value.toString()));
+			  delete $2;
+                        }
 		;
 
 /* right recursive to eliminate a conflict.  Reverses order? */
@@ -1185,18 +1211,18 @@ Expr		:	Identifier { $$ = $1; }
 			  delete $1;
 			  delete $3;
 			} 
-		|	Expr INTDIV_TOK Expr 
-                        {
-			  $$ = new CVC3::Expr(VC->listExpr("_INTDIV", *$1, *$3));
-			  delete $1;
-			  delete $3;
-			} 
-		|	Expr MOD_TOK Expr 
-                        {
-			  $$ = new CVC3::Expr(VC->listExpr("_MOD", *$1, *$3));
-			  delete $1;
-			  delete $3;
-			}
+// 		|	Expr INTDIV_TOK Expr 
+//                         {
+// 			  $$ = new CVC3::Expr(VC->listExpr("_INTDIV", *$1, *$3));
+// 			  delete $1;
+// 			  delete $3;
+// 			} 
+// 		|	Expr MOD_TOK Expr 
+//                         {
+// 			  $$ = new CVC3::Expr(VC->listExpr("_MOD", *$1, *$3));
+// 			  delete $1;
+// 			  delete $3;
+// 			}
 		|	Expr GT_TOK Expr 
                         {
 			  $$ = new CVC3::Expr(VC->listExpr("_GT", *$1, *$3));
@@ -1256,6 +1282,20 @@ Expr		:	Identifier { $$ = $1; }
 			  delete $1;
 			  delete $3;
 			}
+                |       Expr LEFTSHIFT_TOK NUMERAL_TOK
+                        {
+			  $$ = new CVC3::Expr
+			    (VC->listExpr("_LEFTSHIFT", *$1, VC->ratExpr(*$3)));
+			  delete $1;
+			  delete $3;
+                        }
+                |       Expr RIGHTSHIFT_TOK NUMERAL_TOK
+                        {
+			  $$ = new CVC3::Expr
+			    (VC->listExpr("_RIGHTSHIFT", *$1, VC->ratExpr(*$3)));
+			  delete $1;
+			  delete $3;
+                        }
 	        |       BVXOR_TOK '(' Expr ',' Expr ')'
 	                {
 			  $$ = new CVC3::Expr(VC->listExpr("_BVXOR", *$3, *$5));
@@ -1396,20 +1436,6 @@ Expr		:	Identifier { $$ = $1; }
 			  delete $3;
   			  delete $5;
                         }
-                |       Expr LEFTSHIFT_TOK NUMERAL_TOK
-                        {
-			  $$ = new CVC3::Expr
-			    (VC->listExpr("_LEFTSHIFT", *$1, VC->ratExpr(*$3)));
-			  delete $1;
-			  delete $3;
-                        }
-                |       Expr RIGHTSHIFT_TOK NUMERAL_TOK
-                        {
-			  $$ = new CVC3::Expr
-			    (VC->listExpr("_RIGHTSHIFT", *$1, VC->ratExpr(*$3)));
-			  delete $1;
-			  delete $3;
-                        }
                 |       BVPLUS_TOK '(' NUMERAL_TOK ',' Exprs ')'
                         {
 			  std::vector<CVC3::Expr> k;
@@ -1496,6 +1522,11 @@ Expr		:	Identifier { $$ = $1; }
 			  delete $5;
 			  delete $7;
                         }
+                |       DISTINCT_TOK '(' Exprs ')'
+                        {
+                          $$ = new CVC3::Expr(VC->listExpr("_DISTINCT", *$3));
+                          delete $3;
+                        }
 		;
 AndExpr		:      AndExpr AND_TOK Expr
                         {
@@ -1579,6 +1610,24 @@ Exprs		:	Expr
 		;
 
 
+Pattern		:	PATTERN_TOK '(' Exprs ')' ':'
+                        {
+			  $$ = $3;
+			}
+
+Patterns	:	Pattern
+                        {
+			  $$ = new std::vector<CVC3::Expr>;
+			  $$->push_back(VC->listExpr(*$1));
+			  delete $1;
+			}
+		|	Patterns Pattern
+                        {
+			  $1->push_back(VC->listExpr(*$2));
+			  $$ = $1; 
+			  delete $2;
+			}
+		;
 
 Update          :       UpdatePositionNode ASSIGN_TOK Expr
                         {
@@ -1675,6 +1724,16 @@ QuantExpr	:	FORALL_TOK '(' BoundVarDecls ')' ':'  Expr
 			  delete $3;
 			  delete $6;
 			}
+                |	FORALL_TOK '(' BoundVarDecls ')' ':' Patterns Expr
+		        %prec FORALL_TOK
+                        {
+			  $$ = new CVC3::Expr(VC->listExpr("_FORALL", 
+			                                   VC->listExpr(*$3), *$7,
+							   VC->listExpr(*$6)));
+			  delete $3;
+			  delete $6;
+			  delete $7;
+			}
 		|	EXISTS_TOK '(' BoundVarDecls ')' ':'  Expr
 		        %prec EXISTS_TOK
                         {
@@ -1684,6 +1743,16 @@ QuantExpr	:	FORALL_TOK '(' BoundVarDecls ')' ':'  Expr
 			  delete $6;
 			}
 		;
+                |	EXISTS_TOK '(' BoundVarDecls ')' ':' Patterns Expr
+		        %prec EXISTS_TOK
+                        {
+			  $$ = new CVC3::Expr(VC->listExpr("_EXISTS", 
+			                                   VC->listExpr(*$3), *$7,
+							   VC->listExpr(*$6)));
+			  delete $3;
+			  delete $6;
+			  delete $7;
+			}
 
 ArrayLiteral		: ARRAY_TOK '(' BoundVarDecl ')' ':' Expr 
                         %prec ASSIGN_TOK
@@ -1795,11 +1864,17 @@ TypeLetDecls	:	TypeLetDecl {
 			}
 		;
 
-TypeLetDecl	:	Identifier '=' Expr 
+TypeLetDecl	:	Identifier '=' Type 
 			{ 
 			  $$ = new CVC3::Expr(VC->listExpr(*$1, *$3));
 			  delete $1;
 			  delete $3;
+			}
+                |       Identifier ':' TYPE_TOK '=' Type
+			{ 
+			  $$ = new CVC3::Expr(VC->listExpr(*$1,*$5));
+			  delete $1;
+			  delete $5;
 			}
 		;
 

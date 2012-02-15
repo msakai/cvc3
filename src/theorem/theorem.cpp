@@ -86,46 +86,45 @@ namespace CVC3 {
     else return 1;
   }
 
+
   // Assignment operator
   Theorem& Theorem::operator=(const Theorem& th) {
     // Handle self-assignment
     if(this == &th) return *this;
+
     long tmp = th.d_thm;
 
-    if (th.isRefl()) {
+    // Increase the refcount on th
+    if (tmp & 0x1) {
+      TheoremValue* tv = (TheoremValue*) (tmp & (~(0x1)));
+      DebugAssert(tv->d_refcount > 0,
+                  "Theorem::operator=: invariant violated");
+      ++(tv->d_refcount);
+    }
+    else if (tmp != 0) {
       th.exprValue()->incRefcount();
     }
-    else {
-      TheoremValue* tv = th.thm();
-      DebugAssert(th.isNull() || tv->d_refcount > 0,
-                  "Theorem::operator=: NEW refcount = "
-                  + int2string(tv->d_refcount)
-                  + " in " + th.toString());
-      if (tv) ++(tv->d_refcount);
-    }
 
-    if (isRefl()) {
-      exprValue()->decRefcount();
-    }
-    else {
+    // Decrease the refcount on this
+    if (d_thm & 0x1) {
       TheoremValue* tv = thm();
-      DebugAssert(isNull() || tv->d_refcount > 0,
-                  "Theorem::operator=: OLD refcount = "
-                  + int2string(tv->d_refcount));
-
-      //      IF_DEBUG(if((!isNull()) && tv->d_refcount == 1)
-      //               TRACE("theorem", "Delete ", *this, "");)
-      if((!isNull()) && --(tv->d_refcount) == 0) {
+      DebugAssert(tv->d_refcount > 0,
+                  "Theorem::operator=: invariant violated");
+      if(--(tv->d_refcount) == 0) {
         MemoryManager* mm = tv->getMM();
         delete tv;
         mm->deleteData(tv);
       }
+    }
+    else if (d_thm != 0) {
+      exprValue()->decRefcount();
     }
 
     d_thm = tmp;
 
     return *this;
   }
+
 
   // Constructors
   Theorem::Theorem(TheoremManager* tm, const Expr &thm,
@@ -503,7 +502,7 @@ const Assumptions& Theorem::getAssumptionsRef() const
 
   void Theorem::setQuantLevel(unsigned level) {
     DebugAssert(!isNull(), "CVC3::Theorem::setQuantLevel: we are Null");
-    DebugAssert(!isRefl(), "CVC3::Theorem::setQuantLevel: we are Refl");
+    //    DebugAssert(!isRefl(), "CVC3::Theorem::setQuantLevel: we are Refl");
     if (isRefl()) return;
     thm()->setQuantLevel(level);
   }

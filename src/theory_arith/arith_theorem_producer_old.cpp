@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file arith_theorem_producer.cpp
- * 
+ *
  * Author: Vijay Ganesh, Sergey Berezin
- * 
+ *
  * Created: Dec 13 02:09:04 GMT 2002
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 // CLASS: ArithProofRules
@@ -32,7 +32,7 @@
 #include "arith_theorem_producer_old.h"
 #include "theory_core.h"
 #include "theory_arith_old.h"
-#include <algorithm> 
+#include <algorithm>
 
 using namespace std;
 using namespace CVC3;
@@ -44,7 +44,7 @@ using namespace CVC3;
 ArithProofRules* TheoryArithOld::createProofRulesOld() {
   return new ArithTheoremProducerOld(theoryCore()->getTM(), this);
 }
-  
+
 ////////////////////////////////////////////////////////////////////
 // Canonization rules
 ////////////////////////////////////////////////////////////////////
@@ -74,7 +74,7 @@ Theorem ArithTheoremProducerOld::minusToPlus(const Expr& x, const Expr& y)
 {
   Proof pf;
   if(withProof()) pf = newPf("minus_to_plus", x, y);
-  return newRWTheorem((x-y), (x + (rat(-1) * y)), Assumptions::emptyAssump(), pf);  
+  return newRWTheorem((x-y), (x + (rat(-1) * y)), Assumptions::emptyAssump(), pf);
 }
 
 
@@ -171,7 +171,7 @@ Theorem ArithTheoremProducerOld::canonDivideVar(const Expr& e, const Expr& d) {
     pf = newPf("canon_divide_var", e);
 
   const Rational& dr = d.getRational();
-  if(dr == 1) 
+  if(dr == 1)
     return newRWTheorem(e/d, e, Assumptions::emptyAssump(), pf);
   if(dr == 0) // e/0 == 0 (total extension of division)
     return newRWTheorem(e/d, d, Assumptions::emptyAssump(), pf);
@@ -189,8 +189,8 @@ Theorem ArithTheoremProducerOld::canonDivideVar(const Expr& e, const Expr& d) {
 // where rational cannot be 0 or 1
 // 4) (MULT rational mterm'_1 ...) where each mterm' is of type (2) or (3)
 // If rational == 1 then there should be at least two mterms
-// 5) (PLUS rational sterm_1 ...) where each sterm is of 
-//     type (2) or (3) or (4) 
+// 5) (PLUS rational sterm_1 ...) where each sterm is of
+//     type (2) or (3) or (4)
 //    if rational == 0 then there should be at least two sterms
 
 
@@ -242,8 +242,8 @@ Expr ArithTheoremProducerOld::canonMultConstPlus(const Expr & e1,
   for(; i!= e2.end(); ++i) {
     thmPlusVector.push_back(canonMultMtermMterm(e1*(*i)));
   }
-    
-  Theorem thmPlus1 = 
+
+  Theorem thmPlus1 =
     d_theoryArith->substitutivityRule(e2.getOp(), thmPlusVector);
   return thmPlus1.getRHS();
 }
@@ -278,7 +278,7 @@ Expr ArithTheoremProducerOld::canonMultPowPow(const Expr & e1,
         mulKids.push_back(e2);
         mulKids.push_back(e1);
       }
-      else 
+      else
         {
           mulKids.push_back(e1);
           mulKids.push_back(e2);
@@ -318,7 +318,7 @@ Expr ArithTheoremProducerOld::canonMultPowLeaf(const Expr & e1,
         mulKids.push_back(e2);
         mulKids.push_back(e1);
       }
-      else 
+      else
         {
           mulKids.push_back(e1);
           mulKids.push_back(e2);
@@ -346,7 +346,7 @@ Expr ArithTheoremProducerOld::canonMultLeafLeaf(const Expr & e1,
         mulKids.push_back(e2);
         mulKids.push_back(e1);
       }
-      else 
+      else
         {
           mulKids.push_back(e1);
           mulKids.push_back(e2);
@@ -375,7 +375,7 @@ Expr ArithTheoremProducerOld::canonMultLeafOrPowMult(const Expr & e1,
     Expr leaf2 = ((*i).getKind() == POW) ? (*i)[1] : (*i);
     if (leaf1 == leaf2) {
       Rational r1 = e1.getKind() == POW ? e1[0].getRational() : 1;
-      Rational r2 = 
+      Rational r2 =
         ((*i).getKind() == POW ? (*i)[0].getRational() : 1);
       // if r1 + r2 == 0 then it is the case of x^n * x^{-n}
       // So, nothing needs to be added
@@ -426,15 +426,15 @@ public:
 
 typedef map<Expr,Rational,MonomialLess> MonomMap;
 
-Expr 
+Expr
 ArithTheoremProducerOld::canonCombineLikeTerms(const std::vector<Expr> & sumExprs)
 {
   Rational constant = 0;
   MonomMap sumHashMap;
   vector<Expr> sumKids;
- 
-  // Add each distinct mterm (not including the rational) into 
-  // an appropriate hash map entry 
+
+  // Add each distinct mterm (not including the rational) into
+  // an appropriate hash map entry
   std::vector<Expr>::const_iterator i = sumExprs.begin();
   for (; i != sumExprs.end(); ++i) {
     Expr mul = *i;
@@ -452,7 +452,7 @@ ArithTheoremProducerOld::canonCombineLikeTerms(const std::vector<Expr> & sumExpr
         for (; j!= mul.end(); ++j) {
           mulKids.push_back(*j);
         }
-                
+
         // make sure that tempExpr is also in canonic form
         Expr tempExpr = mulKids.size() > 2 ? multExpr(mulKids): mulKids[1];
 	MonomMap::iterator i=sumHashMap.find(tempExpr);
@@ -486,18 +486,18 @@ ArithTheoremProducerOld::canonCombineLikeTerms(const std::vector<Expr> & sumExpr
       sumKids.push_back
 	(canonMultMtermMterm(rat((*j).second) * (*j).first).getRHS());
   }
-    
+
   /*
     for (unsigned k = 0; k < sumKids.size(); ++k)
     {
     cout << "sumKids[" << k << "] = " << sumKids[k].toString() << endl;
     }
-  */    
+  */
 
   // The ordering in map guarantees the correct order; no need to sort
 
   // std::sort(sumKids.begin(), sumKids.end(), greaterthan);
-    
+
   if ((constant == 0) && (sumKids.size() == 2)) {
     return sumKids[1];
   }
@@ -512,14 +512,14 @@ Expr ArithTheoremProducerOld::canonMultLeafOrPowOrMultPlus(const Expr & e1,
                                                         const Expr & e2)
 {
   DebugAssert(e2.getKind() == PLUS, "");
-  // Leaf *  (PLUS rational sterm1 ...) 
-  // or 
+  // Leaf *  (PLUS rational sterm1 ...)
+  // or
   // (POW n1 x1) * (PLUS rational sterm1 ...)
   // or
   // (MULT r1 m1 m2 ...) * (PLUS rational sterm1 ...)
   // assume that e1 and e2 are themselves canonized
   std::vector<Expr> sumExprs;
-  // Multiply each term in turn. 
+  // Multiply each term in turn.
   Expr::iterator i = e2.begin();
   for (; i != e2.end(); ++i) {
     sumExprs.push_back(canonMultMtermMterm(e1 * (*i)).getRHS());
@@ -535,7 +535,7 @@ Expr ArithTheoremProducerOld::canonMultPlusPlus(const Expr & e1,
   // assume that e1 and e2 are themselves canonized
 
   std::vector<Expr> sumExprs;
-  // Multiply each term in turn. 
+  // Multiply each term in turn.
   Expr::iterator i = e1.begin();
   for (;  i != e1.end(); ++i) {
     Expr::iterator j = e2.begin();
@@ -554,7 +554,7 @@ Theorem
 ArithTheoremProducerOld::canonMultMtermMterm(const Expr& e)
 {
   if(CHECK_PROOFS) {
-    CHECK_SOUND(isMult(e) && e.arity() == 2, 
+    CHECK_SOUND(isMult(e) && e.arity() == 2,
 		"canonMultMtermMterm: e = "+e.toString());
   }
   Proof pf;
@@ -581,7 +581,7 @@ ArithTheoremProducerOld::canonMultMtermMterm(const Expr& e)
         // rat * (POW rat leaf)
         // nothing to simplify
         return d_theoryArith->reflexivityRule (e);
-                
+
         break;
       case MULT:
         rhs = canonMultConstMult(e1,e2);
@@ -620,7 +620,7 @@ ArithTheoremProducerOld::canonMultMtermMterm(const Expr& e)
     case PLUS:
       rhs = canonMultLeafOrPowOrMultPlus(e1,e2);
       if(withProof()) pf = newPf(cmmm,e,rhs);
-      return newRWTheorem(e, rhs, Assumptions::emptyAssump(), pf);                          
+      return newRWTheorem(e, rhs, Assumptions::emptyAssump(), pf);
       break;
     default:
       rhs = canonMultPowLeaf(e1,e2);
@@ -716,10 +716,10 @@ ArithTheoremProducerOld::canonMultMtermMterm(const Expr& e)
 
 // (PLUS expr1 expr2 ...) where each expr is itself in canonic form
 Theorem
-ArithTheoremProducerOld::canonPlus(const Expr& e) 
+ArithTheoremProducerOld::canonPlus(const Expr& e)
 {
   Proof pf;
-    
+
   if (withProof()) {
     pf = newPf("canon_plus", e);
   }
@@ -743,15 +743,16 @@ ArithTheoremProducerOld::canonPlus(const Expr& e)
   Expr val = canonCombineLikeTerms(sumKids);
   if (withProof()) {
     pf = newPf("canon_plus", e, val);
-  }    
+  }
   return newRWTheorem(e, val, Assumptions::emptyAssump(), pf);
 }
 
 // (MULT expr1 expr2 ...) where each expr is itself in canonic form
 Theorem
-ArithTheoremProducerOld::canonMult(const Expr& e) 
+ArithTheoremProducerOld::canonMult(const Expr& e)
 {
   Proof pf;
+  TRACE("arith canon", "canonMult(", e.toString(), ")");
   DebugAssert(e.getKind() == MULT && e.arity() > 1, "");
   Expr::iterator i = e.begin();
   Expr result = *i;
@@ -762,18 +763,66 @@ ArithTheoremProducerOld::canonMult(const Expr& e)
   if (withProof()) {
     pf = newPf("canon_mult", e,result);
   }
+
+  // If multiplicative sign split is on do it
+  if (d_theoryArith->nonlinearSignSplit()) {
+
+	  // Add the sign splits
+	  Expr positive = d_em->trueExpr();
+	  Expr negative = d_em->falseExpr();
+	  vector<Expr> zero;
+
+	  // we do the case split if it's not trivial
+	  int count_non_trivial = 0;
+	  int count_constants = 0;
+
+	  // a1*a2*...*an is positive if there is an even number of negative ones
+	  // a1*a2*...*an is negative if there is an odd number of negative ones
+	  for (i = e.begin(); i != e.end(); ++i) {
+		  Expr current = (*i);
+
+		  if (isPlus(current)) count_non_trivial ++;
+		  if (current.isRational()) count_constants ++;
+		  if (isPow(current) && current[0].getRational() < 0) {
+			  // Bail on negative powers, it's normalization
+			  count_non_trivial = 0;
+			  break;
+		  }
+
+		  zero.push_back(current.eqExpr(rat(0)));
+		  positive = Expr(XOR, positive, ltExpr(current, rat(0)));
+		  negative = Expr(XOR, negative, ltExpr(current, rat(0)));
+	  }
+
+	  if (count_non_trivial > 0 && !count_constants == (e.arity() - 1)) {
+		  // Any of the factors is zero
+		  Expr zero_lemma = orExpr(zero).iffExpr(result.eqExpr(rat(0)));
+		  Expr positive_lemma = positive.impExpr(geExpr(result, rat(0)));
+		  Expr negative_lemma = negative.impExpr(leExpr(result, rat(0)));
+		  Expr lemma = positive_lemma.andExpr(negative_lemma.andExpr(zero_lemma));
+
+		  Proof split_pf;
+		  if (withProof()) split_pf = newPf("multiplicative_sign_split", e, lemma);
+		  Theorem case_split_thm = newTheorem(lemma, Assumptions::emptyAssump(), split_pf);
+
+		  TRACE("arith nonlinear", "adding sign split: ", lemma, "");
+
+		  d_theoryArith->addMultiplicativeSignSplit(case_split_thm);
+	  }
+  }
+
   return newRWTheorem(e, result, Assumptions::emptyAssump(), pf);
 }
 
 
 Theorem
-ArithTheoremProducerOld::canonInvertConst(const Expr& e) 
+ArithTheoremProducerOld::canonInvertConst(const Expr& e)
 {
   if(CHECK_PROOFS)
     CHECK_SOUND(isRational(e), "expecting a rational: e = "+e.toString());
-    
+
   Proof pf;
-    
+
   if (withProof()) {
     pf = newPf("canon_invert_const", e);
   }
@@ -783,10 +832,10 @@ ArithTheoremProducerOld::canonInvertConst(const Expr& e)
 
 
 Theorem
-ArithTheoremProducerOld::canonInvertLeaf(const Expr& e) 
+ArithTheoremProducerOld::canonInvertLeaf(const Expr& e)
 {
   Proof pf;
-    
+
   if (withProof()) {
     pf = newPf("canon_invert_leaf", e);
   }
@@ -795,31 +844,31 @@ ArithTheoremProducerOld::canonInvertLeaf(const Expr& e)
 
 
 Theorem
-ArithTheoremProducerOld::canonInvertPow(const Expr& e) 
+ArithTheoremProducerOld::canonInvertPow(const Expr& e)
 {
   DebugAssert(e.getKind() == POW, "expecting a rational"+e[0].toString());
-    
+
   Proof pf;
-    
+
   if (withProof()) {
     pf = newPf("canon_invert_pow", e);
   }
   if (e[0].getRational() == -1)
     return newRWTheorem((rat(1)/e), e[1], Assumptions::emptyAssump(), pf);
   else
-    return newRWTheorem((rat(1)/e), 
-                        powExpr(rat(-e[0].getRational()), e), 
-                        Assumptions::emptyAssump(), 
+    return newRWTheorem((rat(1)/e),
+                        powExpr(rat(-e[0].getRational()), e[1]),
+                        Assumptions::emptyAssump(),
                         pf);
 }
 
 Theorem
-ArithTheoremProducerOld::canonInvertMult(const Expr& e) 
+ArithTheoremProducerOld::canonInvertMult(const Expr& e)
 {
   DebugAssert(e.getKind() == MULT, "expecting a rational"+e[0].toString());
 
   Proof pf;
-    
+
   if (withProof()) {
     pf = newPf("canon_invert_mult", e);
   }
@@ -827,7 +876,7 @@ ArithTheoremProducerOld::canonInvertMult(const Expr& e)
   DebugAssert(e.arity() > 1, "MULT should have arity > 1"+e.toString());
   Expr result = canonInvert(e[0]).getRHS();
   for (int i = 1; i < e.arity(); ++i) {
-    result = 
+    result =
       canonMultMtermMterm(result * canonInvert(e[i]).getRHS()).getRHS();
   }
   return newRWTheorem((rat(1)/e), result, Assumptions::emptyAssump(), pf);
@@ -837,9 +886,9 @@ ArithTheoremProducerOld::canonInvertMult(const Expr& e)
 // Given an expression e in Canonic form generate 1/e in canonic form
 // This function assumes that e is not a PLUS expression
 Theorem
-ArithTheoremProducerOld::canonInvert(const Expr& e) 
+ArithTheoremProducerOld::canonInvert(const Expr& e)
 {
-  DebugAssert(e.getKind() != PLUS, 
+  DebugAssert(e.getKind() != PLUS,
               "Cannot do inverse on a PLUS"+e.toString());
   switch (e.getKind()) {
   case RATIONAL_EXPR:
@@ -860,69 +909,69 @@ ArithTheoremProducerOld::canonInvert(const Expr& e)
 
 
 Theorem ArithTheoremProducerOld::moveSumConstantRight(const Expr& e) {
- 	 	
+
  	// Check soundness of the rule if necessary
  	if (CHECK_PROOFS) {
  		CHECK_SOUND(isIneq(e) || e.isEq(), "moveSumConstantRight: input must be Eq or Ineq: " + e.toString());
  		CHECK_SOUND(isRational(e[0]) || isPlus(e[0]), "moveSumConstantRight: left side must be a canonised sum: " + e.toString());
  		CHECK_SOUND(isRational(e[1]) && e[1].getRational() == 0, "moveSumConstantRight: right side must be 0: " + e.toString());
  	}
- 	
+
 	// The rational constant of the sum
 	Rational r = 0;
-	
+
 	// The right hand side of the expression
 	Expr right = e[0];
-	
+
 	// The vector of sum terms
 	vector<Expr> sumTerms;
 
-	// Get all the non rational children and 
-	if (!right.isRational()) 
+	// Get all the non rational children and
+	if (!right.isRational())
 		for(Expr::iterator it = right.begin(); it != right.end(); it ++) {
-			// If the term is rational then add the rational number to r 
+			// If the term is rational then add the rational number to r
 			if ((*it).isRational()) r = r + (*it).getRational();
 			// Otherwise just add the sumTerm to the sumTerms
 			else sumTerms.push_back((*it));
-		}		
-		
+		}
+
 	// Setup the new expression
 	Expr transformed;
-	if (sumTerms.size() > 1) 
+	if (sumTerms.size() > 1)
 		// If the number of summands is > 1 return the sum of them
 		transformed = Expr(e.getKind(), plusExpr(sumTerms), rat(-r));
-	else 
+	else
 		// Otherwise return the one summand as itself
 		transformed = Expr(e.getKind(), sumTerms[0], rat(-r));
-		
+
 
 	// If proof is needed set it up
 	Proof pf;
-	if (withProof()) pf = newPf("arithm_sum_constant_right", e); 
+	if (withProof()) pf = newPf("arithm_sum_constant_right", e);
 
 	// Retrun the theorem explaining the transformation
-	return newRWTheorem(e, transformed, Assumptions::emptyAssump(), pf); 	
+	return newRWTheorem(e, transformed, Assumptions::emptyAssump(), pf);
 }
 
 Theorem
-ArithTheoremProducerOld::canonDivide(const Expr& e) 
+ArithTheoremProducerOld::canonDivide(const Expr& e)
 {
   DebugAssert(e.getKind() == DIVIDE, "Expecting Divide"+e.toString());
   Proof pf;
-    
+
   if (withProof()) {
     pf = newPf("canon_invert_divide", e);
   }
 
   Theorem thm = newRWTheorem(e, e[0]*(canonInvert(e[1]).getRHS()), Assumptions::emptyAssump(), pf);
-    
+
   return d_theoryArith->transitivityRule(thm, canonMult(thm.getRHS()));
 }
 
 
 // Rules for multiplication
 // t*c ==> c*t, takes constant c and term t
-Theorem 
+Theorem
 ArithTheoremProducerOld::canonMultTermConst(const Expr& c, const Expr& t) {
   Proof pf;
   if(CHECK_PROOFS) {
@@ -936,13 +985,13 @@ ArithTheoremProducerOld::canonMultTermConst(const Expr& c, const Expr& t) {
 
 // Rules for multiplication
 // t1*t2 ==> Error, takes t1 and t2 where both are non-constants
-Theorem 
+Theorem
 ArithTheoremProducerOld::canonMultTerm1Term2(const Expr& t1, const Expr& t2) {
   // Proof pf;
   // if(withProof()) pf = newPf("canon_mult_term1_term2", t1, t2);
   if(CHECK_PROOFS) {
     CHECK_SOUND(false, "Fatal Error: We don't support multiplication"
-                "of two non constant terms at this time " 
+                "of two non constant terms at this time "
                 + t1.toString() + " and " + t2.toString());
   }
   return Theorem();
@@ -965,8 +1014,8 @@ Theorem ArithTheoremProducerOld::canonMultOne(const Expr& e) {
 }
 
 // Rules for multiplication
-// c1*c2 ==> c', takes constant c1*c2 
-Theorem 
+// c1*c2 ==> c', takes constant c1*c2
+Theorem
 ArithTheoremProducerOld::canonMultConstConst(const Expr& c1, const Expr& c2) {
   Proof pf;
   if(CHECK_PROOFS) {
@@ -978,13 +1027,13 @@ ArithTheoremProducerOld::canonMultConstConst(const Expr& c1, const Expr& c2) {
                 "c2 is not a constant: " + c2.toString());
   }
   if(withProof()) pf = newPf("canon_mult_const_const", c1, c2);
-  return 
+  return
     newRWTheorem((c1*c2), rat(c1.getRational()*c2.getRational()), Assumptions::emptyAssump(), pf);
 }
 
 // Rules for multiplication
 // c1*(c2*t) ==> c'*t, takes c1 and c2 and t
-Theorem 
+Theorem
 ArithTheoremProducerOld::canonMultConstTerm(const Expr& c1,
                                          const Expr& c2,const Expr& t) {
   Proof pf;
@@ -996,19 +1045,19 @@ ArithTheoremProducerOld::canonMultConstTerm(const Expr& c1,
                 CLASS_NAME "::canonMultConstTerm:\n  "
                 "c2 is not a constant: " + c2.toString());
   }
-  
+
   if(withProof()) pf = newPf("canon_mult_const_term", c1, c2, t);
-  return 
+  return
     newRWTheorem(c1*(c2*t), rat(c1.getRational()*c2.getRational())*t, Assumptions::emptyAssump(), pf);
 }
 
 // Rules for multiplication
 // c1*(+ c2 v1 ...) ==> (+ c1c2 c1v1 ...), takes c1 and the sum
-Theorem 
+Theorem
 ArithTheoremProducerOld::canonMultConstSum(const Expr& c1, const Expr& sum) {
   Proof pf;
   std::vector<Expr> sumKids;
-  
+
   if(CHECK_PROOFS) {
     CHECK_SOUND(isRational(c1),
                 CLASS_NAME "::canonMultConstTerm:\n  "
@@ -1054,7 +1103,7 @@ ArithTheoremProducerOld::canonPowConst(const Expr& e) {
 
 // Rules for addition
 // flattens the input. accepts a PLUS expr
-Theorem 
+Theorem
 ArithTheoremProducerOld::canonFlattenSum(const Expr& e) {
   Proof pf;
   std::vector<Expr> sumKids;
@@ -1081,7 +1130,7 @@ ArithTheoremProducerOld::canonFlattenSum(const Expr& e) {
 
 // Rules for addition
 // combine like terms. accepts a flattened PLUS expr
-Theorem 
+Theorem
 ArithTheoremProducerOld::canonComboLikeTerms(const Expr& e) {
   Proof pf;
   std::vector<Expr> sumKids;
@@ -1125,7 +1174,7 @@ ArithTheoremProducerOld::canonComboLikeTerms(const Expr& e) {
     else
       sumKids.push_back(rat((*j).second) * (*j).first);
   }
-  
+
   //constant is same as sumKids[0].
   //corner cases: "0 + monomial" and "constant"(no monomials)
 
@@ -1134,7 +1183,7 @@ ArithTheoremProducerOld::canonComboLikeTerms(const Expr& e) {
   else if (1 == sumKids.size()) ret = sumKids[0];
   else ret = plusExpr(sumKids);
 
-  if(withProof()) pf = newPf("canon_combo_like_terms",e,ret);  
+  if(withProof()) pf = newPf("canon_combo_like_terms",e,ret);
   return newRWTheorem(e, ret, Assumptions::emptyAssump(), pf);
 }
 
@@ -1142,22 +1191,46 @@ ArithTheoremProducerOld::canonComboLikeTerms(const Expr& e) {
 // 0 = (* e1 e2 ...) <=> 0 = e1 OR 0 = e2 OR ...
 Theorem ArithTheoremProducerOld::multEqZero(const Expr& expr)
 {
-  if (CHECK_PROOFS) {
-    CHECK_SOUND(expr.isEq() && expr[0].isRational() &&
-                expr[0].getRational() == 0 &&
-                isMult(expr[1]) && expr[1].arity() > 1,
-                "multEqZero invariant violated"+expr.toString());
-  }
   Proof pf;
   vector<Expr> kids;
-  Expr::iterator i = expr[1].begin(), iend = expr[1].end();
+
+  int side = expr[0].isRational() ? 1 : 0;
+
+  vector<Expr> non_zero;
+
+  Expr::iterator i = expr[side].begin(), iend = expr[side].end();
   for (; i != iend; ++i) {
-    kids.push_back(rat(0).eqExpr(*i));
+	  Expr x = *i;
+	  // If a rational it can't be 0, so it is false, i.e. just skip it
+	  if (x.isRational()) {
+		  CHECK_SOUND(x.getRational() != 0, "multEqZero: once of the constants is 0");
+	  } else {
+		  Expr leaf = x;
+		  if (isPow(x)) {
+                    // We assume that 1 / 0 = 0 for simplicity and totality.
+                    // Divisions by zero that affect the result can be identified by enabling TCCs.
+                    //			  if (x[0].getRational() < 0) {
+                    //				  non_zero.push_back(x[1].eqExpr(rat(0)).notExpr());
+                    //				  continue;
+                    //			  }
+                    //			  else
+                    leaf = x[1];
+		  }
+		  if (leaf >= rat(0))
+			  kids.push_back(leaf.eqExpr(rat(0)));
+		  else
+			  kids.push_back(rat(0).eqExpr(leaf));
+	  }
   }
+  Expr newExpr;
+  if (kids.size() == 1) newExpr = kids[0];
+  else newExpr = Expr(OR, kids);
   if (withProof()) {
     pf = newPf("multEqZero", expr);
   }
-  return newRWTheorem(expr, Expr(OR, kids), Assumptions::emptyAssump(), pf);
+  //  if (non_zero.size() == 0)
+  return newRWTheorem(expr, newExpr, Assumptions::emptyAssump(), pf);
+  //  else return newRWTheorem(expr, Expr(OR, kids).andExpr(Expr(AND, non_zero)), Assumptions::emptyAssump(), pf);
 }
 
 
@@ -1188,28 +1261,22 @@ Theorem ArithTheoremProducerOld::powEqZero(const Expr& expr)
 }
 
 
-// x^n = y^n <=> x = y (if n is odd)
-// x^n = y^n <=> x = y OR x = -y (if n is even)
+// x^n - y^n = 0 <=> x = y (if n is odd)
+// x^n - y^n = 0 <=> x = y OR x = -y (if n is even)
 Theorem ArithTheoremProducerOld::elimPower(const Expr& expr)
 {
-  if (CHECK_PROOFS) {
-    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
-                isPow(expr[1]) &&
-                isIntegerConst(expr[0][0]) &&
-                expr[0][0].getRational() > 0 &&
-                expr[0][0] == expr[1][0],
-                "elimPower invariant violated"+expr.toString());
-  }
-  Proof pf;
-  if (withProof()) {
-    pf = newPf("elimPower", expr);
-  }
-  Rational r = expr[0][0].getRational();
-  Expr res = expr[0][1].eqExpr(expr[1][1]);
-  if (r % 2 == 0) {
-    res = res.orExpr(expr[0][1].eqExpr(-expr[1][1]));
-  }
-  return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
+	Expr power1, power2;
+	bool ok = d_theoryArith->isPowersEquality(expr, power1, power2);
+	if (CHECK_PROOFS)
+		CHECK_SOUND(ok, "elimPower invariant violated"+expr.toString());
+	Proof pf;
+	if (withProof())
+		pf = newPf("elimPower", expr);
+	Rational r = power1[0].getRational();
+	Expr res = power1[1].eqExpr(power2[1]);
+	if (r % 2 == 0)
+		res = res.orExpr(power1[1].eqExpr(-power2[1]));
+	return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -1217,69 +1284,69 @@ Theorem ArithTheoremProducerOld::elimPower(const Expr& expr)
 // x^n = c <=> x = root OR x = -root (if n is even and root^n = c)
 Theorem ArithTheoremProducerOld::elimPowerConst(const Expr& expr, const Rational& root)
 {
-  if (CHECK_PROOFS) {
-    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
-                isIntegerConst(expr[0][0]) &&
-                expr[0][0].getRational() > 0 &&
-                expr[1].isRational() &&
-                pow(expr[0][0].getRational(), root) == expr[1].getRational(),
-                "elimPowerConst invariant violated"+expr.toString());
-  }
-  Proof pf;
-  if (withProof()) {
-    pf = newPf("elimPowerConst", expr, rat(root));
-  }
-  Rational r = expr[0][0].getRational();
-  Expr res = expr[0][1].eqExpr(rat(root));
-  if (r % 2 == 0) {
-    res = res.orExpr(expr[0][1].eqExpr(rat(-root)));
-  }
-  return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
+	if (CHECK_PROOFS)
+	    CHECK_SOUND(expr.isEq(), "elimPowerConst invariant violated" + expr.toString());
+	Rational constant;
+	Expr power;
+	bool ok = d_theoryArith->isPowerEquality(expr, constant, power);
+	if (CHECK_PROOFS) {
+		CHECK_SOUND(ok, "elimPowerConst invariant violated" + expr.toString());
+		CHECK_SOUND(pow(power[0].getRational(), root) == constant, "elimPowerConst invariant violated" + expr.toString());
+	}
+
+	Proof pf;
+	if (withProof())
+		pf = newPf("elimPowerConst", expr, rat(root));
+	Rational r = power[0].getRational();
+	Expr res = power[1].eqExpr(rat(root));
+	if (r % 2 == 0)
+		res = res.orExpr(power[1].eqExpr(rat(-root)));
+
+	return newRWTheorem(expr, res, Assumptions::emptyAssump(), pf);
 }
 
 
 // x^n = c <=> false (if n is even and c is negative)
 Theorem ArithTheoremProducerOld::evenPowerEqNegConst(const Expr& expr)
 {
-  if (CHECK_PROOFS) {
-    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
-                expr[1].isRational() &&
-                isIntegerConst(expr[0][0]) &&
-                expr[0][0].getRational() % 2 == 0 &&
-                expr[1].getRational() < 0,
-                "evenPowerEqNegConst invariant violated"+expr.toString());
-  }
-  Proof pf;
-  if (withProof()) {
-    pf = newPf("evenPowerEqNegConst", expr);
-  }
-  return newRWTheorem(expr, d_em->falseExpr(), Assumptions::emptyAssump(), pf);
+	if (CHECK_PROOFS)
+		CHECK_SOUND(expr.isEq(), "evenPowerEqNegConst, expecting equality, got " + expr.toString());
+	Rational constant;
+	Expr power;
+	bool ok = d_theoryArith->isPowerEquality(expr, constant, power);
+	if (CHECK_PROOFS) {
+		CHECK_SOUND(ok, "evenPowerEqNegConst invariant violated" + expr.toString());
+		CHECK_SOUND(constant < 0, "evenPowerEqNegConst invariant violated" + expr.toString());
+		CHECK_SOUND(power[0].getRational().isInteger() && power[0].getRational() % 2 == 0, "evenPowerEqNegConst invariant violated" + expr.toString());
+	}
+	Proof pf;
+	if (withProof())
+		pf = newPf("evenPowerEqNegConst", expr);
+	return newRWTheorem(expr, d_em->falseExpr(), Assumptions::emptyAssump(), pf);
 }
 
 
 // x^n = c <=> ` (if x is an integer and c is not a perfect n power)
 Theorem ArithTheoremProducerOld::intEqIrrational(const Expr& expr, const Theorem& isIntx)
 {
-  if (CHECK_PROOFS) {
-    CHECK_SOUND(expr.isEq() && isPow(expr[0]) &&
-                expr[1].isRational() &&
-                expr[1].getRational() != 0 &&
-                isIntegerConst(expr[0][0]) &&
-                expr[0][0].getRational() > 0 &&
-                ratRoot(expr[1].getRational(), expr[0][0].getRational().getUnsigned()) == 0,
-                "intEqIrrational invariant violated"+expr.toString());
-    CHECK_SOUND(isIntPred(isIntx.getExpr()) && isIntx.getExpr()[0] == expr[0][1],
-		"ArithTheoremProducerOld::intEqIrrational:\n "
-		"wrong integrality constraint:\n expr = "
-		+expr.toString()+"\n isIntx = "
-		+isIntx.getExpr().toString());
-  }
-  const Assumptions& assump(isIntx.getAssumptionsRef());
-  Proof pf;
-  if (withProof()) {
-    pf = newPf("int_eq_irr", expr, isIntx.getProof());
-  }
-  return newRWTheorem(expr, d_em->falseExpr(), assump, pf);
+	if (CHECK_PROOFS)
+	    CHECK_SOUND(expr.isEq(), "intEqIrrational invariant violated" + expr.toString());
+	Rational constant;
+	Expr power;
+	bool ok = d_theoryArith->isPowerEquality(expr, constant, power);
+	if (CHECK_PROOFS) {
+		CHECK_SOUND(ok, "intEqIrrational invariant violated" + expr.toString());
+		CHECK_SOUND(constant != 0, "intEqIrrational invariant violated" + expr.toString());
+		CHECK_SOUND(power[0].getRational() > 0, "intEqIrrational invariant violated" + expr.toString());
+		CHECK_SOUND(ratRoot(constant, power[0].getRational().getUnsigned()) == 0, "intEqIrrational invariant violated" + expr.toString());
+		CHECK_SOUND(isIntPred(isIntx.getExpr()) && isIntx.getExpr()[0] == expr[0], "intEqIrrational invariant violated" + isIntx.getExpr()[0].toString());
+	}
+
+	const Assumptions& assump(isIntx.getAssumptionsRef());
+	Proof pf;
+	if (withProof())
+		pf = newPf("int_eq_irr", expr, isIntx.getProof());
+	return newRWTheorem(expr, d_em->falseExpr(), assump, pf);
 }
 
 
@@ -1297,19 +1364,19 @@ Theorem ArithTheoremProducerOld::constPredicate(const Expr& e) {
   Rational r1 = e[0].getRational(), r2 = e[1].getRational();
   switch(kind) {
   case EQ:
-    result = (r1 == r2)?true : false; 
+    result = (r1 == r2)?true : false;
     break;
   case LT:
-    result = (r1 < r2)?true : false; 
+    result = (r1 < r2)?true : false;
     break;
   case LE:
-    result = (r1 <= r2)?true : false; 
+    result = (r1 <= r2)?true : false;
     break;
   case GT:
-    result = (r1 > r2)?true : false; 
+    result = (r1 > r2)?true : false;
     break;
   case GE:
-    result = (r1 >= r2)?true : false; 
+    result = (r1 >= r2)?true : false;
     break;
   default:
     if(CHECK_PROOFS) {
@@ -1329,10 +1396,10 @@ Theorem ArithTheoremProducerOld::rightMinusLeft(const Expr& e)
   Proof pf;
   int kind = e.getKind();
   if(CHECK_PROOFS) {
-    CHECK_SOUND((EQ==kind) || 
-                (LT==kind) || 
-                (LE==kind) || 
-                (GE==kind) || 
+    CHECK_SOUND((EQ==kind) ||
+                (LT==kind) ||
+                (LE==kind) ||
+                (GE==kind) ||
                 (GT==kind),
                 "ArithTheoremProducerOld::rightMinusLeft: wrong kind");
   }
@@ -1347,10 +1414,10 @@ Theorem ArithTheoremProducerOld::leftMinusRight(const Expr& e)
   Proof pf;
   int kind = e.getKind();
   if(CHECK_PROOFS) {
-    CHECK_SOUND((EQ==kind) || 
-                (LT==kind) || 
-                (LE==kind) || 
-                (GE==kind) || 
+    CHECK_SOUND((EQ==kind) ||
+                (LT==kind) ||
+                (LE==kind) ||
+                (GE==kind) ||
                 (GT==kind),
                 "ArithTheoremProducerOld::rightMinusLeft: wrong kind");
   }
@@ -1360,14 +1427,14 @@ Theorem ArithTheoremProducerOld::leftMinusRight(const Expr& e)
 
 
 // x kind y <==> x + z kind y + z
-Theorem ArithTheoremProducerOld::plusPredicate(const Expr& x, 
+Theorem ArithTheoremProducerOld::plusPredicate(const Expr& x,
                                       const Expr& y,
                                       const Expr& z, int kind) {
   if(CHECK_PROOFS) {
-    CHECK_SOUND((EQ==kind) || 
-                (LT==kind) || 
-                (LE==kind) || 
-                (GE==kind) || 
+    CHECK_SOUND((EQ==kind) ||
+                (LT==kind) ||
+                (LE==kind) ||
+                (GE==kind) ||
                 (GT==kind),
                 "ArithTheoremProducerOld::plusPredicate: wrong kind");
   }
@@ -1379,7 +1446,7 @@ Theorem ArithTheoremProducerOld::plusPredicate(const Expr& x,
 }
 
 // x = y <==> x * z = y * z
-Theorem ArithTheoremProducerOld::multEqn(const Expr& x, 
+Theorem ArithTheoremProducerOld::multEqn(const Expr& x,
                                       const Expr& y,
                                       const Expr& z) {
   Proof pf;
@@ -1392,7 +1459,7 @@ Theorem ArithTheoremProducerOld::multEqn(const Expr& x,
 
 
 // x = y <==> z=0 OR x * 1/z = y * 1/z
-Theorem ArithTheoremProducerOld::divideEqnNonConst(const Expr& x, 
+Theorem ArithTheoremProducerOld::divideEqnNonConst(const Expr& x,
                                                    const Expr& y,
                                                    const Expr& z) {
   Proof pf;
@@ -1409,11 +1476,11 @@ Theorem ArithTheoremProducerOld::multIneqn(const Expr& e, const Expr& z)
   int kind = e.getKind();
 
   if(CHECK_PROOFS) {
-    CHECK_SOUND((LT==kind) || 
-                (LE==kind) || 
-                (GE==kind) || 
+    CHECK_SOUND((LT==kind) ||
+                (LE==kind) ||
+                (GE==kind) ||
                 (GT==kind),
-                "ArithTheoremProducerOld::multIneqn: wrong kind");    
+                "ArithTheoremProducerOld::multIneqn: wrong kind");
     CHECK_SOUND(z.isRational() && z.getRational() != 0,
                 "ArithTheoremProducerOld::multIneqn: "
 		"z must be non-zero rational: " + z.toString());
@@ -1426,16 +1493,16 @@ Theorem ArithTheoremProducerOld::multIneqn(const Expr& e, const Expr& z)
     ret = Expr(op, e[0]*z, e[1]*z);
   else
     ret = Expr(op, e[1]*z, e[0]*z);
-  if(withProof()) pf = newPf("mult_ineqn", e, ret);  
+  if(withProof()) pf = newPf("mult_ineqn", e, ret);
   return newRWTheorem(e, ret, Assumptions::emptyAssump(), pf);
 }
 
 
-// 
-// If expr: 
-// If b > 0 then (0 <= a + bx) <==> (0 <= floor(a/b) + x)   
+//
+// If expr:
+// If b > 0 then (0 <= a + bx) <==> (0 <= floor(a/b) + x)
 //    b < 0 then (0 <= a + bx) <==> (0 >= ceil(a/b) + x)
-//    b > 0 then (0 >= a + bx) <==> (0 >= ceil(a/b) + x) 
+//    b > 0 then (0 >= a + bx) <==> (0 >= ceil(a/b) + x)
 //    b < 0 then (0 >= a + bx) <==> (0 <= floor(a/b) + x)
 //
 Theorem ArithTheoremProducerOld::simpleIneqInt(const Expr& ineq, const Theorem& isIntRHS)
@@ -1443,57 +1510,57 @@ Theorem ArithTheoremProducerOld::simpleIneqInt(const Expr& ineq, const Theorem& 
 	// Get the inequality parts
 	Expr lhs = ineq[0];
 	Expr rhs = ineq[1];
-		
+
 	// Get the kind of the inequality
 	int kind = ineq.getKind();
 
-		
+
 	if(CHECK_PROOFS) {
 		// isIntRHS should be an int proof of rhs
 		const Expr& isIntRHSExpr = isIntRHS.getExpr();
-		CHECK_SOUND(isIntPred(isIntRHSExpr) && isIntRHSExpr[0] == rhs, "ArithTheoremProducerOld::multSimpleIneqnInt: not an integer proof of rhs");		
-		
+		CHECK_SOUND(isIntPred(isIntRHSExpr) && isIntRHSExpr[0] == rhs, "ArithTheoremProducerOld::multSimpleIneqnInt: not an integer proof of rhs");
+
 		// It's an inequality
 		CHECK_SOUND((LT == kind) || (LE==kind) || (GE==kind) || (GT==kind), "ArithTheoremProducerOld::multSimpleIneqnInt: wrong kind");
-		
-		// Left-hand side is 0				    
+
+		// Left-hand side is 0
 		CHECK_SOUND(lhs.isRational() && lhs.getRational() == 0, "ArithTheoremProducerOld::multSimpleIneqnInt: left-hand side must be 0");
-		
+
 		// Tight hand side is a sum (a + b*x) where a and b are integers, x is a var
 		CHECK_SOUND(isPlus(rhs), "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side must be a plus");
 		CHECK_SOUND(rhs.arity() == 2, "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side a simple plus");
-		
+
 		Expr a  = rhs[0]; // Should be an integer
 		Expr bx = rhs[1]; // Should be an integer multiplied by a variable
-				
+
 		// a is an integer
 		CHECK_SOUND(a.isRational() && a.getRational().isInteger(), "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side a simple plus of a constant");
-		
+
 		// bx should be a multiplication of an intgere and a variable
 		CHECK_SOUND(isMult(bx) && bx.arity() == 2, "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side a simple plus of and a multiplication");
 		Expr b = bx[0];
 		Expr x = bx[1];
-		
+
 		// b should be an integer
 		CHECK_SOUND(b.isRational() && b.getRational().isInteger(), "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side a simple plus of and a multiplication of a constant");
 		// x should be a variable
-		CHECK_SOUND(x.isVar(), "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side a simple plus of and a multiplication of a constant and a leaf");			
+		CHECK_SOUND(x.isVar(), "ArithTheoremProducerOld::multSimpleIneqnInt: right-hand side a simple plus of and a multiplication of a constant and a leaf");
 
 		// GCD(a, b) should be 1
-		//CHECK_SOUND(gcd(a.getRational(), b.getRational()) == 1, "ArithTheoremProducerOld::multSimpleIneqnInt: inequation not normalized!!!");		
+		//CHECK_SOUND(gcd(a.getRational(), b.getRational()) == 1, "ArithTheoremProducerOld::multSimpleIneqnInt: inequation not normalized!!!");
 	}
 
 	Proof pf;
 	if(withProof()) {
 		vector<Proof> pfs;
 		pfs.push_back(isIntRHS.getProof());
-		pf = newPf("simpleineqint", ineq, pf);  
+		pf = newPf("simpleineqint", ineq, pf);
 	}
-	
+
 	Rational a = rhs[0].getRational();
 	Rational b = rhs[1][0].getRational();
 	Expr x = rhs[1][1];
-	
+
 	Rational new_const;
 	Expr ret;
 	switch (kind) {
@@ -1537,7 +1604,7 @@ Theorem ArithTheoremProducerOld::simpleIneqInt(const Expr& ineq, const Theorem& 
 			// Setup the result kind
 			if (kind == GT) kind = LT;
 			else kind = LE;
-			
+
 			if (b > 0) {
 				new_const = ceil(a/b);
 				//ret = geExpr(rat(0), rat(new_const) + x);
@@ -1555,19 +1622,19 @@ Theorem ArithTheoremProducerOld::simpleIneqInt(const Expr& ineq, const Theorem& 
 			}
 			break;
 	}
-	
-	// Return the new theorem 	
+
+	// Return the new theorem
 	return newRWTheorem(ineq, ret, Assumptions::emptyAssump(), pf);
 }
 
 
 Theorem ArithTheoremProducerOld::eqToIneq(const Expr& e) {
-  
+
   	// Check soundness of the rule if necessary
  	if (CHECK_PROOFS)
  		CHECK_SOUND(e.isEq(), "eqToIneq: input must be an equality: " + e.toString());
- 		
-  	// The proof object we will use 
+
+  	// The proof object we will use
   	Proof pf;
 
 	// The parts of the equality x = y
@@ -1577,7 +1644,7 @@ Theorem ArithTheoremProducerOld::eqToIneq(const Expr& e) {
 	// Setup the proof if needed
   	if (withProof())
     	pf = newPf("eqToIneq", e);
-    	
+
   	// Retrun the theorem explaining the transformation
 	return newRWTheorem(e, leExpr(x,y).andExpr(geExpr(x,y)), Assumptions::emptyAssump(), pf);
 }
@@ -1588,11 +1655,11 @@ Theorem ArithTheoremProducerOld::flipInequality(const Expr& e)
   Proof pf;
   if(CHECK_PROOFS) {
     CHECK_SOUND(isGT(e) || isGE(e),
-                "ArithTheoremProducerOld::flipInequality: wrong kind: " + 
+                "ArithTheoremProducerOld::flipInequality: wrong kind: " +
                 e.toString());
   }
-  
-  int kind = isGE(e) ? LE : LT; 
+
+  int kind = isGE(e) ? LE : LT;
   Expr ret =  Expr(kind, e[1], e[0]);
   if(withProof()) pf = newPf("flip_inequality", e,ret);
   return newRWTheorem(e,ret, Assumptions::emptyAssump(), pf);
@@ -1622,17 +1689,17 @@ Theorem ArithTheoremProducerOld::negatedInequality(const Expr& e)
   // NOT (op1 LE op2)  <==> (op1 GT op2)
   // NOT (op1 GT op2)  <==> (op1 LE op2)
   // NOT (op1 GE op2)  <==> (op1 LT op2)
-  kind = 
-    isLT(ineq) ? GE : 
-    isLE(ineq) ? GT : 
-    isGT(ineq) ? LE : 
+  kind =
+    isLT(ineq) ? GE :
+    isLE(ineq) ? GT :
+    isGT(ineq) ? LE :
     LT;
   return newRWTheorem(e, Expr(kind, ineq[0], ineq[1]), Assumptions::emptyAssump(), pf);
 }
 
 //takes two ineqs "|- alpha LT|LE t" and "|- t LT|LE beta"
 //and returns "|- alpha LT|LE beta"
-Theorem ArithTheoremProducerOld::realShadow(const Theorem& alphaLTt, 
+Theorem ArithTheoremProducerOld::realShadow(const Theorem& alphaLTt,
                                          const Theorem& tLTbeta)
 {
   const Expr& expr1 = alphaLTt.getExpr();
@@ -1640,11 +1707,11 @@ Theorem ArithTheoremProducerOld::realShadow(const Theorem& alphaLTt,
   if(CHECK_PROOFS) {
     CHECK_SOUND((isLE(expr1) || isLT(expr1)) &&
                 (isLE(expr2) || isLT(expr2)),
-                "ArithTheoremProducerOld::realShadow: Wrong Kind: " + 
+                "ArithTheoremProducerOld::realShadow: Wrong Kind: " +
                 alphaLTt.toString() +  tLTbeta.toString());
-    
-    CHECK_SOUND(expr1[1] == expr2[0], 
-                "ArithTheoremProducerOld::realShadow:" 
+
+    CHECK_SOUND(expr1[1] == expr2[0],
+                "ArithTheoremProducerOld::realShadow:"
                 " t must be same for both inputs: " +
                 expr1[1].toString() + " , " + expr2[0].toString());
   }
@@ -1652,14 +1719,14 @@ Theorem ArithTheoremProducerOld::realShadow(const Theorem& alphaLTt,
   int firstKind = expr1.getKind();
   int secondKind = expr2.getKind();
   int kind = (firstKind == secondKind) ? firstKind : LT;
-  Proof pf; 
+  Proof pf;
   if(withProof()) {
     vector<Proof> pfs;
     pfs.push_back(alphaLTt.getProof());
     pfs.push_back(tLTbeta.getProof());
     pf = newPf("real_shadow",expr1, expr2, pfs);
   }
-  return newTheorem(Expr(kind, expr1[0], expr2[1]), a, pf); 
+  return newTheorem(Expr(kind, expr1[0], expr2[1]), a, pf);
 }
 
 //! alpha <= t <= alpha ==> t = alpha
@@ -1667,23 +1734,23 @@ Theorem ArithTheoremProducerOld::realShadow(const Theorem& alphaLTt,
 /*! takes two ineqs "|- alpha LE t" and "|- t LE alpha"
   and returns "|- t = alpha"
 */
-Theorem ArithTheoremProducerOld::realShadowEq(const Theorem& alphaLEt, 
+Theorem ArithTheoremProducerOld::realShadowEq(const Theorem& alphaLEt,
                                            const Theorem& tLEalpha)
 {
   const Expr& expr1 = alphaLEt.getExpr();
   const Expr& expr2 = tLEalpha.getExpr();
   if(CHECK_PROOFS) {
     CHECK_SOUND(isLE(expr1) && isLE(expr2),
-                "ArithTheoremProducerOld::realShadowLTLE: Wrong Kind: " + 
+                "ArithTheoremProducerOld::realShadowLTLE: Wrong Kind: " +
                 alphaLEt.toString() +  tLEalpha.toString());
-    
-    CHECK_SOUND(expr1[1] == expr2[0], 
-                "ArithTheoremProducerOld::realShadowLTLE:" 
+
+    CHECK_SOUND(expr1[1] == expr2[0],
+                "ArithTheoremProducerOld::realShadowLTLE:"
                 " t must be same for both inputs: " +
                 alphaLEt.toString() + " , " + tLEalpha.toString());
 
-    CHECK_SOUND(expr1[0] == expr2[1], 
-                "ArithTheoremProducerOld::realShadowLTLE:" 
+    CHECK_SOUND(expr1[0] == expr2[1],
+                "ArithTheoremProducerOld::realShadowLTLE:"
                 " alpha must be same for both inputs: " +
                 alphaLEt.toString() + " , " + tLEalpha.toString());
   }
@@ -1698,7 +1765,7 @@ Theorem ArithTheoremProducerOld::realShadowEq(const Theorem& alphaLEt,
   return newRWTheorem(expr1[0], expr1[1], a, pf);
 }
 
-Theorem 
+Theorem
 ArithTheoremProducerOld::finiteInterval(const Theorem& aLEt,
 				     const Theorem& tLEac,
 				     const Theorem& isInta,
@@ -1763,7 +1830,7 @@ ArithTheoremProducerOld::finiteInterval(const Theorem& aLEt,
 
 
 // Dark & Gray shadows when a <= b
-Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx, 
+Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx,
 						const Theorem& axLEalpha,
 						const Theorem& isIntAlpha,
 						const Theorem& isIntBeta,
@@ -1776,7 +1843,7 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx,
 
   if(CHECK_PROOFS) {
     CHECK_SOUND(isLE(expr1) && isLE(expr2),
-                "ArithTheoremProducerOld::darkGrayShadow2ab: Wrong Kind: " + 
+                "ArithTheoremProducerOld::darkGrayShadow2ab: Wrong Kind: " +
                 betaLEbx.toString() +  axLEalpha.toString());
   }
 
@@ -1784,17 +1851,13 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx,
   const Expr& bx = expr1[1];
   const Expr& ax = expr2[0];
   const Expr& alpha = expr2[1];
-  Rational a = isMult(ax)? ax[0].getRational() : 1;
-  Rational b = isMult(bx)? bx[0].getRational() : 1;
-  const Expr& x = isMult(ax)? ax[1] : ax;
+  Expr a_expr, b_expr, x;
+  d_theoryArith->separateMonomial(ax, a_expr, x);
+  d_theoryArith->separateMonomial(bx, b_expr, x);
+  Rational a = a_expr.getRational();
+  Rational b = b_expr.getRational();
 
   if(CHECK_PROOFS) {
-	// ax and bx should be variables or rational times variable
-	bool ax_ok = (isMult(ax) && ax.arity() == 2 && ax[0].isRational() && ax[1].isVar()) || ax.isVar();
-	bool bx_ok = (isMult(bx) && bx.arity() == 2 && bx[0].isRational() && bx[1].isVar()) || bx.isVar();
-	//CHECK_SOUND(ax_ok, "ArithTheoremProducerOld::darkGrayShadow2ab, ax (" + ax.toString() + ") is not a variable");
-	//CHECK_SOUND(bx_ok, "ArithTheoremProducerOld::darkGrayShadow2ab, bx (" + bx.toString() + ") is not a variable");
-	
     // Integrality constraints
     CHECK_SOUND(isIntPred(isIntAlphaExpr) && isIntAlphaExpr[0] == alpha,
 		"ArithTheoremProducerOld::darkGrayShadow2ab:\n "
@@ -1811,14 +1874,14 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx,
 		"wrong integrality constraint:\n x = "
 		+x.toString()+"\n isIntx = "
 		+isIntxExpr.toString());
-    // Expressions ax and bx should match on x
-    CHECK_SOUND(!isMult(ax) || ax.arity() == 2,
-		"ArithTheoremProducerOld::darkGrayShadow2ab:\n ax<=alpha: " +
-                axLEalpha.toString());
-    CHECK_SOUND(!isMult(bx) || (bx.arity() == 2 && bx[1] == x),
-		"ArithTheoremProducerOld::darkGrayShadow2ab:\n beta<=bx: "
-		+betaLEbx.toString()
-		+"\n ax<=alpha: "+ axLEalpha.toString());
+    // NOT FOR NONLINEAR: Expressions ax and bx should match on x
+//    CHECK_SOUND(!isMult(ax) || ax.arity() == 2,
+//		"ArithTheoremProducerOld::darkGrayShadow2ab:\n ax<=alpha: " +
+//                axLEalpha.toString());
+//    CHECK_SOUND(!isMult(bx) || (bx.arity() == 2 && bx[1] == x),
+//		"ArithTheoremProducerOld::darkGrayShadow2ab:\n beta<=bx: "
+//		+betaLEbx.toString()
+//		+"\n ax<=alpha: "+ axLEalpha.toString());
     CHECK_SOUND(1 <= a && a <= b && 2 <= b,
 		"ArithTheoremProducerOld::darkGrayShadow2ab:\n beta<=bx: "
 		+betaLEbx.toString()
@@ -1852,7 +1915,7 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx,
     pfs.push_back(isIntAlpha.getProof());
     pfs.push_back(isIntBeta.getProof());
     pfs.push_back(isIntx.getProof());
-    
+
     pf = newPf("dark_grayshadow_2ab", exprs, pfs);
   }
 
@@ -1860,7 +1923,7 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ab(const Theorem& betaLEbx,
 }
 
 // Dark & Gray shadows when b <= a
-Theorem ArithTheoremProducerOld::darkGrayShadow2ba(const Theorem& betaLEbx, 
+Theorem ArithTheoremProducerOld::darkGrayShadow2ba(const Theorem& betaLEbx,
 						const Theorem& axLEalpha,
 						const Theorem& isIntAlpha,
 						const Theorem& isIntBeta,
@@ -1873,7 +1936,7 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ba(const Theorem& betaLEbx,
 
   if(CHECK_PROOFS) {
     CHECK_SOUND(isLE(expr1) && isLE(expr2),
-                "ArithTheoremProducerOld::darkGrayShadow2ba: Wrong Kind: " + 
+                "ArithTheoremProducerOld::darkGrayShadow2ba: Wrong Kind: " +
                 betaLEbx.toString() +  axLEalpha.toString());
   }
 
@@ -1881,17 +1944,14 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ba(const Theorem& betaLEbx,
   const Expr& bx = expr1[1];
   const Expr& ax = expr2[0];
   const Expr& alpha = expr2[1];
-  Rational a = isMult(ax)? ax[0].getRational() : 1;
-  Rational b = isMult(bx)? bx[0].getRational() : 1;
-  const Expr& x = isMult(ax)? ax[1] : ax;
+
+  Expr a_expr, b_expr, x;
+  d_theoryArith->separateMonomial(ax, a_expr, x);
+  d_theoryArith->separateMonomial(bx, b_expr, x);
+  Rational a = a_expr.getRational();
+  Rational b = b_expr.getRational();
 
   if(CHECK_PROOFS) {
-	// ax and bx should be variables or rational times variable
-	bool ax_ok = (isMult(ax) && ax.arity() == 2 && ax[0].isRational() && ax[1].isVar()) || ax.isVar();
-	bool bx_ok = (isMult(bx) && bx.arity() == 2 && bx[0].isRational() && bx[1].isVar()) || bx.isVar();
-	//CHECK_SOUND(ax_ok, "ArithTheoremProducerOld::darkGrayShadow2ab, ax (" + ax.toString() + ") is not a variable");
-	//CHECK_SOUND(bx_ok, "ArithTheoremProducerOld::darkGrayShadow2ab, bx (" + bx.toString() + ") is not a variable");
-
 	// Integrality constraints
     CHECK_SOUND(isIntPred(isIntAlphaExpr) && isIntAlphaExpr[0] == alpha,
 		"ArithTheoremProducerOld::darkGrayShadow2ab:\n "
@@ -1908,14 +1968,14 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ba(const Theorem& betaLEbx,
 		"wrong integrality constraint:\n x = "
 		+x.toString()+"\n isIntx = "
 		+isIntxExpr.toString());
-    // Expressions ax and bx should match on x
-    CHECK_SOUND(!isMult(ax) || ax.arity() == 2,
-		"ArithTheoremProducerOld::darkGrayShadow2ba:\n ax<=alpha: " +
-                axLEalpha.toString());
-    CHECK_SOUND(!isMult(bx) || (bx.arity() == 2 && bx[1] == x),
-		"ArithTheoremProducerOld::darkGrayShadow2ba:\n beta<=bx: "
-		+betaLEbx.toString()
-		+"\n ax<=alpha: "+ axLEalpha.toString());
+    // NOT FOR NONLINEAR: Expressions ax and bx should match on x
+//    CHECK_SOUND(!isMult(ax) || ax.arity() == 2,
+//		"ArithTheoremProducerOld::darkGrayShadow2ba:\n ax<=alpha: " +
+//                axLEalpha.toString());
+//    CHECK_SOUND(!isMult(bx) || (bx.arity() == 2 && bx[1] == x),
+//		"ArithTheoremProducerOld::darkGrayShadow2ba:\n beta<=bx: "
+//		+betaLEbx.toString()
+//		+"\n ax<=alpha: "+ axLEalpha.toString());
     CHECK_SOUND(1 <= b && b <= a && 2 <= a,
 		"ArithTheoremProducerOld::darkGrayShadow2ba:\n beta<=bx: "
 		+betaLEbx.toString()
@@ -1936,11 +1996,11 @@ Theorem ArithTheoremProducerOld::darkGrayShadow2ba(const Theorem& betaLEbx,
     pfs.push_back(isIntAlpha.getProof());
     pfs.push_back(isIntBeta.getProof());
     pfs.push_back(isIntx.getProof());
-    
+
     pf = newPf("dark_grayshadow_2ba", betaLEbx.getExpr(),
 	       axLEalpha.getExpr(), pfs);
   }
-  
+
   Expr bAlpha = multExpr(rat(b), alpha);
   Expr aBeta = multExpr(rat(a), beta);
   Expr t = minusExpr(bAlpha, aBeta);
@@ -2018,12 +2078,12 @@ Theorem ArithTheoremProducerOld::splitGrayShadow(const Theorem& gThm) {
 
   if(withProof()){
     vector<Expr> exprs;
-    exprs.push_back(theShadow); 
-    exprs.push_back(g1); 
-    exprs.push_back(g2); 
+    exprs.push_back(theShadow);
+    exprs.push_back(g1);
+    exprs.push_back(g2);
     pf = newPf("split_gray_shadow", exprs, gThm.getProof());
   }
-  
+
   return newTheorem((g1 || g2) && (!g1 || !g2), gThm.getAssumptionsRef(), pf);
 }
 
@@ -2178,7 +2238,7 @@ Rational ArithTheoremProducerOld::constRHSGrayShadow(const Rational& c,
     return mod(a-(c+b), a);
 }
 
-/*! Takes a Theorem(\\alpha < \\beta) and returns 
+/*! Takes a Theorem(\\alpha < \\beta) and returns
  *  Theorem(\\alpha < \\beta <==> \\alpha <= \\beta -1)
  * where \\alpha and \\beta are integer expressions
  */
@@ -2189,7 +2249,7 @@ Theorem ArithTheoremProducerOld::lessThanToLE(const Theorem& less,
   const Expr& ineq = less.getExpr();
   const Expr& isIntLHSexpr = isIntLHS.getExpr();
   const Expr& isIntRHSexpr = isIntRHS.getExpr();
-  
+
   if(CHECK_PROOFS) {
     CHECK_SOUND(isLT(ineq),
 		"ArithTheoremProducerOld::LTtoLE: ineq must be <");
@@ -2233,7 +2293,7 @@ Theorem ArithTheoremProducerOld::lessThanToLE(const Theorem& less,
  *
  * It also handles the special case of 0 = a.x <==> x = 0
  */
-Theorem 
+Theorem
 ArithTheoremProducerOld::intVarEqnConst(const Expr& eqn,
 				     const Theorem& isIntx) {
   const Expr& left(eqn[0]);
@@ -2274,7 +2334,7 @@ ArithTheoremProducerOld::intVarEqnConst(const Expr& eqn,
   }
   const Assumptions& assump(isIntx.getAssumptionsRef());
 
-  /*  
+  /*
       Proof pf;
   if(withProof())
     pf = newPf("int_const_eq", eqn, isIntx.getProof());
@@ -2319,7 +2379,7 @@ ArithTheoremProducerOld::create_t(const Expr& eqn) {
     sumModM(kids, eqn[1], m, m);
   else
     kids.push_back(monomialModM(eqn[1], m, m));
-  
+
   kids.push_back(multExpr(rat(1/m), x));
   return plusExpr(kids);
 }
@@ -2337,7 +2397,7 @@ ArithTheoremProducerOld::create_t2(const Expr& lhs, const Expr& rhs,
     Expr monom = monomialModM(rhs, m, -1);
     if(!monom.isRational())
       kids.push_back(monom);
-    else 
+    else
       DebugAssert(monom.getRational() == 0, "");
   }
   kids.push_back(rat(m)*sigma);
@@ -2490,14 +2550,14 @@ ArithTheoremProducerOld::substitute(const Expr& term, ExprMap<Expr>& eMap)
       output.push_back(substitute(*j, eMap));
     return plusExpr(output);
   }
-  return term;    
+  return term;
 }
 
 bool ArithTheoremProducerOld::greaterthan(const Expr & l, const Expr & r)
 {
   //    DebugAssert(l != r, "");
   if (l==r) return false;
-    
+
   switch(l.getKind()) {
   case RATIONAL_EXPR:
     DebugAssert(!r.isRational(), "");
@@ -2513,11 +2573,11 @@ bool ArithTheoremProducerOld::greaterthan(const Expr & l, const Expr & r)
     case POW:
       // x^n > y^n if x > y
       // x^n1 > x^n2 if n1 > n2
-      return 
-        ((r[1] < l[1]) || 
+      return
+        ((r[1] < l[1]) ||
          ((r[1]==l[1]) && (r[0].getRational() < l[0].getRational())));
       break;
-            
+
     case MULT:
       DebugAssert(r.arity() > 1, "");
       DebugAssert((r.arity() > 2) || (r[1] != l), "");
@@ -2549,7 +2609,7 @@ bool ArithTheoremProducerOld::greaterthan(const Expr & l, const Expr & r)
       break;
     case MULT:
       {
-            
+
         DebugAssert(r.arity() > 1, "");
         Expr::iterator i = l.begin();
         Expr::iterator j = r.begin();
@@ -2613,6 +2673,34 @@ bool ArithTheoremProducerOld::greaterthan(const Expr & l, const Expr & r)
     }
     break;
   }
+}
+
+
+/*! IS_INTEGER(x) |= EXISTS (y : INT) y = x
+ * where x is not already known to be an integer.
+ */
+Theorem ArithTheoremProducerOld::IsIntegerElim(const Theorem& isIntx)
+{
+  Expr expr = isIntx.getExpr();
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.getKind() == IS_INTEGER,
+                "Expected IS_INTEGER predicate");
+  }
+  expr = expr[0];
+  DebugAssert(!d_theoryArith->isInteger(expr), "Expected non-integer");
+
+  Assumptions a(isIntx);
+  Proof pf;
+
+  if (withProof())
+  {
+    pf = newPf("isIntElim", isIntx.getProof());
+  }
+
+  Expr newVar = d_em->newBoundVarExpr(d_theoryArith->intType());
+  Expr res = d_em->newClosureExpr(EXISTS, newVar, newVar.eqExpr(expr));
+
+  return newTheorem(res, a, pf);
 }
 
 
@@ -2686,7 +2774,7 @@ ArithTheoremProducerOld::eqElimIntRule(const Theorem& eqn, const Theorem& isIntx
   vars.push_back(newVar);
   Expr res = d_em->newClosureExpr(EXISTS, vars,
                                   x.eqExpr(t2) && rat(0).eqExpr(t3));
-  
+
   vector<Theorem> thms(isIntVars);
   thms.push_back(isIntx);
   thms.push_back(eqn);
@@ -2697,7 +2785,7 @@ ArithTheoremProducerOld::eqElimIntRule(const Theorem& eqn, const Theorem& isIntx
     pfs.push_back(eqn.getProof());
     pfs.push_back(isIntx.getProof());
     vector<Theorem>::const_iterator i=isIntVars.begin(), iend=isIntVars.end();
-    for(; i!=iend; ++i) 
+    for(; i!=iend; ++i)
       pfs.push_back(i->getProof());
     pf = newPf("eq_elim_int", eqn.getExpr(), res, pfs);
   }
@@ -2860,37 +2948,37 @@ ArithTheoremProducerOld::diseqToIneq(const Theorem& diseq) {
 }
 
 Theorem ArithTheoremProducerOld::dummyTheorem(const Expr& e) {
-	Proof pf;	
+	Proof pf;
 	return newRWTheorem(e, d_em->trueExpr(), Assumptions::emptyAssump(), pf);
 }
 
 Theorem ArithTheoremProducerOld::oneElimination(const Expr& e) {
-	
+
 	// Check soundness
 	if (CHECK_PROOFS)
 		CHECK_SOUND(isMult(e) &&
-					e.arity() == 2 && 
+					e.arity() == 2 &&
 		            e[0].isRational() &&
-		            e[0].getRational() == 1, 
+		            e[0].getRational() == 1,
 		            "oneElimination: input must be a multiplication by one" + e.toString());
 
 	// The proof object that we will us
 	Proof pf;
-	
+
 	// Setup the proof if needed
-	if (withProof()) 
+	if (withProof())
 		pf = newPf("oneElimination", e);
-	
+
 	// Return the rewrite theorem that explains the phenomenon
-	return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf); 
+	return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);
 }
 
 Theorem ArithTheoremProducerOld::clashingBounds(const Theorem& lowerBound, const Theorem& upperBound) {
-	
+
 	// Get the expressions
 	const Expr& lowerBoundExpr = lowerBound.getExpr();
 	const Expr& upperBoundExpr = upperBound.getExpr();
-	 
+
 	// Check soundness
 	if (CHECK_PROOFS) {
 		CHECK_SOUND(isLE(lowerBoundExpr) || isLT(lowerBoundExpr), "clashingBounds: lowerBound should be >= or > " + lowerBoundExpr.toString());
@@ -2898,34 +2986,35 @@ Theorem ArithTheoremProducerOld::clashingBounds(const Theorem& lowerBound, const
 		CHECK_SOUND(lowerBoundExpr[0].isRational(), "clashingBounds: lowerBound left side should be a rational " + lowerBoundExpr.toString());
 		CHECK_SOUND(upperBoundExpr[0].isRational(), "clashingBounds: upperBound left side should be a rational " + upperBoundExpr.toString());
 		CHECK_SOUND(lowerBoundExpr[1] == upperBoundExpr[1], "clashingBounds: bounds not on the same term " + lowerBoundExpr.toString() + ", " + upperBoundExpr.toString());
-		
+
 		// Get the bounds
 		Rational lowerBoundR = lowerBoundExpr[0].getRational();
 		Rational upperBoundR = upperBoundExpr[0].getRational();
-		
-		if (isLE(lowerBoundExpr) && isGE(upperBoundExpr))
+
+		if (isLE(lowerBoundExpr) && isGE(upperBoundExpr)) {
 			CHECK_SOUND(upperBoundR < lowerBoundR, "clashingBounds: bounds are satisfiable");
-		else 
+		} else {
 			CHECK_SOUND(upperBoundR <= lowerBoundR, "clashingBounds: bounds are satisfiable");
+		}
 	}
-	
+
 	// The proof object that we will use
 	Proof pf;
 	// Setup the proof if needed
-	if (withProof()) 
+	if (withProof())
 		pf = newPf("clashingBounds", lowerBoundExpr, upperBoundExpr);
-	
+
 	// Put the bounds expressions in the assumptions
 	Assumptions assumptions;
 	assumptions.add(lowerBound);
-	assumptions.add(upperBound);	
-	
+	assumptions.add(upperBound);
+
 	// Return the theorem
 	return newTheorem(d_em->falseExpr(), assumptions, pf);
 }
 
 Theorem ArithTheoremProducerOld::addInequalities(const Theorem& thm1, const Theorem& thm2) {
-	
+
 	// Get the expressions of the theorem
 	const Expr& expr1 = thm1.getExpr();
 	const Expr& expr2 = thm2.getExpr();
@@ -2938,56 +3027,56 @@ Theorem ArithTheoremProducerOld::addInequalities(const Theorem& thm1, const Theo
 
 		if (isLE(expr1) || isLT(expr1))
 			CHECK_SOUND(isLE(expr2) || isLT(expr2), "addInequalities: expr2 should be <(=) also " + expr2.toString());
-		if (isGE(expr1) || isGT(expr1)) 
+		if (isGE(expr1) || isGT(expr1))
 			CHECK_SOUND(isGE(expr2) || isGT(expr2), "addInequalities: expr2 should be >(=) also" + expr2.toString());
 	}
-	
+
 	// Create the assumptions
 	Assumptions a(thm1, thm2);
-  
+
   	// Get the kinds of the inequalitites
   	int kind1  = expr1.getKind();
   	int kind2  = expr2.getKind();
-  
+
   	// Set-up the resulting inequality
   	int kind = (kind1 == kind2) ? kind1 : ((kind1 == LT) || (kind2 == LT))? LT : GT;
-  
+
   	// Create the proof object
-  	Proof pf;   	
+  	Proof pf;
   	if(withProof()) {
     	vector<Proof> pfs;
     	pfs.push_back(thm1.getProof());
     	pfs.push_back(thm2.getProof());
     	pf = newPf("addInequalities", expr1, expr2, pfs);
   	}
-  	
+
   	// Create the new expressions
   	Expr leftSide  = plusExpr(expr1[0], expr2[0]);
-  	Expr rightSide = plusExpr(expr1[1], expr2[1]); 
-  	
-  	// Return the theorem 
-  	return newTheorem(Expr(kind, leftSide, rightSide), a, pf); 
+  	Expr rightSide = plusExpr(expr1[1], expr2[1]);
+
+  	// Return the theorem
+  	return newTheorem(Expr(kind, leftSide, rightSide), a, pf);
 }
 
-// 
+//
 // 0 <= c1 + t
 // ==> 0 <= c2 + t
-// if c2 > c1 
+// if c2 > c1
 Theorem ArithTheoremProducerOld::implyWeakerInequality(const Expr& expr1, const Expr& expr2) {
-	
+
 	// Check soundness
 	if (CHECK_PROOFS) {
-		
+
 		// Both must be inequalitites
 		CHECK_SOUND(isIneq(expr1), "implyWeakerInequality: expr1 should be an inequality" + expr1.toString());
 		CHECK_SOUND(isIneq(expr2), "implyWeakerInequality: expr1 should be an inequality" + expr2.toString());
-				
+
 		// Left sides must be zero
 		CHECK_SOUND(expr1[0].isRational() && expr1[0].getRational() == 0, "implyWeakerInequality: expr1 should have a rational on the left side" + expr1.toString());
 		CHECK_SOUND(expr2[0].isRational() && expr2[0].getRational() == 0, "implyWeakerInequality: expr2 should have a rational on the left side" + expr2.toString());
 
 		// Get the expr1 monomials and constant 0 <= c1 + t1
-		Rational c1 = 0;			
+		Rational c1 = 0;
 		vector<Expr> t1_children;
 		if (isPlus(expr1[1])) {
 			int start_i = 0;
@@ -2998,14 +3087,14 @@ Theorem ArithTheoremProducerOld::implyWeakerInequality(const Expr& expr1, const 
 			int end_i = expr1[1].arity();
 		    for(int i = start_i; i < end_i; i ++) {
 		    	const Expr& term = expr1[1][i];
-				t1_children.push_back(term);	  	 					  
+				t1_children.push_back(term);
 			}
-		} else 
+		} else
 			t1_children.push_back(expr1[1]);
 		Expr t1 = (t1_children.size() > 1 ? plusExpr(t1_children) : t1_children[0]);
-		
+
 		// Get the expr1 monomials and constant 0 <= c1 + t1
-		Rational c2 = 0;			
+		Rational c2 = 0;
 		vector<Expr> t2_children;
 		if (isPlus(expr2[1])) {
 			int start_i = 0;
@@ -3016,45 +3105,45 @@ Theorem ArithTheoremProducerOld::implyWeakerInequality(const Expr& expr1, const 
 			int end_i = expr2[1].arity();
 		    for(int i = start_i; i < end_i; i ++) {
 		    	const Expr& term = expr2[1][i];
-				t2_children.push_back(term);	  	 					  
+				t2_children.push_back(term);
 			}
-		} else 
+		} else
 			t2_children.push_back(expr2[1]);
 		Expr t2 = (t2_children.size() > 1 ? plusExpr(t2_children) : t2_children[0]);
-		
+
 		CHECK_SOUND(t2 == t1, "implyWeakerInequality: terms different " + t1.toString() + " vs " + t2.toString());
 		CHECK_SOUND(c2 > c1 || (c2 == c1 && !(expr1.getKind() == LE && expr2.getKind() == LT)), "implyWeakerInequality: c2 is not bigger than c1" + expr1.toString() + " --> " + expr2.toString());
 	}
   	// Create the proof object
-  	Proof pf;   	
+  	Proof pf;
   	if(withProof())	pf = newPf("implyWeakerInequality", expr1, expr2);
 
-	// Return the theorem 
+	// Return the theorem
 	return newTheorem(expr1.impExpr(expr2), Assumptions::emptyAssump(), pf);
 }
 
-// Takes 
+// Takes
 // Expr1: 0 <= c1 + t1
 // Expr2: 0 <= c2 + t2    (t2 is -t1)
 // if c1 + c2 < 0 then Expr1 => !Expr2
-// 
+//
 
 Theorem ArithTheoremProducerOld::implyNegatedInequality(const Expr& expr1, const Expr& expr2) {
 
 	// Check soundness
 	// Check soundness
 	if (CHECK_PROOFS) {
-		
+
 		// Both must be inequalitites
 		CHECK_SOUND(isIneq(expr1), "implyNegatedInequality: expr1 should be an inequality" + expr1.toString());
 		CHECK_SOUND(isIneq(expr2), "implyNegatedInequality: expr1 should be an inequality" + expr2.toString());
-				
+
 		// Left sides must be zero
 		CHECK_SOUND(expr1[0].isRational() && expr1[0].getRational() == 0, "implyNegatedInequality: expr1 should have a rational on the left side" + expr1.toString());
 		CHECK_SOUND(expr2[0].isRational() && expr2[0].getRational() == 0, "implyNegatedInequality: expr2 should have a rational on the left side" + expr2.toString());
 
 		// Get the expr1 monomials and constant 0 <= c1 + t1
-		Rational c1 = 0;			
+		Rational c1 = 0;
 		vector<Expr> t1_children;
 		if (isPlus(expr1[1])) {
 			int start_i = 0;
@@ -3065,14 +3154,14 @@ Theorem ArithTheoremProducerOld::implyNegatedInequality(const Expr& expr1, const
 			int end_i = expr1[1].arity();
 		    for(int i = start_i; i < end_i; i ++) {
 		    	const Expr& term = expr1[1][i];
-				t1_children.push_back(term);	  	 					  
+				t1_children.push_back(term);
 			}
-		} else 
+		} else
 			t1_children.push_back(expr1[1]);
 		Expr t1 = (t1_children.size() > 1 ? plusExpr(t1_children) : t1_children[0]);
-		
+
 		// Get the expr1 monomials and constant 0 <= c1 + t1
-		Rational c2 = 0;			
+		Rational c2 = 0;
 		vector<Expr> t2_children;
 		if (isPlus(expr2[1])) {
 			int start_i = 0;
@@ -3083,9 +3172,9 @@ Theorem ArithTheoremProducerOld::implyNegatedInequality(const Expr& expr1, const
 			int end_i = expr2[1].arity();
 		    for(int i = start_i; i < end_i; i ++) {
 		    	const Expr& term = expr2[1][i];
-				t2_children.push_back(term);	  	 					  
+				t2_children.push_back(term);
 			}
-		} else 
+		} else
 			t2_children.push_back(expr2[1]);
 		Expr t2 = (t2_children.size() > 1 ? plusExpr(t2_children) : t2_children[0]);
 
@@ -3100,7 +3189,7 @@ Theorem ArithTheoremProducerOld::implyNegatedInequality(const Expr& expr1, const
 				Rational t2_c = (isMult(term_t2) ? term_t2[0].getRational() : 1);
 				term_t2 = (isMult(term_t2) ? term_t2[1] : term_t2);
 				CHECK_SOUND(t1_c == - t2_c, "implyNegatedInequality: t1 should be -t2 : " + t1.toString() + " vs " + t2.toString());
-				CHECK_SOUND(term_t1 == term_t2, "implyNegatedInequality: t1 should be -t2 : " + t1.toString() + " vs " + t2.toString());											
+				CHECK_SOUND(term_t1 == term_t2, "implyNegatedInequality: t1 should be -t2 : " + t1.toString() + " vs " + t2.toString());
 			}
 		} else {
 			Rational t1_c = (isMult(t1) ? t1[0].getRational() : 1);
@@ -3108,21 +3197,21 @@ Theorem ArithTheoremProducerOld::implyNegatedInequality(const Expr& expr1, const
 			Rational t2_c = (isMult(t2) ? t2[0].getRational() : 1);
 			Expr term_t2  = (isMult(t2) ? t2[1] : t2);
 			CHECK_SOUND(t1_c == - t2_c, "implyNegatedInequality: t1 should be -t2 : " + t1.toString() + " vs " + t2.toString());
-			CHECK_SOUND(term_t1 == term_t2, "implyNegatedInequality: t1 should be -t2 : " + t1.toString() + " vs " + t2.toString());					
+			CHECK_SOUND(term_t1 == term_t2, "implyNegatedInequality: t1 should be -t2 : " + t1.toString() + " vs " + t2.toString());
 		}
-		
+
 		int kind1 = expr1.getKind();
 		int kind2 = expr2.getKind();
 		bool bothStrict = kind1 == LT && kind2 == LT;
 		CHECK_SOUND(c1 + c2 < 0 || (c1 + c2 == 0 && bothStrict), "implyNegatedInequality: sum of constants not negative!");
 	}
-	
+
 	// The proof object that we will use
 	Proof pf;
-	if (withProof()) pf = newPf("implyNegatedInequality", expr1, expr2);
-	
+	if (withProof()) pf = newPf("implyNegatedInequality", expr1, expr2, expr2.negate());
+
 	// Return the theorem
-	return newTheorem(expr1.impExpr(expr2.negate()), Assumptions::emptyAssump(), pf);	
+	return newTheorem(expr1.impExpr(expr2.negate()), Assumptions::emptyAssump(), pf);
 }
 
 Theorem ArithTheoremProducerOld::trustedRewrite(const Expr& expr1, const Expr& expr2) {
@@ -3132,9 +3221,9 @@ Theorem ArithTheoremProducerOld::trustedRewrite(const Expr& expr1, const Expr& e
 
 	// Setup the proof if needed
 	if (withProof()) pf = newPf("trustedRewrite", expr1, expr2);
-	
+
 	// Return the rewrite theorem that explains the phenomenon
-	return newRWTheorem(expr1, expr2, Assumptions::emptyAssump(), pf); 
+	return newRWTheorem(expr1, expr2, Assumptions::emptyAssump(), pf);
 
 }
 
@@ -3147,87 +3236,92 @@ Theorem ArithTheoremProducerOld::integerSplit(const Expr& intVar, const Rational
 
 	// Create the expression
 	const Expr& split = Expr(IS_INTEGER, intVar).impExpr(leExpr(intVar, rat(intPoint)).orExpr(geExpr(intVar, rat(intPoint + 1))));
-	
+
 	// The proof object that we will use
 	Proof pf;
 	if (withProof()) pf = newPf("integerSplit", intVar, rat(intPoint));
-	
+
 	// Return the theorem
-	return newTheorem(split, Assumptions::emptyAssump(), pf);	
+	return newTheorem(split, Assumptions::emptyAssump(), pf);
 }
 
 //
-// Changed from the new arithmetic, takes 
+// Changed from the new arithmetic, takes
 // 0 op c + t, where t is an integer expression but c is a rational
+// or 0 op x, where x is a leaf
 //
 Theorem ArithTheoremProducerOld::rafineStrictInteger(const Theorem& isIntConstrThm, const Expr& constr) {
-		
+
 	// Check soundness
 	if (CHECK_PROOFS) {
 		// Right side of the constraint should correspond to the proved integer expression
 		CHECK_SOUND(isIneq(constr), "rafineStrictInteger: expected a constraint got : " + constr.toString());
 		CHECK_SOUND(constr[0].isRational() && constr[0].getRational() == 0, "rafineStrictInteger: left hand side must be 0");
-		CHECK_SOUND(constr[1][0].isRational(), "rafineStrictInteger: right side of the constraint must be a sum, with the first one a rational");
-		
+		CHECK_SOUND(d_theoryArith->isLeaf(constr[1]) || constr[1][0].isRational(), "rafineStrictInteger: right side of the constraint must be a leaf or a sum, with the first one a rational");
+
 		// We have to check that the non-constant children of inequality correspond to the integrality theorem's children
 		Expr intSum = isIntConstrThm.getExpr()[0];
-		Expr ineqSum = constr[1];		
+		Expr ineqSum = constr[1];
 		if (isPlus(intSum)) {
 			int i, j;
 			for (i = 0, j = 1; i < intSum.arity() && j < ineqSum.arity(); i ++, j ++)
-				if (!(intSum[i] == ineqSum[j])) break;		
+				if (!(intSum[i] == ineqSum[j])) break;
 			CHECK_SOUND(i == intSum.arity() && j == ineqSum.arity(), "rafineStrictInteger: proof of intger doesn't correspond to the constarint right side");
-		} else 
-			CHECK_SOUND(intSum == ineqSum[1], "rafineStrictInteger: proof of intger doesn't correspond to the constarint right side:" + intSum.getString() + " vs " + ineqSum[1].getString());
-							
+		} else
+			CHECK_SOUND(intSum == ineqSum || intSum == ineqSum[1], "rafineStrictInteger: proof of intger doesn't correspond to the constarint right side:" + intSum.getString() + " vs " + ineqSum[1].getString());
 	}
 
 	// Get the contraint bound
-	Rational c = constr[1][0].getRational();
-	
+	Rational c = (isPlus(constr[1]) ? constr[1][0].getRational() : 0);
+
 	// Get the kind of the constraint
 	int kind = constr.getKind();
-	
+
 	// If the bound is strict, make it non-strict
 	switch (kind) {
 		case LT:
-			kind = LE;                
+			kind = LE;
 			if (c.isInteger()) c --;            // 0 < 3 + x   --> 0 <= 2 + x
 			else c = floor(c);                  // 0 < 3.4 + x --> 0 <= 3 + x
 			break;
 		case LE:
 			kind = LE;
-			if (!c.isInteger()) c = floor(c);   // 0 <= 3.5 + x --> 0 <= 3 + x  
+			if (!c.isInteger()) c = floor(c);   // 0 <= 3.5 + x --> 0 <= 3 + x
 			break;
 		case GT:
-			kind = GE;                
+			kind = GE;
 			if (c.isInteger()) c ++;            // 0 > 3 + x   -->  0 >= 4 + x
 			else c = ceil(c);                   // 0 > 3.4 + x -->  0 >= 4 + x
-			break;  
+			break;
 		case GE:
 			kind = GE;
-			if (!c.isInteger()) c = ceil(c);   // 0 >= 3.4 + x --> 4 >= x 
+			if (!c.isInteger()) c = ceil(c);   // 0 >= 3.4 + x --> 4 >= x
 			break;
-	}	
-	
+	}
+
 	// The new constraint
 	vector<Expr> newChildren;
-	for (int i = 0; i < constr[1].arity(); i ++)
-		if (constr[1][i].isRational()) newChildren.push_back(rat(c));
-		else newChildren.push_back(constr[1][i]);
-	Expr newSum = plusExpr(newChildren);
+	if (isPlus(constr[1])) {
+		for (int i = 0; i < constr[1].arity(); i ++)
+			if (constr[1][i].isRational()) newChildren.push_back(rat(c));
+			else newChildren.push_back(constr[1][i]);
+	} else {
+		if (c != 0) newChildren.push_back(rat(c));
+		newChildren.push_back(constr[1]);
+	}
+	Expr newSum = newChildren.size() > 1 ? plusExpr(newChildren) : newChildren[0];
 	Expr newConstr(kind, rat(0), newSum);
-	
+
 	// Pick up the assumptions from the integer proof
 	const Assumptions& assump(isIntConstrThm.getAssumptionsRef());
-  	
+
   	// Construct the proof object if necessary
   	Proof pf;
-	if (withProof()) 
+	if (withProof())
 		pf = newPf("rafineStrictInteger", constr, isIntConstrThm.getProof());
-		
+
 	// Return the rewrite theorem that explains the phenomenon
-	return newRWTheorem(constr, newConstr, assump, pf); 
+	return newRWTheorem(constr, newConstr, assump, pf);
 }
 
 
@@ -3236,7 +3330,7 @@ Theorem ArithTheoremProducerOld::rafineStrictInteger(const Theorem& isIntConstrT
 // where t is integer and c is not
 // deduce bot
 Theorem ArithTheoremProducerOld::intEqualityRationalConstant(const Theorem& isIntConstrThm, const Expr& constr) {
-		
+
 	// Check soundness
 	if (CHECK_PROOFS) {
 		// Right side of the constraint should correspond to the proved integer expression
@@ -3248,28 +3342,28 @@ Theorem ArithTheoremProducerOld::intEqualityRationalConstant(const Theorem& isIn
 		CHECK_SOUND((sum_on_rhs && constr[1][0].isRational() && !constr[1][0].getRational().isInteger()) ||
 				    (sum_on_lhs && constr[0][0].isRational() && !constr[0][0].getRational().isInteger()),
 		            "intEqualityRationalConstant: left or right side of the constraint must be a sum, with the first one a rational (non integer)");
-		
+
 		// We have to check that the non-constant children of inequality correspond to the integrality theorem's children
 		Expr intSum = isIntConstrThm.getExpr()[0];
 		Expr eqSum = (sum_on_lhs ? constr[0] : constr[1]);
 		if (isPlus(intSum)) {
 			int i, j;
 			for (i = 0, j = 1; i < intSum.arity() && j < eqSum.arity(); i ++, j ++)
-				if (!(intSum[i] == eqSum[j])) break;		
+				if (!(intSum[i] == eqSum[j])) break;
 			CHECK_SOUND(i == intSum.arity() && j == eqSum.arity(), "intEqualityRationalConstant: proof of intger doesn't correspond to the constarint right side");
-		} else 
-			CHECK_SOUND(intSum == eqSum[1], "intEqualityRationalConstant: proof of intger doesn't correspond to the constarint right side:" + intSum.getString() + " vs " + eqSum[1].getString());							
+		} else
+			CHECK_SOUND(intSum == eqSum[1], "intEqualityRationalConstant: proof of intger doesn't correspond to the constarint right side:" + intSum.getString() + " vs " + eqSum[1].getString());
 	}
 
 	const Assumptions& assump(isIntConstrThm.getAssumptionsRef());
-  	
+
   	// Construct the proof object if necessary
   	Proof pf;
-	if (withProof()) 
+	if (withProof())
 		pf = newPf("intEqualityRationalConstant", constr, isIntConstrThm.getProof());
-		
+
 	// Return the rewrite theorem that explains the phenomenon
-	return newRWTheorem(constr, d_em->falseExpr(), assump, pf); 
+	return newRWTheorem(constr, d_em->falseExpr(), assump, pf);
 }
 
 Theorem ArithTheoremProducerOld::cycleConflict(const vector<Theorem>& inequalitites) {
@@ -3283,15 +3377,24 @@ Theorem ArithTheoremProducerOld::cycleConflict(const vector<Theorem>& inequaliti
 	    }
 	    pf = newPf("cycleConflict", es, pfs);
 	  }
-	
-	Assumptions ass;
+
+	Assumptions a;
 	for(unsigned i = 0; i < inequalitites.size(); i ++)
-		ass.add(inequalitites[i]);
-	
-	return newTheorem(d_em->falseExpr(), ass, pf);
+		a.add(inequalitites[i]);
+
+	return newTheorem(d_em->falseExpr(), a, pf);
 }
 
 Theorem ArithTheoremProducerOld::implyEqualities(const std::vector<Theorem>& inequalities) {
+	Assumptions a;
+	vector<Expr> conjuncts;
+	for(unsigned i = 0; i < inequalities.size(); i ++) {
+		a.add(inequalities[i]);
+		Expr inequality = inequalities[i].getExpr();
+		Expr equality = inequality[0].eqExpr(inequality[1]);
+		conjuncts.push_back(equality);
+	}
+
 	Proof pf;
 	if(withProof()) {
 	   	vector<Expr> es;
@@ -3300,22 +3403,13 @@ Theorem ArithTheoremProducerOld::implyEqualities(const std::vector<Theorem>& ine
 	    	es.push_back(inequalities[i].getExpr());
 	    	pfs.push_back(inequalities[i].getProof());
 	    }
-	    pf = newPf("cycleConflict", es, pfs);
+	    pf = newPf("implyEqualities", Expr(RAW_LIST,conjuncts),Expr(RAW_LIST,es), pfs);
 	}
-		
-	Assumptions ass;
-	vector<Expr> conjuncts;
-	for(unsigned i = 0; i < inequalities.size(); i ++) {
-		ass.add(inequalities[i]);
-		Expr inequality = inequalities[i].getExpr();
-		Expr equality = inequality[0].eqExpr(inequality[1]);
-		conjuncts.push_back(equality);
-	}		
-	
-	return newTheorem(andExpr(conjuncts), ass, pf);
+
+	return newTheorem(andExpr(conjuncts), a, pf);
 }
 
-/*! Takes a Theorem(\\alpha < \\beta) and returns 
+/*! Takes a Theorem(\\alpha < \\beta) and returns
  *  Theorem(\\alpha < \\beta <==> \\alpha <= \\beta -1)
  * where \\alpha and \\beta are integer expressions
  */
@@ -3323,10 +3417,10 @@ Theorem ArithTheoremProducerOld::lessThanToLERewrite(const Expr& ineq,
 					   const Theorem& isIntLHS,
 					   const Theorem& isIntRHS,
 					   bool changeRight) {
-  
+
 	const Expr& isIntLHSexpr = isIntLHS.getExpr();
 	const Expr& isIntRHSexpr = isIntRHS.getExpr();
-  
+
 	if(CHECK_PROOFS) {
 		CHECK_SOUND(isLT(ineq), "ArithTheoremProducerOld::LTtoLE: ineq must be <");
 		// Integrality check
@@ -3339,7 +3433,7 @@ Theorem ArithTheoremProducerOld::lessThanToLERewrite(const Expr& ineq,
 		" ineq = "+ineq.toString()+"\n isIntRHS = "
 		+isIntRHSexpr.toString());
 	}
-	
+
 	vector<Theorem> thms;
 	thms.push_back(isIntLHS);
 	thms.push_back(isIntRHS);
@@ -3347,10 +3441,10 @@ Theorem ArithTheoremProducerOld::lessThanToLERewrite(const Expr& ineq,
 	Proof pf;
 	Expr le = changeRight? leExpr(ineq[0], ineq[1] + rat(-1)) : leExpr(ineq[0] + rat(1), ineq[1]);
 	if(withProof()) {
-		vector<Proof> pfs;		
+		vector<Proof> pfs;
 		pfs.push_back(isIntLHS.getProof());
 		pfs.push_back(isIntRHS.getProof());
-		pf = newPf(changeRight? "lessThan_To_LE_rhs" : "lessThan_To_LE_lhs", le, pfs);
+		pf = newPf(changeRight? "lessThan_To_LE_rhs_rwr" : "lessThan_To_LE_lhs_rwr", ineq, le, pfs);
 	}
 
 	return newRWTheorem(ineq, le, a, pf);
@@ -3385,15 +3479,15 @@ Theorem ArithTheoremProducerOld::splitGrayShadowSmall(const Theorem& gThm) {
 	  disjuncts.push_back(disjunct);
   }
   Expr bigOr = orExpr(disjuncts);
-  
+
   Proof pf;
     if(withProof()){
     vector<Expr> exprs;
-    exprs.push_back(theShadow); 
-    exprs.push_back(bigOr); 
+    exprs.push_back(theShadow);
+    exprs.push_back(bigOr);
     pf = newPf("split_gray_shadow", exprs, gThm.getProof());
   }
-  
+
   return newTheorem(bigOr, gThm.getAssumptionsRef(), pf);
 }
 
@@ -3407,15 +3501,15 @@ Theorem ArithTheoremProducerOld::implyWeakerInequalityDiffLogic(const std::vecto
 	    	es.push_back(antecedentThms[i].getExpr());
 	    	pfs.push_back(antecedentThms[i].getProof());
 	    }
-	    pf = newPf("difference_logic_implication", es, pfs);
+	    pf = newPf("implyWeakerInequalityDiffLogic", implied, Expr(RAW_LIST,es), pfs);
 	}
-		
-	Assumptions ass;
+
+	Assumptions a;
 	for(unsigned i = 0; i < antecedentThms.size(); i ++) {
-		ass.add(antecedentThms[i]);
-	}		
-	
-	return newTheorem(implied, ass, pf);
+		a.add(antecedentThms[i]);
+	}
+
+	return newTheorem(implied, a, pf);
 
 }
 
@@ -3429,21 +3523,21 @@ Theorem ArithTheoremProducerOld::implyNegatedInequalityDiffLogic(const std::vect
 	    	es.push_back(antecedentThms[i].getExpr());
 	    	pfs.push_back(antecedentThms[i].getProof());
 	    }
-	    pf = newPf("difference_logic_implication", es, pfs);
+	    pf = newPf("implyNegatedInequalityDiffLogic",implied.notExpr(), Expr(RAW_LIST, es), pfs);
 	}
-		
-	Assumptions ass;
+
+	Assumptions a;
 	for(unsigned i = 0; i < antecedentThms.size(); i ++) {
-		ass.add(antecedentThms[i]);
-	}		
-	
-	return newTheorem(implied.notExpr(), ass, pf);
+		a.add(antecedentThms[i]);
+	}
+
+	return newTheorem(implied.notExpr(), a, pf);
 
 }
 
 
 Theorem ArithTheoremProducerOld::expandGrayShadowRewrite(const Expr& theShadow) {
-  
+
   if(CHECK_PROOFS) {
     CHECK_SOUND(isGrayShadow(theShadow),
 		"ArithTheoremProducerOld::expandGrayShadowConst: not a shadow" +
@@ -3471,20 +3565,20 @@ Theorem ArithTheoremProducerOld::expandGrayShadowRewrite(const Expr& theShadow) 
 }
 
 Theorem ArithTheoremProducerOld::compactNonLinearTerm(const Expr& nonLinear) {
-  
+
 	// The set of common leaves
 	multiset<Expr> commonLeaves;
 	bool first = true;
-	
+
 	// Go through the terms and intersect the leaf sets
 	for (int i = 0; i < nonLinear.arity(); i ++) {
-		if (!nonLinear[i].isRational()) {			
-			// Get the current monomial 
+		if (!nonLinear[i].isRational()) {
+			// Get the current monomial
 			Expr monomial = nonLinear[i];
 
 			// A set to keep the variables
 			multiset<Expr> currentLeaves;
-			
+
 			// Get the set of leaves in this term
 			if (isMult(monomial)) {
 				for (int j = 0; j < monomial.arity(); j ++)
@@ -3493,15 +3587,15 @@ Theorem ArithTheoremProducerOld::compactNonLinearTerm(const Expr& nonLinear) {
 							for (int p = 0; p < monomial[j][0].getRational().getInt(); p ++)
 								currentLeaves.insert(monomial[j][1]);
 						} else
-							currentLeaves.insert(monomial[j]); 					
+							currentLeaves.insert(monomial[j]);
 					}
 			} else if (isPow(monomial)) {
 				for (int p = 0; p < monomial[0].getRational().getInt(); p ++)
-					currentLeaves.insert(monomial[1]);				
+					currentLeaves.insert(monomial[1]);
 			} else
 				currentLeaves.insert(monomial);
-			
-			// And intersect them 
+
+			// And intersect them
 			if (first) {
 				commonLeaves.swap(currentLeaves);
 				first = false;
@@ -3513,27 +3607,27 @@ Theorem ArithTheoremProducerOld::compactNonLinearTerm(const Expr& nonLinear) {
 				                  (intersectLeaves, intersectLeaves.begin()));
 				intersectLeaves.swap(commonLeaves);
 			}
-		} 
+		}
 	}
-	
+
 	Expr result;
 	if (commonLeaves.size() > 0) {
-	
+
 		// The constant to add in the beginnings
 		Expr constant = rat(0);
-	
+
 		// The sum of of the rest when we pullout the common factors
 		vector<Expr> sumChildren;
-	
+
 		// Go through them again and construct the sum of the rest
 		for (int i = 0; i < nonLinear.arity(); i ++) {
-			if (!nonLinear[i].isRational()) {			
-				// Get the current monomial 
+			if (!nonLinear[i].isRational()) {
+				// Get the current monomial
 				Expr monomial = nonLinear[i];
-					
+
 				// A set to keep the variables
 				multiset<Expr> currentChildren;
-					
+
 				// Get the set of childrent of this multiplication
 				if (isMult(monomial)) {
 					for (int j = 0; j < monomial.arity(); j ++)
@@ -3541,20 +3635,20 @@ Theorem ArithTheoremProducerOld::compactNonLinearTerm(const Expr& nonLinear) {
 							for (int p = 0; p < monomial[j][0].getRational().getInt(); p ++)
 								currentChildren.insert(monomial[j][1]);
 						} else
-							currentChildren.insert(monomial[j]); 					
+							currentChildren.insert(monomial[j]);
 				} else if (isPow(monomial)) {
 					for (int p = 0; p < monomial[0].getRational().getInt(); p ++)
-						currentChildren.insert(monomial[1]);				
+						currentChildren.insert(monomial[1]);
 				} else
 					currentChildren.insert(monomial);
-				
+
 				// Take the difference and construct a multiplication
 				multiset<Expr> diffChildren;
 				set_difference(currentChildren.begin(), currentChildren.end(),
 							   commonLeaves.begin(), commonLeaves.end(),
 							   insert_iterator< multiset<Expr> >
 					                  (diffChildren, diffChildren.begin()));
-				
+
 				// Go create another sumChildren element
 				if (diffChildren.size() == 1) {
 					sumChildren.push_back(*diffChildren.begin());
@@ -3565,57 +3659,63 @@ Theorem ArithTheoremProducerOld::compactNonLinearTerm(const Expr& nonLinear) {
 					multiset<Expr>::iterator it_end = diffChildren.end();
 					vector<Expr> multChildren;
 					while (it != it_end) {
-						multChildren.push_back(*it);					
+						multChildren.push_back(*it);
 						it ++;
 					}
 					sumChildren.push_back(multExpr(multChildren));
-				}								
+				}
 			} else
 				constant = nonLinear[i];
 		}
-	
+
 		// The children of the final multiplication
 		vector<Expr> multChildren;
-		multChildren.push_back(plusExpr(sumChildren));		
+		multChildren.push_back(plusExpr(sumChildren));
 		multiset<Expr>::iterator it = commonLeaves.begin();
 		multiset<Expr>::iterator it_end = commonLeaves.end();
-		for (; it != it_end; it ++) 
-			multChildren.push_back(*it);		
-		result = plusExpr(constant, multExpr(multChildren));		
+		for (; it != it_end; it ++)
+			multChildren.push_back(*it);
+		result = plusExpr(constant, multExpr(multChildren));
 	} else {
 		// We have no common leaves to take out
 		result = nonLinear;
 	}
-	 		
+
     Proof pf;
 	if(withProof())
 		pf = newPf("compactNonlinear", nonLinear);
-		
+
 	return newRWTheorem(nonLinear, result, Assumptions::emptyAssump(), pf);
 }
 
+//
+// -c <= x1*x2*...*xn
+// if c = 0 then "only even number of x_i's can be negative" or one of them is zero
+//               x1 = 0 or x2 = 0 or ... or xn = 0
+//               or (x1
+// else "only only even number of x_i's can be negative" and none of them is zero"
 Theorem ArithTheoremProducerOld::nonLinearIneqSignSplit(const Theorem& ineqThm) {
 
 	// Get the inequality
 	Expr ineq = ineqThm.getExpr();
 	Expr rhs = ineq[1];
-	
+
 	// Get the constant
 	Rational c = (isMult(rhs) ? 0 : rhs[0].getRational());
 	if(CHECK_PROOFS) {
 	    CHECK_SOUND(c <= 0, "ArithTheoremProducerOld::nonLinearIneqSignSplit: " + ineq.toString());
 	    CHECK_SOUND(isMult(rhs) || (isPlus(rhs) && rhs.arity() == 2), "ArithTheoremProducerOld::nonLinearIneqSignSplit: " + ineq.toString());
 	}
-	
+
 	Expr signXor = d_em->trueExpr();
-	Expr mult = (isMult(rhs) ? rhs : rhs[1]);	
+	Expr mult = (isMult(rhs) ? rhs : rhs[1]);
 	for (int i = 0; i < mult.arity(); i ++) {
-		Expr term = mult[i];	
+		Expr term = mult[i];
 		if (isPow(term) && term[0].getRational() < 0)
 			term = Expr(POW, -term[0], term[1]);
 		signXor = Expr(XOR, signXor, ltExpr(term, rat(0)));
 	}
-	
+
 	if (c == 0 && ineq.getKind() == LE) {
 		Expr zeroOr = d_em->falseExpr();
 		for (int i = 0; i < mult.arity(); i ++) {
@@ -3624,15 +3724,15 @@ Theorem ArithTheoremProducerOld::nonLinearIneqSignSplit(const Theorem& ineqThm) 
 		}
 		signXor = zeroOr.orExpr(signXor);
 	}
-		
+
 	Proof pf;
 	if(withProof()) {
 		vector<Expr> exprs;
-	    exprs.push_back(ineq); 
-	    exprs.push_back(signXor); 
+	    exprs.push_back(ineq);
+	    exprs.push_back(signXor);
 	    pf = newPf("nonLinearIneqSignSplit", exprs, ineqThm.getProof());
 	}
-		
+
 	Assumptions assumptions;
 	assumptions.add(ineqThm);
 
@@ -3640,8 +3740,8 @@ Theorem ArithTheoremProducerOld::nonLinearIneqSignSplit(const Theorem& ineqThm) 
 }
 
 Theorem ArithTheoremProducerOld::implyDiffLogicBothBounds(const Expr& x,
-		std::vector<Theorem>& c1_le_x, Rational c1, 
-    	std::vector<Theorem>& x_le_c2, Rational c2) 
+		std::vector<Theorem>& c1_le_x, Rational c1,
+    	std::vector<Theorem>& x_le_c2, Rational c2)
 {
 	Proof pf;
 
@@ -3658,53 +3758,53 @@ Theorem ArithTheoremProducerOld::implyDiffLogicBothBounds(const Expr& x,
 	    }
 	    pf = newPf("implyDiffLogicBothBounds", es, pfs);
 	}
-		
-	Assumptions ass;
+
+	Assumptions a;
 	for(unsigned i = 0; i < x_le_c2.size(); i ++) {
-		ass.add(c1_le_x[i]);
-	}		
+		a.add(c1_le_x[i]);
+	}
 	for(unsigned i = 0; i < x_le_c2.size(); i ++) {
-		ass.add(c1_le_x[i]);
-	}		
-	
+		a.add(c1_le_x[i]);
+	}
+
 	Expr implied = grayShadow(x, rat(0), c1, c2);
-	
-	return newTheorem(implied, ass, pf);	
+
+	return newTheorem(implied, a, pf);
 }
 
 Theorem ArithTheoremProducerOld::addInequalities(const vector<Theorem>& thms) {
-		
+
 	// Check soundness
 	if (CHECK_PROOFS) {
-		for (unsigned i = 0; i < thms.size(); i ++) {		
-			Expr expr = thms[i].getExpr();		
-			CHECK_SOUND(isIneq(expr), "addInequalities: expecting an inequality for, got " + expr.toString());			
+		for (unsigned i = 0; i < thms.size(); i ++) {
+			Expr expr = thms[i].getExpr();
+			CHECK_SOUND(isIneq(expr), "addInequalities: expecting an inequality for, got " + expr.toString());
 			CHECK_SOUND(isLE(expr) || isLT(expr), "addInequalities: expr should be <(=) " + expr.toString());
 		}
 	}
-	
+
 	// Create the assumptions
 	Assumptions a;
 	for (unsigned i = 0; i < thms.size(); i ++)
 		a.add(thms[i]);
-	
+
   	// Get the kinds of the inequalitites
 	int kind = LE;
 	for (unsigned i = 0; i < thms.size(); i ++)
 		if (thms[i].getExpr().getKind() == LT) kind = LT;
-	
+
   	// Create the proof object
-  	Proof pf;   	
+  	Proof pf;
   	if(withProof()) {
     	vector<Proof> pfs;
     	vector<Expr> exps;
     	for (unsigned i = 0; i < thms.size(); i ++) {
     	    pfs.push_back(thms[i].getProof());
-    	    exps.push_back(thms[i].getExpr());    	    
+    	    exps.push_back(thms[i].getExpr());
     	}
     	pf = newPf("addInequalities", exps, pfs);
   	}
-  	
+
   	// Create the new expressions
   	vector<Expr> summandsLeft;
   	vector<Expr> summandsRight;
@@ -3714,22 +3814,152 @@ Theorem ArithTheoremProducerOld::addInequalities(const vector<Theorem>& thms) {
   	}
   	Expr leftSide  = plusExpr(summandsLeft);
   	Expr rightSide = plusExpr(summandsRight);
-  	
-  	// Return the theorem 
-  	return newTheorem(Expr(kind, leftSide, rightSide), a, pf); 
+
+  	// Return the theorem
+  	return newTheorem(Expr(kind, leftSide, rightSide), a, pf);
 }
 
 // x^1 <-> x
 Theorem ArithTheoremProducerOld::powerOfOne(const Expr& e) {
-	  
+
 	if(CHECK_PROOFS) {
 		CHECK_SOUND(isPow(e), "ArithTheoremProducerOld::powerOfOne: not a power expression" + e.toString());
 		CHECK_SOUND(e[0].isRational() && e[0].getRational() == 1, "ArithTheoremProducerOld::powerOfOne: not a power of 1" + e.toString());
 	}
-	 
+
 	Proof pf;
 	if(withProof())
 		pf = newPf("power_of_one", e);
-	  
-	return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);	
+
+	return newRWTheorem(e, e[1], Assumptions::emptyAssump(), pf);
+}
+
+
+void ArithTheoremProducerOld::getLeaves(const Expr& e, set<Rational>& s, ExprHashMap<bool>& cache)
+{
+  if (e.isRational()) {
+    s.insert(e.getRational());
+    return;
+  }
+
+  if (e.isAtomic() && d_theoryArith->isLeaf(e)) {
+    return;
+  }
+
+  ExprHashMap<bool>::iterator it = cache.find(e);
+  if (it != cache.end()) return;
+
+  cache[e] = true;
+
+  DebugAssert(e.arity() > 0, "Expected non-zero arity");
+  int k = 0;
+
+  if (e.isITE()) {
+    k = 1;
+  }
+
+  for (; k < e.arity(); ++k) {
+    getLeaves(e[k], s, cache);
+  }
+}
+
+
+Theorem ArithTheoremProducerOld::rewriteLeavesConst(const Expr& e)
+{
+  DebugAssert(e.isPropAtom() && d_theoryArith->leavesAreNumConst(e),
+              "invariant violated");
+  DebugAssert(e.getKind() == EQ || e.getKind() == LT || e.getKind() == LE || e.getKind() == GT || e.getKind() == GE,
+              "Unexpected kind");
+  set<Rational> lhs, rhs;
+  ExprHashMap<bool> cache;
+  getLeaves(e[0], lhs, cache);
+
+  cache.clear();
+  getLeaves(e[1], rhs, cache);
+
+  Expr res;
+  switch (e.getKind()) {
+    case EQ: {
+      set<Rational> common;
+      set_intersection(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(),
+                       inserter(common, common.begin()));
+      if (common.empty()) {
+        res = d_em->falseExpr();
+      }
+      break;
+    }
+    case LT: {
+      set<Rational>::iterator it;
+      it = lhs.end();
+      --it;
+      if ((*it) < (*(rhs.begin()))) {
+        res = d_em->trueExpr();
+      } else {
+        it = rhs.end();
+        --it;
+        if ((*it) <= (*(lhs.begin()))) {
+          res = d_em->falseExpr();
+        }
+      }
+      break;
+    }
+    case LE: {
+      set<Rational>::iterator it;
+      it = lhs.end();
+      --it;
+      if ((*it) <= (*(rhs.begin()))) {
+        res = d_em->trueExpr();
+      }
+      else {
+        it = rhs.end();
+        --it;
+        if ((*it) < (*(lhs.begin()))) {
+          res = d_em->falseExpr();
+          break;
+        }
+      }
+      break;
+    }
+    case GT: {
+      set<Rational>::iterator it;
+      it = lhs.end();
+      --it;
+      if ((*it) > (*(rhs.begin()))) {
+        res = d_em->trueExpr();
+      } else {
+        it = rhs.end();
+        --it;
+        if ((*it) >= (*(lhs.begin()))) {
+          res = d_em->falseExpr();
+        }
+      }
+      break;
+    }
+    case GE: {
+      set<Rational>::iterator it;
+      it = lhs.end();
+      --it;
+      if ((*it) >= (*(rhs.begin()))) {
+        res = d_em->trueExpr();
+      }
+      else {
+        it = rhs.end();
+        --it;
+        if ((*it) > (*(lhs.begin()))) {
+          res = d_em->falseExpr();
+          break;
+        }
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  if (res.isNull()) return d_theoryArith->reflexivityRule(e);
+  else {
+    Proof pf;
+    if(withProof())
+      pf = newPf("rewrite_leaves_const", e);
+    return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
+  }
 }

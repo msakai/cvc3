@@ -32,13 +32,15 @@
 
 namespace CVC3 {
   
+  class TheoryArray;
 
   class ArrayTheoremProducer: public ArrayProofRules, public TheoremProducer {
   private:
-    // Inserting flea proof arguments for a canonical sum
+    TheoryArray* d_theoryArray;
+
   public:
     // Constructor
-    ArrayTheoremProducer(TheoremManager* tm) : TheoremProducer(tm) { }
+    ArrayTheoremProducer(TheoryArray* theoryArray);
 
     ////////////////////////////////////////////////////////////////////
     // Proof rules
@@ -64,6 +66,12 @@ namespace CVC3 {
     //   ite(index1 = index2, value, read(store, index2))
     Theorem rewriteReadWrite(const Expr& e);
 
+    // e = read(write(store, index1, value), index2):
+    // ==> ite(index1 = index2,
+    //         read(write(store, index1, value), index2) = value,
+    //         read(write(store, index1, value), index2) = read(store, index2))
+    Theorem rewriteReadWrite2(const Expr& e);
+
     // value = read(store, index) ==>
     //   write(store, index, value) = store
     Theorem rewriteRedundantWrite1(const Theorem& v_eq_r,
@@ -81,6 +89,9 @@ namespace CVC3 {
     Theorem readArrayLiteral(const Expr& e);
 
     Theorem liftReadIte(const Expr& e);
+
+    // a /= b |- exists i. a[i] /= b[i]
+    Theorem arrayNotEq(const Theorem& e);
 
   }; // end of class ArrayTheoremProducer
 

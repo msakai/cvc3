@@ -22,9 +22,13 @@ GCOV = @GCOV@
 #Whether to build for gprof
 GPROF = @GPROF@
 
+empty:=
+space:= $(empty) $(empty)
+path_escape = $(subst $(space),\$(space),$(1))
+
 #Path to top directory
 ifndef TOP
-  TOP = @TOP@
+  TOP = $(call path_escape,@TOP@)
 endif
 
 #CXX
@@ -33,11 +37,14 @@ CXX = @CXX@
 #LD
 LD = @LD@
 
+#AR
+AR = @AR@
+
 #CXXFLAGS
-CXXFLAGS = @CXXFLAGS@
+CXXFLAGS := @CXXFLAGS@
 
 #CPPFLAGS
-CPPFLAGS = @CPPFLAGS@
+CPPFLAGS := @CPPFLAGS@
 
 #LDFLAGS
 LDFLAGS = @LDFLAGS@
@@ -48,6 +55,25 @@ LD_LIBS += @LIBS@
 #Whether to build individual shared libraries
 BUILD_SHARED_LIB = @BUILD_SHARED_LIB@
 
+LIB_MAJOR_VERSION= @LIB_MAJOR_VERSION@
+LIB_MINOR_VERSION= @LIB_MINOR_VERSION@
+LIB_TEENY_VERSION= @LIB_TEENY_VERSION@
+LIB_COMPAT_VERSION= $(LIB_MAJOR_VERSION).$(LIB_MINOR_VERSION)
+LIB_VERSION= $(LIB_COMPAT_VERSION).$(LIB_TEENY_VERSION)
+
+#Whether to build the Java interface
+BUILD_JAVA = @BUILD_JAVA@
+
+# Java compilers and compiler flags
+JAVAC    = @JAVAC@
+JAVAH    = @JAVAH@
+JAR      = @JAR@
+JAVA     = @JAVA@
+JFLAGS   := @JFLAGS@
+JREFLAGS := @JREFLAGS@ 
+JAVA_INCLUDES  = @JAVA_INCLUDES@
+
+
 #Installation directories
 datarootdir = @datarootdir@
 prefix=@prefix@
@@ -56,20 +82,23 @@ libdir=@libdir@
 bindir=@bindir@
 mandir=@mandir@
 incdir=$(prefix)/include/$(PROJECTNAME)
+javadir=@javadir@
 
 ##################################################
 # Platform-specific definitions
 ##################################################
 
+HOST_OS = @host_os@
+HOST_CPU = @host_cpu@
+EXEEXT=@EXEEXT@
+
 #Name of platform
 ifndef PLATFORM
-  PLATFORM = @OSTYPE@
+  PLATFORM := $(HOST_CPU)-$(HOST_OS)
 endif
 
-ifeq ($(PLATFORM),linux-x86_64)
 ifeq ($(STATIC),0)
   CXXFLAGS += -fPIC
-endif
 endif
 
 #Install
@@ -82,6 +111,15 @@ STATIC_FLAG = @STATIC_FLAG@
 DYNAMIC_FLAG = @DYNAMIC_FLAG@
 STATIC_LIB_SUFFIX = @STATIC_LIB_SUFFIX@
 SHARED_LIB_SUFFIX = @SHARED_LIB_SUFFIX@
+
+ifeq ($(patsubst darwin%,,$(HOST_OS)),)
+  MAC_OSX = 1
+endif
+ 
+ifeq ($(patsubst cygwin%,,$(HOST_OS)),)
+  CYGWIN = 1
+endif
+ 
 
 #Etags/Ebrowse
 ETAGS=@ETAGS@
@@ -113,7 +151,7 @@ WEBDIR = /usr/httpd/htdocs_cs/acsys/cvc3
 
 RATIONAL_FLAGS = @RATIONAL_IMPL@
 ifeq ($(RATIONAL_FLAGS),-DRATIONAL_NATIVE)
-  PLATFORM = @OSTYPE@-native-arith
+  PLATFORM := $(PLATFORM)-native-arith
 endif
 
 DPLL_BASIC = @DPLL_BASIC@

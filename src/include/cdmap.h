@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file cdmap.h
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Thu May 15 15:55:09 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -85,8 +85,7 @@ class CDOmap :public ContextObj {
 public:
   CDOmap(Context* context, CDMap<Key, Data, HashFcn>* cdmap,
 	 const Key& key, const Data& data, int scope = -1)
-    : ContextObj(context, true /* use bottom scope */),
-    d_key(key), d_inMap(false), d_cdmap(cdmap) {
+    : ContextObj(context), d_key(key), d_inMap(false), d_cdmap(cdmap) {
     set(data, scope);
     IF_DEBUG(setName("CDOmap");)
     CDOmap<Key, Data, HashFcn>*& first = d_cdmap->d_first;
@@ -129,18 +128,18 @@ template <class Key, class Data, class HashFcn>
 class CDMap: public ContextObj {
   friend class CDOmap<Key, Data, HashFcn>;
  private:
-  std::hash_map<Key,CDOmap<Key, Data, HashFcn>*> d_map;
+  std::hash_map<Key,CDOmap<Key, Data, HashFcn>*,HashFcn> d_map;
   // The vector of CDOmap objects to be destroyed
   std::vector<CDOmap<Key, Data, HashFcn>*> d_trash;
   CDOmap<Key, Data, HashFcn>* d_first;
   Context* d_context;
-  
+
   // Nothing to save; the elements take care of themselves
   virtual ContextObj* makeCopy(ContextMemoryManager* cmm)
     { return new(cmm) CDMapData(*this); }
   // Similarly, nothing to restore
   virtual void restoreData(ContextObj* data) { }
-  
+
   // Destroy stale CDOmap objects from trash
   void emptyTrash() {
     for(typename std::vector<CDOmap<Key, Data, HashFcn>*>::iterator
@@ -153,7 +152,7 @@ class CDMap: public ContextObj {
 
   virtual void setNull(void) {
     // Delete all the elements and clear the map
-    for(typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*>::iterator
+    for(typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*,HashFcn>::iterator
 	  i=d_map.begin(), iend=d_map.end();
 	i!=iend; ++i) {
       delete (*i).second;
@@ -165,7 +164,7 @@ class CDMap: public ContextObj {
 public:
   CDMap(Context* context, int scope = -1)
     : ContextObj(context), d_first(NULL), d_context(context) {
-    IF_DEBUG(setName("CDMap"));   ; 
+    IF_DEBUG(setName("CDMap"));   ;
   }
   ~CDMap() { setNull(); }
   // The usual operators of map
@@ -173,11 +172,11 @@ public:
   size_t count(const Key& k) const { return d_map.count(k); }
 
   typedef CDOmap<Key, Data, HashFcn>& ElementReference;
-  
+
   // If a key is not present, a new object is created and inserted
   CDOmap<Key, Data, HashFcn>& operator[](const Key& k) {
     emptyTrash();
-    typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*>::iterator i(d_map.find(k));
+    typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*,HashFcn>::iterator i(d_map.find(k));
     CDOmap<Key, Data, HashFcn>* obj;
     if(i == d_map.end()) { // Create new object
       obj = new(true) CDOmap<Key, Data, HashFcn>(d_context, this, k, Data());
@@ -190,7 +189,7 @@ public:
 
   void insert(const Key& k, const Data& d, int scope = -1) {
     emptyTrash();
-    typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*>::iterator i(d_map.find(k));
+    typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*,HashFcn>::iterator i(d_map.find(k));
     if(i == d_map.end()) { // Create new object
       CDOmap<Key, Data, HashFcn>*
 	obj(new(true) CDOmap<Key, Data, HashFcn>(d_context, this, k, d, scope));
@@ -206,10 +205,10 @@ public:
   class iterator : public std::iterator<std::input_iterator_tag,std::pair<const Key, Data>,std::ptrdiff_t> {
     private:
       // Private members
-      typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*>::const_iterator d_it;
+      typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*,HashFcn>::const_iterator d_it;
     public:
       // Constructor from std::hash_map
-      iterator(const typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*>::const_iterator& i)
+      iterator(const typename std::hash_map<Key,CDOmap<Key, Data, HashFcn>*,HashFcn>::const_iterator& i)
       : d_it(i) { }
       // Copy constructor
       iterator(const iterator& i): d_it(i.d_it) { }
@@ -232,7 +231,7 @@ public:
       //std::pair<const Key,Data>* operator->() const {
       //  return &(operator*());
       //}
-      
+
 
       // Prefix and postfix increment
       iterator& operator++() { ++d_it; return *this; }

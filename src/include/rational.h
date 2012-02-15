@@ -82,18 +82,18 @@ namespace CVC3 {
     // Compute hash value (for DAG expression representation)
     size_t hash() const;
 
-    friend bool operator==(const Rational &n1, const Rational &n2);
-    friend bool operator<(const Rational &n1, const Rational &n2);
-    friend bool operator<=(const Rational &n1, const Rational &n2);
-    friend bool operator>(const Rational &n1, const Rational &n2);
-    friend bool operator>=(const Rational &n1, const Rational &n2);
-    friend bool operator!=(const Rational &n1, const Rational &n2);
-    friend Rational operator+(const Rational &n1, const Rational &n2);
-    friend Rational operator-(const Rational &n1, const Rational &n2);
-    friend Rational operator*(const Rational &n1, const Rational &n2);
-    friend Rational operator/(const Rational &n1, const Rational &n2);
+    friend CVC_DLL bool operator==(const Rational &n1, const Rational &n2);
+    friend CVC_DLL bool operator<(const Rational &n1, const Rational &n2);
+    friend CVC_DLL bool operator<=(const Rational &n1, const Rational &n2);
+    friend CVC_DLL bool operator>(const Rational &n1, const Rational &n2);
+    friend CVC_DLL bool operator>=(const Rational &n1, const Rational &n2);
+    friend CVC_DLL bool operator!=(const Rational &n1, const Rational &n2);
+    friend CVC_DLL Rational operator+(const Rational &n1, const Rational &n2);
+    friend CVC_DLL Rational operator-(const Rational &n1, const Rational &n2);
+    friend CVC_DLL Rational operator*(const Rational &n1, const Rational &n2);
+    friend CVC_DLL Rational operator/(const Rational &n1, const Rational &n2);
     // 'mod' operator, defined only for integer values of n1 and n2
-    friend Rational operator%(const Rational &n1, const Rational &n2);
+    friend CVC_DLL Rational operator%(const Rational &n1, const Rational &n2);
 
     // Unary minus
     Rational operator-() const;
@@ -128,21 +128,21 @@ namespace CVC3 {
     /* Computes gcd and lcm on *integer* values. Result is always a
        positive integer. */
 
-    friend Rational gcd(const Rational &x, const Rational &y);
-    friend Rational gcd(const std::vector<Rational> &v);
-    friend Rational lcm(const Rational &x, const Rational &y);
-    friend Rational lcm(const std::vector<Rational> &v);
+    friend CVC_DLL Rational gcd(const Rational &x, const Rational &y);
+    friend CVC_DLL Rational gcd(const std::vector<Rational> &v);
+    friend CVC_DLL Rational lcm(const Rational &x, const Rational &y);
+    friend CVC_DLL Rational lcm(const std::vector<Rational> &v);
 
-    friend Rational abs(const Rational &x);
+    friend CVC_DLL Rational abs(const Rational &x);
 
     //! Compute the floor of x (result is an integer)
-    friend Rational floor(const Rational &x);
+    friend CVC_DLL Rational floor(const Rational &x);
     //! Compute the ceiling of x (result is an integer)
-    friend Rational ceil(const Rational &x);
+    friend CVC_DLL Rational ceil(const Rational &x);
     //! Compute non-negative remainder for *integer* x,y.
-    friend Rational mod(const Rational &x, const Rational &y);
+    friend CVC_DLL Rational mod(const Rational &x, const Rational &y);
     //! nth root: return 0 if no exact answer (base should be nonzero)
-    friend Rational intRoot(const Rational& base, unsigned long int n);
+    friend CVC_DLL Rational intRoot(const Rational& base, unsigned long int n);
 
     // For debugging, to be able to print in gdb
     void print() const;
@@ -193,6 +193,9 @@ namespace CVC3 {
     
   // Debugging print
   void printRational(const Rational &x);
+
+  // TODO: implement this properly
+  typedef unsigned long Unsigned;
 
 } // end of namespace CVC3
 

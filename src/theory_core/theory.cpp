@@ -55,7 +55,7 @@ Theorem Theory::simplifyOp(const Expr& e) {
   if (ar > 0) {
     if (ar == 1) {
       Theorem res = d_theoryCore->simplify(e[0]);
-      if (res.getLHS() != res.getRHS()) {
+      if (!res.isRefl()) {
         return d_commonRules->substitutivityRule(e, res);
       }
     }
@@ -65,7 +65,7 @@ Theorem Theory::simplifyOp(const Expr& e) {
       for(int k = 0; k < ar; ++k) {
         // Recursively simplify the kids
         Theorem thm = d_theoryCore->simplify(e[k]);
-        if (thm.getLHS() != thm.getRHS()) {
+        if (!thm.isRefl()) {
           newChildrenThm.push_back(thm);
           changed.push_back(k);
         }
@@ -82,8 +82,9 @@ Expr Theory::computeTCC(const Expr& e) {
   vector<Expr> kids;
   for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)
     kids.push_back(getTCC(*i));
-  return (kids.size()>0) ?
-    d_commonRules->rewriteAnd(andExpr(kids)).getRHS() : trueExpr();
+  return (kids.size() == 0) ? trueExpr() :
+    (kids.size() == 1) ? kids[0] :
+    d_commonRules->rewriteAnd(andExpr(kids)).getRHS();
 }
 
 
@@ -323,6 +324,36 @@ Theorem Theory::find(const Expr& e)
 }
 
 
+Theorem Theory::findReduce(const Expr& e)
+{
+  if (e.hasFind()) return find(e);
+  int ar = e.arity();
+  if (ar > 0) {
+    if (ar == 1) {
+      Theorem res = findReduce(e[0]);
+      if (!res.isRefl()) {
+        return d_commonRules->substitutivityRule(e, res);
+      }
+    }
+    else {
+      vector<Theorem> newChildrenThm;
+      vector<unsigned> changed;
+      for(int k = 0; k < ar; ++k) {
+        // Recursively reduce the kids
+        Theorem thm = findReduce(e[k]);
+        if (!thm.isRefl()) {
+          newChildrenThm.push_back(thm);
+          changed.push_back(k);
+        }
+      }
+      if(changed.size() > 0)
+        return d_commonRules->substitutivityRule(e, changed, newChildrenThm);
+    }
+  }
+  return reflexivityRule(e);
+}
+
+
 bool Theory::findReduced(const Expr& e)
 {
   if (e.hasFind())
@@ -433,6 +464,7 @@ void Theory::setupCC(const Expr& e) {
   Theorem thm = reflexivityRule(e);
   e.setSig(thm);
   e.setRep(thm);
+  e.setUsesCC();
   //  TRACE_MSG("facts setup", "setupCC["+getName()+"]() => }");
 }
 
@@ -469,6 +501,7 @@ void Theory::updateCC(const Theorem& e, const Expr& d) {
       }
       d.setSig(thm);
       sigNew.setRep(thm);
+      getEM()->invalidateSimpCache();
     }
   }
   //  TRACE_MSG("facts update", "updateCC["+getName()+"]() => }");
@@ -656,6 +689,15 @@ Op Theory::newFunction(const string& name, const Type& type,
   // Add the new global declaration
   installID(name, def);
   return def.mkOp();
+}
+
+
+Op Theory::lookupFunction(const string& name, Type* type)
+{
+  Expr e = getEM()->newSymbolExpr(name, UFUNC);
+  *type = e.lookupType();
+  if ((*type).isNull()) return Op();
+  return e.mkOp();
 }
 
 
@@ -850,4 +892,17 @@ void Theory::installID(const string& name, const Expr& e)
 Theorem Theory::typePred(const Expr& e) {
   return d_theoryCore->typePred(e);
 }
+
+
+Theorem Theory::rewriteIte(const Expr& e)
+{
+  if (e[0].isTrue())
+    return d_commonRules->rewriteIteTrue(e);
+  if (e[0].isFalse())
+    return d_commonRules->rewriteIteFalse(e);
+  if (e[1] == e[2])
+    return d_commonRules->rewriteIteSame(e);
+  return reflexivityRule(e);
+}
+
 

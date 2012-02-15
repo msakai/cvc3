@@ -205,8 +205,9 @@ void SearchSat::assertLit(Lit l)
   ss>>temp;
 
   if (l.isPositive()) val += "1"; else val += "0";
-  TRACE("assertLit", indentStr, l.getVar(), val);
-  TRACE("assertLit", indentStr, temp+" |L| ", e.toString());
+  TRACE("assertLit", "", "", "");
+  TRACE("assertLitScope", indentStr, "Scope level = ", temp);
+  TRACE("assertLit", indentStr, l.getVar(), val+": "+e.toString());
   )
 
     //=======
@@ -366,6 +367,7 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 
   unsigned i, n;
   Lit litTmp;
+  Var varTmp;
   bool ret;
   Var v = lit.getVar();
 
@@ -376,12 +378,11 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
   if (checkJustified(v)) return false;
 
   if (lit.isInverted()) {
-    lit = !lit;
     value = Var::invertValue(value);
   }
 
-  if (d_cnfManager->numFanins(lit) == 0) {
-    if (getValue(lit) != Var::UNKNOWN) {
+  if (d_cnfManager->numFanins(v) == 0) {
+    if (getValue(v) != Var::UNKNOWN) {
       setJustified(v);
       return false;
     }
@@ -390,21 +391,22 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
       return true;
     }
   }
-  else if (d_cnfManager->concreteLit(lit).isAbsAtomicFormula()) {
+  else if (d_cnfManager->concreteVar(v).isAbsAtomicFormula()) {
     // This node represents a predicate with embedded ITE's
     // We handle this case specially in order to catch the
     // corner case when a variable is in its own fanin.
-    n = d_cnfManager->numFanins(lit);
+    n = d_cnfManager->numFanins(v);
     for (i=0; i < n; ++i) {
-      litTmp = d_cnfManager->getFanin(lit, i);
+      litTmp = d_cnfManager->getFanin(v, i);
+      varTmp = litTmp.getVar();
       DebugAssert(!litTmp.isInverted(),"Expected positive fanin");
-      if (checkJustified(litTmp.getVar())) continue;
-      DebugAssert(d_cnfManager->concreteLit(Lit(litTmp.getVar())).getKind() == ITE,
+      if (checkJustified(varTmp)) continue;
+      DebugAssert(d_cnfManager->concreteVar(varTmp).getKind() == ITE,
                   "Expected ITE");
-      DebugAssert(getValue(litTmp) == Var::TRUE_VAL,"Expected TRUE");
-      Lit cIf = d_cnfManager->getFanin(litTmp,0);
-      Lit cThen = d_cnfManager->getFanin(litTmp,1);
-      Lit cElse = d_cnfManager->getFanin(litTmp,2);
+      DebugAssert(getValue(varTmp) == Var::TRUE_VAL,"Expected TRUE");
+      Lit cIf = d_cnfManager->getFanin(varTmp,0);
+      Lit cThen = d_cnfManager->getFanin(varTmp,1);
+      Lit cElse = d_cnfManager->getFanin(varTmp,2);
       if (getValue(cIf) == Var::UNKNOWN) {
 	if (getValue(cElse) == Var::TRUE_VAL ||
             getValue(cThen) == Var::FALSE_VAL) {
@@ -414,7 +416,7 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 	  ret = findSplitterRec(cIf, Var::TRUE_VAL, litDecision);
 	}
 	if (!ret) {
-	  cout << d_cnfManager->concreteLit(Lit(cIf.getVar())) << endl;
+	  cout << d_cnfManager->concreteVar(cIf.getVar()) << endl;
 	  DebugAssert(false,"No controlling input found (1)");
 	}	  
 	return true;
@@ -441,9 +443,9 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 	  return true;
 	}
       }
-      setJustified(litTmp.getVar());
+      setJustified(varTmp);
     }
-    if (getValue(lit) != Var::UNKNOWN) {
+    if (getValue(v) != Var::UNKNOWN) {
       setJustified(v);
       return false;
     }
@@ -453,34 +455,34 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
     }
   }
 
-  int kind = d_cnfManager->concreteLit(Lit(v)).getKind();
+  int kind = d_cnfManager->concreteVar(v).getKind();
   Var::Val valHard = Var::FALSE_VAL;
   switch (kind) {
     case AND:
       valHard = Var::TRUE_VAL;
     case OR:
       if (value == valHard) {
-        n = d_cnfManager->numFanins(lit);
+        n = d_cnfManager->numFanins(v);
 	for (i=0; i < n; ++i) {
-          litTmp = d_cnfManager->getFanin(lit, i);
+          litTmp = d_cnfManager->getFanin(v, i);
 	  if (findSplitterRec(litTmp, valHard, litDecision)) {
 	    return true;
 	  }
 	}
-	DebugAssert(getValue(lit) == valHard, "Output should be justified");
+	DebugAssert(getValue(v) == valHard, "Output should be justified");
 	setJustified(v);
 	return false;
       }
       else {
         Var::Val valEasy = Var::invertValue(valHard);
-        n = d_cnfManager->numFanins(lit);
+        n = d_cnfManager->numFanins(v);
 	for (i=0; i < n; ++i) {
-          litTmp = d_cnfManager->getFanin(lit, i);
+          litTmp = d_cnfManager->getFanin(v, i);
 	  if (getValue(litTmp) != valHard) {
 	    if (findSplitterRec(litTmp, valEasy, litDecision)) {
 	      return true;
 	    }
-	    DebugAssert(getValue(lit) == valEasy, "Output should be justified");
+	    DebugAssert(getValue(v) == valEasy, "Output should be justified");
             setJustified(v);
 	    return false;
 	  }
@@ -489,36 +491,36 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
       }
       break;
     case IMPLIES:
-      DebugAssert(d_cnfManager->numFanins(lit) == 2, "Expected 2 fanins");
+      DebugAssert(d_cnfManager->numFanins(v) == 2, "Expected 2 fanins");
       if (value == Var::FALSE_VAL) {
-        litTmp = d_cnfManager->getFanin(lit, 0);
+        litTmp = d_cnfManager->getFanin(v, 0);
         if (findSplitterRec(litTmp, Var::TRUE_VAL, litDecision)) {
           return true;
         }
-        litTmp = d_cnfManager->getFanin(lit, 1);
+        litTmp = d_cnfManager->getFanin(v, 1);
         if (findSplitterRec(litTmp, Var::FALSE_VAL, litDecision)) {
           return true;
         }
-	DebugAssert(getValue(lit) == Var::FALSE_VAL, "Output should be justified");
+	DebugAssert(getValue(v) == Var::FALSE_VAL, "Output should be justified");
 	setJustified(v);
 	return false;
       }
       else {
-        litTmp = d_cnfManager->getFanin(lit, 0);
+        litTmp = d_cnfManager->getFanin(v, 0);
         if (getValue(litTmp) != Var::TRUE_VAL) {
           if (findSplitterRec(litTmp, Var::FALSE_VAL, litDecision)) {
             return true;
           }
-          DebugAssert(getValue(lit) == Var::TRUE_VAL, "Output should be justified");
+          DebugAssert(getValue(v) == Var::TRUE_VAL, "Output should be justified");
           setJustified(v);
           return false;
 	}
-        litTmp = d_cnfManager->getFanin(lit, 1);
+        litTmp = d_cnfManager->getFanin(v, 1);
         if (getValue(litTmp) != Var::FALSE_VAL) {
           if (findSplitterRec(litTmp, Var::TRUE_VAL, litDecision)) {
             return true;
           }
-          DebugAssert(getValue(lit) == Var::TRUE_VAL, "Output should be justified");
+          DebugAssert(getValue(v) == Var::TRUE_VAL, "Output should be justified");
           setJustified(v);
           return false;
 	}
@@ -526,24 +528,24 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
       }
       break;
     case IFF: {
-      litTmp = d_cnfManager->getFanin(lit, 0);
+      litTmp = d_cnfManager->getFanin(v, 0);
       Var::Val val = getValue(litTmp);
       if (val != Var::UNKNOWN) {
 	if (findSplitterRec(litTmp, val, litDecision)) {
 	  return true;
 	}
 	if (value == Var::FALSE_VAL) val = Var::invertValue(val);
-        litTmp = d_cnfManager->getFanin(lit, 1);
+        litTmp = d_cnfManager->getFanin(v, 1);
 
 	if (findSplitterRec(litTmp, val, litDecision)) {
 	  return true;
 	}
-	DebugAssert(getValue(lit) == value, "Output should be justified");
+	DebugAssert(getValue(v) == value, "Output should be justified");
 	setJustified(v);
 	return false;
       }
       else {
-        val = getValue(d_cnfManager->getFanin(lit, 1));
+        val = getValue(d_cnfManager->getFanin(v, 1));
         if (val == Var::UNKNOWN) val = Var::FALSE_VAL;
 	if (value == Var::FALSE_VAL) val = Var::invertValue(val);
 	if (findSplitterRec(litTmp, val, litDecision)) {
@@ -554,23 +556,23 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
       break;
     }
     case XOR: {
-      litTmp = d_cnfManager->getFanin(lit, 0);
+      litTmp = d_cnfManager->getFanin(v, 0);
       Var::Val val = getValue(litTmp);
       if (val != Var::UNKNOWN) {
 	if (findSplitterRec(litTmp, val, litDecision)) {
 	  return true;
 	}
 	if (value == Var::TRUE_VAL) val = Var::invertValue(val);
-        litTmp = d_cnfManager->getFanin(lit, 1);
+        litTmp = d_cnfManager->getFanin(v, 1);
 	if (findSplitterRec(litTmp, val, litDecision)) {
 	  return true;
 	}
-	DebugAssert(getValue(lit) == value, "Output should be justified");
+	DebugAssert(getValue(v) == value, "Output should be justified");
 	setJustified(v);
 	return false;
       }
       else {
-        val = getValue(d_cnfManager->getFanin(lit, 1));
+        val = getValue(d_cnfManager->getFanin(v, 1));
         if (val == Var::UNKNOWN) val = Var::FALSE_VAL;
 	if (value == Var::TRUE_VAL) val = Var::invertValue(val);
 	if (findSplitterRec(litTmp, val, litDecision)) {
@@ -581,9 +583,9 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
       break;
     }
     case ITE: {
-      Lit cIf = d_cnfManager->getFanin(lit, 0);
-      Lit cThen = d_cnfManager->getFanin(lit, 1);
-      Lit cElse = d_cnfManager->getFanin(lit, 2);
+      Lit cIf = d_cnfManager->getFanin(v, 0);
+      Lit cThen = d_cnfManager->getFanin(v, 1);
+      Lit cElse = d_cnfManager->getFanin(v, 2);
       if (getValue(cIf) == Var::UNKNOWN) {
 	if (getValue(cElse) == value ||
             getValue(cThen) == Var::invertValue(value)) {
@@ -593,7 +595,7 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 	  ret = findSplitterRec(cIf, Var::TRUE_VAL, litDecision);
 	}
 	if (!ret) {
-	  cout << d_cnfManager->concreteLit(Lit(cIf.getVar())) << endl;
+	  cout << d_cnfManager->concreteVar(cIf.getVar()) << endl;
 	  DebugAssert(false,"No controlling input found (6)");
 	}	  
 	return true;
@@ -620,7 +622,7 @@ bool SearchSat::findSplitterRec(Lit lit, Var::Val value, Lit* litDecision)
 	  return true;
 	}
       }
-      DebugAssert(getValue(lit) == value, "Output should be justified");
+      DebugAssert(getValue(v) == value, "Output should be justified");
       setJustified(v);
       return false;
     }
@@ -728,7 +730,7 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
     d_lastValid = Theorem();
     if (qres == SATISFIABLE && d_core->incomplete()) qres = UNKNOWN;
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 
     if( CVC3::debugger.trace("quant debug")  ){
       d_core->theoryOf(FORALL)->debug(1);
@@ -884,23 +886,25 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
       for (size_t i=0; i<allpreds.size(); i++){
 	if(allpreds[i].hasFind()){
   	  Expr cur(allpreds[i]);
-//   	  if(cur.isForall() || cur.isExists() || 
-//   	     (cur.isNot() && (cur[0].isForall()||cur[0].isExists()))
-//   	     ){
-//   	    continue;
+//    	  if(cur.isForall() || cur.isExists() || 
+//    	     (cur.isNot() && (cur[0].isForall()||cur[0].isExists()))
+//    	     ){
+//    	    continue;
 //   	  }
 
 	  if( (d_core->findExpr(allpreds[i])).isTrue()){
-	    if(cur.isExists()){
- 	      continue;
- 	    }
-	    cout<<":assumption "<< allpreds[i] <<"" <<endl;
+// 	    if(cur.isExists()){
+//  	      continue;
+//  	    }
+	    cout<<"ASSERT "<< allpreds[i] <<";" <<endl;
+//	    cout<<":assumption "<< allpreds[i] <<"" <<endl;
 	  }
 	  else if ( (d_core->findExpr(allpreds[i])).isFalse()){
-// 	    if (cur.isForall()){
-// 	      continue;
-// 	    }
-	    cout<<":assumption(not "<< allpreds[i] <<")" <<endl;
+//  	    if (cur.isForall()){
+//  	      continue;
+//  	    }
+	    cout<<"ASSERT (NOT "<< allpreds[i] <<");" <<endl;
+//	    cout<<":assumption(not "<< allpreds[i] <<")" <<endl;
 	  }
 	  else{
 	    cout<<"--ERROR"<<endl;
@@ -1034,6 +1038,28 @@ static void setRecursiveInUserAssumption(const Expr& e, int scope)
 }
 
 
+void SearchSat::newUserAssumptionIntHelper(const Theorem& thm, CNF_Formula_Impl& cnf, bool atBottomScope)
+{
+  Expr e = thm.getExpr();
+  if (e.isAnd()) {
+    for (int i = 0; i < e.arity(); ++i) {
+      newUserAssumptionIntHelper(d_commonRules->andElim(thm, i), cnf, atBottomScope);
+    }
+  }
+  else {
+    if ( ! d_core->getFlags()["cnf-formula"].getBool()) {
+      if (!recordNewRootLit(d_cnfManager->addAssumption(thm, cnf), 0, atBottomScope)) {
+	cnf.deleteLast();
+      }
+    }
+    else{
+      d_cnfManager->addAssumption(thm, cnf);
+    }
+    // if cnf-formula is enabled,  d_cnfManager->addAssumption returns a random literal, not a RootLit.  A random lit can make recordNewRootLit return false, which in turn makes cnf.deleteLast() to delete the last clause, which is not correct. 
+  }
+}
+
+
 Theorem SearchSat::newUserAssumptionInt(const Expr& e, CNF_Formula_Impl& cnf, bool atBottomScope)
 {
   DebugAssert(!d_inCheckSat,
@@ -1047,11 +1073,11 @@ Theorem SearchSat::newUserAssumptionInt(const Expr& e, CNF_Formula_Impl& cnf, bo
     e.setUserAssumption(scope);
     thm = d_commonRules->assumpRule(e, scope);
     d_userAssumptions.push_back(thm, scope);
+
     if (atBottomScope && d_bottomScope != d_core->getCM()->scopeLevel()) {
       //TODO: run preprocessor without using context-dependent information
-      if (!recordNewRootLit(d_cnfManager->addAssumption(thm, cnf), 0, atBottomScope)) {
-        cnf.deleteLast();
-      }
+      //TODO: this will break if we have stuff like the BVDIV rewrite that needs to get enqueued during preprocessing
+      newUserAssumptionIntHelper(thm, cnf, true);
     }
     else {
       Theorem thm2 = d_core->getExprTrans()->preprocess(thm);
@@ -1061,9 +1087,7 @@ Theorem SearchSat::newUserAssumptionInt(const Expr& e, CNF_Formula_Impl& cnf, bo
         return thm;
       }
       else if (!e2.isTrue()) {
-        if (!recordNewRootLit(d_cnfManager->addAssumption(thm2, cnf), 0, false)) {
-          cnf.deleteLast();
-        }
+        newUserAssumptionIntHelper(thm2, cnf, false);
       }
     }
     if (d_cnfManager->numVars() > d_vars.size()) {

@@ -1692,6 +1692,107 @@ void test19()
   delete vc;
 }
 
+
+void test20()  {
+  ValidityChecker *vc = ValidityChecker::create();
+  try {
+    vector<string> names;
+    vector<vector<string> > constructors(3);
+    vector<vector<vector<string> > > selectors(3);
+    vector<vector<vector<Expr> > > types(3);
+    vector<Type> returnTypes;
+
+    names.push_back("pair");
+
+    selectors[0].resize(1);
+    types[0].resize(1);
+    constructors[0].push_back("p");
+    selectors[0][0].push_back("p1");
+    types[0][0].push_back(vc->stringExpr("t1"));
+    selectors[0][0].push_back("p2");
+    types[0][0].push_back(vc->stringExpr("t2"));
+
+    names.push_back("t1");
+
+    selectors[1].resize(5);
+    types[1].resize(5);
+    constructors[1].push_back("a");
+    constructors[1].push_back("b");
+    constructors[1].push_back("c");
+    constructors[1].push_back("d");
+    constructors[1].push_back("e");
+
+    names.push_back("t2");
+
+    selectors[2].resize(1);
+    types[2].resize(1);
+    constructors[2].push_back("cons");
+    selectors[2][0].push_back("s0");
+    types[2][0].push_back(vc->bitvecType(2).getExpr());
+    selectors[2][0].push_back("s1");
+    types[2][0].push_back(vc->arrayType(vc->intType(), vc->subrangeType(vc->ratExpr(0), vc->ratExpr(0))).getExpr());
+
+    vc->dataType(names, constructors, selectors, types, returnTypes);
+
+    DebugAssert(returnTypes[0].card() == CARD_FINITE, "Expected finite");
+    Unsigned size = returnTypes[0].sizeFinite();
+    Unsigned i = 0;
+    for (; i < size; ++i) {
+      cout << i << ": ";
+      vc->printExpr(returnTypes[0].enumerateFinite(i));
+    }
+
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test20(): \n" << e << endl;
+  }
+  delete vc;
+}
+
+void test21()  {
+  ValidityChecker *vc = ValidityChecker::create();
+
+  try {
+    Type t = vc->realType();
+
+    Expr x1 = vc->varExpr("x",t);
+
+    Expr x2 = vc->exprFromString("x");
+    cout << "x1: " << x1;
+    cout << "\nx2: " << x2;
+    DebugAssert(x1 == x2, "Expected x1 == x2");
+
+    Expr y1 = vc->varExpr("y",t);
+    Expr y2 = vc->exprFromString("y");
+    cout << "\ny1: " << y1;
+    cout << "\ny2: " << y2;
+    DebugAssert(y1 == y2, "Expected y1 == y2");
+
+    Expr a1 = vc->gtExpr(x1,vc->ratExpr(0,1));
+    Expr a2 = vc->exprFromString("x > 0");
+    cout << "\na1: " << a1;
+    cout << "\na2: " << a2;
+    DebugAssert(a1 == a2, "Expected a1 == a2");
+
+    Expr b1 = vc->ltExpr(x1,y1);
+    Expr b2 = vc->exprFromString ("x < y");
+    cout << "\nb1: " << b1;
+    cout << "\nb2: " << b2;
+    DebugAssert(b1 == b2, "Expected b1 == b2");
+
+    Expr e1 = a1 && b1;
+    Expr e2 = vc->exprFromString("x > 0 AND x < y");
+
+    cout << "\ne1: " << e1;
+    cout << "\ne2: " << e2;
+    DebugAssert(e1 == e2, "Expected e1 == e2");
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test21(): \n" << e << endl;
+  }
+  delete vc;
+}
+
 int main(int argc, char** argv)
 {
   int regressLevel = 3;
@@ -1750,6 +1851,10 @@ int main(int argc, char** argv)
     test18();
     cout << "\n}\ntest19(): {" << endl;
     test19();
+    cout << "\ntest20(): {" << endl;
+    test20();
+    cout << "\n}\ntest21(): {" << endl;
+    test21();
 
     if (regressLevel > 1) {
       cout << "\n}\ntestgeorge1(): {" << endl;

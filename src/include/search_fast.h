@@ -12,7 +12,7 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
  *
  * A faster implementation of the proof search engine
@@ -51,7 +51,7 @@ namespace CVC3 {
 
   //! Implementation of a faster search engine, using newer techniques.
   /*!
-    
+
   This search engine is engineered for greater speed.  It seeks to
   eliminate the use of recursion, and instead replace it with
   iterative procedures that have cleanly defined invariants.  This
@@ -103,7 +103,7 @@ namespace CVC3 {
     StatCounter d_conflictCount;
     //! Total number of conflict clauses generated (not all may be active)
     StatCounter d_conflictClauseCount;
-    
+
     //! Backtrackable list of clauses.
     /*! New clauses may come into play
       from the decision procedures that are context dependent. */
@@ -184,7 +184,7 @@ namespace CVC3 {
      */
     CDMap<Expr,Literal> d_literalSet;
 
-    //! Queue of derived facts to be sent to DPs 
+    //! Queue of derived facts to be sent to DPs
     /*! \sa addFact() and commitFacts() */
     std::vector<Theorem> d_factQueue;
     /*! @brief When true, use TheoryCore::enqueueFact() instead of
@@ -196,7 +196,7 @@ namespace CVC3 {
      *  literals immediately (outside of checkSAT()) or not.
      */
     bool d_inCheckSAT;
-    
+
 
     //! Set of alive literals that shouldn't be garbage-collected
     /*! Unfortunately, I have a keep-alive issue.  I think literals
@@ -213,7 +213,7 @@ namespace CVC3 {
 
     std::vector<Circuit*> d_circuits;
     ExprHashMap<std::vector<Circuit*> > d_circuitsByExpr;
-    
+
     //! The scope of the last conflict
     /*! This is the true scope of the conflict, not necessarily the
       scope where the conflict was detected. */
@@ -227,7 +227,7 @@ namespace CVC3 {
     Clause d_lastConflictClause;
     //! Theorem(FALSE) which generated a conflict
     Theorem d_conflictTheorem;
-    
+
     /*! @brief Return a ref to the vector of watched literals.  If no
       such vector exists, create it. */
     std::vector<std::pair<Clause, int> >& wp(const Literal& literal);
@@ -239,7 +239,7 @@ namespace CVC3 {
 
     //! Choose a splitter.
     /*! Preconditions: The current context is consistent.
-     * 
+     *
      * \return true if splitter available, and it asserts it through
      * newIntAssumption() after first pushing a new context.
      *
@@ -265,14 +265,14 @@ namespace CVC3 {
     ExprHashMap<unsigned> d_litCounts;
     //! Mapping of literals to previous counters (what's that, anyway?)
     ExprHashMap<unsigned> d_litCountPrev;
-    */    
+    */
     //! Internal splitter counter for delaying updateLitScores()
     int d_splitterCount;
     //! Internal (decrementing) count of added splitters, to sort d_litByScores
     int d_litSortCount;
-    
+
     //! Flag to switch on/off the berkmin heuristic
-    const bool& d_berkminFlag;
+    const bool d_berkminFlag;
 
     //! Clear the list of asserted literals (d_literals)
     void clearLiterals();
@@ -307,7 +307,7 @@ namespace CVC3 {
      *  discovered in CNF, we call the proof rule, then store that
      *  clause pointer so fixConflict() can skip over it during the
      *  search (when we finally change dependency tracking).
-     *  
+     *
      *  True indicates success.  All literals and nonLiterals have
      *  been processed without causing a conflict.  Processing
      *  nonliterals implies running simplify on them, immediately
@@ -323,7 +323,7 @@ namespace CVC3 {
     /*! Preconditions: The current context is inconsistent.  If it
      *  resulted from a conflictRule() application, then the theorem
      *  is stored inside d_lastConflictTheorem.
-     *  
+     *
      *  If this was caused from bcp, we obtain the conflictRule()
      *  theorem from the d_lastConflictTheorem instance variable.
      *  From here we build conflict clauses and determine the correct
@@ -409,7 +409,7 @@ namespace CVC3 {
     //virtual Clause nextClause();
     //! Return next non-clause which does not reduce to false
     //virtual Expr nextNonClause();
-  };  
+  };
 /*! @} */ // end of SE_Fast
 }
 

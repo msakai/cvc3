@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -31,7 +31,8 @@ class DatatypeProofRules;
 
 //! Local kinds for datatypes
   typedef enum {
-    DATATYPE = 600,
+    DATATYPE_DECL = 600,
+    DATATYPE,
     CONSTRUCTOR,
     SELECTOR,
     TESTER
@@ -52,22 +53,27 @@ class TheoryDatatype :public Theory {
 protected:
   DatatypeProofRules* d_rules;
 
+  // maps DATATYPE expressions to map containing constructors for that datatype
   ExprMap<ExprMap<unsigned> > d_datatypes;
+  // maps constructor to its selectors
+  ExprMap<std::vector<Expr> > d_constructorMap;
+  // maps selector to a pair containing the constructor and the position of the selctor for that constructor
   ExprMap<std::pair<Expr,unsigned> > d_selectorMap;
+  // maps tester to constructor that it matches
   ExprMap<Expr> d_testerMap;
   ExprMap<Op> d_reach;
 
-  typedef unsigned bigunsigned;
-  CDMap<Expr, SmartCDO<bigunsigned> > d_labels;
+  CDMap<Expr, SmartCDO<Unsigned> > d_labels;
 
   CDList<Theorem> d_facts;
   CDList<Expr> d_splitters;
   CDO<unsigned> d_splittersIndex;
   CDO<bool> d_splitterAsserted;
   const bool& d_smartSplits;
+  ExprMap<bool> d_getConstantStack;
 
 protected:
-  virtual void instantiate(const Expr& e, const bigunsigned& u);
+  virtual void instantiate(const Expr& e, const Unsigned& u);
   virtual void initializeLabels(const Expr& e, const Type& t);
   virtual void mergeLabels(const Theorem& thm, const Expr& e1, const Expr& e2);
   virtual void mergeLabels(const Theorem& thm, const Expr& e,
@@ -90,22 +96,25 @@ public:
   virtual void update(const Theorem& e, const Expr& d);
   Theorem solve(const Theorem& e);
   void checkType(const Expr& e);
+  Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                             bool enumerate, bool computeSize);
   void computeType(const Expr& e);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);
   Expr computeTCC(const Expr& e);
   Expr parseExprOp(const Expr& e);
   ExprStream& print(ExprStream& os, const Expr& e);
 
-  Type dataType(const std::string& name,
+  // Returns Expr(DATATYPE_DECL datatype)
+  Expr dataType(const std::string& name,
                 const std::vector<std::string>& constructors,
                 const std::vector<std::vector<std::string> >& selectors,
                 const std::vector<std::vector<Expr> >& types);
 
-  void dataType(const std::vector<std::string>& names,
+  // Returns Expr(DATATYPE_DECL type_1, type_2, ...)
+  Expr dataType(const std::vector<std::string>& names,
                 const std::vector<std::vector<std::string> >& constructors,
                 const std::vector<std::vector<std::vector<std::string> > >& selectors,
-                const std::vector<std::vector<std::vector<Expr> > >& types,
-                std::vector<Type>& returnTypes);
+                const std::vector<std::vector<std::vector<Expr> > >& types);
 
   Expr datatypeConsExpr(const std::string& constructor,
                         const std::vector<Expr>& args);
@@ -125,8 +134,8 @@ inline bool isDatatype(const Type& t)
   { return t.getExpr().getKind() == DATATYPE; }
 
 inline bool isConstructor(const Expr& e)
-  { return e.getKind() == CONSTRUCTOR && e.getType().arity()==1 ||
-           e.isApply() && e.getOpKind() == CONSTRUCTOR; }
+  { return (e.getKind() == CONSTRUCTOR && e.getType().arity()==1) ||
+           (e.isApply() && e.getOpKind() == CONSTRUCTOR); }
 
 inline bool isSelector(const Expr& e)
   { return e.isApply() && e.getOpKind() == SELECTOR; }

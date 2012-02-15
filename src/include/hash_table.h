@@ -55,14 +55,15 @@
 #include <functional>
 #include <algorithm>
 #include "hash_fun.h"
+#include "os.h"
 
 // For some reason, including debug.h doesn't work--so redeclare macros here
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 #define DebugAssert(cond, str) if(!(cond)) \
  CVC3::debugError(__FILE__, __LINE__, #cond, str)
 namespace CVC3 {
-extern void debugError(const std::string& file, int line,
+extern CVC_DLL void debugError(const std::string& file, int line,
                        const std::string& cond, const std::string& msg);
 }
 #else

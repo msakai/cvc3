@@ -76,10 +76,13 @@ public:
   // Assignment operator
   Op& operator=(const Op& op);
 
+  // Check if Op is NULL
+  bool isNull() const { return d_kind == NULL_KIND; }
   // Return the kind of the operator
   int getKind() const { return d_kind; }
   // Return the expr associated with this operator if applicable.
-  const Expr& getExpr() const { return d_expr; }
+  const Expr& getExpr() const
+    { DebugAssert(d_kind == APPLY, "Expected APPLY"); return d_expr; }
 
   // Printing functions.
 

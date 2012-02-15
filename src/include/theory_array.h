@@ -21,7 +21,7 @@
 #ifndef _cvc3__include__theory_array_h_
 #define _cvc3__include__theory_array_h_
 
-#include "theory.h"
+#include "theory_core.h"
 
 namespace CVC3 {
 
@@ -59,8 +59,23 @@ class TheoryArray :public Theory {
   //! Flag to lift ite's over reads
   const bool& d_liftReadIte;
 
+  //! Backtracking database of subterms of shared terms
+  CDMap<Expr,Expr> d_sharedSubterms;
+  //! Backtracking database of subterms of shared terms
+  CDList<Expr> d_sharedSubtermsList;
+  //! Used in checkSat
+  CDO<unsigned> d_index;
+
+  //! Flag for use in checkSat
+  int d_inCheckSat;
+
   // Private methods
   Theorem renameExpr(const Expr& e);
+
+  //! Derived rule
+  // w(...,i,v1,...,) => w(......,i,v1')
+  // Returns Null Theorem if index does not appear
+  Theorem pullIndex(const Expr& e, const Expr& index);
 
 public:
   TheoryArray(TheoryCore* core);
@@ -71,14 +86,16 @@ public:
   ArrayProofRules* createProofRules();
 
   // Theory interface
-  void addSharedTerm(const Expr& e) {}
-  void assertFact(const Theorem& e) {}
-  void checkSat(bool fullEffort) {}
+  void addSharedTerm(const Expr& e);
+  void assertFact(const Theorem& e);
+  void checkSat(bool fullEffort);
   Theorem rewrite(const Expr& e);
   void setup(const Expr& e);
   void update(const Theorem& e, const Expr& d);
   Theorem solve(const Theorem& e);
   void checkType(const Expr& e);
+  Cardinality finiteTypeInfo(Expr& e, Unsigned& n,
+                             bool enumerate, bool computeSize);
   void computeType(const Expr& e);
   Type computeBaseType(const Type& t);
   void computeModelTerm(const Expr& e, std::vector<Expr>& v);

@@ -2,9 +2,9 @@
 /*!
  * \file expr.h
  * \brief Definition of the API to expression package.  See class Expr for details.
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Tue Nov 26 00:27:40 2002
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -73,9 +73,15 @@ namespace CVC3 {
     EXPR_SYMBOL,
     EXPR_BOUND_VAR,
     EXPR_CLOSURE,
-    EXPR_THEOREM,
     EXPR_VALUE_TYPE_LAST // The end of list; don't assign it to any subclass
   } ExprValueType;
+
+  //! Enum for cardinality of types
+  typedef enum {
+    CARD_FINITE,
+    CARD_INFINITE,
+    CARD_UNKNOWN
+  } Cardinality;
 
   //! Expression index type
   typedef long unsigned ExprIndex;
@@ -130,6 +136,7 @@ class CVC_DLL Expr {
   friend class Op;
   friend class ExprValue;
   friend class ExprNode;
+  friend class ExprClosure;
   friend class ::CInterface;
   friend class Theorem;
 
@@ -153,7 +160,13 @@ class CVC_DLL Expr {
     //! Compute transitive closure (for binary uninterpreted predicates)
     COMPUTE_TRANS_CLOSURE = 0x1000,
     //! Whether expr contains a bounded variable (for quantifier instantiation)
-    CONTAINS_BOUND_VAR = 0x00020000
+    CONTAINS_BOUND_VAR = 0x00020000,
+    //! Whether expr uses CC algorithm that relies on not simplifying an expr that has a find
+    USES_CC = 0x00080000,
+    //! Whether TERMINALS_CONST flag is valid (initialized)
+    VALID_TERMINALS_CONST = 0x00100000,
+    //! Whether expr contains only numerical constants at all possible ite terminals
+    TERMINALS_CONST = 0x00200000
   } StaticFlagsEnum;
 
   //! bit-masks for dynamic flags
@@ -169,7 +182,9 @@ class CVC_DLL Expr {
     IS_SELECTED = 0x2000,
     IS_STORED_PREDICATE = 0x4000,
     IS_REGISTERED_ATOM = 0x8000,
-    IN_USER_ASSUMPTION = 0x00010000
+    IN_USER_ASSUMPTION = 0x00010000,
+    //! Whether expr is normalized (in array theory)
+    NOT_ARRAY_NORMALIZED = 0x00040000
   } DynamicFlagsEnum;
 
   //! Convenient null expr
@@ -191,7 +206,7 @@ class CVC_DLL Expr {
   Expr recursiveSubst(const ExprHashMap<Expr>& subst,
                       ExprHashMap<Expr>& visited) const;
 
-  Expr recursiveQuantSubst(const ExprHashMap<Expr>& subst,
+  Expr recursiveQuantSubst(ExprHashMap<Expr>& subst,
                       ExprHashMap<Expr>& visited) const;
 public:
   /////////////////////////////////////////////////////////////////////////////
@@ -204,7 +219,7 @@ public:
    * Author: Sergey Berezin
    * Created: Fri Dec  6 15:38:51 2002
    * Description: STL-like iterator API to the Expr's children.
-   * IMPORTANT: the iterator will not be valid after the originating 
+   * IMPORTANT: the iterator will not be valid after the originating
    * expression is destroyed.
   */
   /////////////////////////////////////////////////////////////////////////////
@@ -252,7 +267,7 @@ public:
      *
      * Now, an expression like *i++ will return the current *i, and
      * then advance the iterator.  However, don't try to use Proxy for
-     * anything else. 
+     * anything else.
      */
     Proxy operator++(int) {
       Proxy e(*(*this));
@@ -298,6 +313,7 @@ public:
   Expr iteExpr(const Expr& thenpart, const Expr& elsepart) const;
   Expr iffExpr(const Expr& right) const;
   Expr impExpr(const Expr& right) const;
+  Expr xorExpr(const Expr& right) const;
   //! Create a Skolem constant for the i'th variable of an existential (*this)
   Expr skolemExpr(int i) const;
   //! Create a Boolean variable out of the expression
@@ -345,6 +361,11 @@ public:
   bool isApply() const;
   bool isSymbol() const;
   bool isTheorem() const;
+
+  bool isConstant() const { return getOpKind() <= MAX_CONST; }
+  
+  bool isRawList() const {return getKind() == RAW_LIST;}
+
   //! Expr represents a type
   bool isType() const;
   /*
@@ -360,8 +381,8 @@ public:
   //! Test if e is a term (as opposed to a predicate/formula)
   bool isTerm() const;
   //! Test if e is atomic
-  /*! An atomic expression is one that does not contain a formula (including
-   *  not being a formula itself).
+  /*! An atomic expression is TRUE or FALSE or one that does not
+   *  contain a formula (including not being a formula itself).
    *  \sa isAtomicFormula */
   bool isAtomic() const;
   //! Test if e is an atomic formula
@@ -374,7 +395,7 @@ public:
   bool isAbsAtomicFormula() const
     { return isQuantifier() || isAtomicFormula(); }
   //! Test if e is a literal
-  /*! A literal is an atomic formula, or its negation.  
+  /*! A literal is an atomic formula, or its negation.
     \sa isAtomicFormula */
   bool isLiteral() const
   { return (isAtomicFormula() || (isNot() && (*this)[0].isAtomicFormula())); }
@@ -384,10 +405,13 @@ public:
   //! A Bool connective is one of NOT,AND,OR,IMPLIES,IFF,XOR,ITE (with type Bool)
   bool isBoolConnective() const;
   //! True iff expr is not a Bool connective
-  bool isPropAtom() const { return !isBoolConnective(); }
+  bool isPropAtom() const { return !isTerm() && !isBoolConnective(); }
   //! PropAtom or negation of PropAtom
   bool isPropLiteral() const
     { return (isNot() && (*this)[0].isPropAtom()) || isPropAtom(); }
+  //! Return whether Expr contains a non-bool type ITE as a sub-term
+  bool containsTermITE() const;
+
 
   bool isEq() const { return getKind() == EQ; }
   bool isNot() const { return getKind() == NOT; }
@@ -413,25 +437,25 @@ public:
   const std::string& getUid() const;
 
   // For STRING_EXPR's
-  const std::string& getString() const; 
+  const std::string& getString() const;
   //! Get bound variables from a closure Expr
   const std::vector<Expr>& getVars() const;
   //! Get the existential axiom expression for skolem constant
   const Expr& getExistential() const;
   //! Get the index of the bound var that skolem constant comes from
   int getBoundIndex() const;
- 
+
   //! Get the body of the closure Expr
   const Expr& getBody() const;
 
   //! Set the triggers for a closure Expr
-  void setTriggers(const std::vector<Expr>& triggers) const;
+  void setTriggers(const std::vector<std::vector<Expr> >& triggers) const;
 
   //! Get the manual triggers of the closure Expr
-  const std::vector<Expr>& getTrigs() const; //by yeting
+  const std::vector<std::vector<Expr> >& getTrigs() const; //by yeting
 
   //! Get the Rational value out of RATIONAL_EXPR
-  const Rational& getRational() const; 
+  const Rational& getRational() const;
   //! Get theorem from THEOREM_EXPR
   const Theorem& getTheorem() const;
 
@@ -505,9 +529,17 @@ public:
   NotifyList* getNotify() const;
 
   //! Get the type.  Recursively compute if necessary
-  const Type getType() const;
+  Type getType() const;
   //! Look up the current type. Do not recursively compute (i.e. may be NULL)
-  const Type lookupType() const;
+  Type lookupType() const;
+  //! Return cardinality of type
+  Cardinality typeCard() const;
+  //! Return nth (starting with 0) element in a finite type
+  /*! Returns NULL Expr if unable to compute nth element
+   */
+  Expr typeEnumerateFinite(Unsigned n) const;
+  //! Return size of a finite type; returns 0 if size cannot be determined
+  Unsigned typeSizeFinite() const;
 
   /*! @brief Return true if there is a valid cached value for calling
       simplify on this Expr. */
@@ -522,8 +554,14 @@ public:
   // Return true if there is a valid flag for whether Expr is atomic
   bool validIsAtomicFlag() const;
 
+  // Return true if there is a valid flag for whether terminals are const
+  bool validTerminalsConstFlag() const;
+
   // Get the isAtomic flag
   bool getIsAtomicFlag() const;
+
+  // Get the TerminalsConst flag
+  bool getTerminalsConstFlag() const;
 
   // Get the RewriteNormal flag
   bool isRewriteNormal() const;
@@ -539,6 +577,12 @@ public:
 
   // Get the ContainsBoundVar flag
   bool containsBoundVar() const;
+
+  // Get the usesCC flag
+  bool usesCC() const;
+
+  // Get the notArrayNormalized flag
+  bool notArrayNormalized() const;
 
   // Get the ImpliedLiteral flag
   bool isImpliedLiteral() const;
@@ -639,6 +683,9 @@ public:
   // Set the isAtomicFlag for this Expr
   void setIsAtomicFlag(bool value) const;
 
+  // Set the TerminalsConst flag for this Expr
+  void setTerminalsConstFlag(bool value) const;
+
   // Set or clear the RewriteNormal flag
   void setRewriteNormal() const;
   void clearRewriteNormal() const;
@@ -654,6 +701,12 @@ public:
 
   // Set the ContainsBoundVar flag
   void setContainsBoundVar() const;
+
+  // Set the UsesCC flag
+  void setUsesCC() const;
+
+  // Set the notArrayNormalized flag
+  void setNotArrayNormalized() const;
 
   // Set the impliedLiteral flag for this Expr
   void setImpliedLiteral() const;
@@ -689,6 +742,9 @@ public:
   bool subExprOf(const Expr& e) const;
   // Returns the maximum number of Boolean expressions on a path from
   // this to a leaf, including this.
+
+  inline Unsigned getSize() const;
+
 //   inline int getHeight() const;
 
 //   // Returns the index of the highest kid.
@@ -758,7 +814,7 @@ inline Expr& Expr::operator=(const Expr& e) {
     d_expr->decRefcount();
   }
   else {
-    tmp->incRefcount();  
+    tmp->incRefcount();
     if(d_expr != NULL) {
       d_expr->decRefcount();
     }
@@ -769,7 +825,7 @@ inline Expr& Expr::operator=(const Expr& e) {
 
 inline Expr::Expr(const Op& op, const Expr& child) {
   ExprManager* em = child.getEM();
-  if (op.getExpr().isNull()) {
+  if (op.getKind() != APPLY) {
     ExprNode ev(em, op.getKind());
     std::vector<Expr>& kids = ev.getKids1();
     kids.push_back(child);
@@ -780,12 +836,12 @@ inline Expr::Expr(const Op& op, const Expr& child) {
     kids.push_back(child);
     d_expr = em->newExprValue(&ev);
   }
-  d_expr->incRefcount();  
+  d_expr->incRefcount();
 }
- 
+
 inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1) {
   ExprManager* em = child0.getEM();
-  if (op.getExpr().isNull()) {
+  if (op.getKind() != APPLY) {
     ExprNode ev(em, op.getKind());
     std::vector<Expr>& kids = ev.getKids1();
     kids.push_back(child0);
@@ -798,13 +854,13 @@ inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1) {
     kids.push_back(child1);
     d_expr = em->newExprValue(&ev);
   }
-  d_expr->incRefcount();  
+  d_expr->incRefcount();
 }
 
 inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
                   const Expr& child2) {
   ExprManager* em = child0.getEM();
-  if (op.getExpr().isNull()) {
+  if (op.getKind() != APPLY) {
     ExprNode ev(em, op.getKind());
     std::vector<Expr>& kids = ev.getKids1();
     kids.push_back(child0);
@@ -819,13 +875,13 @@ inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
     kids.push_back(child2);
     d_expr = em->newExprValue(&ev);
   }
-  d_expr->incRefcount();  
+  d_expr->incRefcount();
 }
 
 inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
                   const Expr& child2, const Expr& child3) {
   ExprManager* em = child0.getEM();
-  if (op.getExpr().isNull()) {
+  if (op.getKind() != APPLY) {
     ExprNode ev(em, op.getKind());
     std::vector<Expr>& kids = ev.getKids1();
     kids.push_back(child0);
@@ -848,7 +904,7 @@ inline Expr::Expr(const Op& op, const Expr& child0, const Expr& child1,
 inline Expr::Expr(const Op& op, const std::vector<Expr>& children,
                   ExprManager* em) {
   if (em == NULL) {
-    if (!op.getExpr().isNull()) em = op.getExpr().getEM();
+    if (op.getKind() == APPLY) em = op.getExpr().getEM();
     else {
       DebugAssert(children.size() > 0,
                   "Expr::Expr(Op, children): op's EM is NULL and "
@@ -856,7 +912,7 @@ inline Expr::Expr(const Op& op, const std::vector<Expr>& children,
       em = children[0].getEM();
     }
   }
-  if (op.getExpr().isNull()) {
+  if (op.getKind() != APPLY) {
     ExprNodeTmp ev(em, op.getKind(), children);
     d_expr = em->newExprValue(&ev);
   } else {
@@ -910,6 +966,10 @@ inline Expr Expr::impExpr(const Expr& right) const {
   return Expr(IMPLIES, *this, right);
 }
 
+inline Expr Expr::xorExpr(const Expr& right) const {
+  return Expr(XOR, *this, right);
+}
+
 inline Expr Expr::skolemExpr(int i) const {
   return getEM()->newSkolemExpr(*this, i);
 }
@@ -920,7 +980,8 @@ inline Expr Expr::rebuild(ExprManager* em) const {
 
 inline Expr::~Expr() {
   if(d_expr != NULL) {
-    d_expr->decRefcount();
+    IF_DEBUG(FatalAssert(d_expr->d_refcount > 0, "Mis-handled the ref. counting");)
+    if (--(d_expr->d_refcount) == 0) d_expr->d_em->gc(d_expr);
   }
 }
 
@@ -946,10 +1007,10 @@ inline bool Expr::isQuantifier() const {
 inline bool Expr::isLambda() const {
   return (isClosure() && getKind() == LAMBDA);
 }
-inline bool Expr::isApply() const 
+inline bool Expr::isApply() const
 { DebugAssert((getKind() != APPLY || d_expr->isApply()) &&
               (!d_expr->isApply() || getKind() == APPLY), "APPLY mismatch");
-  return d_expr->isApply(); }
+  return getKind() == APPLY; }
 inline bool Expr::isSymbol() const { return d_expr->isSymbol(); }
 inline bool Expr::isTheorem() const { return d_expr->isTheorem(); }
 inline bool Expr::isType() const { return getEM()->isTypeKind(getOpKind()); }
@@ -960,6 +1021,14 @@ inline bool Expr::isBoolConnective() const {
     case NOT: case AND: case OR: case IMPLIES: case IFF: case XOR: case ITE:
       return true; }
   return false;
+}
+
+inline Unsigned Expr::getSize() const {
+  if (d_expr->d_size == 0) {
+    clearFlags();
+    const_cast<ExprValue*>(d_expr)->d_size = d_expr->getSize();
+  }
+  return d_expr->d_size;
 }
 
   //inline int Expr::getHeight() const { return d_expr->getHeight(); }
@@ -999,15 +1068,15 @@ inline const Expr& Expr::getBody() const {
        	+ toString(AST_LANG));
    return d_expr->getBody();
 }
- 
-inline void Expr::setTriggers(const std::vector<Expr>& triggers) const {
+
+ inline void Expr::setTriggers(const std::vector< std::vector<Expr> >& triggers) const {
   DebugAssert(isClosure(),
 	      "CVC3::Expr::setTriggers(): not a closure Expr:\n  "
 	      + toString(AST_LANG));
   d_expr->setTriggers(triggers);
 }
 
-inline const std::vector<Expr>& Expr::getTrigs() const { //by yeting
+ inline const std::vector<std::vector<Expr> >& Expr::getTrigs() const { //by yeting
   DebugAssert(isClosure(),
 	      "CVC3::Expr::getTrigs(): not a closure Expr:\n  "
 	      + toString(AST_LANG));
@@ -1150,15 +1219,39 @@ inline NotifyList* Expr::getNotify() const {
   else return d_expr->d_notifyList;
 }
 
-inline const Type Expr::getType() const {
+inline Type Expr::getType() const {
   if (isNull()) return s_null;
-  if(d_expr->d_type.isNull()) getEM()->computeType(*this);
+  if (d_expr->d_type.isNull()) getEM()->computeType(*this);
   return d_expr->d_type;
 }
 
-inline const Type Expr::lookupType() const {
+inline Type Expr::lookupType() const {
   if (isNull()) return s_null;
   return d_expr->d_type;
+}
+
+inline Cardinality Expr::typeCard() const {
+  DebugAssert(!isNull(), "typeCard called on NULL Expr");
+  Expr e(*this);
+  Unsigned n;
+  return getEM()->finiteTypeInfo(e, n, false, false);
+}
+
+inline Expr Expr::typeEnumerateFinite(Unsigned n) const {
+  DebugAssert(!isNull(), "typeEnumerateFinite called on NULL Expr");
+  Expr e(*this);
+  Cardinality card = getEM()->finiteTypeInfo(e, n, true, false);
+  if (card != CARD_FINITE) e = Expr();
+  return e;
+}
+
+inline Unsigned Expr::typeSizeFinite() const {
+  DebugAssert(!isNull(), "typeCard called on NULL Expr");
+  Expr e(*this);
+  Unsigned n;
+  Cardinality card = getEM()->finiteTypeInfo(e, n, false, true);
+  if (card != CARD_FINITE) n = 0;
+  return n;
 }
 
 inline bool Expr::validSimpCache() const {
@@ -1177,8 +1270,16 @@ inline bool Expr::validIsAtomicFlag() const {
   return d_expr->d_dynamicFlags.get(VALID_IS_ATOMIC);
 }
 
+inline bool Expr::validTerminalsConstFlag() const {
+  return d_expr->d_dynamicFlags.get(VALID_TERMINALS_CONST);
+}
+
 inline bool Expr::getIsAtomicFlag() const {
   return d_expr->d_dynamicFlags.get(IS_ATOMIC);
+}
+
+inline bool Expr::getTerminalsConstFlag() const {
+  return d_expr->d_dynamicFlags.get(TERMINALS_CONST);
 }
 
 inline bool Expr::isRewriteNormal() const {
@@ -1199,6 +1300,14 @@ inline bool Expr::computeTransClosure() const {
 
 inline bool Expr::containsBoundVar() const {
   return d_expr->d_dynamicFlags.get(CONTAINS_BOUND_VAR);
+}
+
+inline bool Expr::usesCC() const {
+  return d_expr->d_dynamicFlags.get(USES_CC);
+}
+
+inline bool Expr::notArrayNormalized() const {
+  return d_expr->d_dynamicFlags.get(NOT_ARRAY_NORMALIZED);
 }
 
 inline bool Expr::isImpliedLiteral() const {
@@ -1301,6 +1410,13 @@ inline void Expr::setIsAtomicFlag(bool value) const {
   else d_expr->d_dynamicFlags.clear(IS_ATOMIC, 0);
 }
 
+inline void Expr::setTerminalsConstFlag(bool value) const {
+  DebugAssert(!isNull(), "Expr::setTerminalsConstFlag() on Null expr");
+  d_expr->d_dynamicFlags.set(VALID_TERMINALS_CONST, 0);
+  if (value) d_expr->d_dynamicFlags.set(TERMINALS_CONST, 0);
+  else d_expr->d_dynamicFlags.clear(TERMINALS_CONST, 0);
+}
+
 inline void Expr::setRewriteNormal() const {
   DebugAssert(!isNull(), "Expr::setRewriteNormal() on Null expr");
   TRACE("setRewriteNormal", "setRewriteNormal(", *this, ")");
@@ -1325,6 +1441,16 @@ inline void Expr::setComputeTransClosure() const {
 inline void Expr::setContainsBoundVar() const {
   DebugAssert(!isNull(), "Expr::setContainsBoundVar() on Null expr");
   d_expr->d_dynamicFlags.set(CONTAINS_BOUND_VAR, 0);
+}
+
+inline void Expr::setUsesCC() const {
+  DebugAssert(!isNull(), "Expr::setUsesCC() on Null expr");
+  d_expr->d_dynamicFlags.set(USES_CC, 0);
+}
+
+inline void Expr::setNotArrayNormalized() const {
+  DebugAssert(!isNull(), "Expr::setContainsBoundVar() on Null expr");
+  d_expr->d_dynamicFlags.set(NOT_ARRAY_NORMALIZED);
 }
 
 inline void Expr::setImpliedLiteral() const {
@@ -1384,18 +1510,18 @@ inline void Expr::clearRewriteNormal() const {
 
 inline bool Expr::hasSig() const {
   return (!isNull()
-          && d_expr->getSig() != NULL 
+          && d_expr->getSig() != NULL
           && !(d_expr->getSig()->get().isNull()));
 }
 
 inline bool Expr::hasRep() const {
   return (!isNull()
-          && d_expr->getRep() != NULL 
+          && d_expr->getRep() != NULL
           && !(d_expr->getRep()->get().isNull()));
 }
 
 inline const Theorem& Expr::getSig() const {
-  static Theorem nullThm;   
+  static Theorem nullThm;
   DebugAssert(!isNull(), "Expr::getSig() on Null expr");
   if(d_expr->getSig() != NULL)
     return d_expr->getSig()->get();
@@ -1433,7 +1559,7 @@ inline void Expr::setRep(const Theorem& e) const {
     IF_DEBUG(tmp->setName("CDO[Expr.rep] in "+toString());)
   }
 }
- 
+
 inline bool operator==(const Expr& e1, const Expr& e2) {
   // Comparing pointers (equal expressions are always shared)
   return e1.d_expr == e2.d_expr;

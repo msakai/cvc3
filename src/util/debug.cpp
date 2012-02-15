@@ -2,9 +2,9 @@
 /*!
  * \file debug.cpp
  * \brief Description: Implementation of debugging facilities.
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Fri Jan 31 11:48:37 2003
  *
  * <hr>
@@ -13,33 +13,34 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
 #include <fstream>
+#include <stdlib.h>
 
 #include "debug.h"
 
 using namespace std;
 
 namespace CVC3 {
-  
+
 // Function for fatal exit.  It just exits with code 1, but is
 // provided here for the debugger to set a breakpoint to.  For this
 // reason, it is not inlined.
-void fatalError(const std::string& file, int line,
+CVC_DLL void fatalError(const std::string& file, int line,
 		const std::string& cond, const std::string& msg) {
   cerr <<  "\n**** Fatal error in " << file << ":" << line
        << " (" << cond << ")\n" << msg << endl << flush;
   exit(1);
 }
-  
+
 } // end of namespace CVC3
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 
 #include <ctime>
 #include <iomanip>
@@ -47,13 +48,13 @@ void fatalError(const std::string& file, int line,
 namespace CVC3 {
 // Similar to fatalError to raise an exception when DebugAssert fires.
 // This does not necessarily cause the program to quit.
-void debugError(const std::string& file, int line,
+CVC_DLL void debugError(const std::string& file, int line,
 		const std::string& cond, const std::string& msg) {
   ostringstream ss;
   ss << "in " << file << ":" << line << " (" << cond << ")\n" << msg;
   throw DebugException(ss.str());
 }
-  
+
 
 class DebugTime {
 public:
@@ -69,7 +70,7 @@ public:
   void reset() {
     d_clock = 0;
   }
-    
+
   // Incremental assignments
   DebugTime& operator+=(const DebugTime& t) {
     d_clock += t.d_clock;
@@ -143,9 +144,14 @@ void Debug::init(const std::vector<std::pair<std::string,bool> >* traceOptions,
   d_dumpName = dumpName;
 }
 
+void Debug::finalize()
+{
+  d_traceOptions = NULL;
+  d_dumpName = NULL;
+}
 
 DebugFlag
-Debug::traceFlag(char* name) { return traceFlag(std::string(name)); }
+Debug::traceFlag(const char* name) { return traceFlag(std::string(name)); }
 
 void
 Debug::traceAll(bool enable) { traceFlag("ALL") = enable; }
@@ -185,7 +191,7 @@ DebugTimer& DebugTimer::operator=(const DebugTimer& timer) {
     if(d_clean_time) // We own our pointer, clean it up first
       delete d_time;
     d_time = timer.d_time;
-    d_clean_time = false; 
+    d_clean_time = false;
   }
   return *this;
 }
@@ -245,7 +251,7 @@ ostream& operator<<(ostream& os, const DebugTime& t) {
 ostream& operator<<(ostream& os, const DebugTimer& timer) {
   return(os << *timer.d_time);
 }
-  
+
 ////////////////////////////////////////////////////////////////////////
 // Class Debug
 ////////////////////////////////////////////////////////////////////////
@@ -273,7 +279,7 @@ Debug::trace(const string& name) {
 
 
 DebugTimer Debug::timer(const string& name) {
-  // See if we already have the timer 
+  // See if we already have the timer
   if(d_timers.count(name) > 0) return(DebugTimer(d_timers[name]));
   else {
     // Create a new timer
@@ -303,7 +309,7 @@ void Debug::setElapsed(DebugTimer& timer) {
  * If the filename is empty or "-", then return
  * cout (but do not initialize the stream in this case).
  */
-  
+
 ostream& Debug::getOSDumpTrace() {
   if(d_osDumpTrace != NULL) return *d_osDumpTrace;
   // Check if the flag has a file name in it
@@ -314,7 +320,7 @@ ostream& Debug::getOSDumpTrace() {
 
 
 // Print an entry to the dump-sat file: free-form message
-void Debug::dumpTrace(const std::string& title, 
+void Debug::dumpTrace(const std::string& title,
 		      const std::vector<std::pair<std::string,std::string> >& fields) {
   ostream& os = getOSDumpTrace();
   os << "[" << title << "]\n";
@@ -362,7 +368,7 @@ void Debug::printAll(ostream& os) {
 
 // Global debugger.  It must be initialized in main() through its
 // init() method.
-Debug debugger;
+CVC_DLL Debug debugger;
 
 } // end of namespace CVC3
 

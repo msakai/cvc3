@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file theory_arith3.cpp
- * 
+ *
  * Author: Clark Barrett, Vijay Ganesh.
- * 
+ *
  * Created: Fri Jan 17 18:39:18 2003
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -42,7 +42,7 @@ using namespace CVC3;
 namespace CVC3 {
 
 ostream& operator<<(ostream& os, const TheoryArith3::FreeConst& fc) {
-  os << "FreeConst(r=" << fc.getConst() << ", " 
+  os << "FreeConst(r=" << fc.getConst() << ", "
      << (fc.strict()? "strict" : "non-strict") << ")";
   return os;
 }
@@ -93,7 +93,7 @@ Theorem TheoryArith3::isIntegerDerive(const Expr& isIntE, const Theorem& thm) {
 const Rational& TheoryArith3::freeConstIneq(const Expr& ineq, bool varOnRHS) {
   DebugAssert(isIneq(ineq), "TheoryArith3::freeConstIneq("+ineq.toString()+")");
   const Expr& e = varOnRHS? ineq[0] : ineq[1];
-  
+
   switch(e.getKind()) {
   case PLUS:
     return e[0].getRational();
@@ -107,10 +107,10 @@ const Rational& TheoryArith3::freeConstIneq(const Expr& ineq, bool varOnRHS) {
 }
 
 
-const TheoryArith3::FreeConst& 
+const TheoryArith3::FreeConst&
 TheoryArith3::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
 				 bool& subsumed) {
-  TRACE("arith ineq", "TheoryArith3::updateSubsumptionDB(", ineq, 
+  TRACE("arith ineq", "TheoryArith3::updateSubsumptionDB(", ineq,
 	", var isolated on "+string(varOnRHS? "RHS" : "LHS")+")");
   DebugAssert(isLT(ineq) || isLE(ineq), "TheoryArith3::updateSubsumptionDB("
 	      +ineq.toString()+")");
@@ -146,10 +146,10 @@ TheoryArith3::updateSubsumptionDB(const Expr& ineq, bool varOnRHS,
       index = leExpr(ineq[0], rat(0));
   } else if(isLT(ineq))
     index = leExpr(ineq[0], ineq[1]);
-  else 
+  else
     index = ineq;
   // Now update the database, check for subsumption, and extract the constant
-  CDMap<Expr, FreeConst>::iterator i=d_freeConstDB.find(index), 
+  CDMap<Expr, FreeConst>::iterator i=d_freeConstDB.find(index),
     iend=d_freeConstDB.end();
   if(i == iend) {
     subsumed = false;
@@ -226,7 +226,7 @@ Theorem TheoryArith3::canon(const Expr& e)
       plusThm = d_rules->canonFlattenSum(e);
       plusThm1 = d_rules->canonComboLikeTerms(plusThm.getRHS());
       result = transitivityRule(plusThm,plusThm1);
-    } 
+    }
              */
       result = d_rules->canonPlus(e);
       break;
@@ -236,7 +236,7 @@ Theorem TheoryArith3::canon(const Expr& e)
       // this produces e0 + (-1)*e1; we have to canonize it in 2 steps
       Expr sum(minus_eq_sum.getRHS());
       Theorem thm(canon(sum[1]));
-      if(thm.getLHS() == thm.getRHS()) 
+      if(thm.getLHS() == thm.getRHS())
         result = canonThm(minus_eq_sum);
       // The sum changed; do the work
       else {
@@ -249,7 +249,7 @@ Theorem TheoryArith3::canon(const Expr& e)
       }
       break;
     }
-  
+
     case MULT:
       result = d_rules->canonMult(e);
       break;
@@ -274,7 +274,7 @@ Theorem TheoryArith3::canon(const Expr& e)
                       "theory_arith::canon:\n  "
                       "canon:MULT:MULT child is not canonical: "
                       + e1[0].toString());
-  
+
           thmMult = d_rules->canonMultConstTerm(e0,e1[0],e1[1]);
           result = transitivityRule(thmMult,canon(thmMult.getRHS()));
           break;
@@ -298,21 +298,21 @@ Theorem TheoryArith3::canon(const Expr& e)
       }
       else {
           if(e1.isRational()){
-  
+
           // canonMultTermConst just reverses the order of the const and the
             // term.  Then canon is called again.
         Theorem t1 = d_rules->canonMultTermConst(e1,e0);
         result = transitivityRule(t1,canon(t1.getRHS()));
         }
         else
-  
+
               // This is where the assertion for non-linear multiplication is
-              // produced. 
+              // produced.
             result =  d_rules->canonMultTerm1Term2(e0,e1);
       }
       break;
       }
-  
+
   */
     case DIVIDE:{
   /*
@@ -324,7 +324,7 @@ Theorem TheoryArith3::canon(const Expr& e)
           Expr e2 = thm.getRHS();
           result =  transitivityRule(thm, canon(e2));
         }
-        else 
+        else
         {
         // TODO: to be handled
         throw ArithException("Divide by a non-const not handled in "+e.toString());
@@ -424,18 +424,18 @@ TheoryArith3::canonConjunctionEquiv(const Theorem& thm) {
 /*! Psuedo-code for doSolve. (Input is an equation) (output is a Theorem)
  *  -# translate e to the form e' = 0
  *  -# if (e'.isRational()) then {if e' != 0 return false else true}
- *  -# a for loop checks if all the variables are integers. 
+ *  -# a for loop checks if all the variables are integers.
  *      - if not isolate a suitable real variable and call processRealEq().
- *      - if all variables are integers then isolate suitable variable 
- *         and call processIntEq(). 
+ *      - if all variables are integers then isolate suitable variable
+ *         and call processIntEq().
  */
 Theorem TheoryArith3::doSolve(const Theorem& thm)
-{ 
+{
   const Expr& e = thm.getExpr();
   TRACE("arith eq","doSolve(",e,") {");
   DebugAssert(thm.isRewrite(), "thm = "+thm.toString());
   Theorem eqnThm;
-  vector<Theorem> thms;  
+  vector<Theorem> thms;
   // Move LHS to the RHS, if necessary
   if(e[0].isRational() && e[0].getRational() == 0)
     eqnThm = thm;
@@ -456,7 +456,7 @@ Theorem TheoryArith3::doSolve(const Theorem& thm)
   //normalize
   eqnThm = iffMP(eqnThm, normalize(eqnThm.getExpr()));
   right = eqnThm.getRHS();
-  
+
   //eqn is of the form 0 = e' and is normalized where 'right' denotes e'
   //FIXME: change processRealEq to accept equations as well instead of theorems
 
@@ -638,7 +638,7 @@ bool TheoryArith3::pickIntEqMonomial(const Expr& right, Expr& isolated, bool& no
  * type REAL. isolate one of them and send back to framework. output
  * is "var = e''" Theorem.
  */
-Theorem 
+Theorem
 TheoryArith3::processRealEq(const Theorem& eqn)
 {
   DebugAssert(eqn.getLHS().isRational() &&
@@ -655,16 +655,16 @@ TheoryArith3::processRealEq(const Theorem& eqn)
   // other variables and nor in a POW expression.
 
   bool found = false;
-  
+
   Expr left;
-  
+
   if (isPlus(right))  {
     for(int i = right.arity()-1; i>=0; --i) {
       Expr c = right[i];
       if(isRational(c))
         continue;
       if(!isInteger(c))  {
-        if (isLeaf(c) || 
+        if (isLeaf(c) ||
             ((isMult(c) && c.arity() == 2 && isLeaf(c[1])))) {
           int numoccurs = 0;
           Expr leaf = isLeaf(c) ? c : c[1];
@@ -690,9 +690,9 @@ TheoryArith3::processRealEq(const Theorem& eqn)
     left = right;
     found = true;
   }
-  
+
   if (!found) {
-    throw 
+    throw
       ArithException("Can't find a leaf for solve in "+eqn.toString());
   }
 
@@ -773,8 +773,7 @@ TheoryArith3::processSimpleIntEq(const Theorem& eqn)
   if (isPlus(right)) {
     if (2 == right.arity() &&
         (isLeaf(right[1]) ||
-         isMult(right[1]) && right[1].arity() == 2 &&
-         right[1][0].isRational() && isLeaf(right[1][1]))) {
+         (isMult(right[1]) && right[1].arity() == 2 && right[1][0].isRational() && isLeaf(right[1][1])))) {
       //we take care of special cases like 0 = c + a.x, 0 = c + x,
       Expr c,x;
       separateMonomial(right[1], c, x);
@@ -814,16 +813,16 @@ TheoryArith3::processSimpleIntEq(const Theorem& eqn)
         const Rational& minusa = isolated[0].getRational();
         Rational a = -1*minusa;
         isolated = (a == 1)? isolated[1] : rat(a) * isolated[1];
-      
+
         // Isolate the 'isolated'
-        result = iffMP(eqn, d_rules->plusPredicate(eqn.getLHS(), 
+        result = iffMP(eqn, d_rules->plusPredicate(eqn.getLHS(),
                                                    right,isolated,EQ));
       }
       // Canonize the result
       result = canonPred(result);
-        
+
       //if isolated is 'x' or 1*x, then return result else continue processing.
-      if(!isMult(isolated) || isolated[0].getRational() == 1) {   
+      if(!isMult(isolated) || isolated[0].getRational() == 1) {
         TRACE("arith eq", "processSimpleIntEq[x = rhs] => ", result, " }");
         return result;
       } else if (!nonlin) {
@@ -866,12 +865,12 @@ TheoryArith3::processSimpleIntEq(const Theorem& eqn)
         Theorem thm2 = canonPred(getCommonRules()->andElim(result, 1));
         Theorem newRes = getCommonRules()->andIntro(thm1, thm2);
         if(newRes.getExpr() != result.getExpr()) result = newRes;
-      
+
         TRACE("arith eq", "processSimpleIntEq => ", result, " }");
         return result;
       }
     }
-    throw 
+    throw
       ArithException("Can't find a leaf for solve in "+eqn.toString());
   } else {
     // eqn is 0 = x.  Flip it and return
@@ -886,11 +885,11 @@ TheoryArith3::processSimpleIntEq(const Theorem& eqn)
  * is "var = e''" Theorem and some associated equations in
  * solved form.
  */
-Theorem 
+Theorem
 TheoryArith3::processIntEq(const Theorem& eqn)
 {
   TRACE("arith eq", "processIntEq(", eqn.getExpr(), ") {");
-  // Equations in the solved form.  
+  // Equations in the solved form.
   std::vector<Theorem> solvedAndNewEqs;
   Theorem newEq(eqn), result;
   bool done(false);
@@ -930,7 +929,7 @@ TheoryArith3::processIntEq(const Theorem& eqn)
  * i<j, but not for i>=j.
  */
 Theorem
-TheoryArith3::solvedForm(const vector<Theorem>& solvedEqs) 
+TheoryArith3::solvedForm(const vector<Theorem>& solvedEqs)
 {
   DebugAssert(solvedEqs.size() > 0, "TheoryArith3::solvedForm()");
 
@@ -943,7 +942,7 @@ TheoryArith3::solvedForm(const vector<Theorem>& solvedEqs)
   })
   TRACE_MSG("arith eq", "  ]) {");
   // End of Trace code
-  
+
   vector<Theorem>::const_reverse_iterator
     i = solvedEqs.rbegin(),
     iend = solvedEqs.rend();
@@ -971,7 +970,10 @@ TheoryArith3::solvedForm(const vector<Theorem>& solvedEqs)
   for(ExprMap<Theorem>::iterator i=subst.begin(), iend=subst.end();
       i!=iend; ++i)
     thms.push_back(i->second);
-  return getCommonRules()->andIntro(thms);
+  if (thms.size() > 1)
+    return getCommonRules()->andIntro(thms);
+  else
+    return thms.back();
 }
 
 
@@ -1058,7 +1060,7 @@ void TheoryArith3::processBuffer()
 {
   // Process the inequalities in the buffer
   bool varOnRHS;
-  
+
   for(; !inconsistent() && d_bufferIdx < d_buffer.size();
       d_bufferIdx = d_bufferIdx+1) {
     const Theorem& ineqThm = d_buffer[d_bufferIdx];
@@ -1088,7 +1090,7 @@ void TheoryArith3::updateStats(const Rational& c, const Expr& v)
   if (c < 0) {
 	  // Goes to the left side
 	  CDMap<Expr, Rational>::iterator maxFind = maxCoefficientLeft.find(v);
-	  if (maxFind == maxCoefficientLeft.end()) 
+	  if (maxFind == maxCoefficientLeft.end())
 		  maxCoefficientLeft[v] = - c;
 	  else
 		  if ((*maxFind).second < -c)
@@ -1100,9 +1102,9 @@ void TheoryArith3::updateStats(const Rational& c, const Expr& v)
 		  maxCoefficientRight[v] = c;
 	  else
 		  if((*maxFind).second < c)
-			  (*maxFind).second = c;			  
+			  (*maxFind).second = c;
   }
-  
+
   if(c > 0) {
     if(d_countRight.count(v) > 0) d_countRight[v] = d_countRight[v] + 1;
     else d_countRight[v] = 1;
@@ -1145,7 +1147,7 @@ void TheoryArith3::addToBuffer(const Theorem& thm) {
 }
 
 
-Theorem TheoryArith3::isolateVariable(const Theorem& inputThm, 
+Theorem TheoryArith3::isolateVariable(const Theorem& inputThm,
                                      bool& isolatedVarOnRHS)
 {
   Theorem result(inputThm);
@@ -1196,12 +1198,12 @@ Theorem TheoryArith3::isolateVariable(const Theorem& inputThm,
   isolatedVarOnRHS = true;
   if (isMult(isolatedMonomial)) {
     r = ((isolatedMonomial[0].getRational()) >= 0)? -1 : 1;
-    isolatedVarOnRHS = 
+    isolatedVarOnRHS =
       ((isolatedMonomial[0].getRational()) >= 0)? true : false;
   }
   isolatedMonomial = canon(rat(-1)*isolatedMonomial).getRHS();
   // Isolate isolatedMonomial on to the LHS
-  result = iffMP(result, d_rules->plusPredicate(zero, right, 
+  result = iffMP(result, d_rules->plusPredicate(zero, right,
                                                 isolatedMonomial, kind));
   // Canonize the resulting inequality
   result = canonPred(result);
@@ -1251,16 +1253,16 @@ TheoryArith3::computeNormalFactor(const Expr& right) {
     const Rational& r = right[0].getRational();
     factor = (r==0)? 0 : (1/abs(r));
   }
-  else 
+  else
     factor = 1;
   return rat(factor);
 }
 
 
-bool TheoryArith3::lessThanVar(const Expr& isolatedMonomial, const Expr& var2) 
+bool TheoryArith3::lessThanVar(const Expr& isolatedMonomial, const Expr& var2)
 {
   DebugAssert(!isRational(var2) && !isRational(isolatedMonomial),
-              "TheoryArith3::findMaxVar: isolatedMonomial cannot be rational" + 
+              "TheoryArith3::findMaxVar: isolatedMonomial cannot be rational" +
               isolatedMonomial.toString());
   Expr c, var0, var1;
   separateMonomial(isolatedMonomial, c, var0);
@@ -1317,7 +1319,7 @@ bool TheoryArith3::isStale(const TheoryArith3::Ineq& ineq) {
 
 void TheoryArith3::separateMonomial(const Expr& e, Expr& c, Expr& var) {
   TRACE("separateMonomial", "separateMonomial(", e, ")");
-  DebugAssert(!isPlus(e), 
+  DebugAssert(!isPlus(e),
 	      "TheoryArith3::separateMonomial(e = "+e.toString()+")");
   if(isMult(e)) {
     DebugAssert(e.arity() >= 2,
@@ -1341,16 +1343,16 @@ void TheoryArith3::separateMonomial(const Expr& e, Expr& c, Expr& var) {
 }
 
 
-void TheoryArith3::projectInequalities(const Theorem& theInequality, 
+void TheoryArith3::projectInequalities(const Theorem& theInequality,
                                       bool isolatedVarOnRHS)
 {
   TRACE("arith ineq", "projectInequalities(", theInequality.getExpr(),
         ", isolatedVarOnRHS="+string(isolatedVarOnRHS? "true" : "false")
         +") {");
-  DebugAssert(isLE(theInequality.getExpr()) || 
+  DebugAssert(isLE(theInequality.getExpr()) ||
               isLT(theInequality.getExpr()),
               "TheoryArith3::projectIsolatedVar: "\
-              "theInequality is of the wrong form: " + 
+              "theInequality is of the wrong form: " +
               theInequality.toString());
   //TODO: DebugAssert to check if the isolatedMonomial is of the right
   //form and the whether we are indeed getting inequalities.
@@ -1367,9 +1369,9 @@ void TheoryArith3::projectInequalities(const Theorem& theInequality,
     theIneqThm = canonPred(iffMP(theIneqThm, thm));
     theIneq = theIneqThm.getExpr();
   }
-  Expr isolatedMonomial = 
+  Expr isolatedMonomial =
     isolatedVarOnRHS ? theIneq[1] : theIneq[0];
-  
+
   Expr monomialVar, a;
   separateMonomial(isolatedMonomial, a, monomialVar);
 
@@ -1394,24 +1396,24 @@ void TheoryArith3::projectInequalities(const Theorem& theInequality,
     theoryCore()->setupTerm(theIneq[1], this, theIneqThm);
     // Add the inequality into the appropriate DB.
     ExprMap<CDList<Ineq> *>& db1 =
-      isolatedVarOnRHS ? d_inequalitiesRightDB : d_inequalitiesLeftDB; 
+      isolatedVarOnRHS ? d_inequalitiesRightDB : d_inequalitiesLeftDB;
     ExprMap<CDList<Ineq> *>::iterator it1 = db1.find(monomialVar);
     if(it1 == db1.end()) {
       CDList<Ineq> * list = new(true) CDList<Ineq>(theoryCore()->getCM()->getCurrentContext());
       list->push_back(Ineq(theIneqThm, isolatedVarOnRHS, bestConst));
       db1[monomialVar] = list;
     }
-    else 
+    else
       ((*it1).second)->push_back(Ineq(theIneqThm, isolatedVarOnRHS, bestConst));
-  
-    ExprMap<CDList<Ineq> *>& db2 = 
-      isolatedVarOnRHS ? d_inequalitiesLeftDB : d_inequalitiesRightDB; 
+
+    ExprMap<CDList<Ineq> *>& db2 =
+      isolatedVarOnRHS ? d_inequalitiesLeftDB : d_inequalitiesRightDB;
     ExprMap<CDList<Ineq> *>::iterator it = db2.find(monomialVar);
     if(it == db2.end()) {
       TRACE_MSG("arith ineq", "projectInequalities[not in DB] => }");
       return;
     }
-  
+
     CDList<Ineq>& listOfDBIneqs = *((*it).second);
     Theorem betaLTt, tLTalpha, thm;
     for(size_t i = 0, iend=listOfDBIneqs.size(); i!=iend; ++i) {
@@ -1421,7 +1423,7 @@ void TheoryArith3::projectInequalities(const Theorem& theInequality,
 	betaLTt = isolatedVarOnRHS ? theIneqThm : ineqThm;
 	tLTalpha = isolatedVarOnRHS ? ineqThm : theIneqThm;
 	thm = normalizeProjectIneqs(betaLTt, tLTalpha);
-	
+
 	IF_DEBUG(debugger.counter("real shadows")++;)
 
 	// Check for TRUE and FALSE theorems
@@ -1444,7 +1446,7 @@ void TheoryArith3::projectInequalities(const Theorem& theInequality,
   TRACE_MSG("arith ineq", "projectInequalities => }");
 }
 
-Theorem TheoryArith3::normalizeProjectIneqs(const Theorem& ineqThm1, 
+Theorem TheoryArith3::normalizeProjectIneqs(const Theorem& ineqThm1,
                                            const Theorem& ineqThm2)
 {
   //ineq1 is of the form beta < b.x  or beta < x  [ or with <= ]
@@ -1471,7 +1473,7 @@ Theorem TheoryArith3::normalizeProjectIneqs(const Theorem& ineqThm1,
 
   //compute the factors to multiply the two inequalities with
   //so that they get the form beta < t and t < alpha.
-  Rational factor1 = 1, factor2 = 1; 
+  Rational factor1 = 1, factor2 = 1;
   Rational b = isMult(ineq1[1]) ? (ineq1[1])[0].getRational() : 1;
   Rational a = isMult(ineq2[0]) ? (ineq2[0])[0].getRational() : 1;
   if(b != a) {
@@ -1490,7 +1492,7 @@ Theorem TheoryArith3::normalizeProjectIneqs(const Theorem& ineqThm1,
     if(a <= b)
       intResult = d_rules->darkGrayShadow2ab(betaLTt, tLTalpha,
 					     isIntAlpha, isIntBeta, isIntx);
-    else 
+    else
       intResult = d_rules->darkGrayShadow2ba(betaLTt, tLTalpha,
 					     isIntAlpha, isIntBeta, isIntx);
     enqueueFact(intResult);
@@ -1549,14 +1551,14 @@ Theorem TheoryArith3::normalizeProjectIneqs(const Theorem& ineqThm1,
 //   result = iffMP(result, rewrite(result.getExpr()));
 //   TRACE("arith ineq", "normalizeProjectIneqs => ", result, " }");
 
-  // Now, transform the result into 0 < rhs and see if rhs is a const 
+  // Now, transform the result into 0 < rhs and see if rhs is a const
   Expr e(result.getExpr());
   // int kind = e.getKind();
   if(!(e[0].isRational() && e[0].getRational() == 0)) {
     result = iffMP(result, d_rules->rightMinusLeft(e));
     result = canonPred(result);
   }
-  
+
   //result is "0 kind e'". where e' is equal to canon(e[1]-e[0])
   Expr right = result.getExpr()[1];
   // Check for trivial inequality
@@ -1577,7 +1579,7 @@ Rational TheoryArith3::currentMaxCoefficient(Expr var)
 	CDMap<Expr, Rational>::iterator findFixed = fixedMaxCoefficient.find(var);
 	if (findFixed != fixedMaxCoefficient.end())
 		return (*findFixed).second;
-	
+
 	// Find the biggest left side coefficient
 	CDMap<Expr, Rational>::iterator findMaxLeft = maxCoefficientLeft.find(var);
 	if (findMaxLeft != maxCoefficientLeft.end()) {
@@ -1585,17 +1587,18 @@ Rational TheoryArith3::currentMaxCoefficient(Expr var)
 		leftMax = (*findMaxLeft).second;
 	}
 
-	// 
+	//
 	CDMap<Expr, Rational>::iterator findMaxRight = maxCoefficientRight.find(var);
 	if (findMaxRight != maxCoefficientRight.end()) {
 		foundRight = true;
 		rightMax = (*findMaxRight).second;
 	}
 
-	if (foundLeft && foundRight)
+	if (foundLeft && foundRight) {
 		if (leftMax < rightMax) return rightMax;
 		else return leftMax;
-	
+	}
+
 	return Rational(1) / (leftMax * rightMax);
 }
 
@@ -1604,24 +1607,24 @@ void TheoryArith3::fixCurrentMaxCoefficient(Expr var, Rational max) {
 }
 
 void TheoryArith3::selectSmallestByCoefficient(vector<Expr> input, vector<Expr>& output) {
-  
+
 	// Clear the output vector
 	output.clear();
-	
+
 	// Get the first variable, and set it as best
-	Expr best_variable = input[0];	  
+	Expr best_variable = input[0];
 	Rational best_coefficient = currentMaxCoefficient(best_variable);
-	output.push_back(best_variable);	  	  
-	  
+	output.push_back(best_variable);
+
 	for(unsigned int i = 1; i < input.size(); i ++) {
-		
+
 		// Get the current variable
 		Expr current_variable = input[i];
 		// Get the current variable's max coefficient
 		Rational current_coefficient = currentMaxCoefficient(current_variable);
-		
+
 		// If strictly better than the current best, remember it
-		if ((current_coefficient < best_coefficient)) {			  			  	
+		if ((current_coefficient < best_coefficient)) {
 			best_variable = current_variable;
 			best_coefficient = current_coefficient;
 			output.clear();
@@ -1629,16 +1632,16 @@ void TheoryArith3::selectSmallestByCoefficient(vector<Expr> input, vector<Expr>&
 
 		// If equal to the current best, push it to the stack
 		if (current_coefficient == best_coefficient)
-			  output.push_back(current_variable);		  
+			  output.push_back(current_variable);
 	}
-	  
+
     // Fix the selected best coefficient
 	fixCurrentMaxCoefficient(best_variable, best_coefficient);
 }
 
 Expr TheoryArith3::pickMonomial(const Expr& right)
 {
-  DebugAssert(isPlus(right), "TheoryArith3::pickMonomial: Wrong Kind: " + 
+  DebugAssert(isPlus(right), "TheoryArith3::pickMonomial: Wrong Kind: " +
               right.toString());
   if(theoryCore()->getFlags()["var-order"].getBool()) {
     Expr::iterator i = right.begin();
@@ -1651,7 +1654,7 @@ Expr TheoryArith3::pickMonomial(const Expr& right)
         isolatedMonomial = *i;
     return isolatedMonomial;
   }
-  
+
   ExprMap<Expr> var2monomial;
   vector<Expr> vars;
   Expr::iterator i = right.begin(), iend = right.end();
@@ -1668,16 +1671,16 @@ Expr TheoryArith3::pickMonomial(const Expr& right)
   d_graph.selectLargest(vars, largest);
   DebugAssert(0 < largest.size(),
               "TheoryArith3::pickMonomial: selectLargest: failed!!!!");
-  
+
   // DEJAN: Rafine the largest by coefficient values
   vector<Expr> largest_small_coeff;
   selectSmallestByCoefficient(largest, largest_small_coeff);
-  DebugAssert(0 < largest_small_coeff.size(), "TheoryArith3::pickMonomial: selectLargestByCOefficient: failed!!!!");   
-  
+  DebugAssert(0 < largest_small_coeff.size(), "TheoryArith3::pickMonomial: selectLargestByCOefficient: failed!!!!");
+
   size_t pickedVar = 0;
     // Pick the variable which will generate the fewest number of
     // projections
-  
+
   size_t size = largest_small_coeff.size();
   int minProjections = -1;
   if (size > 1)
@@ -1693,10 +1696,10 @@ Expr TheoryArith3::pickMonomial(const Expr& right)
         minProjections = n;
         pickedVar = k;
       }
-      TRACE("arith ineq", "Number of projections for "+var.toString()+" = ", n, "");        
+      TRACE("arith ineq", "Number of projections for "+var.toString()+" = ", n, "");
 	}
-   
-    
+
+
   const Expr& largestVar = largest_small_coeff[pickedVar];
   // FIXME: TODO: update the counters (subtract counts for the vars
   // other than largestVar
@@ -1706,8 +1709,8 @@ Expr TheoryArith3::pickMonomial(const Expr& right)
     if(vars[k] != largestVar)
       d_graph.addEdge(largestVar, vars[k]);
   }
-  
-  return var2monomial[largestVar];  
+
+  return var2monomial[largestVar];
 }
 
 void TheoryArith3::VarOrderGraph::addEdge(const Expr& e1, const Expr& e2)
@@ -1720,7 +1723,7 @@ void TheoryArith3::VarOrderGraph::addEdge(const Expr& e1, const Expr& e2)
 
 //returns true if e1 < e2, else false(i.e e2 < e1 or e1,e2 are not
 //comparable)
-bool TheoryArith3::VarOrderGraph::lessThan(const Expr& e1, const Expr& e2) 
+bool TheoryArith3::VarOrderGraph::lessThan(const Expr& e1, const Expr& e2)
 {
   d_cache.clear();
   //returns true if e1 is in the subtree rooted at e2 implying e1 < e2
@@ -1747,7 +1750,7 @@ bool TheoryArith3::VarOrderGraph::dfs(const Expr& e1, const Expr& e2)
 
 
 void TheoryArith3::VarOrderGraph::selectSmallest(vector<Expr>& v1,
-                                               vector<Expr>& v2) 
+                                               vector<Expr>& v2)
 {
   int v1Size = v1.size();
   vector<bool> v3(v1Size);
@@ -1757,7 +1760,7 @@ void TheoryArith3::VarOrderGraph::selectSmallest(vector<Expr>& v1,
   for(int j=0; j < v1Size; ++j) {
     if(v3[j]) continue;
     for(int i =0; i < v1Size; ++i) {
-      if((i == j) || v3[i]) 
+      if((i == j) || v3[i])
         continue;
       if(lessThan(v1[i],v1[j])) {
         v3[j] = true;
@@ -1767,7 +1770,7 @@ void TheoryArith3::VarOrderGraph::selectSmallest(vector<Expr>& v1,
   }
   vector<Expr> new_v1;
 
-  for(int j = 0; j < v1Size; ++j) 
+  for(int j = 0; j < v1Size; ++j)
     if(!v3[j]) v2.push_back(v1[j]);
     else new_v1.push_back(v1[j]);
   v1 = new_v1;
@@ -1775,7 +1778,7 @@ void TheoryArith3::VarOrderGraph::selectSmallest(vector<Expr>& v1,
 
 
 void TheoryArith3::VarOrderGraph::selectLargest(const vector<Expr>& v1,
-                                               vector<Expr>& v2) 
+                                               vector<Expr>& v2)
 {
   int v1Size = v1.size();
   vector<bool> v3(v1Size);
@@ -1785,7 +1788,7 @@ void TheoryArith3::VarOrderGraph::selectLargest(const vector<Expr>& v1,
   for(int j=0; j < v1Size; ++j) {
     if(v3[j]) continue;
     for(int i =0; i < v1Size; ++i) {
-      if((i == j) || v3[i]) 
+      if((i == j) || v3[i])
         continue;
       if(lessThan(v1[j],v1[i])) {
         v3[j] = true;
@@ -1793,8 +1796,8 @@ void TheoryArith3::VarOrderGraph::selectLargest(const vector<Expr>& v1,
       }
     }
   }
-  
-  for(int j = 0; j < v1Size; ++j) 
+
+  for(int j = 0; j < v1Size; ++j)
     if(!v3[j]) v2.push_back(v1[j]);
 }
 
@@ -2004,7 +2007,7 @@ TheoryArith3::setupRec(const Expr& e) {
   // Create a find pointer for e
   e.setFind(reflexivityRule(e));
   e.setEqNext(reflexivityRule(e));
-  // And call our own setup()   
+  // And call our own setup()
   setup(e);
 }
 
@@ -2027,7 +2030,7 @@ void TheoryArith3::assertFact(const Theorem& e)
       // This can only be negation of dark or gray shadows, or
       // disequalities, which we ignore.  Negations of inequalities
       // are handled in rewrite, we don't even receive them here.
-    } 
+    }
     else if(isDarkShadow(expr)) {
       enqueueFact(d_rules->expandDarkShadow(e));
       IF_DEBUG(debugger.counter("received DARK_SHADOW")++;)
@@ -2081,11 +2084,11 @@ void TheoryArith3::assertFact(const Theorem& e)
       }
     }
     else {
-      DebugAssert(isLE(expr) || isLT(expr) || isIntPred(expr), 
+      DebugAssert(isLE(expr) || isLT(expr) || isIntPred(expr),
 		  "expected LE or LT: "+expr.toString());
       if(isLE(expr) || isLT(expr)) {
 	IF_DEBUG(debugger.counter("recevied inequalities")++;)
-	
+
         // Assert the equivalent negated inequality
         Theorem thm;
         if (isLE(expr)) thm = d_rules->negatedInequality(!gtExpr(expr[0],expr[1]));
@@ -2099,12 +2102,12 @@ void TheoryArith3::assertFact(const Theorem& e)
 
 	// Buffer the inequality
 	addToBuffer(e);
-	
-	TRACE("arith ineq", "buffer.size() = ", d_buffer.size(), 
+
+	TRACE("arith ineq", "buffer.size() = ", d_buffer.size(),
 	      ", index="+int2string(d_bufferIdx)
 	      +", threshold="+int2string(*d_bufferThres));
-	
-	if((((int)d_buffer.size()) - (int)d_bufferIdx > *d_bufferThres) 
+
+	if((((int)d_buffer.size()) - (int)d_bufferIdx > *d_bufferThres)
 	   && !d_inModelCreation)
 	  processBuffer();
       } else {
@@ -2132,7 +2135,7 @@ void TheoryArith3::checkSat(bool fullEffort)
     if(d_inModelCreation) {
       for(; d_diseqIdx < d_diseq.size(); d_diseqIdx = d_diseqIdx+1) {
 	TRACE("model", "[arith] refining diseq: ",
-	      d_diseq[d_diseqIdx].getExpr() , "");    
+	      d_diseq[d_diseqIdx].getExpr() , "");
 	enqueueFact(d_rules->diseqToIneq(d_diseq[d_diseqIdx]));
       }
     }
@@ -2173,22 +2176,22 @@ void TheoryArith3::refineCounterExample()
 
 
 void
-TheoryArith3::findRationalBound(const Expr& varSide, const Expr& ratSide, 
+TheoryArith3::findRationalBound(const Expr& varSide, const Expr& ratSide,
 			       const Expr& var,
 			       Rational &r)
 {
   Expr c, x;
   separateMonomial(varSide, c, x);
-  
-  DebugAssert(findExpr(c).isRational(), 
-	      "seperateMonomial failed"); 
-  DebugAssert(findExpr(ratSide).isRational(), 
+
+  DebugAssert(findExpr(c).isRational(),
+	      "seperateMonomial failed");
+  DebugAssert(findExpr(ratSide).isRational(),
 	      "smallest variable in graph, should not have variables"
 	      " in inequalities: ");
-  DebugAssert(x == var, "separateMonomial found different variable: " 
+  DebugAssert(x == var, "separateMonomial found different variable: "
 	      + var.toString());
   r = findExpr(ratSide).getRational() / findExpr(c).getRational();
-} 
+}
 
 bool
 TheoryArith3::findBounds(const Expr& e, Rational& lub, Rational&  glb)
@@ -2217,12 +2220,12 @@ TheoryArith3::findBounds(const Expr& e, Rational& lub, Rational&  glb)
   }
   if(left) {   //rationals greater than e
     CDList<Ineq> * ratsGTe = d_inequalitiesLeftDB[e];
-    for(unsigned int i=0; i<ratsGTe->size(); i++) { 
+    for(unsigned int i=0; i<ratsGTe->size(); i++) {
       DebugAssert((*ratsGTe)[i].varOnLHS(), "variable on wrong side!");
       Expr ineq = (*ratsGTe)[i].ineq().getExpr();
       Expr leftSide = ineq[0], rightSide = ineq[1];
       Rational r;
-      findRationalBound(leftSide, rightSide, e, r); 
+      findRationalBound(leftSide, rightSide, e, r);
       if(numLeft==0 || r<lub) {
 	lub = r;
 	strictUB = isLT(ineq);
@@ -2232,13 +2235,13 @@ TheoryArith3::findBounds(const Expr& e, Rational& lub, Rational&  glb)
     TRACE("model", "   =>Upper bound ", lub.toString(), "");
   }
   if(!left && !right) {
-      lub = 0; 
+      lub = 0;
       glb = 0;
   }
   if(!left && right) {lub = glb +2;}
   if(!right && left)  {glb =  lub-2;}
   DebugAssert(glb <= lub, "Greatest lower bound needs to be smaller "
-	      "than least upper bound"); 
+	      "than least upper bound");
   return strictLB;
 }
 
@@ -2254,7 +2257,7 @@ void TheoryArith3::assignVariables(std::vector<Expr>&v)
       TRACE("model", "Found: ", e, "");
       // Check if it is already a concrete constant
       if(e.isRational()) continue;
-      
+
       Rational lub, glb;
       bool strictLB;
       strictLB = findBounds(e, lub, glb);
@@ -2334,17 +2337,17 @@ Theorem TheoryArith3::normalize(const Expr& e) {
 		  " e = "+e.toString());
     }
   }
-  
+
   Expr factor;
   if(e[0].isRational())
     factor = computeNormalFactor(e[1]);
   else
     factor = computeNormalFactor(e[0]);
-  
+
   TRACE("arith", "normalize: factor = ", factor, "");
   DebugAssert(factor.getRational() > 0,
               "normalize: factor="+ factor.toString());
-  
+
   Theorem thm(reflexivityRule(e));
   // Now multiply the equality by the factor, unless it is 1
   if(factor.getRational() != 1) {
@@ -2437,11 +2440,11 @@ Theorem TheoryArith3::rewrite(const Expr& e)
       Theorem res(isIntegerDerive(e, typePred(e[0])));
       if(!res.isNull())
 	thm = getCommonRules()->iffTrue(res);
-      else 
+      else
 	thm = reflexivityRule(e);
       break;
     }
-    case NOT:    
+    case NOT:
       if (!isIneq(e[0]))
 	//in this case we have "NOT of DARK or GRAY_SHADOW."
 	thm = reflexivityRule(e);
@@ -2474,12 +2477,12 @@ Theorem TheoryArith3::rewrite(const Expr& e)
 	thm = d_rules->flipInequality(e);
 	thm = transitivityRule(thm, d_rules->rightMinusLeft(thm.getRHS()));
       }
-      else 
+      else
 	thm = d_rules->rightMinusLeft(e);
       thm = canonPredEquiv(thm);
-   
+
       // Check for trivial inequation
-      if ((thm.getRHS())[1].isRational()) 
+      if ((thm.getRHS())[1].isRational())
 	thm = transitivityRule(thm, d_rules->constPredicate(thm.getRHS()));
       else { // ineq is non-trivial
 	thm = normalize(thm);
@@ -2495,7 +2498,7 @@ Theorem TheoryArith3::rewrite(const Expr& e)
   else {
     if (e.isAtomic())
       thm = canon(e);
-    else 
+    else
       thm = reflexivityRule(e);
   }
   // Arith canonization is idempotent
@@ -2574,7 +2577,7 @@ Theorem TheoryArith3::solve(const Theorem& thm)
   // Have to be careful about the types: integer variable cannot be
   // assigned a real term.  Also, watch for e[0] being a subexpression
   // of e[1]: this would create an unsimplifiable expression.
-  if (isLeaf(lhs) && !isLeafIn(lhs, rhs) 
+  if (isLeaf(lhs) && !isLeafIn(lhs, rhs)
       && (lhs.getType() != intType() || isInteger(rhs))
       // && !e[0].subExprOf(e[1])
       )
@@ -2622,7 +2625,7 @@ void TheoryArith3::computeModelTerm(const Expr& e, std::vector<Expr>& v) {
 Expr TheoryArith3::computeTypePred(const Type& t, const Expr& e) {
   Expr tExpr = t.getExpr();
   switch(tExpr.getKind()) {
-  case INT:  
+  case INT:
     return Expr(IS_INTEGER, e);
   case SUBRANGE: {
     std::vector<Expr> kids;
@@ -2684,7 +2687,7 @@ void TheoryArith3::checkAssertEqInvariant(const Theorem& e)
         DebugAssert(!isLeafIn(eqs[index].getLHS(),eqs[index2].getRHS()),
                     "Not in solved form: lhs appears in rhs");
       }
-    }    
+    }
   }
 }
 
@@ -2713,6 +2716,34 @@ void TheoryArith3::checkType(const Expr& e)
 }
 
 
+Cardinality TheoryArith3::finiteTypeInfo(Expr& e, Unsigned& n,
+                                           bool enumerate, bool computeSize)
+{
+  Cardinality card = CARD_INFINITE;
+  switch (e.getKind()) {
+    case SUBRANGE: {
+      card = CARD_FINITE;
+      Expr typeExpr = e;
+      if (enumerate) {
+        Rational r = typeExpr[0].getRational() + n;
+        if (r <= typeExpr[1].getRational()) {
+          e = rat(r);
+        }
+        else e = Expr();
+      }
+      if (computeSize) {
+        Rational r = typeExpr[1].getRational() - typeExpr[0].getRational() + 1;
+        n = r.getUnsigned();
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return card;
+}
+
+
 void TheoryArith3::computeType(const Expr& e)
 {
   switch (e.getKind()) {
@@ -2735,7 +2766,7 @@ void TheoryArith3::computeType(const Expr& e)
         if(d_realType != getBaseType(e[k]))
           throw TypecheckException("Expecting type REAL with `" +
                                    getEM()->getKindName(e.getKind()) + "',\n"+
-                                   "but got a " + getBaseType(e[k]).toString()+ 
+                                   "but got a " + getBaseType(e[k]).toString()+
                                    " for:\n" + e.toString());
         if(isInt && !isInteger(e[k]))
           isInt = false;
@@ -2752,7 +2783,7 @@ void TheoryArith3::computeType(const Expr& e)
       if (getBaseType(numerator) != d_realType ||
           getBaseType(denominator) != d_realType) {
         throw TypecheckException("Expecting only REAL types with `DIVIDE',\n"
-                                 "but got " + getBaseType(numerator).toString()+ 
+                                 "but got " + getBaseType(numerator).toString()+
                                  " and " + getBaseType(denominator).toString() +
                                  " for:\n" + e.toString());
       }
@@ -2775,10 +2806,10 @@ void TheoryArith3::computeType(const Expr& e)
         if (d_realType != getBaseType(e[k]))
           throw TypecheckException("Expecting type REAL with `" +
                                    getEM()->getKindName(e.getKind()) + "',\n"+
-                                   "but got a " + getBaseType(e[k]).toString()+ 
+                                   "but got a " + getBaseType(e[k]).toString()+
                                    " for:\n" + e.toString());
       }
-      
+
       e.setType(boolType());
       break;
     case IS_INTEGER:
@@ -2833,7 +2864,7 @@ TheoryArith3::parseExprOp(const Expr& e) {
     case NULL_KIND: return e; // nothing to do
     case REAL:
     case INT:
-    case NEGINF: 
+    case NEGINF:
     case POSINF: return getEM()->newLeafExpr(kind);
     default:
       DebugAssert(false, "Bad use of bare keyword: "+e.toString());
@@ -2847,7 +2878,7 @@ TheoryArith3::parseExprOp(const Expr& e) {
 
   DebugAssert(e.getKind() == RAW_LIST && e.arity() > 0,
 	      "TheoryArith3::parseExprOp:\n e = "+e.toString());
-  
+
   const Expr& c1 = e[0][0];
   int kind = getEM()->getKind(c1.getString());
   switch(kind) {
@@ -2855,17 +2886,17 @@ TheoryArith3::parseExprOp(const Expr& e) {
       if(e.arity() != 2)
 	throw ParserException("UMINUS requires exactly one argument: "
 			+e.toString());
-      return uminusExpr(parseExpr(e[1])); 
+      return uminusExpr(parseExpr(e[1]));
     }
     case PLUS: {
       vector<Expr> k;
       Expr::iterator i = e.begin(), iend=e.end();
       // Skip first element of the vector of kids in 'e'.
       // The first element is the operator.
-      ++i; 
+      ++i;
       // Parse the kids of e and push them into the vector 'k'
       for(; i!=iend; ++i) k.push_back(parseExpr(*i));
-      return plusExpr(k); 
+      return plusExpr(k);
     }
     case MINUS: {
       if(e.arity() == 2)
@@ -2881,23 +2912,23 @@ TheoryArith3::parseExprOp(const Expr& e) {
       Expr::iterator i = e.begin(), iend=e.end();
       // Skip first element of the vector of kids in 'e'.
       // The first element is the operator.
-      ++i; 
+      ++i;
       // Parse the kids of e and push them into the vector 'k'
       for(; i!=iend; ++i) k.push_back(parseExpr(*i));
       return multExpr(k);
     }
-    case POW: {	
-      return powExpr(parseExpr(e[1]), parseExpr(e[2]));	
+    case POW: {
+      return powExpr(parseExpr(e[1]), parseExpr(e[2]));
     }
     case DIVIDE:
       { return divideExpr(parseExpr(e[1]), parseExpr(e[2]));	}
-    case LT:	
+    case LT:
       { return ltExpr(parseExpr(e[1]), parseExpr(e[2]));	}
-    case LE:	
+    case LE:
       { return leExpr(parseExpr(e[1]), parseExpr(e[2]));	}
-    case GT:	
+    case GT:
       { return gtExpr(parseExpr(e[1]), parseExpr(e[2]));	}
-    case GE:	
+    case GE:
       { return geExpr(parseExpr(e[1]), parseExpr(e[2]));	}
     case INTDIV:
     case MOD:
@@ -2906,9 +2937,9 @@ TheoryArith3::parseExprOp(const Expr& e) {
       Expr::iterator i = e.begin(), iend=e.end();
       // Skip first element of the vector of kids in 'e'.
       // The first element is the operator.
-      ++i; 
+      ++i;
       // Parse the kids of e and push them into the vector 'k'
-      for(; i!=iend; ++i) 
+      for(; i!=iend; ++i)
         k.push_back(parseExpr(*i));
       return Expr(kind, k, e.getEM());
     }
@@ -2947,7 +2978,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	break;
       case PLUS:  {
 	int i=0, iend=e.arity();
-	os << "(+ "; 
+	os << "(+ ";
 	if(i!=iend) os << e[i];
 	++i;
 	for(; i!=iend; ++i) os << " " << e[i];
@@ -2997,11 +3028,11 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	// Print the top node in the default LISP format, continue with
 	// pretty-printing for children.
           e.print(os);
-	  
+
           break;
-      } 
+      }
       break; // end of case SIMPLIFY_LANG
-      
+
     case TPTP_LANG:
       switch(e.getKind()) {
       case RATIONAL_EXPR:
@@ -3018,7 +3049,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	  os<<"ERRPR:plus only supports inteters now in TPTP\n";
 	  break;
 	}
-	
+
 	int i=0, iend=e.arity();
 	if(iend <=1){
 	  os<<"ERROR,plus must have more than two numbers in TPTP\n";
@@ -3026,14 +3057,14 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	}
 
 	for(i=0; i <= iend-2; ++i){
-	  os << "$plus_int("; 
+	  os << "$plus_int(";
 	  os << e[i] << ",";
 	}
 
 	os<< e[iend-1];
 
 	for(i=0 ; i <= iend-2; ++i){
-	  os << ")"; 
+	  os << ")";
 	}
 
 	break;
@@ -3059,7 +3090,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	  os<<"ERRPR:times only supports inteters now in TPTP\n";
 	  break;
 	}
-	
+
 	int i=0, iend=e.arity();
 	if(iend <=1){
 	  os<<"ERROR:times must have more than two numbers in TPTP\n";
@@ -3067,14 +3098,14 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	}
 
 	for(i=0; i <= iend-2; ++i){
-	  os << "$times_int("; 
+	  os << "$times_int(";
 	  os << e[i] << ",";
 	}
 
 	os<< e[iend-1];
 
 	for(i=0 ; i <= iend-2; ++i){
-	  os << ")"; 
+	  os << ")";
 	}
 
 	break;
@@ -3136,7 +3167,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
       case GRAY_SHADOW:
 	os <<"ERROR:SHADOW:not supported in TPTP\n";
 	break;
-	
+
       case INT:
 	os <<"$int";
 	break;
@@ -3146,9 +3177,9 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
 	// Print the top node in the default LISP format, continue with
 	// pretty-printing for children.
 	e.print(os);
-	  
+
           break;
-      } 
+      }
       break; // end of case TPTP_LANG
 
     case PRESENTATION_LANG:
@@ -3170,7 +3201,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
           break;
         case SUBRANGE:
           if(e.arity() != 2) e.printAST(os);
-          else 
+          else
             os << "[" << push << e[0] << ".." << e[1] << push << "]";
           break;
         case IS_INTEGER:
@@ -3236,7 +3267,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
           e.printAST(os);
 
           break;
-      } 
+      }
       break; // end of case PRESENTATION_LANG
     case SMTLIB_LANG: {
       switch(e.getKind()) {
@@ -3255,7 +3286,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
         case SUBRANGE:
           throw SmtlibException("TheoryArith3::print: SMTLIB: SUBRANGE not implemented");
 //           if(e.arity() != 2) e.print(os);
-//           else 
+//           else
 //             os << "(" << push << "SUBRANGE" << space << e[0]
 // 	       << space << e[1] << push << ")";
           break;
@@ -3342,7 +3373,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
           e.printAST(os);
 
           break;
-      } 
+      }
       break; // end of case SMTLIB_LANG
     }
     case LISP_LANG:
@@ -3356,7 +3387,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
           break;
         case SUBRANGE:
           if(e.arity() != 2) e.printAST(os);
-          else 
+          else
             os << "(" << push << "SUBRANGE" << space << e[0]
 	       << space << e[1] << push << ")";
           break;
@@ -3419,7 +3450,7 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
           e.printAST(os);
 
           break;
-      } 
+      }
       break; // end of case LISP_LANG
     default:
      // Print the top node in the default LISP format, continue with

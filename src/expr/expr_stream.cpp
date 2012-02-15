@@ -165,6 +165,7 @@ namespace CVC3 {
     switch(e.getKind()) {
     case QUERY:
     case ASSERT:
+    case RESTART:
     case TRANSFORM:
     case TYPE:
     case CONST:

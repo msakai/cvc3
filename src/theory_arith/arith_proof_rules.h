@@ -293,6 +293,11 @@ namespace CVC3 {
      */
     virtual Theorem intVarEqnConst(const Expr& eqn,
 				   const Theorem& isIntx) = 0;
+    /*! IS_INTEGER(x) <=> EXISTS (y : INT) y = x
+     * where x is not already known to be an integer.
+     */
+    virtual Theorem IsIntegerElim(const Theorem& isIntx) = 0;
+
     /*! @brief Equality elimination rule for integers:
      * \f[\frac{\mathsf{int}(a\cdot x)\quad
      *          \mathsf{int}(C+\sum_{i=1}^{n}a_{i}\cdot x_{i})}
@@ -449,6 +454,8 @@ namespace CVC3 {
     
     virtual Theorem powerOfOne(const Expr& e) = 0;
     
+    virtual Theorem rewriteLeavesConst(const Expr& e);
+
   }; // end of class ArithProofRules
 } // end of namespace CVC3
 

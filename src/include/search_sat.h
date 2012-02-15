@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -31,6 +31,7 @@
 #include "expr.h"
 #include "dpllt.h"
 #include "theory_core.h"
+#include "formula_value.h"
 
 namespace CVC3 {
 
@@ -211,11 +212,18 @@ private:
 
   //! Get the value of a CNF Literal
   SAT::Var::Val getValue(SAT::Lit c) {
-    DebugAssert(!c.isVar() || unsigned(c.getVar()) < d_vars.size(),
+    DebugAssert(!c.isNull() &&
+                (!c.isVar() || unsigned(c.getVar()) < d_vars.size()),
                 "Lit out of bounds in getValue");
-    return c.isFalse() ? SAT::Var::FALSE_VAL : c.isTrue() ? SAT::Var::TRUE_VAL :
+    return c.isPositive() ? d_vars[c.getVar()] :
       c.isInverted() ? SAT::Var::invertValue(d_vars[c.getVar()]) :
-      d_vars[c.getVar()]; }
+      c.isTrue() ? SAT::Var::TRUE_VAL : SAT::Var::FALSE_VAL;
+  }
+
+  SAT::Var::Val getValue(SAT::Var v) {
+    DebugAssert(v.isVar() && unsigned(v) < d_vars.size(), "Var out of bounds in getValue");
+    return d_vars[v];
+  }
 
   //! Set the value of a variable
   void setValue(SAT::Var v, SAT::Var::Val val) {
@@ -240,6 +248,9 @@ private:
   //! Main checking procedure shared by checkValid and restart
   QueryResult check(const Expr& e, Theorem& result, bool isRestart = false);
 
+  //! Helper for newUserAssumptionInt
+  void newUserAssumptionIntHelper(const Theorem& thm, SAT::CNF_Formula_Impl& cnf,
+                                  bool atBottomScope);
   //! Helper for newUserAssumption
   Theorem newUserAssumptionInt(const Expr& e, SAT::CNF_Formula_Impl& cnf,
                                bool atBottomScope);
@@ -274,6 +285,27 @@ public:
                                  bool inOrder = true);
   virtual Proof getProof();
 
+  //:ALEX:
+  virtual FormulaValue getValue(const CVC3::Expr& e) {
+    SAT::Lit l = d_cnfManager->getCNFLit(e);
+
+    if (l.isNull()) {
+      //:DEBUG:
+      std::cout << "No lit for expr: " << e.toString() << std::endl;
+      FatalAssert(false, "getValue");
+      return UNKNOWN_VAL;
+    } else {
+      switch (getValue(l)) {
+	case SAT::Var::TRUE_VAL: return TRUE_VAL;
+	case SAT::Var::FALSE_VAL: return FALSE_VAL;
+	case SAT::Var::UNKNOWN: return UNKNOWN_VAL;
+      default:
+	DebugAssert(false, "unreachable");
+	return UNKNOWN_VAL;
+      }
+    }
+  }
+
 };
 
 inline bool operator<(const SearchSat::LitPriorityPair& p1,
@@ -282,8 +314,7 @@ inline bool operator<(const SearchSat::LitPriorityPair& p1,
   if (p1.d_priority > p2.d_priority) return true;
   if (p1.d_priority < p2.d_priority) return false;
   return abs(p1.d_lit.getID()) < abs(p2.d_lit.getID()) ||
-    abs(p1.d_lit.getID()) == abs(p2.d_lit.getID()) &&
-    p1.d_lit.getID() > 0 && (!(p2.d_lit.getID() > 0));
+    (abs(p1.d_lit.getID()) == abs(p2.d_lit.getID()) && p1.d_lit.getID() > 0 && (!(p2.d_lit.getID() > 0)));
 }
 
 }

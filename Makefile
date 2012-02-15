@@ -1,5 +1,3 @@
-SHELL = /bin/bash
-
 include Makefile.local
  
 # The list of Makefiles and other important script sources which must
@@ -10,6 +8,9 @@ Makefile.std \
 Makefile.local.in \
 configure.ac \
 configure \
+config.guess \
+config.sub \
+install-sh \
 INSTALL \
 LICENSE.in \
 PEOPLE \
@@ -40,13 +41,16 @@ all:	build
 
 build: 
 	cd $(TOP)/src; $(MAKE) $(TARGET) VERSION=$(VERSION)
+ifeq ($(BUILD_JAVA),1)
+	cd $(TOP)/java; $(MAKE) $(TARGET) VERSION=$(VERSION)
+endif
 ifndef TARGET
 	find $(TOP)/src '(' -name "*.h" -o -name "*.cpp" -o       \
 	                           -name "*.y" ')'       \
                                 ! -name "lexPL.cpp" ! -name "parsePL.cpp" \
-				-print > FILES
+				-print  > FILES
 ifdef ETAGS
-	etags `cat FILES`
+	sed -e s/^/\'/ -e s/$$/\'/ FILES | xargs etags
 endif
 ifdef EBROWSE
 	ebrowse --files=FILES
@@ -98,6 +102,7 @@ endif
 	echo "Collecting top-level script files"
 	@echo $(DISTFILES) >> $(TMPFILE)
 	cd $(TOP)/src; $(MAKE) print_src FILELIST=$(TMPFILE)
+	cd $(TOP)/java; $(MAKE) print_src FILELIST=$(TMPFILE)
 	echo "Building " $(TARFILE)
 	@mkdir -p $(TARDIR)
 	@tar cf - `cat $(TMPFILE)` | (cd $(TARDIR); tar xf -)
@@ -142,16 +147,18 @@ clean:  superclean_gcov clean_gprof
 	@rm -f $(TOP)/.test*
 
 distclean:
+	cd $(TOP)/src; $(MAKE) distclean
 	cd $(TOP)/doc; $(MAKE) distclean
 	cd $(TOP)/test; $(MAKE) distclean
+	cd $(TOP)/java; $(MAKE) distclean
 	rm -rf $(TOP)/test/bin $(TOP)/test/obj
 	cd $(TOP)/testc; $(MAKE) distclean
 	rm -rf $(TOP)/testc/bin $(TOP)/testc/obj
 	@rm -rf $(DISTTMPDIR)
 	@mkdir -p $(DISTTMPDIR)
 	@mv $(TOP)/bin/*.in $(DISTTMPDIR)
-	@mv $(TOP)/bin/CVS $(DISTTMPDIR)
-	@mv $(TOP)/bin/.cvsignore $(DISTTMPDIR)
+	@-mv $(TOP)/bin/CVS $(DISTTMPDIR)
+	@-mv $(TOP)/bin/.cvsignore $(DISTTMPDIR)
 	rm -rf $(TOP)/bin
 	@mv $(DISTTMPDIR) $(TOP)/bin
 	@rm -rf $(DISTTMPDIR)
@@ -210,6 +217,15 @@ regress: build
 	$(TOP)/testc/bin/testc $(REGRESS_LEVEL)  2>&1 \
 	  | tee -a $(REGRESS_LOG); [ $${PIPESTATUS[0]} -eq 0 ]
 	@rm -f $(TOP)/.test*
+ifeq ($(BUILD_JAVA),1)
+	@echo "*********************************************************" \
+          | tee -a $(REGRESS_LOG)
+	@echo "Java API test" | tee -a $(REGRESS_LOG)
+	@echo "*********************************************************" \
+          | tee -a $(REGRESS_LOG)
+	$(MAKE) -C java test 2>&1 \
+	  | tee -a $(REGRESS_LOG); [ $${PIPESTATUS[0]} -eq 0 ]
+endif
 	@echo "*********************************************************" \
           | tee -a $(REGRESS_LOG)
 	@echo "Regression tests" | tee -a $(REGRESS_LOG)

@@ -54,7 +54,11 @@ Theorem TheoryArray::renameExpr(const Expr& e) {
 TheoryArray::TheoryArray(TheoryCore* core)
   : Theory(core, "Arrays"), d_reads(core->getCM()->getCurrentContext()),
     d_applicationsInModel(core->getFlags()["applications"].getBool()),
-    d_liftReadIte(core->getFlags()["liftReadIte"].getBool())
+    d_liftReadIte(core->getFlags()["liftReadIte"].getBool()),
+    d_sharedSubterms(core->getCM()->getCurrentContext()),
+    d_sharedSubtermsList(core->getCM()->getCurrentContext()),
+    d_index(core->getCM()->getCurrentContext(), 0, 0),
+    d_inCheckSat(0)
 {
   d_rules = createProofRules();
 
@@ -81,89 +85,334 @@ TheoryArray::~TheoryArray() {
 }
 
 
+void TheoryArray::addSharedTerm(const Expr& e)
+{
+  if (d_sharedSubterms.count(e) > 0) return;
+
+  TRACE("arrAddSharedTerm", "TheoryArray::addSharedTerm(", e.toString(), ")");
+
+  // Cache all shared terms
+  d_sharedSubterms[e]=e;
+
+  // Make sure we get notified if shared term is assigned to something else
+  // We need this because we only check non-array-normalized (nan) shared terms,
+  // so if a variable gets set to a nan term, we will need to know about it.
+  e.addToNotify(this, Expr());
+
+  if (isWrite(e) || (isRead(e) && isWrite(e[0]))) {
+
+    // Children of shared terms better be shared so we can detect any failure of normalization
+    for (int i = 0; i < e.arity(); ++i) addSharedTerm(e[i]);
+
+    // Only check writes that are not normalized
+    if (!isWrite(e) || e.notArrayNormalized()) {
+      // Put in list to check during checkSat
+      d_sharedSubtermsList.push_back(e);
+    }
+  }
+}
+
+
+void TheoryArray::assertFact(const Theorem& e)
+{
+  const Expr& expr = e.getExpr();
+  TRACE("arrAssertFact", "TheoryArray::assertFact(", e.getExpr().toString(), ")");
+
+  switch (expr.getOpKind()) {
+
+    case NOT:
+      DebugAssert(expr[0].isEq(), "Unexpected negation");
+
+      if (isArray(getBaseType(expr[0][0]))) {
+        // For disequalities between arrays, do the polite thing, and introduce witnesses
+        enqueueFact(d_rules->arrayNotEq(e));
+        break;
+      }
+
+      // We can use the shared term mechanism here:
+      // In checksat we will ensure that all shared terms are in a normal form
+      // so if two are known to be equal, we will discover it
+      addSharedTerm(expr[0][0]);
+      addSharedTerm(expr[0][1]);
+      
+      break;
+      
+    case EQ:
+      DebugAssert(theoryCore()->inUpdate() ||
+                  (d_inCheckSat > 0) ||
+                  !isWrite(expr[0]), "Invariant violated");
+      break;
+
+    default:
+      FatalAssert(false, "Unexpected case");
+      break;
+  }
+}
+
+
+Expr findAtom(Expr e) {
+  DebugAssert(e.arity() != 0, "Invariant Violated");
+  int i;
+  for (i = 0; i < e.arity(); ++i) {
+    if (!e[i].isAtomic()) break;
+  }
+  if (e[i].isAbsAtomicFormula()) return e[i];
+  return findAtom(e[i]);
+}
+
+
+void TheoryArray::checkSat(bool fullEffort)
+{
+  if (fullEffort == true) {
+    // Check that all non-array-normalized shared terms are normalized
+    Theorem thm;
+    for (; d_index < d_sharedSubtermsList.size(); d_index = d_index + 1) {
+      Expr e = d_sharedSubtermsList[d_index];
+
+      if (isRead(e)) {
+        DebugAssert(isWrite(e[0]), "Expected read(write)");
+
+        // This should be a signature without a find
+        DebugAssert(!e.hasFind(), "Expected no find");
+
+        // If this is no longer a valid signature, we can skip it
+        if (!e.hasRep()) continue;
+
+        // Check to see if we know whether indices are equal
+        Expr ieq = e[0][1].eqExpr(e[1]);
+        Theorem ieqSimp = simplify(ieq);
+        if (!ieqSimp.getRHS().isBoolConst()) {
+          // if not, split on equality of indices
+          // TODO: really tricky optimization: maybe we can avoid this split
+          // if both then and else are unknown terms?
+          addSplitter(ieq);
+          return;
+        }
+
+        // Get the representative for the signature
+        Theorem repEqSig = e.getRep();
+        DebugAssert(!repEqSig.isRefl(), "Expected non-self rep");
+
+        // Apply the read over write rule
+	thm = d_rules->rewriteReadWrite(e);
+
+        // Carefully simplify
+        thm = transitivityRule(thm, 
+                               substitutivityRule(thm.getRHS(), 0, ieqSimp));
+        thm = transitivityRule(thm, rewriteIte(thm.getRHS()));
+
+        // Derive the new equality and simplify
+        thm = transitivityRule(repEqSig, thm);
+        thm = iffMP(thm, simplify(thm.getExpr()));
+        Expr newExpr = thm.getExpr();
+        if (newExpr.isTrue()) {
+          // Fact is already known, continue
+          continue;
+        }
+        else if (newExpr.isAbsAtomicFormula()) {
+          enqueueFact(thm);
+        }
+        else {
+          // expr is not atomic formula, so pick a splitter that will help make it atomic
+          addSplitter(findAtom(newExpr));
+        }
+        return;
+      }
+
+      // OK, everything else should be a write
+      DebugAssert(isWrite(e), "Expected Write");
+      DebugAssert(e.notArrayNormalized(),
+                  "Only non-normalized writes expected");
+
+      // If write is not its own find, this means that the write
+      // was normalized to something else already, so it's not relevant
+      // any more
+      if (find(e).getRHS() != e) continue;
+
+      // First check for violation of redundantWrite1
+      Expr store = e[0];
+      while (isWrite(store)) store = store[0];
+      DebugAssert(findExpr(e[2]) == e[2], "Expected own find");
+      thm = simplify(Expr(READ, store, e[1]));
+      if (thm.getRHS() == e[2]) {
+        thm = d_rules->rewriteRedundantWrite1(thm, e);
+      }
+
+      // Then check for violation of redundantWrite2
+      else if (isWrite(e[0]) && e[0][1] > e[1]) {
+        thm = d_rules->interchangeIndices(e);
+      }
+
+      else {
+        FatalAssert(false, "Unexpected expr");
+        continue;
+      }
+
+      // Write needs to be normalized, see what its new normal form is:
+      thm = transitivityRule(thm, simplify(thm.getRHS()));
+      Expr newExpr = thm.getRHS();
+
+      if (newExpr.isAtomic()) {
+        // If the new normal form is atomic, go ahead and update the normal form directly
+        ++d_inCheckSat;
+        assertEqualities(thm);
+        // To ensure updates are processed and checkSat gets called again
+        enqueueFact(thm);
+        --d_inCheckSat;
+      }
+      else {
+        // normal form is not atomic, so pick a splitter that will help make it atomic
+        addSplitter(findAtom(newExpr));
+      }
+      return;
+    }
+  }
+}
+
+
+// w(...,i,v1,...,) => w(......,i,v1')
+// Returns Null Theorem if index does not appear
+Theorem TheoryArray::pullIndex(const Expr& e, const Expr& index)
+{
+  DebugAssert(isWrite(e), "Expected write");
+
+  if (e[1] == index) return reflexivityRule(e);
+
+  // Index does not appear
+  if (!isWrite(e[0])) return Theorem();
+
+  // Index is at next nesting level
+  if (e[0][1] == index) {
+    return d_rules->interchangeIndices(e);
+  }
+
+  // Index is (possibly) at deeper nesting level
+  Theorem thm = pullIndex(e[0], index);
+  if (thm.isNull()) return thm;
+  thm = substitutivityRule(e, 0, thm);
+  thm = transitivityRule(thm, d_rules->interchangeIndices(thm.getRHS()));
+  return thm;
+}
+
+
 Theorem TheoryArray::rewrite(const Expr& e)
 {
   Theorem thm;
-  if (isRead(e)) {
-    switch(e[0].getKind()) {
-      case WRITE:
-	thm = d_rules->rewriteReadWrite(e);
-	return transitivityRule(thm, simplify(thm.getRHS()));
-      case ARRAY_LITERAL: {
-	IF_DEBUG(debugger.counter("Read array literals")++;)
-	thm = d_rules->readArrayLiteral(e);
-	return transitivityRule(thm, simplify(thm.getRHS()));
-      }
-      case ITE: {
-        if (d_liftReadIte) {
-          thm = d_rules->liftReadIte(e);
+  switch (e.getKind()) {
+    case READ: {
+      switch(e[0].getKind()) {
+        case WRITE:
+          thm = d_rules->rewriteReadWrite(e);
+          return transitivityRule(thm, simplify(thm.getRHS()));
+        case ARRAY_LITERAL: {
+          IF_DEBUG(debugger.counter("Read array literals")++;)
+            thm = d_rules->readArrayLiteral(e);
           return transitivityRule(thm, simplify(thm.getRHS()));
         }
+        case ITE: {
+          if (d_liftReadIte) {
+            thm = d_rules->liftReadIte(e);
+            return transitivityRule(thm, simplify(thm.getRHS()));
+          }
+          e.setRewriteNormal();
+          return reflexivityRule(e);
+        }
+        default: {
+          break;
+        }
       }
-      default: {
-	const Theorem& rep = e.getRep();
-	if (rep.isNull()) return reflexivityRule(e);
-	else return symmetryRule(rep);
-      }
+      const Theorem& rep = e.getRep();
+      if (rep.isNull()) return reflexivityRule(e);
+      else return symmetryRule(rep);
     }
-  }
-  else if (!e.isTerm()) {
-    if (e.isEq() && e[0].isAtomic() && e[1].isAtomic() && isWrite(e[0])) {
-      Expr left = e[0], right = e[1];
-      int leftWrites = 1, rightWrites = 0;
+    case EQ:
+      //      if (e[0].isAtomic() && e[1].isAtomic() && isWrite(e[0])) {
+      if (isWrite(e[0])) {
+        Expr left = e[0], right = e[1];
+        int leftWrites = 1, rightWrites = 0;
 
-      // Count nested writes
-      Expr e1 = left[0];
-      while (isWrite(e1)) { leftWrites++; e1 = e1[0]; }
+        // Count nested writes
+        Expr e1 = left[0];
+        while (isWrite(e1)) { leftWrites++; e1 = e1[0]; }
 
-      Expr e2 = right;
-      while (isWrite(e2)) { rightWrites++; e2 = e2[0]; }
+        Expr e2 = right;
+        while (isWrite(e2)) { rightWrites++; e2 = e2[0]; }
 
-      if (rightWrites == 0) {
-	if (e1 == e2) {
-	  thm = d_rules->rewriteSameStore(e, leftWrites);
-	  return transitivityRule(thm, simplify(thm.getRHS()));
-	}
-	else {
-	  e.setRewriteNormal();
-	  return reflexivityRule(e);
-	}
+        if (rightWrites == 0) {
+          if (e1 == e2) {
+            thm = d_rules->rewriteSameStore(e, leftWrites);
+            return transitivityRule(thm, simplify(thm.getRHS()));
+          }
+          else {
+            e.setRewriteNormal();
+            return reflexivityRule(e);
+          }
+        }
+        if (leftWrites > rightWrites) {
+          thm = getCommonRules()->rewriteUsingSymmetry(e);
+          thm = transitivityRule(thm, d_rules->rewriteWriteWrite(thm.getRHS()));
+        }
+        else thm = d_rules->rewriteWriteWrite(e);
+        return transitivityRule(thm, simplify(thm.getRHS()));
       }
-
-      if (leftWrites > rightWrites) {
-	thm = getCommonRules()->rewriteUsingSymmetry(e);
-	thm = transitivityRule(thm, d_rules->rewriteWriteWrite(thm.getRHS()));
+      e.setRewriteNormal();
+      return reflexivityRule(e);
+    case NOT:
+      e.setRewriteNormal();
+      return reflexivityRule(e);
+    case WRITE: {
+//       if (!e.isAtomic()) {
+//         e.setRewriteNormal();
+//         return reflexivityRule(e);
+//       }
+      const Expr& store = e[0];
+      // Enabling this slows stuff down a lot
+      if (!isWrite(store)) {
+        DebugAssert(findExpr(e[2]) == e[2], "Expected own find");
+        if (isRead(e[2]) && e[2][0] == store && e[2][1] == e[1]) {
+          thm = d_rules->rewriteRedundantWrite1(reflexivityRule(e[2]), e);
+          return transitivityRule(thm, simplify(thm.getRHS()));
+        }
+        e.setRewriteNormal();
+        return reflexivityRule(e);
       }
-      else thm = d_rules->rewriteWriteWrite(e);
-      return transitivityRule(thm, simplify(thm.getRHS()));
+      else {
+        //      if (isWrite(store)) {
+        thm = pullIndex(store,e[1]);
+        if (!thm.isNull()) {
+          if (thm.isRefl()) {
+            return d_rules->rewriteRedundantWrite2(e);
+          }
+          thm = substitutivityRule(e,0,thm);
+          thm = transitivityRule(thm, 
+                                 d_rules->rewriteRedundantWrite2(thm.getRHS()));
+          return transitivityRule(thm, simplify(thm.getRHS()));
+        }
+        if (store[1] > e[1]) {
+          // Only do this rewrite if the result is atomic
+          // (avoid too many ITEs)
+          thm = d_rules->interchangeIndices(e);
+          thm = transitivityRule(thm, simplify(thm.getRHS()));
+          if (thm.getRHS().isAtomic()) {
+            return thm;
+          }
+          // not normal because might be possible to interchange later
+          return reflexivityRule(e);
+        }
+      }
+      e.setRewriteNormal();
+      return reflexivityRule(e);
     }
-    e.setRewriteNormal();
-    return reflexivityRule(e);
+    case ARRAY_LITERAL:
+      e.setRewriteNormal();
+      return reflexivityRule(e);
+    default:
+      DebugAssert(e.isVar() && isArray(getBaseType(e)),
+                  "Unexpected default case");
+      e.setRewriteNormal();
+      return reflexivityRule(e);
   }
-  else if (!e.isAtomic()) {
-    e.setRewriteNormal();
-    return reflexivityRule(e);
-  }
-  else if (isWrite(e)) {
-    Expr store = e[0];
-    while (isWrite(store)) store = store[0];
-    DebugAssert(findExpr(e[2]) == e[2], "Expected own find");
-    thm = simplify(Expr(READ, store, e[1]));
-    if (thm.getRHS() == e[2]) {
-      thm = d_rules->rewriteRedundantWrite1(thm, e);
-      return transitivityRule(thm, simplify(thm.getRHS()));
-    }
-    if (isWrite(e[0])) {
-      if (e[0][1] == e[1]) {
-	return d_rules->rewriteRedundantWrite2(e);
-      }
-      if (e[0][1] > e[1]) {
-	thm = d_rules->interchangeIndices(e);
-	return transitivityRule(thm, simplify(thm.getRHS()));
-      }
-    }
-    return reflexivityRule(e);
-  }
+  FatalAssert(false, "should be unreachable");
   return reflexivityRule(e);
 }
 
@@ -179,25 +428,69 @@ void TheoryArray::setup(const Expr& e)
     Theorem thm = reflexivityRule(e);
     e.setSig(thm);
     e.setRep(thm);
+    e.setUsesCC();
+    DebugAssert(!isWrite(e[0]), "expected no read of writes");
     // Record the read operator for concrete models
     TRACE("model", "TheoryArray: add array read ", e, "");
     d_reads.push_back(e);
   }
   else if (isWrite(e)) {
-    // there is a hidden dependency of write(a,i,v) on read(a,i)
     Expr store = e[0];
+
+    if (isWrite(store)) {
+      // check interchangeIndices invariant
+      if (store[1] > e[1]) {
+        e.setNotArrayNormalized();
+        if (d_sharedSubterms.count(e) > 0) {
+          // write was identified as a shared term before it was setup: add it to list to check
+          d_sharedSubtermsList.push_back(e);
+        }
+      }
+      // redundantWrite2 invariant should hold
+      DebugAssert(pullIndex(store, e[1]).isNull(),
+                  "Unexpected non-array-normalized term in setup");
+    }
+
+    // check redundantWrite1 invariant
+    // there is a hidden dependency of write(a,i,v) on read(a,i)
     while (isWrite(store)) store = store[0];
+    // Need to simplify, not just take find: read could be a signature
     Expr r = simplifyExpr(Expr(READ, store, e[1]));
     theoryCore()->setupTerm(r, this, theoryCore()->getTheoremForTerm(e));
     DebugAssert(r.isAtomic(), "Should be atomic");
-    DebugAssert(r != e[2], "Should have been rewritten");
-    r.addToNotify(this, e);
+    DebugAssert(findExpr(e[2]) == e[2], "Expected own find");
+    if (r == e[2] && !e.notArrayNormalized()) {
+      e.setNotArrayNormalized();
+      if (d_sharedSubterms.count(e) > 0) {
+        // write was identified as a shared term before it was setup: add it to list to check
+        d_sharedSubtermsList.push_back(e);
+      }
+    }
+    else {
+      r.addToNotify(this, e);
+    }
   }
 }
 
 
 void TheoryArray::update(const Theorem& e, const Expr& d)
 {
+  if (inconsistent()) return;
+
+  if (d.isNull()) {
+    // d is a shared term
+    // we want to mark the new find representative as a shared term too
+    Expr lhs = e.getLHS();
+    Expr rhs = e.getRHS();
+    DebugAssert(d_sharedSubterms.find(lhs) != d_sharedSubterms.end(),
+                "Expected lhs to be shared");
+    CDMap<Expr,Expr>::iterator it = d_sharedSubterms.find(rhs);
+    if (it == d_sharedSubterms.end()) {
+      addSharedTerm(rhs);
+    }
+    return;
+  }
+
   int k, ar(d.arity());
 
   if (isRead(d)) {
@@ -209,14 +502,29 @@ void TheoryArray::update(const Theorem& e, const Expr& d)
       if (sigNew == dsig) return;
       dsig.setRep(Theorem());
       if (isWrite(sigNew[0])) {
-	thm = transitivityRule(thm, d_rules->rewriteReadWrite(sigNew));
-	Theorem renameTheorem = renameExpr(d);
-	enqueueFact(transitivityRule(symmetryRule(renameTheorem), thm));
-	d.setSig(Theorem());
-	enqueueFact(renameTheorem);
+        // This is the tricky case.
+        // 
+  	Theorem thm2 = d_rules->rewriteReadWrite(sigNew);
+        thm2 = transitivityRule(thm2, simplify(thm2.getRHS()));
+        if (thm2.getRHS().isAtomic()) {
+          // If read over write simplifies, go ahead and assert the equality
+          enqueueFact(transitivityRule(thm, thm2));
+        }
+        else {
+          // Otherwise, delay processing until checkSat
+          addSharedTerm(sigNew);
+        }
+        //        thm = d_rules->rewriteReadWrite2(sigNew);
+        //	Theorem renameTheorem = renameExpr(d);
+        //	enqueueFact(transitivityRule(symmetryRule(renameTheorem), thm));
+        //	d.setSig(Theorem());
+        // 	enqueueFact(thm);
+        //	enqueueFact(renameTheorem);
       }
-      else {
-	const Theorem& repEQsigNew = sigNew.getRep();
+      //      else {
+
+      // Update the signature in all cases
+      Theorem repEQsigNew = sigNew.getRep();
 	if (!repEQsigNew.isNull()) {
 	  d.setSig(Theorem());
 	  enqueueFact(transitivityRule(repEQsigNew, symmetryRule(thm)));
@@ -229,52 +537,107 @@ void TheoryArray::update(const Theorem& e, const Expr& d)
 	  }
 	  d.setSig(thm);
 	  sigNew.setRep(thm);
+          getEM()->invalidateSimpCache();
 	}
-      }
+        //      }
+    }
+    return;
+  }
+
+  DebugAssert(isWrite(d), "Expected write: d = "+d.toString());
+  if (find(d).getRHS() != d) return;
+
+  Theorem thm = updateHelper(d);
+  Expr sigNew = thm.getRHS();
+
+  // TODO: better normalization in some cases
+  Expr store = sigNew[0];
+  if (!isWrite(store)) {
+    Theorem thm2 = find(Expr(READ, store, sigNew[1]));
+    if (thm2.getRHS() == sigNew[2]) {
+      thm = transitivityRule(thm,
+                             d_rules->rewriteRedundantWrite1(thm2, sigNew));
+      sigNew = thm.getRHS();
     }
   }
   else {
-    DebugAssert(isWrite(d), "Expected write: d = "+d.toString());
-    if (find(d).getRHS() == d) {
-      Theorem thm = updateHelper(d);
-      Expr sigNew = thm.getRHS();
-
-      Expr store = sigNew[0];
-      while (isWrite(store)) store = store[0];
-
-      // TODO: calling simplify from update is generally bad
-      Theorem thm2 = simplify(Expr(READ, store, sigNew[1]));
-      if (thm2.getRHS() == sigNew[2]) {
+    // TODO: this check is expensive, it seems
+    Theorem thm2 = pullIndex(store,sigNew[1]);
+    if (!thm2.isNull()) {
+      if (thm2.isRefl()) {
         thm = transitivityRule(thm,
-                               d_rules->rewriteRedundantWrite1(thm2, sigNew));
-        sigNew = thm.getRHS();
-      }
-      else if (isWrite(sigNew[0])) {
-        if (sigNew[0][1] == sigNew[1]) {
-          thm = transitivityRule(thm, d_rules->rewriteRedundantWrite2(sigNew));
-          sigNew = thm.getRHS();
-        }
-        else if (sigNew[0][1] > sigNew[1]) {
-          thm = transitivityRule(thm, d_rules->interchangeIndices(sigNew));
-          sigNew = thm.getRHS();
-        }
-      }
-
-      if (d == sigNew) {
-	// Hidden dependency must have changed.  Update notify list.
-        DebugAssert(!e.isNull(), "Shouldn't be possible");
-	e.getRHS().addToNotify(this, d);
-      }
-      else if (sigNew.isAtomic()) {
- 	assertEqualities(thm);
+                               d_rules->rewriteRedundantWrite2(sigNew));
       }
       else {
- 	Theorem renameTheorem = renameExpr(d);
- 	enqueueFact(transitivityRule(symmetryRule(renameTheorem), thm));
- 	assertEqualities(renameTheorem);
+        thm2 = substitutivityRule(sigNew,0,thm2);
+        thm2 = transitivityRule(thm2,
+                                d_rules->rewriteRedundantWrite2(thm2.getRHS()));
+        thm = transitivityRule(thm, thm2);
+      }
+      sigNew = thm.getRHS();
+      store = sigNew[0];
+    }
+
+    if (isWrite(store) && (store[1] > sigNew[1])) {
+      thm2 = d_rules->interchangeIndices(sigNew);
+      thm2 = transitivityRule(thm2, simplify(thm2.getRHS()));
+      // Only update if result is atomic
+      if (thm2.getRHS().isAtomic()) {
+        thm = transitivityRule(thm, thm2);
+        sigNew = thm.getRHS();
+        // no need to update store because d == sigNew
+        // case only happens if sigNew hasn't changed
       }
     }
   }
+
+  if (d == sigNew) {
+    // Hidden dependency must have changed
+    while (isWrite(store)) store = store[0];
+    Expr r = e.getRHS();
+    if (r == d[2]) {
+      // no need to update notify list as we are already on list of d[2]
+      if (!d.notArrayNormalized()) {
+        d.setNotArrayNormalized();
+        if (d_sharedSubterms.count(d) > 0) {
+          // write has become non-normalized: add it to list to check
+          d_sharedSubtermsList.push_back(d);
+        }
+      }
+    }
+    else {
+      // update the notify list
+      r.addToNotify(this, d);
+    }
+    return;
+  }
+
+  DebugAssert(sigNew.isAtomic(), "Expected atomic formula");
+  // Since we aren't doing a full normalization here, it's possible that sigNew is not normal
+  // and so it might have a different find.  In that case, the find should be the new rhs.
+  if (sigNew.hasFind()) {
+    Theorem findThm = findRef(sigNew);
+    if (!findThm.isRefl()) {
+      thm = transitivityRule(thm, findThm);
+    }
+    assertEqualities(thm);
+    return;
+  }
+
+  // If it doesn't have a find at all, it needs to be simplified
+  Theorem simpThm = simplify(sigNew);
+  thm = transitivityRule(thm, simpThm);
+  sigNew = thm.getRHS();
+  if (sigNew.isAtomic()) {
+    assertEqualities(thm);
+  }
+  else {
+    // Simplify could maybe? introduce case splits in the expression.  Handle this by renaminig
+    Theorem renameTheorem = renameExpr(d);
+    enqueueFact(transitivityRule(symmetryRule(renameTheorem), thm));
+    assertEqualities(renameTheorem);
+  }
+
 }
 
 
@@ -314,6 +677,59 @@ void TheoryArray::checkType(const Expr& e)
                   +getEM()->getKindName(e.getKind()));
   }
 
+}
+
+
+Cardinality TheoryArray::finiteTypeInfo(Expr& e, Unsigned& n,
+                                        bool enumerate, bool computeSize)
+{
+  Cardinality card = CARD_INFINITE;
+  switch (e.getKind()) {
+    case ARRAY: {
+      Type typeIndex = Type(e[0]);
+      Type typeElem = Type(e[1]);
+      if (typeElem.card() == CARD_FINITE &&
+          (typeIndex.card() == CARD_FINITE || typeElem.sizeFinite() == 1)) {
+
+        card = CARD_FINITE;
+
+        if (enumerate) {
+          // Right now, we only enumerate the first element for finite arrays
+          if (n == 0) {
+            Expr ind(getEM()->newBoundVarExpr(Type(e[0])));
+            e = arrayLiteral(ind, typeElem.enumerateFinite(0));
+          }
+          else e = Expr();
+        }
+
+        if (computeSize) {
+          n = 0;
+          Unsigned sizeElem = typeElem.sizeFinite();
+          if (sizeElem == 1) {
+            n = 1;
+          }
+          else if (sizeElem > 1) {
+            Unsigned sizeIndex = typeIndex.sizeFinite();
+            if (sizeIndex > 0) {
+              n = sizeElem;
+              while (--sizeIndex > 0) {
+                n = n * sizeElem;
+                if (n > 1000000) {
+                  // if it starts getting too big, just return 0
+                  n = 0;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return card;
 }
 
 
@@ -577,6 +993,8 @@ Expr TheoryArray::computeTCC(const Expr& e)
 ///////////////////////////////////////////////////////////////////////////////
 
 
+bool debug_write = false;
+
 ExprStream& TheoryArray::print(ExprStream& os, const Expr& e)
 {
   d_theoryUsed = true;
@@ -591,6 +1009,13 @@ ExprStream& TheoryArray::print(ExprStream& os, const Expr& e)
 	os << e[0] << "[" << push << e[1] << push << "]";
       break;
     case WRITE:
+      IF_DEBUG(
+        if (debug_write) {
+          os << "w(" << push << e[0] << space << ", " 
+             << push << e[1] << ", " << push << e[2] << push << ")";
+          break;
+        }
+      )
       os << "(" << push << e[0] << space << "WITH [" 
 	 << push << e[1] << "] := " << push << e[2] << push << ")";
       break;
@@ -639,6 +1064,11 @@ ExprStream& TheoryArray::print(ExprStream& os, const Expr& e)
     case ARRAY:
       throw SmtlibException("ARRAY should be handled by printArrayExpr");
       break;      
+    case ARRAY_LITERAL:
+      throw SmtlibException("SMT-LIB does not support ARRAY literals.\n"
+                            "Suggestion: use command-line flag:\n"
+                            "  -output-lang presentation");
+      e.printAST(os);
     default:
       throw SmtlibException("TheoryArray::print: default not supported");
       // Print the top node in the default LISP format, continue with

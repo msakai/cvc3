@@ -282,29 +282,23 @@ ExprValue* ExprClosure::copy(ExprManager* em, ExprIndex idx) const {
     for (; i != iend; ++i)
       vars.push_back(rebuild(*i, em));
 
-    vector<Expr> manual_trigs;
-    vector<Expr>::const_iterator j = d_manual_triggers.begin(), jend = d_manual_triggers.end();
-    for (; j != jend; ++j)
-      manual_trigs.push_back(rebuild(*j, em));
+    vector<vector<Expr> > manual_trigs;
+    vector<vector<Expr> >::const_iterator j = d_manual_triggers.begin(), jend = d_manual_triggers.end();
+    for (; j != jend; ++j) {
+      vector<Expr >::const_iterator k = j->begin(), kend = j->end();
+      vector<Expr> cur_trig;
+      for (; k != kend; ++k){
+	cur_trig.push_back(rebuild(*k,em));
+      }
+      //      manual_trigs.push_back(rebuild(*j, em));
+      manual_trigs.push_back(cur_trig);
+    }
 
     return new(em->getMM(getMMIndex()))
       ExprClosure(em, d_kind, vars, rebuild(d_body, em), manual_trigs, idx);
   }
   return new(em->getMM(getMMIndex()))
     ExprClosure(em, d_kind, d_vars, d_body, d_manual_triggers, idx);
-}
-
-
-bool ExprTheorem::operator==(const ExprValue& ev2) const
-{
-  if(getMMIndex() != ev2.getMMIndex())
-    return false;
-  return (getTheorem() == ev2.getTheorem());
-}
-
-
-ExprValue* ExprTheorem::copy(ExprManager* em, ExprIndex idx) const {
-  return new(em->getMM(getMMIndex())) ExprTheorem(em, d_thm, idx);
 }
 
 
@@ -322,6 +316,19 @@ size_t ExprValue::hash(const int kind, const std::vector<Expr>& kids) {
   }
   return res;
 }
+
+
+// Size function for subclasses with kids.
+Unsigned ExprValue::sizeWithChildren(const std::vector<Expr>& kids)
+{
+  Unsigned res = 1;
+  for(vector<Expr>::const_iterator i=kids.begin(), iend=kids.end();
+      i!=iend; ++i) {
+    res += (*i).d_expr->getSize();
+  }
+  return res;
+}
+
 
 size_t ExprClosure::computeHash() const {
   return d_body.hash()*PRIME + ExprValue::hash(d_kind, d_vars);

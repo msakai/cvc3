@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file theorem_producer.h
- * 
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Dec 10 00:37:49 GMT 2002
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 // CLASS: Theorem_Producer
@@ -31,13 +31,13 @@
 // this file should NOT define _CVC3_TRUSTED_.  This practice enforces
 // the programmer to be aware of which part of his/her code is
 // trusted.
-// 
+//
 // It defines a protected NON-virtual method newTheorem() so that any
 // subclass can create a new Theorem.  This means that no untrusted
 // decision procedure's code should see this interface.
 // Unfortunately, this has to be a coding policy rather than something
 // we can enforce by C++ class structure.
-// 
+//
 // The intended use of this class is to make a subclass and define new
 // methods corresponding to proof rules (they take theorems and
 // generate new theorems).  Each decision procedure should have such a
@@ -45,7 +45,7 @@
 // that is, each new theorem that it generates must logically follow
 // from the theorems in the arguments, or the new theorem must be a
 // tautology.
-// 
+//
 // Each such subclass must also inherit from a decision
 // procedure-specific abstract interface which declares the new
 // methods (other than newTheorem). The decision procedure should only
@@ -80,8 +80,8 @@
 // TheoremProducer class, and only if the -check-proofs option is set.
 // When its 'cond' is violated, it will call a function which will
 // eventually throw a soundness exception.
-#define CHECK_SOUND(cond, msg) if(!(cond)) \
- soundError(__FILE__, __LINE__, #cond, msg)
+#define CHECK_SOUND(cond, msg) { if(!(cond)) \
+ soundError(__FILE__, __LINE__, #cond, msg); }
 
 // Flag whether to check soundness or not
 #define CHECK_PROOFS *d_checkProofs
@@ -163,7 +163,7 @@ namespace CVC3 {
 
     //! Create a new proof label (bound variable) for an assumption (formula)
     Proof newLabel(const Expr& e);
-    
+
     //////////////////////////////////////////////////////////////////
     // Functions to create proof terms
     //////////////////////////////////////////////////////////////////
@@ -171,7 +171,7 @@ namespace CVC3 {
     // Apply a rule named 'name' to its arguments, Proofs or Exprs
     Proof newPf(const std::string& name);
     Proof newPf(const std::string& name, const Expr& e);
-    Proof newPf(const std::string& name, const Proof& pf);		
+    Proof newPf(const std::string& name, const Proof& pf);
     Proof newPf(const std::string& name, const Expr& e1, const Expr& e2);
     Proof newPf(const std::string& name, const Expr& e, const Proof& pf);
     Proof newPf(const std::string& name, const Expr& e1,
@@ -215,7 +215,7 @@ namespace CVC3 {
     /*! The label must be a variable with a formula as a type. */
     Proof newPf(const Proof& label, const Proof& pf);
 
-    /*! @brief Similarly, multi-argument lambda-abstractions: 
+    /*! @brief Similarly, multi-argument lambda-abstractions:
      * (LAMBDA (u1,...,un): (f1,...,fn). pf) */
     Proof newPf(const std::vector<Proof>& labels,
 		const std::vector<Expr>& frms,

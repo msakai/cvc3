@@ -1,10 +1,10 @@
 /*****************************************************************************/
 /*!
  * \file debug.h
- * \brief Description: Collection of debugging macros and functions. 
- * 
+ * \brief Description: Collection of debugging macros and functions.
+ *
  * Author: Sergey Berezin
- * 
+ *
  * Created: Thu Dec  5 13:12:59 2002
  *
  * <hr>
@@ -13,9 +13,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -41,11 +41,11 @@ namespace CVC3 {
   //! Function for fatal exit.
   /*! It just exits with code 1, but is provided here for the debugger
    to set a breakpoint to.  For this reason, it is not inlined. */
-  extern void fatalError(const std::string& file, int line,
+  extern CVC_DLL void fatalError(const std::string& file, int line,
 			 const std::string& cond, const std::string& msg);
 }
 
-#ifdef DEBUG
+#ifdef _CVC3_DEBUG_MODE
 
 #include "compat_hash_map.h"
 #include "compat_hash_set.h"
@@ -79,23 +79,6 @@ namespace CVC3 {
 
 namespace CVC3 {
 
-/*! @brief A class which sets a boolean value to true when created,
- * and resets to false when deleted.
- *
- * Useful for tracking when the control is within a certain method or
- * not.  For example, TheoryCore::addFact() uses d_inAddFact to check
- * that certain other methods are only called from within addFact().
- * However, when an exception is thrown, this variable is not reset.
- * The watcher class will reset the variable even in those cases.
- */
-class ScopeWatcher {
- private:
-  bool *d_flag;
-public:
-  ScopeWatcher(bool *flag): d_flag(flag) { *d_flag = true; }
-  ~ScopeWatcher() { *d_flag = false; }
-};
-
   class Expr;
   //! Our exception to throw
   class DebugException: public Exception {
@@ -110,7 +93,7 @@ public:
 
   //! Similar to fatalError to raise an exception when DebugAssert fires.
   /*! This does not necessarily cause the program to quit. */
-  extern void debugError(const std::string& file, int line,
+  extern CVC_DLL void debugError(const std::string& file, int line,
 			 const std::string& cond, const std::string& msg);
 
   // First, wrapper classes for flags, counters, and timers.  Later,
@@ -245,7 +228,7 @@ public:
   /*! Intended use is to store time intervals or accumulated time for
     multiple events (e.g. time spent to execute certain lines of code,
     or accumulated time spent in a particular function). */
-  class DebugTimer {
+  class CVC_DLL DebugTimer {
   private:
     DebugTime* d_time; //!< The time value
     bool d_clean_time; //!< Set if we own *d_time
@@ -299,7 +282,7 @@ public:
     counters, and timers in the central database, and provides timing
     and printing functions. */
 
-  class Debug {
+  class CVC_DLL Debug {
   private:
     //! Command line options for tracing; these override the TRACE command
     const std::vector<std::pair<std::string,bool> >* d_traceOptions;
@@ -337,6 +320,8 @@ public:
     //! Must be called before Debug class can be safely used
     void init(const std::vector<std::pair<std::string,bool> >* traceOptions,
               const std::string* dumpName);
+    //! Must be called before arguments supplied to init are deallocated
+    void finalize();
     //! Accessing flags by name.
     /*! If a flag doesn't exist, it is created and initialized to
       false. */
@@ -348,7 +333,7 @@ public:
     DebugFlag traceFlag(const std::string& name)
       { return DebugFlag(d_traceFlags[name]); }
     //! Accessing tracing flag by char* name (mostly for GDB)
-    DebugFlag traceFlag(char* name);
+    DebugFlag traceFlag(const char* name);
     //! Set tracing of everything on (1) and off (0) [for use in GDB]
     void traceAll(bool enable = true);
     //! Accessing counters by name.
@@ -366,7 +351,7 @@ public:
 
     // Timer functions
 
-    //! Create a new "private" timer, initially set to 0. 
+    //! Create a new "private" timer, initially set to 0.
     /*! The new timer will not be added to the set of timers, will not
      have a name, and will not be printed by 'printAll()'.  It is
      intended to be used to measure time intervals which are later
@@ -385,7 +370,7 @@ public:
     /*! Intended to obtain the time interval since the last call to
       setCurrentTime() with that timer. */
     void setElapsed(DebugTimer& timer);
-    
+
     //! Return the ostream used for debugging output
     std::ostream& getOS() { return *d_os; }
     //! Return the ostream for dumping trace
@@ -410,11 +395,11 @@ public:
 
   }; // end of class Debug
 
-  extern Debug debugger;
+  extern CVC_DLL Debug debugger;
 
 } // end of namespace CVC3
 
-#else  // if DEBUG is not defined
+#else  // if _CVC3_DEBUG_MODE is not defined
 
 // All debugging macros are empty here
 
@@ -433,7 +418,7 @@ namespace CVC3 {
 class DebugException: public Exception { };
 }
 
-#endif // DEBUG
+#endif // _CVC3_DEBUG_MODE
 
 #include "cvc_util.h"
 

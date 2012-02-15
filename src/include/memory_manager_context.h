@@ -26,6 +26,8 @@
 
 namespace CVC3 {
 
+  const unsigned chunkSizeBytes = 16384; // #bytes in each chunk
+
 /*****************************************************************************/
 /*!
  *\class ContextMemoryManager
@@ -39,9 +41,6 @@ namespace CVC3 {
  */
 /*****************************************************************************/
 class ContextMemoryManager :public MemoryManager {
-  private:
-  unsigned d_chunkSizeBytes; // #bytes in each chunk
-
   static std::vector<char*> s_freePages;
   std::vector<char*> d_chunkList; // Pointers to the beginning of each chunk
 
@@ -65,7 +64,7 @@ class ContextMemoryManager :public MemoryManager {
     ++d_indexChunkList;
     DebugAssert(d_chunkList.size() == d_indexChunkList, "invariant violated");
     if (s_freePages.empty()) {
-      d_chunkList.push_back((char*)malloc(d_chunkSizeBytes));
+      d_chunkList.push_back((char*)malloc(chunkSizeBytes));
     }
     else {
       d_chunkList.push_back(s_freePages.back());
@@ -73,16 +72,16 @@ class ContextMemoryManager :public MemoryManager {
     }
     d_nextFree = d_chunkList.back();
     FatalAssert(d_nextFree != NULL, "Out of memory");
-    d_endChunk = d_nextFree + d_chunkSizeBytes;
+    d_endChunk = d_nextFree + chunkSizeBytes;
   }
 
  public:
   // Constructor
-  ContextMemoryManager(unsigned chunkSize = 16384)
-    : d_chunkSizeBytes(chunkSize), d_indexChunkList(0)
+  ContextMemoryManager()
+    : d_indexChunkList(0)
   {
     if (s_freePages.empty()) {
-      d_chunkList.push_back((char*)malloc(d_chunkSizeBytes));
+      d_chunkList.push_back((char*)malloc(chunkSizeBytes));
     }
     else {
       d_chunkList.push_back(s_freePages.back());
@@ -90,7 +89,7 @@ class ContextMemoryManager :public MemoryManager {
     }      
     d_nextFree = d_chunkList.back();
     FatalAssert(d_nextFree != NULL, "Out of memory");
-    d_endChunk = d_nextFree + d_chunkSizeBytes;
+    d_endChunk = d_nextFree + chunkSizeBytes;
   }
 
   // Destructor
@@ -141,12 +140,28 @@ class ContextMemoryManager :public MemoryManager {
     }
   }
 
-  unsigned getMemory() {
-    return d_chunkList.size() * d_chunkSizeBytes;
+  unsigned getMemory(int verbosity) {
+    unsigned long memSelf = sizeof(ContextMemoryManager);
+    unsigned long mem = 0;
+
+    mem += MemoryTracker::getVec(verbosity - 1, d_chunkList);
+    mem += MemoryTracker::getVec(verbosity - 1, d_nextFreeStack);
+    mem += MemoryTracker::getVec(verbosity - 1, d_endChunkStack);
+    mem += MemoryTracker::getVec(verbosity - 1, d_indexChunkListStack);
+
+    mem += d_chunkList.size() * chunkSizeBytes;
+
+    MemoryTracker::print("ContextMemoryManager", verbosity, memSelf, mem);
+
+    return mem + memSelf;
   }
 
-  static unsigned getStaticMemory() {
-    return s_freePages.size() * 16384;
+  static unsigned getStaticMemory(int verbosity) {
+    unsigned mem = 0;
+    mem += MemoryTracker::getVec(verbosity - 1, s_freePages);
+    mem += s_freePages.size() * chunkSizeBytes;
+    MemoryTracker::print("ContextMemoryManager Static", verbosity, 0, mem);
+    return mem;
   }
 
 }; // end of class ContextMemoryManager

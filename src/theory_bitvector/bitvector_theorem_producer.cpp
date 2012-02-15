@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file bitvector_theorem_producer.cpp
- * 
+ *
  * Author: Vijay Ganesh
- * 
+ *
  * Created: Wed May  5 16:19:49 PST 2004
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 // CLASS: BitvectorProofRules
@@ -48,7 +48,7 @@ TheoryBitvector::createProofRules() {
 
 BitvectorTheoremProducer::BitvectorTheoremProducer(TheoryBitvector* theoryBV)
   : TheoremProducer(theoryBV->theoryCore()->getTM()),
-    d_theoryBitvector(theoryBV) { 
+    d_theoryBitvector(theoryBV) {
   // Cache constants 0bin0 and 0bin1
   vector<bool> bits(1);
   bits[0]=false;
@@ -73,7 +73,7 @@ Theorem BitvectorTheoremProducer::bitvectorFalseRule(const Theorem& thm) {
 		"TheoryBitvector::bitvectorFalseRule: "
 		"premise must be iff Theorem, with False as the RHS:\n e = "
 		+e.toString());
-    CHECK_SOUND(e[0][0].getOpKind() == BOOLEXTRACT && 
+    CHECK_SOUND(e[0][0].getOpKind() == BOOLEXTRACT &&
 		e[0][1].getOpKind() == BOOLEXTRACT,
 		"TheoryBitvector::bitvectorFalseRule: "
 		"premise must be iff Theorem, with False as the RHS:\n e = "
@@ -87,7 +87,7 @@ Theorem BitvectorTheoremProducer::bitvectorFalseRule(const Theorem& thm) {
   const Expr& e = thm.getExpr();
   const Expr& t1 = e[0][0][0];
   const Expr& t2 = e[0][1][0];
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bitvector_false_rule", e, thm.getProof());
@@ -95,7 +95,7 @@ Theorem BitvectorTheoremProducer::bitvectorFalseRule(const Theorem& thm) {
 }
 
     /*! \param thm input theorem: (~e1[i]<=>e2[i])<=>true
-     *  
+     *
      *  \result (e1!=e2)<=>true
      */
 // |- (NOT (BOOLEXTRACT(a,i)) <=> BOOLEXTRACT(b,i)) <=> TRUE ==>
@@ -112,7 +112,7 @@ Theorem BitvectorTheoremProducer::bitvectorTrueRule(const Theorem& thm) {
 		"premise must be iff Theorem, with False as the RHS:\n e = "
 		+e.toString());
     CHECK_SOUND(e[0][0].getKind() == NOT &&
-		e[0][0][0].getOpKind() == BOOLEXTRACT && 
+		e[0][0][0].getOpKind() == BOOLEXTRACT &&
 		e[0][1].getOpKind() == BOOLEXTRACT,
 		"TheoryBitvector::bitvectorFalseRule: "
 		"premise must be iff Theorem, with False as the RHS:\n e = "
@@ -128,7 +128,7 @@ Theorem BitvectorTheoremProducer::bitvectorTrueRule(const Theorem& thm) {
   //FIXME: later
   const Expr& t1 = e[0][0][0][0];
   const Expr& t2 = e[0][1][0];
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bitvector_true_rule", e, thm.getProof());
@@ -160,7 +160,7 @@ Theorem BitvectorTheoremProducer::bitBlastEqnRule(const Expr& e, const Expr& f)
 		"TheoryBitvector::bitBlastEqnRule: "
 		"lhs & rhs must be bitvectors of same bvLength.\n size(lhs) = "
 		+ int2string(lhsLength)
-		+"\n size(rhs) = " 
+		+"\n size(rhs) = "
 		+ int2string(rhsLength)
 		+"\n e = "+e.toString());
     int bvLength = d_theoryBitvector->BVSize(leftType.getExpr());
@@ -199,9 +199,9 @@ Theorem BitvectorTheoremProducer::bitBlastEqnRule(const Expr& e, const Expr& f)
 		  +"\n lhs = "+ lhs.toString()
 		  +"\n rightBV = "+rightBV.toString()
 		  +"\n rhs = "+rhs.toString());
-      int leftBitPosition = 
+      int leftBitPosition =
 	d_theoryBitvector->getBoolExtractIndex(leftExtract);
-      int rightBitPosition = 
+      int rightBitPosition =
 	d_theoryBitvector->getBoolExtractIndex(rightExtract);
       CHECK_SOUND(leftBitPosition == i && rightBitPosition == i,
 		  "TheoryBitvector::bitBlastEqnRule: "
@@ -209,7 +209,7 @@ Theorem BitvectorTheoremProducer::bitBlastEqnRule(const Expr& e, const Expr& f)
 		  +"\n conjunct = "+conjunct.toString());
     }
   }
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bit_blast_equations", e, f);
@@ -245,7 +245,7 @@ Theorem BitvectorTheoremProducer::bitBlastDisEqnRule(const Theorem& notE,
     CHECK_SOUND(d_theoryBitvector->BVSize(leftType.getExpr()) ==
 		d_theoryBitvector->BVSize(rightType.getExpr()),
 		"TheoryBitvector::bitBlastDisEqnRule:"
-		"lhs & rhs must be bitvectors of same bvLength");	      
+		"lhs & rhs must be bitvectors of same bvLength");
     int bvLength = d_theoryBitvector->BVSize(leftType.getExpr());
     CHECK_SOUND(f.isOr(),
 		"TheoryBitvector::bitBlastDisEqnRule:"
@@ -253,11 +253,11 @@ Theorem BitvectorTheoremProducer::bitBlastDisEqnRule(const Theorem& notE,
     CHECK_SOUND(bvLength == f.arity(),
 		"TheoryBitvector::bitBlastDisEqnRule:"
 		"the arity of the consequence OR must be"
-		"equal to the bvLength of the bitvector" + 
+		"equal to the bvLength of the bitvector" +
 		f.toString() + int2string(bvLength));
     for(int i=0; i <bvLength; i++) {
       const Expr& disjunct = f[i];
-      CHECK_SOUND(disjunct.isIff() && 
+      CHECK_SOUND(disjunct.isIff() &&
 		  2 == disjunct.arity() && disjunct[0].isNot(),
 		  "TheoryBitvector::bitBlastDisEqnRule:"
 		  "each conjunct in consequent must be an Iff"+f.toString());
@@ -276,18 +276,18 @@ Theorem BitvectorTheoremProducer::bitBlastDisEqnRule(const Theorem& notE,
       CHECK_SOUND(leftBV == lhs && rightBV == rhs,
 		  "TheoryBitvector::bitBlastDisEqnRule:"
 		  "each boolextract must be applied to the correct bitvector"+
-		  disjunct.toString() + leftBV.toString() + lhs.toString() + 
+		  disjunct.toString() + leftBV.toString() + lhs.toString() +
 		  rightBV.toString() + rhs.toString());
-      int leftBitPosition = 
+      int leftBitPosition =
 	d_theoryBitvector->getBoolExtractIndex(leftExtract);
-      int rightBitPosition = 
+      int rightBitPosition =
 	d_theoryBitvector->getBoolExtractIndex(rightExtract);
       CHECK_SOUND(leftBitPosition == i && rightBitPosition == i,
 		  "TheoryBitvector::bitBlastDisEqnRule:"
 		  "boolextract positions must match" + disjunct.toString());
     }
   }
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bit_blast_disequations", notE.getExpr(), f, notE.getProof());
@@ -303,17 +303,17 @@ Theorem BitvectorTheoremProducer::bitBlastDisEqnRule(const Theorem& notE,
 Theorem
 BitvectorTheoremProducer::padBVLTRule(const Expr& e, int len) {
   if(CHECK_PROOFS) {
-    CHECK_SOUND((BVLT == e.getOpKind() || BVLE == e.getOpKind()) && 
+    CHECK_SOUND((BVLT == e.getOpKind() || BVLE == e.getOpKind()) &&
 		e.arity()==2,
-		"BitvectorTheoremProducer::padBVLTRule: " 
+		"BitvectorTheoremProducer::padBVLTRule: "
 		"input must e be a BVLT/BVLE: e = " + e.toString());
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind() &&
 		BITVECTOR==e[1].getType().getExpr().getOpKind(),
-		"BitvectorTheoremProducer::padBVLTRule: " 
+		"BitvectorTheoremProducer::padBVLTRule: "
 		"for BVMULT terms e[0],e[1] must be a BV: " + e.toString());
     CHECK_SOUND(0<len,
-		"BitvectorTheoremProducer::padBVLTRule: " 
-		"input len must be >=0 and an integer: len = " + 
+		"BitvectorTheoremProducer::padBVLTRule: "
+		"input len must be >=0 and an integer: len = " +
 		int2string(len));
   }
   Expr e0 = pad(len, e[0]);
@@ -343,7 +343,7 @@ BitvectorTheoremProducer::signExtendRule(const Expr& e) {
 		"input must be SX(e).\n e = " + e.toString());
     CHECK_SOUND(SX != e[0].getOpKind(),
 		"input cannot have nested SX.\n e = " + e.toString());
-  }   
+  }
   Expr input0 = e[0];
   //strip the top level SX applications
   while(SX == input0.getOpKind())
@@ -351,14 +351,14 @@ BitvectorTheoremProducer::signExtendRule(const Expr& e) {
 
   int bvLength = d_theoryBitvector->BVSize(e);
   int bvLength0 = d_theoryBitvector->BVSize(input0);
-    
+
   Expr output;
   if(bvLength0 == bvLength) {
     output = input0;
   } else if(bvLength0 < bvLength) {
     std::vector<Expr> k;
     int c = bvLength - bvLength0;
-    Expr topBit = 
+    Expr topBit =
       d_theoryBitvector->newBVExtractExpr(input0,bvLength0-1,bvLength0-1);
     while(c--)
       k.push_back(topBit);
@@ -387,7 +387,7 @@ BitvectorTheoremProducer::bitExtractSXRule(const Expr& e, int i) {
   if(withProof())
     pf = newPf("bitExtract_SX_rule",e,rat(i));
   Theorem result(newRWTheorem(e_i,newE_i,Assumptions::emptyAssump(),pf));
-  return result;  
+  return result;
 }
 
 
@@ -395,17 +395,17 @@ BitvectorTheoremProducer::bitExtractSXRule(const Expr& e, int i) {
 Theorem
 BitvectorTheoremProducer::padBVSLTRule(const Expr& e, int len) {
   if(CHECK_PROOFS) {
-    CHECK_SOUND((BVSLT == e.getOpKind() || BVSLE == e.getOpKind()) && 
+    CHECK_SOUND((BVSLT == e.getOpKind() || BVSLE == e.getOpKind()) &&
 		e.arity()==2,
-		"BitvectorTheoremProducer::padBVSLTRule: " 
+		"BitvectorTheoremProducer::padBVSLTRule: "
 		"input must e be a BVSLT/BVSLE: e = " + e.toString());
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind() &&
 		BITVECTOR==e[1].getType().getExpr().getOpKind(),
-		"BitvectorTheoremProducer::padBVSLTRule: " 
+		"BitvectorTheoremProducer::padBVSLTRule: "
 		"for BVMULT terms e[0],e[1] must be a BV: " + e.toString());
     CHECK_SOUND(0<=len,
-		"BitvectorTheoremProducer::padBVSLTRule: " 
-		"input len must be >=0 and an integer: len = " + 
+		"BitvectorTheoremProducer::padBVSLTRule: "
+		"input len must be >=0 and an integer: len = " +
 		int2string(len));
   }
   Expr e0 = d_theoryBitvector->newSXExpr(e[0], len);
@@ -429,21 +429,21 @@ BitvectorTheoremProducer::padBVSLTRule(const Expr& e, int len) {
  *  e0 and e1 are constants. If they are constants then optimizations
  *  are done, otherwise the following rule is implemented.
  *
- *  e0 <=(s) e1 <==> (e0[n-1] AND NOT e1[n-1]) OR 
+ *  e0 <=(s) e1 <==> (e0[n-1] AND NOT e1[n-1]) OR
  *                   (e0[n-1] = e1[n-1] AND e0[n-2:0] <= e1[n-2:0])
  */
 Theorem
-BitvectorTheoremProducer::signBVLTRule(const Expr& e, 
-				       const Theorem& topBit0, 
+BitvectorTheoremProducer::signBVLTRule(const Expr& e,
+				       const Theorem& topBit0,
 				       const Theorem& topBit1){
   if(CHECK_PROOFS) {
-    CHECK_SOUND((BVSLT == e.getOpKind() || BVSLE == e.getOpKind()) && 
+    CHECK_SOUND((BVSLT == e.getOpKind() || BVSLE == e.getOpKind()) &&
 		e.arity()==2,
-		"BitvectorTheoremProducer::signedBVLTRule: " 
+		"BitvectorTheoremProducer::signedBVLTRule: "
 		"input must e be a BVSLT/BVSLE: e = " + e.toString());
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind() &&
 		BITVECTOR==e[1].getType().getExpr().getOpKind(),
-		"BitvectorTheoremProducer::signedBVLTRule: " 
+		"BitvectorTheoremProducer::signedBVLTRule: "
 		"for BVMULT terms e[0],e[1] must be a BV: " + e.toString());
   }
   const Expr e0 = e[0];
@@ -452,31 +452,31 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
   int e1len = d_theoryBitvector->BVSize(e1);
 
   if(CHECK_PROOFS) {
-    const Expr e0ext = 
+    const Expr e0ext =
       d_theoryBitvector->newBVExtractExpr(e0,e0len-1,e0len-1);
-    const Expr e1ext = 
+    const Expr e1ext =
       d_theoryBitvector->newBVExtractExpr(e1,e1len-1,e1len-1);
     CHECK_SOUND(e0ext == topBit0.getLHS(),
-		"BitvectorTheoremProducer::signedBVLTRule: " 
+		"BitvectorTheoremProducer::signedBVLTRule: "
 		"topBit0.getLHS() is the un-rewritten form of MSB of e0\n"
-		"topBit0 is screwed up: topBit0 = " + 
+		"topBit0 is screwed up: topBit0 = " +
 		topBit0.getExpr().toString());
     CHECK_SOUND(e1ext == topBit1.getLHS(),
-		"BitvectorTheoremProducer::signedBVLTRule: " 
+		"BitvectorTheoremProducer::signedBVLTRule: "
 		"topBit1.getLHS() is the un-rewritten form of MSB of e1\n"
-		"topBit1 is screwed up: topBit1 = " + 
+		"topBit1 is screwed up: topBit1 = " +
 		topBit1.getExpr().toString());
     CHECK_SOUND(e0len == e1len,
-		"BitvectorTheoremProducer::signedBVLTRule: " 
+		"BitvectorTheoremProducer::signedBVLTRule: "
 		"both e[0] and e[1] must have the same length\n. e =" +
 		e.toString());
-  }  
+  }
   const Expr MSB0 = topBit0.getRHS();
   const Expr MSB1 = topBit1.getRHS();
-  
+
   int eKind = e.getOpKind();
   Expr output;
- 
+
   //if both MSBs are constants, then we can optimize the output.  we
   //know precisely the value of the signed comparison in cases where
   //topbit of e0 and e1 are constants. e.g. |-1@t0 < 0@t1 is clearly
@@ -500,7 +500,7 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
   //(i.e. extra and redundant code) but much more efficient and easy
   //to read
   if(e0len == 1) {
-    if(b0==0 && b1==0) 
+    if(b0==0 && b1==0)
       output = eKind==BVSLT ? fExpr      : tExpr;
     else if(b0==0  && b1==1)
       output = fExpr;
@@ -518,24 +518,24 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
       output = eKind==BVSLT ? fExpr      : MSB0isOne;
     else
       //both b0 and b1 are -1
-      output = 
-	eKind==BVSLT ? 
-	MSB0isOne.andExpr(MSB1isZero) : 
+      output =
+	eKind==BVSLT ?
+	MSB0isOne.andExpr(MSB1isZero) :
 	MSB0isOne.orExpr(MSB1isZero);
   } else {
     //useful expressions to be used below
     Expr newE0 = d_theoryBitvector->newBVExtractExpr(e0,e0len-2,0);
     Expr newE1 = d_theoryBitvector->newBVExtractExpr(e1,e1len-2,0);
-    Expr newBVLT = 
+    Expr newBVLT =
       eKind==BVSLT ?
       d_theoryBitvector->newBVLTExpr(newE0,newE1):
       d_theoryBitvector->newBVLEExpr(newE0,newE1);
-//     Expr newBVLTreverse = 
+//     Expr newBVLTreverse =
 //       eKind==BVSLT ?
 //       d_theoryBitvector->newBVLTExpr(newE1,newE0):
 //       d_theoryBitvector->newBVLEExpr(newE1,newE0);
 
-    
+
     //both MSBs are simultaneously constants
     if(-1 != b0 && -1 !=b1) {
       //e0 is negative and e1 is positive
@@ -549,30 +549,30 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
 	output = newBVLT;
       }
     }
-    else if(-1 != b0 && -1 == b1) {  
-      //only b0 is a constant. Both topBits are not simultaneously constants. 
-      
+    else if(-1 != b0 && -1 == b1) {
+      //only b0 is a constant. Both topBits are not simultaneously constants.
+
       //if (b0==0)
       //    e0 <=(s) e1 <==> NOT e1[n-1] AND e0[n-2:0] <= e1[n-2:0])
       //else
       //    e0 <=(s) e1 <==> NOT e1[n-1] OR (e1[n-1] AND e0[n-2:0] <= e1[n-2:0]))
 
-      output = 
+      output =
 	(b0==0) ?
-	//means that b1 has to be 0 and e0[n-2:0] <= e1[n-2:0] 
+	//means that b1 has to be 0 and e0[n-2:0] <= e1[n-2:0]
 	MSB1isZero.andExpr(newBVLT) :
 	//means that either b1 is 0 or (b1 is 1 and e0[n-2:0] <= e1[n-2:0])
 	MSB1isZero.orExpr(MSB1isOne.andExpr(newBVLT));
     }
-    else if(-1 == b0 && -1 != b1) {  
-      //only b1 is a constant. Both topBits are not simultaneously constants.     
-      
+    else if(-1 == b0 && -1 != b1) {
+      //only b1 is a constant. Both topBits are not simultaneously constants.
+
       //if (b1==0)
       //    e0 <=(s) e1 <==> e0[n-1] OR (NOT e0[n-1] AND e0[n-2:0] <= e1[n-2:0]))
       //else
       //    e0 <=(s) e1 <==> e0[n-1] AND e0[n-2:0] <= e1[n-2:0]))
-      
-      output = 
+
+      output =
 	(b1==0) ?
 	//means that either b0 must be 1 or (b0 = 0 and e0[n-2:0] <= e1[n-2:0])
 	MSB0isOne.orExpr(MSB0isZero.andExpr(newBVLT)) :
@@ -583,11 +583,11 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
 
       //(e0[n-1] AND NOT e1[n-1])
       Expr k0 = MSB0isOne.andExpr(MSB1isZero);
-      
+
       //(e0[n-1] = e1[n-1])
       Expr k1 = MSB0.eqExpr(MSB1);
-      
-      //e0 <=(s) e1 <==> (e0[n-1] AND NOT e1[n-1]) OR 
+
+      //e0 <=(s) e1 <==> (e0[n-1] AND NOT e1[n-1]) OR
       //                 (e0[n-1] = e1[n-1] AND e0[n-2:0] <= e1[n-2:0])
       output = k0.orExpr(k1.andExpr(newBVLT));
     }
@@ -596,7 +596,7 @@ BitvectorTheoremProducer::signBVLTRule(const Expr& e,
   Proof pf;
   if(withProof())
     pf = newPf("sign_bvlt_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -624,7 +624,7 @@ Theorem BitvectorTheoremProducer::notBVEQ1Rule(const Expr& e)
 }
 
 
-/*! NOT(e[0][0] < e[0][1]) <==> (e[0][1] <= e[0][0]), 
+/*! NOT(e[0][0] < e[0][1]) <==> (e[0][1] <= e[0][0]),
  *  NOT(e[0][0] <= e[0][1]) <==> (e[0][1] < e[0][0])
  */
 Theorem BitvectorTheoremProducer::notBVLTRule(const Expr& e) {
@@ -632,13 +632,13 @@ Theorem BitvectorTheoremProducer::notBVLTRule(const Expr& e) {
     CHECK_SOUND(e.getKind() == NOT,
 		"BitvectorTheoremProducer::notBVLTRule: "
 		"input kind must be a NOT:\n e = " + e.toString());
-    CHECK_SOUND(e[0].getOpKind() == BVLT || 
+    CHECK_SOUND(e[0].getOpKind() == BVLT ||
 		e[0].getOpKind() == BVLE,
 		"BitvectorTheoremProducer::notBVLTRule: "
 		"e[0] must be BVLT or BVLE: \n e = " + e.toString());
   }
   Expr output;
-  
+
   const Expr& e00 = e[0][0];
   const Expr& e01 = e[0][1];
   if(BVLT == e[0].getOpKind())
@@ -662,16 +662,16 @@ Theorem BitvectorTheoremProducer::lhsEqRhsIneqn(const Expr& e, int kind) {
     CHECK_SOUND(kind == e.getOpKind(),
 		"BitvectorTheoremProducer::lhsEqRhsIneqn: "
 		"input kind must match e.getOpKind(): "
-		"\n e = " + e.toString());		
+		"\n e = " + e.toString());
     CHECK_SOUND((e.arity()==2) && (e[0]==e[1]),
 		"BitvectorTheoremProducer::lhsEqRhsIneqn: "
-		"input arity must be 2, and e[0] must be equal to e[1]: " 
+		"input arity must be 2, and e[0] must be equal to e[1]: "
 		"\ne = " + e.toString());
   }
   Expr output;
   if(kind == BVLT)
     output = d_theoryBitvector->falseExpr();
-  else 
+  else
     output = d_theoryBitvector->trueExpr();
 
   Proof pf;
@@ -708,13 +708,13 @@ Theorem BitvectorTheoremProducer::bvConstIneqn(const Expr& e, int kind) {
     CHECK_SOUND(kind == e.getOpKind(),
 		"BitvectorTheoremProducer::bvConstIneqn: "
 		"input kind must match e.getOpKind(): "
-		"\n e = " + e.toString());		
+		"\n e = " + e.toString());
     CHECK_SOUND((e.arity()==2),
 		"BitvectorTheoremProducer::bvConstIneqn: "
 		"input arity must be 2: \ne = " + e.toString());
     CHECK_SOUND(BVCONST == e[0].getKind() && BVCONST == e[1].getKind(),
 		"BitvectorTheoremProducer::bvConstIneqn: "
-		"e[0] and e[1] must both be constants:\n e = " + 
+		"e[0] and e[1] must both be constants:\n e = " +
 		e.toString());
   }
 
@@ -723,7 +723,7 @@ Theorem BitvectorTheoremProducer::bvConstIneqn(const Expr& e, int kind) {
   if(CHECK_PROOFS)
     CHECK_SOUND(e0len == e1len,
 		"BitvectorTheoremProducer::bvConstIneqn: "
-		"e[0] and e[1] must have the same bvLength:\ne = " + 
+		"e[0] and e[1] must have the same bvLength:\ne = " +
 		e.toString());
 
   Rational lhsVal = d_theoryBitvector->computeBVConst(e[0]);
@@ -741,11 +741,11 @@ Theorem BitvectorTheoremProducer::bvConstIneqn(const Expr& e, int kind) {
     else
       output = d_theoryBitvector->falseExpr();
   }
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bv_const_ineqn", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -758,9 +758,9 @@ Theorem BitvectorTheoremProducer::bvConstIneqn(const Expr& e, int kind) {
 //           (lhs_i < rhs_i) OR (lhs_i = rhs_i AND a[i-1:0] op b[i-1:0])
 //         for i = 0:
 //           (lhs_i op rhs_i)
-Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e, 
-					       const Theorem& lhs_i, 
-					       const Theorem& rhs_i, 
+Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
+					       const Theorem& lhs_i,
+					       const Theorem& rhs_i,
 					       int kind) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVLT == e.getOpKind() || BVLE == e.getOpKind(),
@@ -769,7 +769,7 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
     CHECK_SOUND(kind == e.getOpKind(),
 		"BitvectorTheoremProducer::generalIneqn: "
 		"input kind must match e.getOpKind(): "
-		"\n e = " + e.toString());		
+		"\n e = " + e.toString());
     CHECK_SOUND((e.arity()==2),
 		"BitvectorTheoremProducer::generalIneqn: "
 		"input arity must be 2: \ne = " + e.toString());
@@ -783,31 +783,31 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
   int e0len = d_theoryBitvector->BVSize(e[0]);
   int e1len = d_theoryBitvector->BVSize(e[1]);
   const Expr& e0_iBit = lhs_i.getLHS();
-  const Expr& e1_iBit = rhs_i.getLHS();  
+  const Expr& e1_iBit = rhs_i.getLHS();
   if(CHECK_PROOFS) {
     CHECK_SOUND(BOOLEXTRACT == e0_iBit.getOpKind() &&
 		BOOLEXTRACT == e1_iBit.getOpKind(),
 		"BitvectorTheoremProducer::generalIneqn: "
-		"lhs_i.getRHS() and rhs_i.getRHS() must be BOOLEXTRACTs:" 
-		"\nlhs_i = " + lhs_i.toString() + 
+		"lhs_i.getRHS() and rhs_i.getRHS() must be BOOLEXTRACTs:"
+		"\nlhs_i = " + lhs_i.toString() +
 		"\nrhs_i = " + rhs_i.toString());
     CHECK_SOUND(e[0] == e0_iBit[0],
 		"BitvectorTheoremProducer::generalIneqn: "
-		"e[0] must be equal to LHS of lhs_i: \nlhs_i = " + 
+		"e[0] must be equal to LHS of lhs_i: \nlhs_i = " +
 		lhs_i.toString() + "\n e[0] = " + e[0].toString());
     CHECK_SOUND(e[1] == e1_iBit[0],
 		"BitvectorTheoremProducer::generalIneqn: "
-		"e[1] must be equal to LHS of rhs_i: \nrhs_i = " + 
+		"e[1] must be equal to LHS of rhs_i: \nrhs_i = " +
 		rhs_i.toString() + "\n e[1] = " + e[1].toString());
     CHECK_SOUND(e0len == e1len,
 		"BitvectorTheoremProducer::generalIneqn: "
-		"e[0] and e[1] must have the same bvLength:\ne = " + 
+		"e[0] and e[1] must have the same bvLength:\ne = " +
 		e.toString());
-    int e0_iBitIndex = 
+    int e0_iBitIndex =
       d_theoryBitvector->getBoolExtractIndex(e0_iBit);
-    int e1_iBitIndex = 
+    int e1_iBitIndex =
       d_theoryBitvector->getBoolExtractIndex(e1_iBit);
-    CHECK_SOUND(e0_iBitIndex == e1_iBitIndex && 
+    CHECK_SOUND(e0_iBitIndex == e1_iBitIndex &&
 		e0_iBitIndex == e0len-1,
 		"BitvectorTheoremProducer::generalIneqn: "
 		"e0_iBit & e1_iBit must have same extract index: "
@@ -828,7 +828,7 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
     CHECK_SOUND(b2.getType().isBool(),
 		"BitvectorTheoremProducer::generalIneqn: "
 		"b2 must be boolean type: "
-		"\n b2 = " + b2.toString());    
+		"\n b2 = " + b2.toString());
   }
 
   Expr output;
@@ -844,7 +844,7 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
     else if (kind==BVLT && (b2.isFalse() || b1.isTrue())) // x < F or T < x
       output = falseExpression;
   }
-  
+
   // No shortcuts found
   if (output.isNull()) {
 
@@ -855,13 +855,13 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
     else {
       output = (!b1) || b2;
     }
-    
+
     if(e0len > 1) {
       //construct e0[n-2:0]
-      Expr e0_extract = 
+      Expr e0_extract =
 	d_theoryBitvector->newBVExtractExpr(e[0],e0len-2,0);
       //construct e1[n-2:0]
-      Expr e1_extract = 
+      Expr e1_extract =
 	d_theoryBitvector->newBVExtractExpr(e[1],e1len-2,0);
 
       Expr a;
@@ -871,7 +871,7 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
       else
 	//construct e0[n-2:0] <= e1[n-2:0]
 	a = d_theoryBitvector->newBVLEExpr(e0_extract,e1_extract);
-	
+
       //construct (b1=0 and/or b2=1) or (b1=b2 and a)
       output = output || (b1.iffExpr(b2) && a);
     }
@@ -880,7 +880,7 @@ Theorem BitvectorTheoremProducer::generalIneqn(const Expr& e,
   Proof pf;
   if(withProof())
     pf = newPf("general_ineqn", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -950,7 +950,7 @@ Theorem BitvectorTheoremProducer::bitExtractRewrite(const Expr& x) {
 		"BitvectorTheoremProducer::bitExtractRewrite: x = "
 		+x.toString());
   }
-  
+
   int i = d_theoryBitvector->getBoolExtractIndex(x);
   const Expr& t = x[0];
   int bvLength = d_theoryBitvector->BVSize(t);
@@ -977,21 +977,21 @@ Theorem BitvectorTheoremProducer::bitExtractConstant(const Expr & x, int i)
 {
   TRACE("bitvector", "bitExtractConstant(", x, ", "+ int2string(i) +" ) {");
   if(CHECK_PROOFS) {
-    //check if the expr is indeed a bitvector constant.   
+    //check if the expr is indeed a bitvector constant.
     CHECK_SOUND(BVCONST == x.getKind(),
 		"BitvectorTheoremProducer::bitExtractConstant:"
 		"the bitvector must be a constant.");
-    //check if 0<= i < bvLength of bitvector constant    
+    //check if 0<= i < bvLength of bitvector constant
     CHECK_SOUND(0 <= i && (unsigned)i < d_theoryBitvector->getBVConstSize(x),
 		"BitvectorTheoremProducer::bitExtractConstant:"
-		"illegal extraction attempted on the bitvector x = " 
-		+ x.toString() 
-		+ "\nat the position i = " 
+		"illegal extraction attempted on the bitvector x = "
+		+ x.toString()
+		+ "\nat the position i = "
 		+ int2string(i));
   }
   // bool-extract of the bitvector constant
   const Expr bitExtract = d_theoryBitvector->newBoolExtractExpr(x, i);
-  
+
   //extract the actual expr_value string, bitextract it at i and check
   //if the value is 'false'. if so then return c[i] <==> false else
   //return c[i] <==> true.
@@ -1016,11 +1016,11 @@ Theorem BitvectorTheoremProducer::bitExtractConstant(const Expr & x, int i)
 Theorem BitvectorTheoremProducer::bitExtractConcatenation(const Expr & x,
 							  int i)
 {
-  TRACE("bitvector", "bitExtractConcatenation(", 
+  TRACE("bitvector", "bitExtractConcatenation(",
 	x.toString(), ", "+ int2string(i) + " ) {");
   Type type = d_theoryBitvector->getBaseType(x);
   if(CHECK_PROOFS) {
-    //check if the expr is indeed a bitvector term and a concat.   
+    //check if the expr is indeed a bitvector term and a concat.
     CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
 		"BitvectorTheoremProducer::bitExtractConcatenation: "
 		"term must be bitvector:\n x = "+x.toString());
@@ -1029,13 +1029,13 @@ Theorem BitvectorTheoremProducer::bitExtractConcatenation(const Expr & x,
 		"the bitvector must be a concat:\n x = " + x.toString());
   }
 
-  //check if 0<= i < bvLength of bitvector constant    
+  //check if 0<= i < bvLength of bitvector constant
   int bvLength = d_theoryBitvector->BVSize(x);
   if(CHECK_PROOFS) {
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + x.toString()
 		+ "\nwhose bvLength is = " +
 		int2string(bvLength));
@@ -1050,13 +1050,13 @@ Theorem BitvectorTheoremProducer::bitExtractConcatenation(const Expr & x,
   for(int count = numOfKids-1; count >= 0; --count) {
     int bvLengthOfKid = d_theoryBitvector->BVSize(x[count]);
     if(lenOfKidsSeen <= i && i < bvLengthOfKid + lenOfKidsSeen) {
-      bitExtractKid = 
+      bitExtractKid =
 	d_theoryBitvector->newBoolExtractExpr(x[count], i - lenOfKidsSeen);
       break;
     }
     lenOfKidsSeen += bvLengthOfKid;
   }
-  DebugAssert(!bitExtractKid.isNull(), 
+  DebugAssert(!bitExtractKid.isNull(),
 	      "BitvectorTheoremProducer::bitExtractConcatenation: "
 	      "something's broken...");
 
@@ -1090,8 +1090,8 @@ Theorem BitvectorTheoremProducer::bitExtractConstBVMult(const Expr& t, int i)
                 "Expected inputs of same length");
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + t.toString()
 		+ "\nwhose bvLength is = " +
 		int2string(bvLength));
@@ -1100,42 +1100,41 @@ Theorem BitvectorTheoremProducer::bitExtractConstBVMult(const Expr& t, int i)
 		"illegal BVMULT expression" + t.toString());
   }
 
-  std::vector<Expr> k;
-  for(int j=0; j < bvLength; ++j)
-    if (d_theoryBitvector->getBVConstValue(t[0], j)) {
-      Expr leftshiftTerm = 
-	d_theoryBitvector->newFixedConstWidthLeftShiftExpr(t[1], j);
-      k.push_back(leftshiftTerm);
-    }
-  
-  Expr mult;
-  //size of k will always be >= 0
-  switch(k.size()) {
-  case 0:
-    //the vector k will remain empty if all bits in coeff are 0's
-    mult = d_theoryBitvector->newBVZeroString(bvLength);
-    break;
-  case 1:
-    mult = k[0];
-    break;
-  default:
-    mult = d_theoryBitvector->newBVPlusExpr(bvLength, k);
-    break;
-  }
+	  std::vector<Expr> k;
+	  for(int j=0; j < bvLength; ++j)
+		if (d_theoryBitvector->getBVConstValue(t[0], j)) {
+		  Expr leftshiftTerm =
+		d_theoryBitvector->newFixedConstWidthLeftShiftExpr(t[1], j);
+		  k.push_back(leftshiftTerm);
+		}
+
+	  Expr mult;
+	  //size of k will always be >= 0
+	  switch(k.size()) {
+	  case 0:
+		//the vector k will remain empty if all bits in coeff are 0's
+		mult = d_theoryBitvector->newBVZeroString(bvLength);
+		break;
+	  case 1:
+		mult = k[0];
+		break;
+	  default:
+		mult = d_theoryBitvector->newBVPlusExpr(bvLength, k);
+		break;
+	  }
   Expr output = d_theoryBitvector->newBoolExtractExpr(mult, i);
-  
+
   // bool-extract of the bitvector term
-  const Expr bitExtract = 
+  const Expr bitExtract =
     d_theoryBitvector->newBoolExtractExpr(t, i);
-    
+
   Proof pf;
   if(withProof()) pf = newPf("bit_extract_const_bvmult", t, rat(i));
   const Theorem result = newRWTheorem(bitExtract,output,Assumptions::emptyAssump(),pf);
-  TRACE("bitvector", 
+  TRACE("bitvector",
 	"output of bitExtract_const_bvmult(", result, ")");
   return result;
 }
-
 
 // |- BOOLEXTRACT(t,i) <=> BOOLEXTRACT(t',i) where t' is not BVMULT
 Theorem BitvectorTheoremProducer::bitExtractBVMult(const Expr& t, int i)
@@ -1158,8 +1157,8 @@ Theorem BitvectorTheoremProducer::bitExtractBVMult(const Expr& t, int i)
                 "Expected inputs of same length");
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector t = " + t.toString()
 		+ "\nwhose Length is = " +
 		int2string(bvLength));
@@ -1177,7 +1176,7 @@ Theorem BitvectorTheoremProducer::bitExtractBVMult(const Expr& t, int i)
     Expr iteTerm = cond.iteExpr(leftshiftTerm, zeroString);
     k.push_back(iteTerm);
   }
-  
+
   if(CHECK_PROOFS)
     CHECK_SOUND(k.size() > 0,
 		"BitvectorTheoremProducer::bitExtractBVMult:"
@@ -1188,10 +1187,10 @@ Theorem BitvectorTheoremProducer::bitExtractBVMult(const Expr& t, int i)
   else
     mult = k[0];
   Expr output = d_theoryBitvector->newBoolExtractExpr(mult, i);
-  
+
   // bool-extract of the bitvector term
   const Expr bitExtract = d_theoryBitvector->newBoolExtractExpr(t, i);
-    
+
   Proof pf;
   if(withProof()) pf = newPf("bit_extract_bvmult", t, rat(i));
   const Theorem result = newRWTheorem(bitExtract,output,Assumptions::emptyAssump(),pf);
@@ -1203,26 +1202,26 @@ Theorem BitvectorTheoremProducer::bitExtractBVMult(const Expr& t, int i)
 // Input x: a[hi:low]
 //       i: bitposition
 // Output: |- BOOLEXTRACT(a[hi:low], i) <=> BOOLEXTRACT(a, i+low)
-Theorem BitvectorTheoremProducer::bitExtractExtraction(const Expr & x, int i) 
+Theorem BitvectorTheoremProducer::bitExtractExtraction(const Expr & x, int i)
 {
   TRACE("bitvector", "input to bitExtractExtraction(", x.toString(), ")");
   TRACE("bitvector", "input to bitExtractExtraction(", int2string(i), ")");
 
   Type type = x.getType();
   if(CHECK_PROOFS) {
-    //check if the expr is indeed a bitvector term and a concat.   
+    //check if the expr is indeed a bitvector term and a concat.
     CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
 		"BitvectorTheoremProducer::bitExtract-Extraction:"
 		"term must be bitvector.");
-    CHECK_SOUND(EXTRACT == x.getOpKind() && 1 == x.arity(), 
+    CHECK_SOUND(EXTRACT == x.getOpKind() && 1 == x.arity(),
 		"BitvectorTheoremProducer::bitExtract-Extraction:"
 		"the bitvector must be an extract." + x.toString());
-    //check if 0<= i < bvLength of bitvector constant    
+    //check if 0<= i < bvLength of bitvector constant
     int bvLength= d_theoryBitvector->BVSize(type.getExpr());
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector t = " + x.toString()
 		+ "\nwhose Length is = " +
 		int2string(bvLength));
@@ -1230,23 +1229,23 @@ Theorem BitvectorTheoremProducer::bitExtractExtraction(const Expr & x, int i)
     int extractRight = d_theoryBitvector->getExtractLow(x);
     CHECK_SOUND(extractLeft >= extractRight && extractLeft >= 0,
 		"BitvectorTheoremProducer::bitExtract-Extraction:"
-		"illegal boolean extraction was attempted." + int2string(i) + 
+		"illegal boolean extraction was attempted." + int2string(i) +
 		int2string(extractLeft) + int2string(extractRight));
     CHECK_SOUND(0 <= i && i < extractLeft-extractRight+1,
     		"BitvectorTheoremProducer::bitExtract-Extraction:"
-		"illegal boolean extraction was attempted." + int2string(i) + 
+		"illegal boolean extraction was attempted." + int2string(i) +
 		int2string(extractLeft) + int2string(extractRight));
   }
   // bool-extract of the bitvector constant
   const Expr bitExtract = d_theoryBitvector->newBoolExtractExpr(x, i);
-  const Expr bitExtractExtraction = 
-    d_theoryBitvector->newBoolExtractExpr(x[0], i + 
+  const Expr bitExtractExtraction =
+    d_theoryBitvector->newBoolExtractExpr(x[0], i +
 					  d_theoryBitvector->getExtractLow(x));
-			
-  Proof pf;				
+
+  Proof pf;
   if(withProof()) pf = newPf("bit_extract_extraction", x, rat(i));
   Theorem result(newRWTheorem(bitExtract, bitExtractExtraction, Assumptions::emptyAssump(), pf));
-  TRACE("bitvector", 
+  TRACE("bitvector",
 	"output of bitExtractExtraction(", result, ")");
   return result;
 }
@@ -1261,19 +1260,9 @@ BitvectorTheoremProducer::
   TRACE("bitvector","input to bitExtractBVPlus(", int2string(bitPos), ")");
 
   if(CHECK_PROOFS) {
-    CHECK_SOUND(BVPLUS == bvPlusTerm.getOpKind() && 2 == bvPlusTerm.arity(),
-		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal bitvector fed to the function." + 
-		bvPlusTerm.toString());
-    CHECK_SOUND(d_theoryBitvector->getBVPlusParam(bvPlusTerm) >= 0,
-		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal bitvector fed to the function." + 
-		bvPlusTerm.toString());
-    CHECK_SOUND(bitPos+1 == (int)t1BitExtractThms.size() &&
-		bitPos+1 == (int)t2BitExtractThms.size(),
-		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal bitvector fed to the function." +
-		int2string(bitPos));
+    CHECK_SOUND(BVPLUS == bvPlusTerm.getOpKind() && 2 == bvPlusTerm.arity(), "BitvectorTheoremProducer::bitExtractBVPlus: illegal bitvector fed to the function." + bvPlusTerm.toString());
+    CHECK_SOUND(d_theoryBitvector->getBVPlusParam(bvPlusTerm) >= 0,	"BitvectorTheoremProducer::bitExtractBVPlus: illegal bitvector fed to the function." + bvPlusTerm.toString());
+    CHECK_SOUND(bitPos+1 == (int)t1BitExtractThms.size() &&	bitPos+1 == (int)t2BitExtractThms.size(), "BitvectorTheoremProducer::bitExtractBVPlus: illegal bitvector fed to the function." + int2string(bitPos));
     const Expr& t1 = bvPlusTerm[0];
     const Expr& t2 = bvPlusTerm[1];
     std::vector<Theorem>::const_iterator i = t1BitExtractThms.begin();
@@ -1282,23 +1271,15 @@ BitvectorTheoremProducer::
     for(; i !=iend; ++i, ++j) {
       const Expr& t1Expr = i->getLHS();
       const Expr& t2Expr = j->getLHS();
-      CHECK_SOUND(t1Expr[0] == t1 && t2Expr[0] == t2,
-		  "BitvectorTheoremProducer::bitExtractBVPlus:"
-		  "illegal bitvector fed to the function." + 
-		  t1Expr.toString() + " ==\n" + 
-		  t1.toString() + "\n" +
-		  t2.toString() + " == \n" +
-		  t2Expr.toString());
+      CHECK_SOUND(t1Expr[0] == t1 && t2Expr[0] == t2, "BitvectorTheoremProducer::bitExtractBVPlus: illegal bitvector fed to the function." + t1Expr.toString() + " ==\n" + t1.toString() + "\n" + t2.toString() + " == \n" + t2Expr.toString());
     }
   }
-  const Expr lhs = 
-    d_theoryBitvector->newBoolExtractExpr(bvPlusTerm, bitPos);
+  const Expr lhs = d_theoryBitvector->newBoolExtractExpr(bvPlusTerm, bitPos);
   Expr rhs;
   const Expr& t1_iBit = (t1BitExtractThms[bitPos]).getRHS();
   const Expr& t2_iBit = (t2BitExtractThms[bitPos]).getRHS();
   if(0 != bitPos) {
-    const Expr carry_iBit =
-      computeCarry(t1BitExtractThms, t2BitExtractThms, bitPos);
+    const Expr carry_iBit = computeCarry(t1BitExtractThms, t2BitExtractThms, bitPos);
     //constructing an XOR of 3 exprs using equivalences.  Note that (x
     //\xor y \xor z) is the same as (x \iff y \iff z). but remember, x
     //\xor y is not the same as x \iff y, but is equal instead to x
@@ -1320,10 +1301,9 @@ BitvectorTheoremProducer::
 }
 
 Expr
-BitvectorTheoremProducer::
-computeCarry(const std::vector<Theorem>& t1BitExtractThms,
-	     const std::vector<Theorem>& t2BitExtractThms,
-	     int i){
+BitvectorTheoremProducer::computeCarry(const std::vector<Theorem>& t1BitExtractThms,
+	                                   const std::vector<Theorem>& t2BitExtractThms,
+	                                   int i){
   vector<Expr> carry;
   int bitPos = i;
   DebugAssert(bitPos >= 0,
@@ -1338,12 +1318,12 @@ computeCarry(const std::vector<Theorem>& t1BitExtractThms,
     const Expr& t2Thm = t2BitExtractThms[bitPos-1].getRHS();
     const Expr iMinusOneTerm = t1Thm.andExpr(t2Thm);
     carry.push_back(iMinusOneTerm);
-    
-    const Expr iMinusOneCarry = 
+
+    const Expr iMinusOneCarry =
       computeCarry(t1BitExtractThms,t2BitExtractThms,bitPos-1);
     const Expr secondTerm = t1Thm.andExpr(iMinusOneCarry);
     carry.push_back(secondTerm);
-    
+
     const Expr thirdTerm  = t2Thm.andExpr(iMinusOneCarry);
 
     carry.push_back(thirdTerm);
@@ -1351,11 +1331,11 @@ computeCarry(const std::vector<Theorem>& t1BitExtractThms,
   return orExpr(carry);
 }
 
-Theorem 
+Theorem
 BitvectorTheoremProducer::
 bitExtractBVPlusPreComputed(const Theorem& t1_i,
 			    const Theorem& t2_i,
-			    const Expr& bvPlusTerm, 
+			    const Expr& bvPlusTerm,
 			    int bitPos,
 			    int precomputedFlag)
 {
@@ -1367,31 +1347,31 @@ bitExtractBVPlusPreComputed(const Theorem& t1_i,
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVPLUS == bvPlusTerm.getOpKind() && 2 == bvPlusTerm.arity(),
 		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal bitvector fed to the function." + 
+		"illegal bitvector fed to the function." +
 		bvPlusTerm.toString());
     CHECK_SOUND(d_theoryBitvector->getBVPlusParam(bvPlusTerm) >= 0,
 		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal bitvector fed to the function." + 
+		"illegal bitvector fed to the function." +
 		bvPlusTerm.toString());
     const Expr& t1 = bvPlusTerm[0];
     const Expr& t2 = bvPlusTerm[1];
-    CHECK_SOUND(t1_i.getLHS()[0] == t1 && 
+    CHECK_SOUND(t1_i.getLHS()[0] == t1 &&
 		t2_i.getLHS()[0] == t2,
 		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal theorems fed to the function. Theorem1 = " + 
+		"illegal theorems fed to the function. Theorem1 = " +
 		t1_i.toString() + "\nTheorem2 = " + t2_i.toString());
     CHECK_SOUND(t1_i.getLHS().getOpKind() == BOOLEXTRACT &&
 		t2_i.getLHS().getOpKind() == BOOLEXTRACT,
 		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal theorems fed to the function. Theorem1 = " + 
+		"illegal theorems fed to the function. Theorem1 = " +
 		t1_i.toString() + "\nTheorem2 = " + t2_i.toString());
     CHECK_SOUND(d_theoryBitvector->getBoolExtractIndex(t1_i.getLHS()) == bitPos &&
 		d_theoryBitvector->getBoolExtractIndex(t2_i.getLHS()) == bitPos,
 		"BitvectorTheoremProducer::bitExtractBVPlus:"
-		"illegal theorems fed to the function. Theorem1 = " + 
+		"illegal theorems fed to the function. Theorem1 = " +
 		t1_i.toString() + "\nTheorem2 = " + t2_i.toString());
   }
-  const Expr lhs = 
+  const Expr lhs =
     d_theoryBitvector->newBoolExtractExpr(bvPlusTerm, bitPos);
   Expr rhs;
   const Expr& t1_iBit = t1_i.getRHS();
@@ -1422,8 +1402,8 @@ bitExtractBVPlusPreComputed(const Theorem& t1_i,
 //carryin of the current bits
 Expr
 BitvectorTheoremProducer::
-computeCarryPreComputed(const Theorem& t1_i, 
-			const Theorem& t2_i, 
+computeCarryPreComputed(const Theorem& t1_i,
+			const Theorem& t2_i,
 			int bitPos, int preComputed){
   DebugAssert(1 == preComputed ||
 	      2 == preComputed,
@@ -1440,8 +1420,8 @@ computeCarryPreComputed(const Theorem& t1_i,
   const Expr& t2 = t2_i.getLHS()[0];
   Expr t1Andt2 = t1.andExpr(t2);
   Expr index = t1Andt2.andExpr(rat(bitPos));
-  
-  if(0 == bitPos) {    
+
+  if(0 == bitPos) {
     if(1 == preComputed)
       d_theoryBitvector->d_bvPlusCarryCacheLeftBV.insert(index,x);
     else
@@ -1452,30 +1432,30 @@ computeCarryPreComputed(const Theorem& t1_i,
   else {
     if(1 == preComputed) {
       Expr indexMinusOne = t1Andt2.andExpr(rat(bitPos-1));
-      if(d_theoryBitvector->d_bvPlusCarryCacheLeftBV.find(indexMinusOne) == 
+      if(d_theoryBitvector->d_bvPlusCarryCacheLeftBV.find(indexMinusOne) ==
 	 d_theoryBitvector->d_bvPlusCarryCacheLeftBV.end())
 	DebugAssert(false,
 		    "this should not happen");
-      carryin = 
+      carryin =
 	(d_theoryBitvector->d_bvPlusCarryCacheLeftBV).find(indexMinusOne)->second;
       Expr secondTerm = t1Thm.andExpr(carryin);
       Expr thirdTerm = t2Thm.andExpr(carryin);
-      
+
       carryout = (x.orExpr(secondTerm)).orExpr(thirdTerm);
       d_theoryBitvector->d_bvPlusCarryCacheLeftBV.insert(index,carryout);
     }
     else {
       Expr indexMinusOne = t1Andt2.andExpr(rat(bitPos-1));
-      if(d_theoryBitvector->d_bvPlusCarryCacheRightBV.find(indexMinusOne) == 
+      if(d_theoryBitvector->d_bvPlusCarryCacheRightBV.find(indexMinusOne) ==
 	 d_theoryBitvector->d_bvPlusCarryCacheRightBV.end())
 	DebugAssert(false,
 		    "this should not happen");
-      carryin = 
+      carryin =
 	(d_theoryBitvector->d_bvPlusCarryCacheRightBV).find(indexMinusOne)->second;
       //(*d_bvPlusCarryCacheRightBV.find(indexMinusOne)).second;
       Expr secondTerm = t1Thm.andExpr(carryin);
       Expr thirdTerm = t2Thm.andExpr(carryin);
-      
+
       carryout = (x.orExpr(secondTerm)).orExpr(thirdTerm);
       d_theoryBitvector->d_bvPlusCarryCacheRightBV.insert(index,carryout);
     }
@@ -1496,7 +1476,7 @@ zeroPaddingRule(const Expr& e, int i) {
 
   int bvLength =
     d_theoryBitvector->BVSize(d_theoryBitvector->getBaseType(e).getExpr());
-  
+
   if(CHECK_PROOFS) {
     CHECK_SOUND(0 <= i &&  i >= bvLength,
 		"BitvectorTheoremProducer::zeroPaddingRule:"
@@ -1506,23 +1486,23 @@ zeroPaddingRule(const Expr& e, int i) {
   const Expr boolExtractExpr = d_theoryBitvector->newBoolExtractExpr(e, i);
 
   Proof pf;
-  if(withProof()) 
+  if(withProof())
     pf = newPf("zeropadding_rule", e, rat(i));
   return newRWTheorem(boolExtractExpr, d_theoryBitvector->falseExpr(), Assumptions::emptyAssump(), pf);
 }
 
-Theorem 
+Theorem
 BitvectorTheoremProducer::
 bvPlusAssociativityRule(const Expr& bvPlusTerm)
 {
-  TRACE("bitvector", 
+  TRACE("bitvector",
 	"input to bvPlusAssociativityRule(", bvPlusTerm.toString(), ")");
 
   Type type = bvPlusTerm.getType();
   if(CHECK_PROOFS) {
     CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
 		"BitvectorTheoremProducer::bvPlusAssociativityRule:"
-		"term must be BITVECTOR type.");		
+		"term must be BITVECTOR type.");
     CHECK_SOUND(BVPLUS == bvPlusTerm.getOpKind(),
 		"BitvectorTheoremProducer::bvPlusAssociativityRule:"
 		"term must have the kind BVPLUS.");
@@ -1537,44 +1517,44 @@ bvPlusAssociativityRule(const Expr& bvPlusTerm)
   j++;
   BVPlusTerms0.insert(BVPlusTerms0.end(), j, jend);
   int bvLength = d_theoryBitvector->BVSize(bvPlusTerm);
-  const Expr bvplus0 = d_theoryBitvector->newBVPlusExpr(bvLength, 
+  const Expr bvplus0 = d_theoryBitvector->newBVPlusExpr(bvLength,
 							BVPlusTerms0);
-  
+
   std::vector<Expr> BVPlusTerms1;
   BVPlusTerms1.push_back(*((bvPlusTerm.getKids()).begin()));
   BVPlusTerms1.push_back(bvplus0);
-  const Expr bvplusOutput = d_theoryBitvector->newBVPlusExpr(bvLength, 
+  const Expr bvplusOutput = d_theoryBitvector->newBVPlusExpr(bvLength,
 							     BVPlusTerms1);
-  
+
   Proof pf;
   if(withProof()) pf = newPf("bv_plus_associativityrule", bvPlusTerm);
   const Theorem result(newRWTheorem(bvPlusTerm, bvplusOutput, Assumptions::emptyAssump(), pf));
-  TRACE("bitvector", 
+  TRACE("bitvector",
 	"output of bvPlusAssociativityRule(", result, ")");
   return result;
 }
 
 
-Theorem BitvectorTheoremProducer::bitExtractNot(const Expr & x, 
+Theorem BitvectorTheoremProducer::bitExtractNot(const Expr & x,
 						int i) {
   TRACE("bitvector", "input to bitExtractNot(", x.toString(), ")");
   TRACE("bitvector", "input to bitExtractNot(", int2string(i), ")");
 
   Type type = x.getType();
   if(CHECK_PROOFS) {
-    //check if the expr is indeed a bitvector term and a concat.   
+    //check if the expr is indeed a bitvector term and a concat.
     CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
 		"BitvectorTheoremProducer::bitExtractNot:"
 		"term must be bitvector.");
     CHECK_SOUND(BVNEG == x.getOpKind() && 1 == x.arity(),
 		"BitvectorTheoremProducer::bitExtractNot:"
 		"the bitvector must be an bitwise negation." + x.toString());
-    //check if 0<= i < Length of bitvector constant    
+    //check if 0<= i < Length of bitvector constant
     int bvLength= d_theoryBitvector->BVSize(type.getExpr());
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + x.toString()
 		+ "\nwhose Length is = " +
 		int2string(bvLength));
@@ -1582,39 +1562,37 @@ Theorem BitvectorTheoremProducer::bitExtractNot(const Expr & x,
   // bool-extract of the bitvector constant
   const Expr bitExtract = d_theoryBitvector->newBoolExtractExpr(x, i);
   const Expr bitNegTerm = d_theoryBitvector->newBoolExtractExpr(x[0], i);
-  
+
   Proof pf;
   if(withProof()) pf = newPf("bit_extract_bitwiseneg", x, rat(i));
   const Theorem result(newRWTheorem(bitExtract,!bitNegTerm,Assumptions::emptyAssump(),pf));
   TRACE("bitvector","output of bitExtractNot(", result, ")");
-  return result;    	    
+  return result;
 }
 
 
 Theorem BitvectorTheoremProducer::bitExtractBitwise(const Expr & x,
                                                     int i, int kind)
 {
-  string funName = (kind==BVAND)? "bitExtractAnd" : "bitExtractOr";
-  string pfName = (kind==BVAND)? "bit_extract_and" : "bit_extract_or";
-  TRACE("bitvector", funName+"(", x, ", "+ int2string(i)+") {");
+  TRACE("bitvector", "bitExtractBitwise(", x, ", "+ int2string(i)+") {");
   Type type = x.getType();
   if(CHECK_PROOFS) {
-    CHECK_SOUND(kind == BVAND || kind == BVOR,
-		"BitvectorTheoremProducer::"+funName+": kind = "
+    CHECK_SOUND(kind == BVAND || kind == BVOR || kind == BVXOR,
+		"BitvectorTheoremProducer::bitExtractBitwise: kind = "
 		+d_theoryBitvector->getEM()->getKindName(kind));
-    //check if the expr is indeed a bitvector term and a concat.   
+    //check if the expr is indeed a bitvector term and a concat.
     CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
-		"BitvectorTheoremProducer::"+funName+": "
+		"BitvectorTheoremProducer::bitExtractBitwise: "
 		"term must be bitvector.\n x = "+x.toString()
 		+" : "+type.toString());
     CHECK_SOUND(x.getOpKind() == kind && 2 <= x.arity(),
-		"BitvectorTheoremProducer::"+funName+": "
-		"the bitvector must be a bitwise AND.\n x = "
+		"BitvectorTheoremProducer::bitExtractBitwise: "
+		"kind does not match.\n x = "
 		+ x.toString());
-    //check if 0<= i < Length of bitvector constant 
+    //check if 0<= i < Length of bitvector constant
     int size = d_theoryBitvector->BVSize(x);
     CHECK_SOUND(0 <= i && i < size,
-		"BitvectorTheoremProducer::"+funName+": "
+		"BitvectorTheoremProducer::bitExtractBitwise: "
 		"illegal boolean extraction was attempted.\n i = "
 		+ int2string(i) + "\n size = "+ int2string(size));
   }
@@ -1624,26 +1602,16 @@ Theorem BitvectorTheoremProducer::bitExtractBitwise(const Expr & x,
   for(Expr::iterator j=x.begin(), jend=x.end(); j!=jend; ++j) {
     kids.push_back(d_theoryBitvector->newBoolExtractExpr(*j, i));
   }
-  
-  Expr rhs = (kind==BVAND)? andExpr(kids) : orExpr(kids);
+
+  int resKind = kind == BVAND ? AND :
+    kind == BVOR ? OR : XOR;
+  Expr rhs = Expr(resKind, kids);
 
   Proof pf;
-  if(withProof()) pf = newPf(pfName,x,rat(i));
+  if(withProof()) pf = newPf("bit_extract_bitwise", x, rat(i));
   const Theorem result(newRWTheorem(bitExtract, rhs, Assumptions::emptyAssump(), pf));
-  TRACE("bitvector", funName+" => ", result.toString(), " }");
-  return result;    	    
-}
-
-
-Theorem
-BitvectorTheoremProducer::bitExtractAnd(const Expr & x, int i) {
-  return bitExtractBitwise(x, i, BVAND);
-}
-
-
-Theorem
-BitvectorTheoremProducer::bitExtractOr(const Expr & x, int i) {
-  return bitExtractBitwise(x, i, BVOR);
+  TRACE("bitvector", "bitExtractBitwise => ", result.toString(), " }");
+  return result;
 }
 
 
@@ -1661,18 +1629,18 @@ Theorem BitvectorTheoremProducer::bitExtractFixedLeftShift(const Expr & x,
     CHECK_SOUND((x.getOpKind() == LEFTSHIFT ||
                 x.getOpKind() == CONST_WIDTH_LEFTSHIFT) && 1 == x.arity(),
 		"BitvectorTheoremProducer::bitExtractFixedleftshift:"
-		"the bitvector must be a bitwise LEFTSHIFT." + 
+		"the bitvector must be a bitwise LEFTSHIFT." +
 		x.toString());
     CHECK_SOUND(d_theoryBitvector->getFixedLeftShiftParam(x) >= 0,
 		"BitvectorTheoremProducer::bitExtractFixedleftshift:"
-		"the bitvector must be a bitwise LEFTSHIFT." + 
+		"the bitvector must be a bitwise LEFTSHIFT." +
 		x.toString());
-    //check if 0<= i < bvLength of bitvector constant    
+    //check if 0<= i < bvLength of bitvector constant
     int bvLength= d_theoryBitvector->BVSize(type.getExpr());
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + x.toString()
 		+ "\nwhose bvLength is = " +
 		int2string(bvLength));
@@ -1683,46 +1651,46 @@ Theorem BitvectorTheoremProducer::bitExtractFixedLeftShift(const Expr & x,
   Expr output;
   if(0 <= i && i < shiftLength)
     output = d_theoryBitvector->falseExpr();
-  else 
-    output = 
+  else
+    output =
       d_theoryBitvector->newBoolExtractExpr(x[0], i-shiftLength);
 
   Proof pf;
-  if(withProof()) 
+  if(withProof())
     pf = newPf("bit_extract_bitwisefixedleftshift", x,rat(i));
-  const Theorem result = newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf); 
+  const Theorem result = newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf);
   TRACE("bitvector",
 	"output of bitExtractFixedleftshift(", result, ")");
   return result;
 }
 
-Theorem BitvectorTheoremProducer::bitExtractFixedRightShift(const Expr & x, 
+Theorem BitvectorTheoremProducer::bitExtractFixedRightShift(const Expr & x,
 							    int i) {
   TRACE("bitvector", "input to bitExtractFixedRightShift(", x.toString(), ")");
   TRACE("bitvector", "input to bitExtractFixedRightShift(", int2string(i), ")");
 
   Type type = x.getType();
   if(CHECK_PROOFS) {
-    //check if the expr is indeed a bitvector term and a concat.   
+    //check if the expr is indeed a bitvector term and a concat.
     CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
 		"BitvectorTheoremProducer::bitExtractFixedRightShift:"
 		"term must be bitvector.");
     CHECK_SOUND(RIGHTSHIFT == x.getOpKind() && 1 == x.arity(),
 		"BitvectorTheoremProducer::bitExtractFixedRightShift:"
-		"the bitvector must be an bitwise RIGHTSHIFT." + 
+		"the bitvector must be an bitwise RIGHTSHIFT." +
 		x.toString());
     CHECK_SOUND(d_theoryBitvector->getFixedRightShiftParam(x) >= 0,
 		"BitvectorTheoremProducer::bitExtractFixedRightShift:"
-		"the bitvector must be an bitwise RIGHTSHIFT." + 
+		"the bitvector must be an bitwise RIGHTSHIFT." +
 		x.toString());
   }
-  //check if 0<= i < bvLength of bitvector constant    
+  //check if 0<= i < bvLength of bitvector constant
   int bvLength = d_theoryBitvector->BVSize(x);
   if(CHECK_PROOFS)
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractNot:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector t = " + x.toString()
 		+ "\nwhose Length is = " +
 		int2string(bvLength));
@@ -1733,14 +1701,14 @@ Theorem BitvectorTheoremProducer::bitExtractFixedRightShift(const Expr & x,
   Expr output;
   if(bvLength > i && i > bvLength-shiftLength-1)
     output = d_theoryBitvector->falseExpr();
-  else 
-    output = 
+  else
+    output =
       d_theoryBitvector->newBoolExtractExpr(x[0], i);
 
   Proof pf;
-  if(withProof()) 
+  if(withProof())
     pf = newPf("bit_extract_bitwiseFixedRightShift", x,rat(i));
-  const Theorem result = newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf); 
+  const Theorem result = newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf);
   TRACE("bitvector",
 	"output of bitExtractFixedRightShift(", result, ")");
   return result;
@@ -1760,13 +1728,13 @@ Theorem BitvectorTheoremProducer::bitExtractBVSHL(const Expr & x, int i)
 		"term must be bitvector.");
     CHECK_SOUND(x.getOpKind() == BVSHL && 2 == x.arity(),
 		"BitvectorTheoremProducer::bitExtractBVSHL:"
-		"the bitvector must be a BVSHL." + 
+		"the bitvector must be a BVSHL." +
 		x.toString());
-    //check if 0<= i < bvLength of bitvector constant    
+    //check if 0<= i < bvLength of bitvector constant
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractBVSHL:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + x.toString()
 		+ "\nwhose bvLength is = " +
 		int2string(bvLength));
@@ -1794,9 +1762,9 @@ Theorem BitvectorTheoremProducer::bitExtractBVSHL(const Expr & x, int i)
   }
 
   Proof pf;
-  if(withProof()) 
+  if(withProof())
     pf = newPf("bit_extract_bvshl", x, rat(i));
-  return newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf); 
+  return newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -1814,13 +1782,13 @@ Theorem BitvectorTheoremProducer::bitExtractBVLSHR(const Expr & x, int i)
 		"term must be bitvector.");
     CHECK_SOUND(x.getOpKind() == BVLSHR && 2 == x.arity(),
 		"BitvectorTheoremProducer::bitExtractBVSHL:"
-		"the bitvector must be a BVSHL." + 
+		"the bitvector must be a BVSHL." +
 		x.toString());
-    //check if 0<= i < bvLength of bitvector constant    
+    //check if 0<= i < bvLength of bitvector constant
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractBVSHL:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + x.toString()
 		+ "\nwhose bvLength is = " +
 		int2string(bvLength));
@@ -1848,9 +1816,9 @@ Theorem BitvectorTheoremProducer::bitExtractBVLSHR(const Expr & x, int i)
   }
 
   Proof pf;
-  if(withProof()) 
+  if(withProof())
     pf = newPf("bit_extract_bvlshr", x, rat(i));
-  return newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf); 
+  return newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -1868,13 +1836,13 @@ Theorem BitvectorTheoremProducer::bitExtractBVASHR(const Expr & x, int i)
 		"term must be bitvector.");
     CHECK_SOUND(x.getOpKind() == BVASHR && 2 == x.arity(),
 		"BitvectorTheoremProducer::bitExtractBVSHL:"
-		"the bitvector must be a BVSHL." + 
+		"the bitvector must be a BVSHL." +
 		x.toString());
-    //check if 0<= i < bvLength of bitvector constant    
+    //check if 0<= i < bvLength of bitvector constant
     CHECK_SOUND(0 <= i && i < bvLength,
 		"BitvectorTheoremProducer::bitExtractBVSHL:"
-		"illegal boolean extraction was attempted at position i = " 
-		+ int2string(i) 
+		"illegal boolean extraction was attempted at position i = "
+		+ int2string(i)
 		+ "\non bitvector x = " + x.toString()
 		+ "\nwhose bvLength is = " +
 		int2string(bvLength));
@@ -1906,9 +1874,9 @@ Theorem BitvectorTheoremProducer::bitExtractBVASHR(const Expr & x, int i)
   }
 
   Proof pf;
-  if(withProof()) 
+  if(withProof())
     pf = newPf("bit_extract_bvashr", x, rat(i));
-  return newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf); 
+  return newRWTheorem(bitExtract, output, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -1947,7 +1915,7 @@ Theorem BitvectorTheoremProducer::eqToBits(const Theorem& eq) {
 
   const Expr& lhs = eq.getLHS();
   const Expr& rhs = eq.getRHS();
-  
+
   if(CHECK_PROOFS) {
     CHECK_SOUND(d_theoryBitvector->getBaseType(lhs).getExpr().getOpKind() == BITVECTOR,
 		"BitvectorTheoremProducer::eqToBits: eq = "+eq.toString());
@@ -2039,16 +2007,15 @@ Theorem BitvectorTheoremProducer::rightShiftToConcat(const Expr& e) {
   int bvLength = d_theoryBitvector->BVSize(e[0]);
 
   int shiftSize=d_theoryBitvector->getFixedRightShiftParam(e);
-  Expr padding = d_theoryBitvector->newBVZeroString(shiftSize);
 
   Expr output;
-  if(shiftSize >= bvLength)
+  if (shiftSize == 0) output = e[0];
+  if (shiftSize >= bvLength)
     output = d_theoryBitvector->newBVZeroString(bvLength);
   else {
-    Expr out0 = 
-      d_theoryBitvector->newBVExtractExpr(e[0],bvLength-1,shiftSize);
-    output = 
-      d_theoryBitvector->newConcatExpr(padding,out0);
+	  Expr padding = d_theoryBitvector->newBVZeroString(shiftSize);
+	  Expr out0 = d_theoryBitvector->newBVExtractExpr(e[0],bvLength-1,shiftSize);
+	  output = d_theoryBitvector->newConcatExpr(padding,out0);
   }
 
   DebugAssert(bvLength == d_theoryBitvector->BVSize(output),
@@ -2074,8 +2041,7 @@ Theorem BitvectorTheoremProducer::bvshlToConcat(const Expr& e) {
   Expr res;
 
   Rational shiftSize=d_theoryBitvector->computeBVConst(e[1]);
-  if (shiftSize == 0)
-    res = e0;
+  if (shiftSize == 0) res = e0;
   else {
     int bvLength = d_theoryBitvector->BVSize(e);
     if (shiftSize >= bvLength)
@@ -2094,6 +2060,48 @@ Theorem BitvectorTheoremProducer::bvshlToConcat(const Expr& e) {
 }
 
 
+// bvshl(t,s) = IF (s = 0) THEN t ELSE
+//              IF (s = 1) then t[n-2:0] @ 0 Else
+//              ...
+//              ELSE 0
+Theorem BitvectorTheoremProducer::bvshlSplit(const Expr &e)
+{
+  Type type = e.getType();
+  int bvLength= d_theoryBitvector->BVSize(e);
+  if(CHECK_PROOFS) {
+    //check if the expr is indeed a bitvector term and a left shift.
+    CHECK_SOUND(BITVECTOR == type.getExpr().getOpKind(),
+		"BitvectorTheoremProducer::bitExtractBVSHL:"
+		"term must be bitvector.");
+    CHECK_SOUND(e.getOpKind() == BVSHL && 2 == e.arity(),
+		"BitvectorTheoremProducer::bitExtractBVSHL:"
+		"the bitvector must be a BVSHL." +
+		e.toString());
+  }
+
+  const Expr& term = e[0];
+  const Expr& shift = e[1];
+
+  Expr newExpr = d_theoryBitvector->newBVZeroString(bvLength);
+  Expr eq, tmp;
+
+  for (int i = bvLength-1; i > 0; --i) {
+    eq = shift.eqExpr(d_theoryBitvector->newBVConstExpr(i, bvLength));
+    tmp = d_theoryBitvector->newBVExtractExpr(term, bvLength-i-1, 0);
+    tmp = d_theoryBitvector->newConcatExpr(tmp, d_theoryBitvector->newBVZeroString(i));
+    newExpr = eq.iteExpr(tmp, newExpr);
+  }
+
+  eq = shift.eqExpr(d_theoryBitvector->newBVZeroString(bvLength));
+  newExpr = eq.iteExpr(term, newExpr);
+
+  Proof pf;
+  if(withProof())
+    pf = newPf("bvshl_split", e);
+  return newRWTheorem(e, newExpr, Assumptions::emptyAssump(), pf);
+}
+
+
 //! BVLSHR(t,c) = 0bin00...00 @ t[n-1,c]
 Theorem BitvectorTheoremProducer::bvlshrToConcat(const Expr& e)
 {
@@ -2108,14 +2116,13 @@ Theorem BitvectorTheoremProducer::bvlshrToConcat(const Expr& e)
   Rational shiftSize=d_theoryBitvector->computeBVConst(e[1]);
 
   Expr output;
-  if(shiftSize >= bvLength)
+  if (shiftSize == 0) output = e[0];
+  else if(shiftSize >= bvLength)
     output = d_theoryBitvector->newBVZeroString(bvLength);
   else {
     Expr padding = d_theoryBitvector->newBVZeroString(shiftSize.getInt());
-    Expr out0 = 
-      d_theoryBitvector->newBVExtractExpr(e[0],bvLength-1,shiftSize.getInt());
-    output = 
-      d_theoryBitvector->newConcatExpr(padding,out0);
+    Expr out0 = d_theoryBitvector->newBVExtractExpr(e[0],bvLength-1,shiftSize.getInt());
+    output = d_theoryBitvector->newConcatExpr(padding,out0);
   }
 
   Proof pf;
@@ -2124,6 +2131,24 @@ Theorem BitvectorTheoremProducer::bvlshrToConcat(const Expr& e)
   return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
+Theorem BitvectorTheoremProducer::bvShiftZero(const Expr& e)
+{
+  if(CHECK_PROOFS) {
+	int kind = e.getOpKind();
+	CHECK_SOUND((kind == BVLSHR || kind == BVSHL || kind == BVASHR || kind == LEFTSHIFT || kind == CONST_WIDTH_LEFTSHIFT || kind == RIGHTSHIFT)
+				 && e.arity() == 2, "BitvectorTheoremProducer::bvShiftZero: e = "+e.toString());
+	CHECK_SOUND(e[0].getOpKind() == BVCONST && d_theoryBitvector->computeBVConst(e[0]) == 0, "BitvectorTheoremProducer::bvShiftZero: e = "+e.toString());
+  }
+
+  int bvLength = d_theoryBitvector->BVSize(e);
+  Expr output = d_theoryBitvector->newBVZeroString(bvLength);
+
+  Proof pf;
+  if(withProof())
+    pf = newPf("shift_zero", e);
+
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
+}
 
 //! BVASHR(t,c) = SX(t[n-1,c], n-1)
 Theorem BitvectorTheoremProducer::bvashrToConcat(const Expr& e)
@@ -2138,35 +2163,17 @@ Theorem BitvectorTheoremProducer::bvashrToConcat(const Expr& e)
 
   Rational shiftSize=d_theoryBitvector->computeBVConst(e[1]);
 
-  if (shiftSize >= bvLength) shiftSize = bvLength-1;
-
-  Expr padding = d_theoryBitvector->newBVZeroString(shiftSize.getInt());
-  Expr out0 = d_theoryBitvector->newBVExtractExpr(e[0],bvLength-1,shiftSize.getInt());
-  Expr output = d_theoryBitvector->newSXExpr(out0, bvLength);
+  Expr output;
+  if (shiftSize > 0) {
+	  if (shiftSize >= bvLength) shiftSize = bvLength - 1;
+	  Expr out0 = d_theoryBitvector->newBVExtractExpr(e[0],bvLength-1,shiftSize.getInt());
+	  output = d_theoryBitvector->newSXExpr(out0, bvLength);
+  } else output = e[0];
 
   Proof pf;
   if(withProof())
     pf = newPf("bvashr_to_concat", e);
   return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
-}
-
-
-Theorem BitvectorTheoremProducer::rewriteXOR(const Expr& e)
-{
-  if (CHECK_PROOFS) {
-    CHECK_SOUND(e.getKind() == BVXOR && e.arity() == 2,
-                "Bad call to rewriteXOR");
-  }
-  Expr nege0 = d_theoryBitvector->newBVNegExpr(e[0]);
-  Expr nege1 = d_theoryBitvector->newBVNegExpr(e[1]);
-  Expr or1 = d_theoryBitvector->newBVAndExpr(nege0, e[1]);
-  Expr or2 = d_theoryBitvector->newBVAndExpr(e[0], nege1);
-
-  Proof pf;
-  if (withProof())
-    pf = newPf("rewriteXOR", e);
-  return newRWTheorem(e, d_theoryBitvector->newBVOrExpr(or1, or2),
-                      Assumptions::emptyAssump(), pf);
 }
 
 
@@ -2176,16 +2183,12 @@ Theorem BitvectorTheoremProducer::rewriteXNOR(const Expr& e)
     CHECK_SOUND(e.getKind() == BVXNOR && e.arity() == 2,
                 "Bad call to rewriteXNOR");
   }
-  Expr nege0 = d_theoryBitvector->newBVNegExpr(e[0]);
-  Expr nege1 = d_theoryBitvector->newBVNegExpr(e[1]);
-  Expr or1 = d_theoryBitvector->newBVAndExpr(nege0, nege1);
-  Expr or2 = d_theoryBitvector->newBVAndExpr(e[0], e[1]);
-
+  Expr res = d_theoryBitvector->newBVNegExpr(e[0]);
+  res = d_theoryBitvector->newBVXorExpr(res, e[1]);
   Proof pf;
   if (withProof())
     pf = newPf("rewriteXNOR", e);
-  return newRWTheorem(e, d_theoryBitvector->newBVOrExpr(or1, or2),
-                      Assumptions::emptyAssump(), pf);
+  return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -2246,12 +2249,18 @@ Theorem BitvectorTheoremProducer::rewriteBVSub(const Expr& e)
   vector<Expr> k;
   k.push_back(e[0]);
   k.push_back(d_theoryBitvector->newBVUminusExpr(e[1]));
-  
+  Expr new_expr = d_theoryBitvector->newBVPlusExpr(bvsize, k);
+
+  ExprMap<Rational> sumHashMap;
+  Rational known_term;
+  getPlusTerms(new_expr, known_term, sumHashMap);
+  new_expr = buildPlusTerm(bvsize, known_term, sumHashMap);
+
+
   Proof pf;
   if (withProof())
     pf = newPf("rewriteBVSub", e);
-  return newRWTheorem(e, d_theoryBitvector->newBVPlusExpr(bvsize, k),
-                      Assumptions::emptyAssump(), pf);
+  return newRWTheorem(e, new_expr, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -2339,7 +2348,7 @@ BitvectorTheoremProducer::bvplusZeroConcatRule(const Expr& e) {
     TRACE("bv 0@+", "bvplusZeroConcatRule(", e, "): skipped");
     return d_theoryBitvector->reflexivityRule(e);
   }
-  
+
   Expr res(d_theoryBitvector->newBVPlusExpr(bvplusSize+constSize,
 					    bvplus.getKids()));
 
@@ -2524,8 +2533,8 @@ BitvectorTheoremProducer::extractBitwise(const Expr& e, int kind,
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == EXTRACT && e.arity() == 1,
 		"BitvectorTheoremProducer::"+pfName+": e = "+e.toString());
-    CHECK_SOUND(kind == BVAND || kind == BVOR || 
-		kind == BVNEG || kind == BVXOR || 
+    CHECK_SOUND(kind == BVAND || kind == BVOR ||
+		kind == BVNEG || kind == BVXOR ||
 		kind == BVXNOR,
 		"BitvectorTheoremProducer::"+pfName+": kind = "
 		+d_theoryBitvector->getEM()->getKindName(kind));
@@ -2587,16 +2596,16 @@ BitvectorTheoremProducer::iteExtractRule(const Expr& e) {
   }
   int hi = d_theoryBitvector->getExtractHi(e);
   int low = d_theoryBitvector->getExtractLow(e);
-  
+
   if(CHECK_PROOFS) {
-    CHECK_SOUND(e[0].getKind() == ITE && 
+    CHECK_SOUND(e[0].getKind() == ITE &&
 		e[0].arity()==3 &&
 		BITVECTOR == e[0].getType().getExpr().getOpKind(),
 		"BitvectorTheoremProducer::iteExtractRule: "
 		"input must be an bitvector EXTRACT expr over an ITE:\n" +
 		e.toString());
-    CHECK_SOUND(hi >= low && d_theoryBitvector->BVSize(e[0]) >= hi-low, 
-		"BitvectorTheoremProducer::iteExtractRule: " 
+    CHECK_SOUND(hi >= low && d_theoryBitvector->BVSize(e[0]) >= hi-low,
+		"BitvectorTheoremProducer::iteExtractRule: "
 		"i should be greater than j in e[i:j] = "
 		+e.toString());
   }
@@ -2609,7 +2618,7 @@ BitvectorTheoremProducer::iteExtractRule(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("ite_extract_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! ~ite(c,t1,t2) <=> ite(c,~t1,~t2)
@@ -2622,7 +2631,7 @@ BitvectorTheoremProducer::iteBVnegRule(const Expr& e) {
 		e.toString());
   }
   if(CHECK_PROOFS) {
-    CHECK_SOUND(e[0].getKind() == ITE && 
+    CHECK_SOUND(e[0].getKind() == ITE &&
 		e[0].arity()==3 &&
 		BITVECTOR == e[0].getType().getExpr().getOpKind(),
 		"BitvectorTheoremProducer::itebvnegrule: "
@@ -2638,7 +2647,7 @@ BitvectorTheoremProducer::iteBVnegRule(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("ite_bvneg_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! ~c1 = c  (bit-wise negation of a constant bitvector)
@@ -2828,33 +2837,36 @@ BitvectorTheoremProducer::negBVxnor(const Expr& e) {
 }
 
 
-//! c1&c2 = c  (bit-wise AND constant bitvectors)
-//! c1 op c2 = c  -- bit-wise AND and OR of constant bitvectors
+//! c1 op c2 = c  -- bit-wise AND, OR, XOR of constant bitvectors
 Theorem BitvectorTheoremProducer::bitwiseConst(const Expr& e,
-					       const std::vector<int>& idxs,
-					       bool isAnd) {
-  string funName(isAnd? "andConst" : "orConst");
+					       const vector<int>& idxs,
+					       int kind)
+{
   if(CHECK_PROOFS) {
     // The kids must be constant expressions
-    CHECK_SOUND(e.getOpKind() == (isAnd ? BVAND : BVOR),
-		"BitvectorTheoremProducer::"+funName+": e = "+e.toString());
-    CHECK_SOUND(idxs.size() >= 2, "BitvectorTheoremProducer::"+funName
-		+"():\n e = "+e.toString());
+    CHECK_SOUND(e.getOpKind() == kind,
+		"BitvectorTheoremProducer::bitwiseConst: e = "+e.toString());
+    CHECK_SOUND(e.getOpKind() == BVAND ||
+                e.getOpKind() == BVOR ||
+                e.getOpKind() == BVXOR, "Expected AND, OR, or XOR");
+    CHECK_SOUND(idxs.size() >= 2, "BitvectorTheoremProducer::bitwiseConst():\n e = "
+                +e.toString());
     for(size_t i=0; i<idxs.size(); ++i) {
       CHECK_SOUND(idxs[i] < e.arity(),
-		  "BitvectorTheoremProducer::"+funName+": idxs["
+		  "BitvectorTheoremProducer::bitwiseConst: idxs["
 		  +int2string(i)+"]="+int2string(idxs[i])
 		  +", e.arity() = "+int2string(e.arity())
 		  +"\n e = "+e.toString());
       CHECK_SOUND(e[idxs[i]].getKind() == BVCONST,
-		  "BitvectorTheoremProducer::"+funName+": e = "+e.toString());
+		  "BitvectorTheoremProducer::bitwiseConst: e = "+e.toString());
     }
   }
+  // Initialize 'bits' with all 1's or 0's, depending on kind
   vector<bool> bits;
-  // Initialize 'bits' with all 1's or 0's, depending on isAnd value
   int size = d_theoryBitvector->BVSize(e);
-  for(int bit=0; bit<size; bit++)
-    bits.push_back(isAnd);
+  for(int bit=0; bit<size; bit++) {
+    bits.push_back(kind == BVAND);
+  }
 
   vector<Expr> kids(1); // Reserve the first element for the constant bitvector
   size_t ii(0); // The next index of idxs to match
@@ -2864,19 +2876,20 @@ Theorem BitvectorTheoremProducer::bitwiseConst(const Expr& e,
     if(i == idx) {
       if(CHECK_PROOFS) {
 	CHECK_SOUND(ei.getKind() == BVCONST,
-		    "BitvectorTheoremProducer::"+funName+": e["
+		    "BitvectorTheoremProducer::bitwiseConst: e["
 		    +int2string(i)+"] = "+ei.toString());
 	CHECK_SOUND(d_theoryBitvector->getBVConstSize(ei) == (unsigned)size,
-		    "BitvectorTheoremProducer::"+funName+": e["
+		    "BitvectorTheoremProducer::bitwiseConst: e["
 		    +int2string(i)+"] = "+ei.toString());
       }
-      // "AND" in the constant bitvector
+      // Incorporate the constant bitvector
       for(int bit=0; bit<size; bit++)
-	bits[bit] = isAnd ?
-          (bits[bit] && d_theoryBitvector->getBVConstValue(ei, bit))
-	  : (bits[bit] || d_theoryBitvector->getBVConstValue(ei, bit));
+	bits[bit] =
+          kind == BVAND ? (bits[bit] && d_theoryBitvector->getBVConstValue(ei, bit)) :
+	  kind == BVOR ? (bits[bit] || d_theoryBitvector->getBVConstValue(ei, bit)) :
+          bits[bit] != d_theoryBitvector->getBVConstValue(ei, bit);
       // Advance the index of idxs
-      if(ii < idxs.size())
+      if (ii < idxs.size() - 1)
 	idx = idxs[++ii];
       else
 	idx = e.arity();
@@ -2887,9 +2900,10 @@ Theorem BitvectorTheoremProducer::bitwiseConst(const Expr& e,
   // Create the new constant bitvector and make it the first kid
   kids[0] = d_theoryBitvector->newBVConstExpr(bits);
   // Contruct the final expression.
-  Expr res = (kids.size() == 1)? kids[0]
-    : isAnd? d_theoryBitvector->newBVAndExpr(kids)
-    : d_theoryBitvector->newBVOrExpr(kids);
+  Expr res = (kids.size() == 1) ? kids[0] :
+    kind == BVAND ? d_theoryBitvector->newBVAndExpr(kids) :
+    kind == BVOR ? d_theoryBitvector->newBVOrExpr(kids) :
+    d_theoryBitvector->newBVXorExpr(kids);
 
   Proof pf;
   if(withProof()) {
@@ -2897,35 +2911,28 @@ Theorem BitvectorTheoremProducer::bitwiseConst(const Expr& e,
     vector<Expr> indices;
     for(size_t i=0, iend=idxs.size(); i<iend; ++i)
       indices.push_back(rat(idxs[i]));
-    pf = newPf(isAnd? "bitand_const" : "bitor_const",
-	       e, Expr(RAW_LIST, indices));
+    pf = newPf("bitwise_const", e, Expr(RAW_LIST, indices));
   }
   return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
 
-//! ... & (t1@...@tk) & ... = (...& t1 &...)@...@(...& tk &...)
-/*!
- * Lifts concatenation to the top of bit-wise AND.  Takes the
- * bit-wise AND expression 'e' and the index 'i' of the
- * concatenation.
- */
-Theorem
-BitvectorTheoremProducer::bitwiseConcat(const Expr& e, int idx, bool isAnd) {
-  string funName(isAnd? "andConcat" : "orConcat");
+//! Lifts concatenation above bitwise operators.
+Theorem BitvectorTheoremProducer::bitwiseConcat(const Expr& e, int kind)
+{
   if(CHECK_PROOFS) {
-    CHECK_SOUND(e.getOpKind() == (isAnd ? BVAND : BVOR),
-		"BitvectorTheoremProducer::"+funName+": e = "+e.toString());
-    CHECK_SOUND(idx < e.arity(),
-		"BitvectorTheoremProducer::"+funName+": e = "+e.toString()
-		+"\n idx = "+int2string(idx)
-		+"\n e.arity() = "+int2string(e.arity()));
-    CHECK_SOUND(e[idx].getOpKind() == CONCAT && e[idx].arity() > 0,
-		"BitvectorTheoremProducer::"+funName+": e["+int2string(idx)
-		+"] = "+e[idx].toString());
+    CHECK_SOUND(e.getOpKind() == kind,
+		"BitvectorTheoremProducer::bitwiseConcat: e = "+e.toString());
   }
 
   int arity = e.arity();
+  int idx;
+  for (idx = 0; idx < arity; ++idx) {
+    if (e[idx].getOpKind() == CONCAT) break;
+  }
+  if (idx == arity)
+    return d_theoryBitvector->reflexivityRule(e);
+
   const Expr& ei = e[idx];
 
   // Build the top-level concatenation
@@ -2943,10 +2950,7 @@ BitvectorTheoremProducer::bitwiseConcat(const Expr& e, int idx, bool isAnd) {
       else
 	kids.push_back(d_theoryBitvector->newBVExtractExpr(e[j], hi, low));
     }
-    if(isAnd)
-      concatKids.push_back(d_theoryBitvector->newBVAndExpr(kids));
-    else
-      concatKids.push_back(d_theoryBitvector->newBVOrExpr(kids));
+    concatKids.push_back(Expr(kind, kids));
     if(i+1<iend) {
       int newHi = low-1;
       low = low - d_theoryBitvector->BVSize(ei[i+1]);
@@ -2956,26 +2960,25 @@ BitvectorTheoremProducer::bitwiseConcat(const Expr& e, int idx, bool isAnd) {
   Expr res = d_theoryBitvector->newConcatExpr(concatKids);
   Proof pf;
   if(withProof())
-    pf = newPf(isAnd? "bitand_concat" : "bitor_concat", e, rat(idx));
+    pf = newPf("bitwise_concat", e, rat(idx));
   return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
 
-Theorem
-BitvectorTheoremProducer::bitwiseFlatten(const Expr& e, bool isAnd) {
-  string funName(isAnd? "andFlatten" : "orFlatten");
-  int kind = isAnd? BVAND : BVOR;
-
+//! Flatten bitwise operation
+Theorem BitvectorTheoremProducer::bitwiseFlatten(const Expr& e, int kind)
+{
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == kind && e.arity()>=2,
-		"BitvectorTheoremProducer::"+funName+": e = "+e.toString());
+		"BitvectorTheoremProducer::bitwiseFlatten: e = "+e.toString());
+    CHECK_SOUND(e.getOpKind() == BVAND ||
+                e.getOpKind() == BVOR ||
+                e.getOpKind() == BVXOR, "Expected AND, OR, or XOR");
   }
   int bvLength = d_theoryBitvector->BVSize(e);
-  Expr output;
-  int flag = 0;
 
   // flatten the nested ops
-  std::vector<Expr> flattenkids;
+  vector<Expr> flattenkids;
   for(Expr::iterator i = e.begin(),iend=e.end();i!=iend; ++i) {
     if(i->getOpKind() == kind)
       flattenkids.insert(flattenkids.end(),
@@ -2985,261 +2988,179 @@ BitvectorTheoremProducer::bitwiseFlatten(const Expr& e, bool isAnd) {
   }
 
   // drop duplicate subterms and detect conflicts like t, ~t
-  std::vector<Expr> outputkids;
+  Expr output;
+  int flag;
   ExprMap<int> likeTerms;
-  std::vector<Expr>::iterator j = flattenkids.begin();
-  std::vector<Expr>::iterator jend = flattenkids.end();
-  for(;j!=jend; ++j) {
+  vector<Expr>::iterator j = flattenkids.begin();
+  vector<Expr>::iterator jend = flattenkids.end();
+  bool negate = false;
+
+  for(; output.isNull() && j != flattenkids.end(); ++j) {
+    Expr t = *j;
+    if (kind == BVXOR && t.getOpKind() == BVNEG) {
+      negate = !negate;
+      t = t[0];
+    }
     //check if *j is duplicated or its negation already occured
-    flag = sameKidCheck(*j, likeTerms);
+    flag = sameKidCheck(t, likeTerms);
     switch(flag) {
-    case 0: 
-      //no duplicates
-      outputkids.push_back(*j);
-      break;
-    case 1: 
-      //duplicate detected. ignore the duplicate
-      break;
-    case -1:{
-      //conflict detected
-      if(isAnd)
-	output = d_theoryBitvector->newBVZeroString(bvLength);
-      else
-	output = d_theoryBitvector->newBVOneString(bvLength);
-      break;
+      case 0:
+        //no duplicates
+        break;
+      case 1:
+        //duplicate detected. ignore the duplicate for BVAND, BVOR
+        if (kind == BVXOR) {
+          // remove both for BVXOR
+          likeTerms.erase(t);
+        }
+        break;
+      case -1:
+        //conflict detected
+        if (kind == BVAND)
+          output = d_theoryBitvector->newBVZeroString(bvLength);
+        else if (kind == BVOR)
+          output = d_theoryBitvector->newBVOneString(bvLength);
+        else {
+          DebugAssert(false, "Shouldn't be possible");
+        }
+        break;
+      default:
+        DebugAssert(false,
+                    "control should not reach here");
+        break;
     }
-    default:
-      DebugAssert(false,
-		  "control should not reach here");
-      break;
-    }
-    if(-1 == flag)
-      break;
   }
-  
-  if(flag != -1) {
-    DebugAssert(outputkids.size()>0,
-		"TheoryBitvector::bitwiseFlatten: fatal error");
-    // Sort the kids according to operator<(Expr, Expr)
-    if(CHECK_PROOFS)
-      CHECK_SOUND(outputkids.size() > 0,
+
+  if (output.isNull()) {
+    vector<Expr> outputkids;
+    ExprMap<int>::iterator it = likeTerms.begin();
+    for(; it != likeTerms.end(); ++it) {
+      outputkids.push_back((*it).first);
+    }
+    if(CHECK_PROOFS) {
+      CHECK_SOUND(kind == BVXOR || outputkids.size() > 0,
 		  "TheoryBitvector:bitwiseFlatten: fatal error");
-    sort(outputkids.begin(), outputkids.end());
-    if(outputkids.size() >= 2)
-      output = Expr(e.getOp(), outputkids);
-    else
-      output = *(outputkids.begin());//iterator is cheaper than [0]      
+    }
+    if (outputkids.size() == 0) {
+      outputkids.push_back(d_theoryBitvector->newBVZeroString(bvLength));
+    }
+    if (negate) {
+      outputkids[0] = d_theoryBitvector->newBVNegExpr(outputkids[0]);
+    }
+    if (outputkids.size() == 1) {
+      output = outputkids[0];
+    }
+    else {
+      output = Expr(kind, outputkids);
+    }
   }
 
   Proof pf;
   if(withProof())
-    pf = newPf(isAnd? "bitand_flatten" : "bitor_flatten", e);
+    pf = newPf("bitwise_flatten", e);
   return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
-//! c1&c2 = c  (bit-wise AND constant bitvectors)
-Theorem BitvectorTheoremProducer::andConst(const Expr& e,
-					   const std::vector<int>& idxs) {
-  return bitwiseConst(e, idxs, true);
-}
 
-// 0bin0...0 & t = 0bin0...0  -- bit-wise AND with zero bitvector
-/* \param e is the bit-wise AND expr
- *  \param idx is the index of the zero bitvector
- */
-Theorem
-BitvectorTheoremProducer::andZero(const Expr& e, int idx) {
+// Rewrite bitwise operation with constant using concatenation,
+// negation, and extraction
+Theorem BitvectorTheoremProducer::bitwiseConstElim(const Expr& e,
+                                                   int idx, int kind)
+{
   if(CHECK_PROOFS) {
-    CHECK_SOUND(e.getOpKind() == BVAND,
-		"BitvectorTheoremProducer::andZero: e = "+e.toString());
-    CHECK_SOUND(idx < e.arity(),
-		"BitvectorTheoremProducer::andZero: e = "+e.toString()
+    CHECK_SOUND(e.getOpKind() == kind,
+		"BitvectorTheoremProducer::bitwiseConstElim: e = "+e.toString());
+    CHECK_SOUND(e.getOpKind() == BVAND ||
+                e.getOpKind() == BVOR ||
+                e.getOpKind() == BVXOR, "Expected AND, OR, or XOR");
+    CHECK_SOUND(idx < e.arity() && e.arity() > 1,
+		"BitvectorTheoremProducer::bitwiseConstElim: e = "+e.toString()
 		+"\n idx = "+int2string(idx)
 		+"\n e.arity() = "+int2string(e.arity()));
-    CHECK_SOUND(e[idx].getKind() == BVCONST && 
-		0 == d_theoryBitvector->computeBVConst(e[idx]),
-		"BitvectorTheoremProducer::andZero: e["+int2string(idx)
+    CHECK_SOUND(e[idx].getOpKind() == BVCONST,
+		"BitvectorTheoremProducer::bitwiseConstElim: e["+int2string(idx)
 		+"] = "+e[idx].toString());
+  }
+
+  int bvLength = d_theoryBitvector->BVSize(e);
+  Expr output;
+  vector<Expr> kids;
+  for (int i = 0; i < e.arity(); ++i) {
+    if (i == idx) continue;
+    kids.push_back(e[i]);
+  }
+  if (kids.size() == 1) output = kids[0];
+  else output = Expr(kind, kids);
+
+  const Expr& c = e[idx];
+  int i=d_theoryBitvector->getBVConstSize(c)-1;
+  bool curVal = d_theoryBitvector->getBVConstValue(c, i);
+  int hi = bvLength-1;
+  Expr term;
+  vector<Expr> concatTerms;
+
+  for(--i; i >= 0; --i) {
+    if (d_theoryBitvector->getBVConstValue(c,i) != curVal) {
+      if (kind == BVAND && curVal == false) {
+        term = d_theoryBitvector->newBVZeroString(hi-i);
+      }
+      else if (kind == BVOR && curVal == true) {
+        term = d_theoryBitvector->newBVOneString(hi-i);
+      }
+      else {
+        term = d_theoryBitvector->newBVExtractExpr(output, hi, i+1);
+        if (kind == BVXOR && curVal == true) {
+          term = d_theoryBitvector->newBVNegExpr(term);
+        }
+      }
+      concatTerms.push_back(term);
+      curVal = !curVal;
+      hi = i;
+    }
+  }
+
+  if (kind == BVAND && curVal == false) {
+    term = d_theoryBitvector->newBVZeroString(hi+1);
+  }
+  else if (kind == BVOR && curVal == true) {
+    term = d_theoryBitvector->newBVOneString(hi+1);
+  }
+  else {
+    if (hi < bvLength-1) {
+      term = d_theoryBitvector->newBVExtractExpr(output, hi, 0);
+    }
+    else term = output;
+    if (kind == BVXOR && curVal == true) {
+      term = d_theoryBitvector->newBVNegExpr(term);
+    }
+  }
+  concatTerms.push_back(term);
+  if (concatTerms.size() == 1) {
+    output = concatTerms[0];
+  }
+  else {
+    output = d_theoryBitvector->newConcatExpr(concatTerms);
   }
 
   Proof pf;
   if(withProof())
-    pf = newPf("bitand_zero", e, rat(idx));
-  return newRWTheorem(e, e[idx], Assumptions::emptyAssump(), pf);
+    pf = newPf("bitwise_zero", e, rat(idx));
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 
-Theorem
-BitvectorTheoremProducer::andOne(const Expr& e, const vector<int> idxs) {
-  if(CHECK_PROOFS) {
-    CHECK_SOUND(e.getOpKind() == BVAND,
-		"BitvectorTheoremProducer::andOne: e = "+e.toString());
-    CHECK_SOUND(idxs.size() > 0,
-		"BitvectorTheoremProducer::andOne: e = "+e.toString());
-    int lastIdx(-1);
-    for(vector<int>::const_iterator i=idxs.begin(), iend=idxs.end();
-	i!=iend; ++i) {
-      CHECK_SOUND(lastIdx < (*i) && (*i) < e.arity(),
-		"BitvectorTheoremProducer::andOne: e = "+e.toString()
-		+"\n lastIdx = "+int2string(lastIdx)
-		+"\n *i = "+int2string(*i)
-		+"\n e.arity() = "+int2string(e.arity()));
-      lastIdx=(*i);
-      const Expr& ei = e[*i];
-      CHECK_SOUND(ei.getKind() == BVCONST,
-		  "BitvectorTheoremProducer::andOne: e["+int2string(*i)
-		  +"] = "+ei.toString());
-
-      for(int j=0,jend=(int)d_theoryBitvector->getBVConstSize(ei); j<jend; ++j)
-	CHECK_SOUND(d_theoryBitvector->getBVConstValue(ei, j),
-		    "BitvectorTheoremProducer::andOne: e["+int2string(j)
-		    +"] = "+ei.toString());
-    }
-  }
-  Proof pf;
-  if(withProof()) {
-    vector<Expr> es;
-    es.push_back(e);
-    for(vector<int>::const_iterator i=idxs.begin(), iend=idxs.end();
-	i!=iend; ++i)
-      es.push_back(rat(*i));
-    pf=newPf("bitand_one", es);
-  }
-
-  vector<Expr> kids;
-  size_t idx(0);
-  for (int i=0; i<e.arity(); ++i) {
-    if (idx < idxs.size() && i == idxs[idx]) idx++;
-    else kids.push_back(e[i]);
-  }
-  Expr res;
-  if(kids.size()>=2) res = Expr(e.getOp(), kids);
-  else if(kids.size()==1) res = kids[0];
-  else res = e[0]; // All kids are const bitvectors of 1's
-  return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
-}
-
-
-//! ... & (t1@...@tk) & ... = (...& t1 &...)@...@(...& tk &...)
-/*!
- * Lifts concatenation to the top of bit-wise AND.  Takes the
- * bit-wise AND expression 'e' and the index 'i' of the
- * concatenation.
- */
-Theorem
-BitvectorTheoremProducer::andConcat(const Expr& e, int idx) {
-  return bitwiseConcat(e, idx, true);
-}
-
-
-//! (t1 & (t2 & t3) & t4) = t1 & t2 & t3 & t4  -- flatten bit-wise AND
-/*! Also reorders the terms according to a fixed total ordering */
-Theorem
-BitvectorTheoremProducer::andFlatten(const Expr& e) {
-  return bitwiseFlatten(e, true);
-}
-
-
-
-//! c1|c2 = c  (bit-wise OR of constant bitvectors)
-Theorem BitvectorTheoremProducer::orConst(const Expr& e,
-					  const std::vector<int>& idxs) {
-  return bitwiseConst(e, idxs, false);
-}
-
-
-//! 0bin1...1 | t = 0bin1...1  -- bit-wise OR with bitvector of 1's
-/*! \param e is the bit-wise OR expr
- *  \param idx is the index of the bitvector of 1's
- */
-Theorem
-BitvectorTheoremProducer::orOne(const Expr& e, int idx) {
-  if(CHECK_PROOFS) {
-    CHECK_SOUND(e.getOpKind() == BVOR,
-		"BitvectorTheoremProducer::orOne: e = "+e.toString());
-    CHECK_SOUND(idx < e.arity(),
-		"BitvectorTheoremProducer::orOne: e = "+e.toString()
-		+"\n idx = "+int2string(idx)
-		+"\n e.arity() = "+int2string(e.arity()));
-    CHECK_SOUND(e[idx].getKind() == BVCONST,
-		"BitvectorTheoremProducer::orOne: e["+int2string(idx)
-		+"] = "+e[idx].toString());
-  }
-
-  const Expr& ei = e[idx];
-
-  if(CHECK_PROOFS) {
-    for(int i=0, iend=d_theoryBitvector->getBVConstSize(ei); i<iend; ++i)
-      CHECK_SOUND(d_theoryBitvector->getBVConstValue(ei,i),
-		"BitvectorTheoremProducer::orOne: e["+int2string(idx)
-		+"] = "+ei.toString());
-  }
-
-  Proof pf;
-  if(withProof())
-    pf = newPf("bitand_zero", e, rat(idx));
-  return newRWTheorem(e, e[idx], Assumptions::emptyAssump(), pf);
-}
-
-
-Theorem
-BitvectorTheoremProducer::orZero(const Expr& e, const vector<int> idxs) {
-  if(CHECK_PROOFS) {
-    CHECK_SOUND(e.getOpKind() == BVOR,
-		"BitvectorTheoremProducer::orZero: e = "+e.toString());
-    CHECK_SOUND(idxs.size() > 0,
-		"BitvectorTheoremProducer::orZero: e = "+e.toString());
-    int lastIdx(-1);
-    for(vector<int>::const_iterator i=idxs.begin(), iend=idxs.end();
-	i!=iend; ++i) {
-      CHECK_SOUND(lastIdx < (*i) && (*i) < e.arity(),
-		"BitvectorTheoremProducer::orZero: e = "+e.toString()
-		+"\n lastIdx = "+int2string(lastIdx)
-		+"\n *i = "+int2string(*i)
-		+"\n e.arity() = "+int2string(e.arity()));
-      lastIdx=(*i);
-      const Expr& ei = e[*i];
-      CHECK_SOUND(ei.getKind() == BVCONST &&
-		  d_theoryBitvector->computeBVConst(ei)==0,
-		  "BitvectorTheoremProducer::orZero: e["+int2string(*i)
-		  +"] = "+ei.toString());
-    }
-  }
-  Proof pf;
-  if(withProof()) {
-    vector<Expr> es;
-    es.push_back(e);
-    for(vector<int>::const_iterator i=idxs.begin(), iend=idxs.end();
-	i!=iend; ++i)
-      es.push_back(rat(*i));
-    pf=newPf("bitor_zero", es);
-  }
-
-  vector<Expr> kids;
-  size_t idx(0);
-  for(int i=0; i<e.arity(); ++i) {
-    if (idx < idxs.size() && i == idxs[idx]) idx++;
-    else kids.push_back(e[i]);
-  }
-  Expr res;
-  if(kids.size()>=2) res = Expr(e.getOp(), kids);
-  else if(kids.size()==1) res = kids[0];
-  else res = e[0]; // All kids are const bitvectors of 0's
-  return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
-}
-
-/*! checks if e is already present in likeTerms without conflicts. 
+/*! checks if e is already present in likeTerms without conflicts.
  *  if yes return 1, else{ if conflict return -1 else return 0 }
- *  we have conflict if 
- *          1. the kind of e is BVNEG, 
+ *  we have conflict if
+ *          1. the kind of e is BVNEG,
  *                 and e[0] is already present in likeTerms
  *          2. ~e is present in likeTerms already
  */
-int BitvectorTheoremProducer::sameKidCheck(const Expr&  e, 
-					   ExprMap<int>& likeTerms) {  
+int BitvectorTheoremProducer::sameKidCheck(const Expr&  e,
+					   ExprMap<int>& likeTerms) {
   //initially flag = 0, i.e. we assume e is not in likeTerms
   int flag = 0;
-  
+
   //look for e
   ExprMap<int>::iterator it = likeTerms.find(e);
 
@@ -3247,14 +3168,12 @@ int BitvectorTheoremProducer::sameKidCheck(const Expr&  e,
   if(it==likeTerms.end()) {
     switch(e.getOpKind()) {
      case BVNEG: {
-       likeTerms[e] = 1;
        ExprMap<int>::iterator it0 = likeTerms.find(e[0]);
        if(it0!=likeTerms.end())
 	 flag = -1;
        break;
      }
      default: {
-       likeTerms[e] = 1;
        Expr bvNeg = d_theoryBitvector->newBVNegExpr(e);
        ExprMap<int>::iterator negIt = likeTerms.find(bvNeg);
        if(negIt!=likeTerms.end())
@@ -3262,48 +3181,13 @@ int BitvectorTheoremProducer::sameKidCheck(const Expr&  e,
        break;
      }
     }
+    if (flag == 0) likeTerms[e] = 1;
     return flag;
   }
 
-  //found an entry for e 
-  flag = 1;
-  switch(e.getOpKind()) {
-   case BVNEG: {
-     ExprMap<int>::iterator it0 = likeTerms.find(e[0]);
-     if(it0!=likeTerms.end())
-       flag = -1;
-     break;
-   }
-   default: {
-     Expr bvNeg = d_theoryBitvector->newBVNegExpr(e);
-     ExprMap<int>::iterator negIt = likeTerms.find(bvNeg);
-     if(negIt!=likeTerms.end())
-       flag=-1;    
-     break;
-   }
-  }
-  return flag;
+  //found an entry for e
+  return 1;
 }
-
-//! ... | (t1@...@tk) | ... = (...| t1 |...)@...@(...| tk |...)
-/*!
- * Lifts concatenation to the top of bit-wise OR.  Takes the
- * bit-wise OR expression 'e' and the index 'i' of the
- * concatenation.
- */
-Theorem
-BitvectorTheoremProducer::orConcat(const Expr& e, int idx) {
-  return bitwiseConcat(e, idx, false);
-}
-
-
-//! (t1 | (t2 | t3) | t4) = t1 | t2 | t3 | t4  -- flatten bit-wise OR
-/*! Also reorders the terms according to a fixed total ordering */
-Theorem
-BitvectorTheoremProducer::orFlatten(const Expr& e) {
-  return bitwiseFlatten(e, false);
-}
-
 
 
 //! c1@c2@...@cn = c  (concatenation of constant bitvectors)
@@ -3380,7 +3264,7 @@ BitvectorTheoremProducer::concatMergeExtract(const Expr& e) {
 		  +int2string(i)+"] = "+e.toString());
 
       int newHi = d_theoryBitvector->getExtractHi(ei);
-      
+
       CHECK_SOUND(0 <= newHi && newHi == low-1,
 		  "BitvectorTheoremProducer::concatMergeExtract:\n e["
 		  +int2string(i-1)+"] = "+e[i-1].toString()
@@ -3388,7 +3272,7 @@ BitvectorTheoremProducer::concatMergeExtract(const Expr& e) {
       low = d_theoryBitvector->getExtractLow(ei);
     }
   }
-  
+
   int hi = d_theoryBitvector->getExtractHi(e[0]);
   int low = d_theoryBitvector->getExtractLow(e[e.arity()-1]);
   Expr res = d_theoryBitvector->newBVExtractExpr(base, hi, low);
@@ -3467,7 +3351,7 @@ Theorem BitvectorTheoremProducer::bvmultConst(const Expr& e) {
   return newRWTheorem(e, d_theoryBitvector->newBVConstExpr(res), Assumptions::emptyAssump(), pf);
 }
 
-Theorem 
+Theorem
 BitvectorTheoremProducer::zeroCoeffBVMult(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == BVMULT && e.arity() == 2,
@@ -3481,7 +3365,7 @@ BitvectorTheoremProducer::zeroCoeffBVMult(const Expr& e) {
   }
   int size = d_theoryBitvector->BVSize(e);
   Expr output = d_theoryBitvector->newBVZeroString(size);
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("zerocoeff_bvmult", e);
@@ -3489,7 +3373,7 @@ BitvectorTheoremProducer::zeroCoeffBVMult(const Expr& e) {
   return result;
 }
 
-Theorem 
+Theorem
 BitvectorTheoremProducer::oneCoeffBVMult(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == BVMULT && e.arity() == 2,
@@ -3505,7 +3389,7 @@ BitvectorTheoremProducer::oneCoeffBVMult(const Expr& e) {
   }
   int size = d_theoryBitvector->BVSize(e);
   Expr output = pad(size,e);
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("onecoeff_bvmult", e);
@@ -3522,7 +3406,7 @@ BitvectorTheoremProducer::flipBVMult(const Expr& e) {
   }
   int len = d_theoryBitvector->BVSize(e);
   Expr output = d_theoryBitvector->newBVMultExpr(len,e[1],e[0]);
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("flip_bvmult", e);
@@ -3535,16 +3419,16 @@ BitvectorTheoremProducer::flipBVMult(const Expr& e) {
  * \param len is the desired bvLength of the resulting bitvector
  * \param e is the original bitvector of arbitrary bvLength
  */
-Expr 
+Expr
 BitvectorTheoremProducer::pad(int len, const Expr& e) {
   DebugAssert(len > 0,
-	      "TheoryBitvector::pad:" 
+	      "TheoryBitvector::pad:"
 	      "padding bvLength must be a non-negative integer: "+
 	      int2string(len));
   DebugAssert(BITVECTOR == e.getType().getExpr().getOpKind(),
-	      "TheoryBitvector::newBVPlusExpr:" 
+	      "TheoryBitvector::newBVPlusExpr:"
 	      "input must be a BITVECTOR: " + e.toString());
-	      
+
   int size = d_theoryBitvector->BVSize(e);
   Expr res;
   if(size == len)
@@ -3564,7 +3448,7 @@ Theorem
 BitvectorTheoremProducer::padBVPlus(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVPLUS == e.getOpKind() && e.arity()>1,
-		"BitvectorTheoremProducer::padBVPlus: " 
+		"BitvectorTheoremProducer::padBVPlus: "
 		"input must be a BVPLUS: " + e.toString());
   }
   int len = d_theoryBitvector->BVSize(e);
@@ -3594,7 +3478,7 @@ Theorem
 BitvectorTheoremProducer::padBVMult(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVMULT == e.getOpKind() && e.arity()==2,
-		"BitvectorTheoremProducer::padBVMult: " 
+		"BitvectorTheoremProducer::padBVMult: "
 		"input must be a BVMULT: " + e.toString());
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind() &&
 		BITVECTOR==e[1].getType().getExpr().getOpKind(),
@@ -3603,7 +3487,7 @@ BitvectorTheoremProducer::padBVMult(const Expr& e) {
   int len = d_theoryBitvector->BVSize(e);
   Expr e0 = pad(len, e[0]);
   Expr e1 = pad(len, e[1]);
- 
+
   Expr output = d_theoryBitvector->newBVMultExpr(len,e0,e1);
 
   Proof pf;
@@ -3618,14 +3502,14 @@ Theorem
 BitvectorTheoremProducer::bvConstMultAssocRule(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVMULT == e.getOpKind() && e.arity() == 2,
-		"BitvectorTheoremProducer::bvConstMultAssocRule: " 
+		"BitvectorTheoremProducer::bvConstMultAssocRule: "
 		"input must be a BVMULT: " + e.toString());
     CHECK_SOUND(BVMULT == e[1].getOpKind(),
-		"BitvectorTheoremProducer::bvConstMultAssocRule: " 
+		"BitvectorTheoremProducer::bvConstMultAssocRule: "
 		"e[1] must be a BVMULT:\n e= " + e.toString());
-    CHECK_SOUND(BVCONST == e[0].getKind() && 
+    CHECK_SOUND(BVCONST == e[0].getKind() &&
 		BVCONST == e[1][0].getKind(),
-		"BitvectorTheoremProducer::bvConstMultAssocRule: " 
+		"BitvectorTheoremProducer::bvConstMultAssocRule: "
 		"e[0] & e[1][0] must be a BVCONST:\n e = " + e.toString());
   }
   int len = d_theoryBitvector->BVSize(e);
@@ -3656,16 +3540,16 @@ Theorem
 BitvectorTheoremProducer::bvMultAssocRule(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVMULT == e.getOpKind() && e.arity() == 2,
-		"BitvectorTheoremProducer::bvMultAssocRule: " 
+		"BitvectorTheoremProducer::bvMultAssocRule: "
 		"input must be a BVMULT: " + e.toString());
-    CHECK_SOUND(BVMULT == e[0].getOpKind() || 
+    CHECK_SOUND(BVMULT == e[0].getOpKind() ||
 		BVMULT == e[1].getOpKind(),
-		"BitvectorTheoremProducer::bvMultAssocRule: " 
+		"BitvectorTheoremProducer::bvMultAssocRule: "
 		"e[0] or e[1] must be a BVMULT:\n e= " + e.toString());
-    CHECK_SOUND(!(BVCONST == e[0].getOpKind() && 
+    CHECK_SOUND(!(BVCONST == e[0].getOpKind() &&
 		  BVCONST == e[1][0].getOpKind()),
-		"BitvectorTheoremProducer::bvMultAssocRule: " 
-		"e[0] & e[1][0] cannot be a BVCONST:\n e = " + 
+		"BitvectorTheoremProducer::bvMultAssocRule: "
+		"e[0] & e[1][0] cannot be a BVCONST:\n e = " +
 		e.toString());
   }
   int len = d_theoryBitvector->BVSize(e);
@@ -3698,22 +3582,22 @@ BitvectorTheoremProducer::bvMultAssocRule(const Expr& e) {
   }
   sort(outputkids.begin(),outputkids.end());
 
-  Expr output;  
+  Expr output;
   switch(outputkids.size()) {
   case 3: {
-    Expr out1 = 
+    Expr out1 =
       d_theoryBitvector->newBVMultExpr(len, outputkids[1],outputkids[2]);
-    output = 
+    output =
       d_theoryBitvector->newBVMultExpr(len, outputkids[0], out1);
     break;
   }
   case 4: {
     Expr out0 =
       d_theoryBitvector->newBVMultExpr(len, outputkids[0], outputkids[1]);
-    Expr out1 = 
+    Expr out1 =
       d_theoryBitvector->newBVMultExpr(len, outputkids[2], outputkids[3]);
-    output = 
-      d_theoryBitvector->newBVMultExpr(len, out0, out1);    
+    output =
+      d_theoryBitvector->newBVMultExpr(len, out0, out1);
     break;
   }
   }
@@ -3726,14 +3610,14 @@ BitvectorTheoremProducer::bvMultAssocRule(const Expr& e) {
 }
 
 //! a*(t1+...+tn) <==> (a*t1+...+a*tn), where all kids are equibvLength
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvMultDistRule(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVMULT == e.getOpKind() && e.arity() == 2,
-		"BitvectorTheoremProducer::bvMultDistRule: " 
+		"BitvectorTheoremProducer::bvMultDistRule: "
 		"input must be a BVMULT: " + e.toString());
     CHECK_SOUND(BVPLUS == e[1].getOpKind(),
-		"BitvectorTheoremProducer::bvMultDistRule: " 
+		"BitvectorTheoremProducer::bvMultDistRule: "
 		"input must be of the form a*(t1+...+tn): " + e.toString());
   }
   int bvLength= d_theoryBitvector->BVSize(e);
@@ -3741,12 +3625,12 @@ BitvectorTheoremProducer::bvMultDistRule(const Expr& e) {
   int e1len = d_theoryBitvector->BVSize(e[1]);
   if(CHECK_PROOFS) {
     CHECK_SOUND(bvLength== e0len && e0len == e1len,
-		"BitvectorTheoremProducer::bvMultDistRule: " 
+		"BitvectorTheoremProducer::bvMultDistRule: "
 		"all subterms must of equal bvLength: " + e.toString());
   }
   const Expr& e0 = e[0];
   const Expr& e1 = e[1];
-  
+
   std::vector<Expr> v;
   Expr::iterator i = e1.begin();
   Expr::iterator iend = e1.end();
@@ -3766,7 +3650,7 @@ BitvectorTheoremProducer::bvMultDistRule(const Expr& e) {
 //! input BVPLUS expression e.output e <==> e', where e' has no BVPLUS
 //  kids. remember, the invariant is that kids are already in
 //  bvplus normal-form
-Theorem 
+Theorem
 BitvectorTheoremProducer::flattenBVPlus(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == BVPLUS && e.arity() >= 2,
@@ -3782,17 +3666,17 @@ BitvectorTheoremProducer::flattenBVPlus(const Expr& e) {
 		  "summands must be of the same bvLength as BVPLUS:\n e = "
 		  +e.toString());
   }
-  
+
   //collect the kids of e in the vector v. if any kid is a BVPLUS,
   //then collect its kids into v. then construct a BVPLUS expr
   std::vector<Expr> v;
   for(int i = 0; i < numOfKids; ++i) {
-    if(e[i].getOpKind() == BVPLUS) {      
+    if(e[i].getOpKind() == BVPLUS) {
       const Expr& bvplusKid = e[i];
       const int bvplusArity = bvplusKid.arity();
       for(int j=0; j < bvplusArity; ++j)
 	v.push_back(bvplusKid[j]);
-    } else 
+    } else
       v.push_back(e[i]);
   }
   Expr eprime = d_theoryBitvector->newBVPlusExpr(bvLength, v);
@@ -3800,7 +3684,7 @@ BitvectorTheoremProducer::flattenBVPlus(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("flatten_bvplus", e);
-  return newRWTheorem(e, eprime, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, eprime, Assumptions::emptyAssump(), pf);
 }
 
 void
@@ -3817,11 +3701,12 @@ BitvectorTheoremProducer::collectOneTermOfPlus(const Rational & coefficient,
     // Check if there is a negated form of this term already in likeTerms map.
     bool foundNegated= false;
     if (!likeTerms.empty()) {
-      Expr negTerm= d_theoryBitvector->pushNegationRec(term, true).getRHS();
+      Expr negTerm = d_theoryBitvector->newBVNegExpr(term);
+      negTerm = d_theoryBitvector->pushNegationRec(term).getRHS();
       it = likeTerms.find(negTerm);
       if (it!= likeTerms.end()) {
 	foundNegated = true;
-	
+
 	// Use the rule that ~(c*x) = -c*x-1 (based on the fact: -x= ~x+1).
 	likeTerms[negTerm] += -coefficient;
 	plusConstant+= -1;
@@ -3833,8 +3718,8 @@ BitvectorTheoremProducer::collectOneTermOfPlus(const Rational & coefficient,
   }
 }
 
-void 
-BitvectorTheoremProducer::collectLikeTermsOfPlus(const Expr& e, 
+void
+BitvectorTheoremProducer::collectLikeTermsOfPlus(const Expr& e,
 						 ExprMap<Rational> & likeTerms,
 						 Rational & plusConstant) {
   likeTerms.clear();
@@ -3894,7 +3779,7 @@ static Rational boundedModulo(const Rational & value, const Rational & modulo,
     return ret;
 }
 
-void 
+void
 BitvectorTheoremProducer::
 createNewPlusCollection(const Expr & e,
 			const ExprMap<Rational> & likeTerms,
@@ -3908,28 +3793,28 @@ createNewPlusCollection(const Expr & e,
   ExprMap<Rational>::const_iterator j = likeTerms.begin();
   ExprMap<Rational>::const_iterator jend = likeTerms.end();
   for(; j!=jend; ++j) {
-    // The coefficient will be equivalent to j->second modulus of power2 
+    // The coefficient will be equivalent to j->second modulus of power2
     // and in the range [-power2/2+1, power2/2]
     // FIXME: Need to reconsider the "best" coefficient normalization scheme.
     Rational coefficient = boundedModulo(j->second, power2, -power2/2+1);
-    if(coefficient == 0) 
+    if(coefficient == 0)
       continue;
     Expr multiplicand = j->first;
     Expr monomial;
     if (coefficient<0) {
       // Make the coefficient positive: c<0 ;
       // (c*x)= (-c)*(-x)= (-c)*(~x+1)=(-c)*(~x) -c
-      multiplicand= 
-	d_theoryBitvector->pushNegationRec(multiplicand, true).getRHS();
+      multiplicand = d_theoryBitvector->newBVNegExpr(multiplicand);
+      multiplicand = d_theoryBitvector->pushNegationRec(multiplicand).getRHS();
       coefficient= coefficient*-1;
       plusConstant +=coefficient;
     }
     if(coefficient == 1)
       monomial = multiplicand;
     else {
-      Expr coeffExpr = 
+      Expr coeffExpr =
 	d_theoryBitvector->newBVConstExpr(coefficient, bvplusLength);
-      monomial = 
+      monomial =
 	d_theoryBitvector->newBVMultExpr(bvplusLength, coeffExpr,multiplicand);
     }
     if(CHECK_PROOFS) {
@@ -3941,15 +3826,15 @@ createNewPlusCollection(const Expr & e,
 		  "TheoryBitvector::combineLikeTerms:"
 		  "bvLength of each monomial must be the same as e:\n"
 		  "monomial = " + monomial.toString() + "\n e = " + e.toString());
-    }		  
+    }
     result.push_back(monomial);
   }
-  // Positive modulo of the constant 
+  // Positive modulo of the constant
   plusConstant = boundedModulo(plusConstant, power2, 0);
 
   //make the constant a subterm of the BVPLUS expression
   if(plusConstant != 0) {
-    const Expr c = 
+    const Expr c =
       d_theoryBitvector->newBVConstExpr(plusConstant, bvplusLength);
     result.push_back(c);
   }
@@ -3964,18 +3849,18 @@ BitvectorTheoremProducer::sumNormalizedElements(int bvplusLength,
   case 0:
     //items are empty. only constant 0 remains
     return d_theoryBitvector->newBVZeroString(bvplusLength);
-    
+
   case 1:
     //items may contain a Expr of the form a*x or x or a
     return items[0];
-    
+
   default:
     //items have 2 or more kids
-    return d_theoryBitvector->newBVPlusExpr(bvplusLength, items); 
+    return d_theoryBitvector->newBVPlusExpr(bvplusLength, items);
   }
 }
 
-Theorem 
+Theorem
 BitvectorTheoremProducer::combineLikeTermsRule(const Expr& e) {
   TRACE("bitvector rewrite", "combineLikeTermsRule(",e.toString(), ") {");
   if(CHECK_PROOFS) {
@@ -4012,13 +3897,13 @@ BitvectorTheoremProducer::combineLikeTermsRule(const Expr& e) {
   ExprMap<Rational> likeTerms;
   Rational theConstant(0);
   collectLikeTermsOfPlus(e, likeTerms, theConstant);
-  
+
   std::vector<Expr> collection;
   createNewPlusCollection(e, likeTerms, theConstant, collection);
 
   Expr output= sumNormalizedElements(bvplusLength, collection);
 
-  TRACE("bitvector rewrite", 
+  TRACE("bitvector rewrite",
 	"combineLikeTermsRule =>",output.toString(), "}");
   Proof pf;
   if(withProof())
@@ -4035,7 +3920,7 @@ BitvectorTheoremProducer::lhsMinusRhsRule(const Expr& e) {
     CHECK_SOUND(BVPLUS == e[0].getOpKind() ||
 		BVPLUS == e[1].getOpKind(),
 		"BitvectorTheoremProducer::lhsMinusRhsRule: "
-		"atleast one of the input subterms must be BVPLUS:" 
+		"atleast one of the input subterms must be BVPLUS:"
 		"e = " +e.toString());
     int bvLength0 = d_theoryBitvector->BVSize(e[0]);
     int bvLength1 = d_theoryBitvector->BVSize(e[1]);
@@ -4046,14 +3931,14 @@ BitvectorTheoremProducer::lhsMinusRhsRule(const Expr& e) {
       int bvLength= d_theoryBitvector->BVSize(*i);
       CHECK_SOUND(bvLength0 == bvLength,
 		  "BitvectorTheoremProducer::lhsMinusRhsRule: "
-		  "all subterms of e[0] must be of same Length." 
+		  "all subterms of e[0] must be of same Length."
 		  "e = " +e.toString());
     }
     for(Expr::iterator i=e[1].begin(),iend=e[1].end();i!=iend;++i) {
       int bvLength= d_theoryBitvector->BVSize(*i);
       CHECK_SOUND(bvLength1 == bvLength,
 		  "BitvectorTheoremProducer::lhsMinusRhsRule: "
-		  "all subterms of e[1] must be of same Length." 
+		  "all subterms of e[1] must be of same Length."
 		  "e = " +e.toString());
     }
   }
@@ -4076,7 +3961,7 @@ BitvectorTheoremProducer::lhsMinusRhsRule(const Expr& e) {
 	  e0K.erase(i);
 	  e1K.erase(j);
 	  break;
-	}	
+	}
       }
     }
     Expr newLhs = d_theoryBitvector->newBVPlusExpr(bvLength, e0K);
@@ -4085,17 +3970,17 @@ BitvectorTheoremProducer::lhsMinusRhsRule(const Expr& e) {
     //construct -rhs
     Expr uminus = d_theoryBitvector->newBVUminusExpr(newRhs);
     //push back -rhs
-    k.push_back(uminus);  
+    k.push_back(uminus);
     //construct lhs-rhs
     Expr lhsMinusRhs = d_theoryBitvector->newBVPlusExpr(bvLength,k);
     //construct lhs-rhs=0
     output = Expr(EQ, lhsMinusRhs, zeroStr);
-  }       
-   
+  }
+
   Proof pf;
   if(withProof())
     pf = newPf("lhs_minus_rhs_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! generic rule used for bitblasting step. -e <==> ~e+1
@@ -4117,20 +4002,20 @@ BitvectorTheoremProducer::bvuminusToBVPlus(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("bvuminus_bitblast_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! -0 <==> 0, -c <==> ~c+1
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvuminusBVConst(const Expr& e) {
   if(CHECK_PROOFS) {
-    CHECK_SOUND(BVUMINUS == e.getOpKind() && 
+    CHECK_SOUND(BVUMINUS == e.getOpKind() &&
 		BVCONST == e[0].getKind(),
 		"BitvectorTheoremProducer::bvuminusBVConst: "
-		"e should be bvuminus, e[0] should be bvconst: e = " + 
+		"e should be bvuminus, e[0] should be bvconst: e = " +
 		e.toString());
   }
-  Expr output;  
+  Expr output;
   int e0Length = d_theoryBitvector->BVSize(e[0]);
   // output == 0
   if(d_theoryBitvector->computeBVConst(e[0]) == 0)
@@ -4140,15 +4025,15 @@ BitvectorTheoremProducer::bvuminusBVConst(const Expr& e) {
     Rational x = d_theoryBitvector->computeNegBVConst(e[0]);
     output = d_theoryBitvector->newBVConstExpr(x, e0Length);
   }
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bvuminus_bvconst_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! -(c*t)<=>(-c)*t; if -c==0 return e<=>0. if(-c==1) return e<=>t
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvuminusBVMult(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVUMINUS == e.getOpKind(),
@@ -4161,19 +4046,19 @@ BitvectorTheoremProducer::bvuminusBVMult(const Expr& e) {
     CHECK_SOUND(BVCONST == e[0][0].getKind(),
 		"Bitvectortheoremproducer::bvuminusBVMult: "
 		"in input expression e = " + e.toString() +
-		"\ne[0][0] should be bvconst: e[0][0] = " + e[0][0].toString());    
+		"\ne[0][0] should be bvconst: e[0][0] = " + e[0][0].toString());
     int bvLength =  d_theoryBitvector->BVSize(e);
     int e0Length =  d_theoryBitvector->BVSize(e[0]);
     int e00Length =  d_theoryBitvector->BVSize(e[0][0]);
     CHECK_SOUND(bvLength == e0Length && e0Length == e00Length,
 		"Bitvectortheoremproducer::bvuminusBVMult: "
 		"in input expression e = " + e.toString() +
-		"\nLengths of all subexprs must be equal: e = " + e.toString());    
+		"\nLengths of all subexprs must be equal: e = " + e.toString());
   }
   //e is of the form -(c*t)
   Expr output;
   int e0Length = d_theoryBitvector->BVSize(e[0]);
-  //compute ~c+1 
+  //compute ~c+1
   Rational coeff = d_theoryBitvector->computeNegBVConst(e[0][0]);
   if(0 == coeff)
     //if ~c+1 == 0
@@ -4186,15 +4071,15 @@ BitvectorTheoremProducer::bvuminusBVMult(const Expr& e) {
     Expr newcoeff = d_theoryBitvector->newBVConstExpr(coeff, e0Length);
     output = d_theoryBitvector->newBVMultExpr(e0Length, newcoeff, e[0][1]);
   }
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bvuminus_bvmult_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! -(-e) <==> e
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvuminusBVUminus(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVUMINUS == e.getOpKind(),
@@ -4211,16 +4096,16 @@ BitvectorTheoremProducer::bvuminusBVUminus(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("bvuminus_bvuminus_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! -v <==> -1*v
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvuminusVar(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVUMINUS == e.getOpKind(),
 		"BitvectorTheoremProducer::bvuminusVar: "
-		"e should be bvuminus: e =" + e.toString());    
+		"e should be bvuminus: e =" + e.toString());
   }
   Expr output;
   std::vector<bool> res;
@@ -4234,22 +4119,22 @@ BitvectorTheoremProducer::bvuminusVar(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("bvuminus_var_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! c*(-t) <==> (-c)*t
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvmultBVUminus(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(BVUMINUS == e.getOpKind(),
 		"BitvectorTheoremProducer::bvmultBVUminus: "
-		"e should be bvuminus: e =" + e.toString());    
+		"e should be bvuminus: e =" + e.toString());
     CHECK_SOUND(BVMULT == e[0].getOpKind() &&
 		BVCONST == e[0][0].getKind() &&
 		BVUMINUS == e[0][1].getOpKind(),
 		"Bitvectortheoremproducer::bvmultBVUminus: "
 		"in input expression e = " + e.toString() +
-		"\ne[0] has to be bvmult" 
+		"\ne[0] has to be bvmult"
 		"e[0][1] must be bvuminus: e[0] = " + e[0].toString());
     int bvLength = d_theoryBitvector->BVSize(e);
     int e00Length = d_theoryBitvector->BVSize(e[0][0]);
@@ -4257,14 +4142,14 @@ BitvectorTheoremProducer::bvmultBVUminus(const Expr& e) {
     CHECK_SOUND(bvLength == e00Length && e00Length == e01Length,
 		"Bitvectortheoremproducer::bvmultBVUminus: "
 		"in input expression e = " + e.toString() +
-		"\nLengths of all subexprs must be equal.");    
+		"\nLengths of all subexprs must be equal.");
   }
   Expr output;
   int bvLength = d_theoryBitvector->BVSize(e);
   const Expr& coeff = e[0][0];
   Rational negatedcoeff = d_theoryBitvector->computeNegBVConst(coeff);
-  const Expr& e010 = e[0][1][0]; 
-  
+  const Expr& e010 = e[0][1][0];
+
   if(0 == negatedcoeff)
     //if ~c+1 == 0
     output = d_theoryBitvector->newBVZeroString(bvLength);
@@ -4276,23 +4161,23 @@ BitvectorTheoremProducer::bvmultBVUminus(const Expr& e) {
     Expr newcoeff = d_theoryBitvector->newBVConstExpr(negatedcoeff, bvLength);
     output = d_theoryBitvector->newBVMultExpr(bvLength, newcoeff, e010);
   }
-  
+
   Proof pf;
   if(withProof())
     pf = newPf("bvmult_bvuminus_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 //! -(c1*t1+...+cn*tn) <==> (-(c1*t1)+...+-(cn*tn))
-Theorem 
+Theorem
 BitvectorTheoremProducer::bvuminusBVPlus(const Expr& e) {
 //   if(CHECK_PROOFS) {
 //     CHECK_SOUND(BVUMINUS == e.getOpKind(),
 // 		"BitvectorTheoremProducer::bvuminusBVPlus: "
-// 		"e should be bvuminus: e =" + e.toString());    
+// 		"e should be bvuminus: e =" + e.toString());
 //     CHECK_SOUND(BVPLUS == e[0].getOpKind(),
 // 		"BitvectorTheoremProducer::bvuminusBVPlus: "
-// 		"e[0] should be bvplus: e[0] =" + e[0].toString());    
+// 		"e[0] should be bvplus: e[0] =" + e[0].toString());
 //   }
 //   int bvLength = d_theoryBitvector->BVSize(e);
 //   const Expr& e0 = e[0];
@@ -4304,7 +4189,7 @@ BitvectorTheoremProducer::bvuminusBVPlus(const Expr& e) {
 //     Expr t = d_theoryBitvector->newBVUminusExpr(s);
 //     output.push_back(t);
 //   }
-//   Expr outputPlus = 
+//   Expr outputPlus =
 //     d_theoryBitvector->newBVPlusExpr(bvLength, output);
 
 //   Assumptions a;
@@ -4322,10 +4207,10 @@ BitvectorTheoremProducer::bvuminusBVPlus(const Expr& e) {
 Theorem
 BitvectorTheoremProducer::extractBVMult(const Expr& e) {
   if(CHECK_PROOFS) {
-    CHECK_SOUND(e.getOpKind() == EXTRACT && 
+    CHECK_SOUND(e.getOpKind() == EXTRACT &&
 		e[0].getOpKind() == BVMULT &&
 		e[0].arity() == 2,
-		"BitvectorTheoremProducer::extractBVMult: " 
+		"BitvectorTheoremProducer::extractBVMult: "
 		"input must be an EXTRACT over BVMULT:\n e = "+e.toString());
   }
   const Expr& bvmult = e[0];
@@ -4339,7 +4224,7 @@ BitvectorTheoremProducer::extractBVMult(const Expr& e) {
 		"bvmult Length must be greater than extract Length:\n e = "
 		+e.toString());
   }
-  
+
   Expr output = d_theoryBitvector->newBVMultPadExpr(extractHi+1, bvmult[0],
                                                     bvmult[1]);
   if(extractLow > 0)
@@ -4348,14 +4233,14 @@ BitvectorTheoremProducer::extractBVMult(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("extract_bvmult_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 Theorem
 BitvectorTheoremProducer::extractBVPlus(const Expr& e) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(e.getOpKind() == EXTRACT && e[0].getOpKind() == BVPLUS,
-		"BitvectorTheoremProducer::extractBVPlus: " 
+		"BitvectorTheoremProducer::extractBVPlus: "
 		"input must be an EXTRACT over BVPLUS:\n e = "+e.toString());
   }
   const Expr& bvplus = e[0];
@@ -4369,7 +4254,7 @@ BitvectorTheoremProducer::extractBVPlus(const Expr& e) {
 		"bvplus Length must be greater than extract bvLength:\n e = "
 		+e.toString());
   }
-  
+
   // Shortcut
   if(bvplusLen == extractHi+1)
     return d_theoryBitvector->reflexivityRule(e);
@@ -4382,7 +4267,7 @@ BitvectorTheoremProducer::extractBVPlus(const Expr& e) {
   Proof pf;
   if(withProof())
     pf = newPf("extract_bvplus_rule", e);
-  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);  
+  return newRWTheorem(e, output, Assumptions::emptyAssump(), pf);
 }
 
 
@@ -4408,7 +4293,7 @@ Theorem
 BitvectorTheoremProducer::expandTypePred(const Theorem& tp) {
   Expr tpExpr = tp.getExpr();
   if(CHECK_PROOFS) {
-    CHECK_SOUND(tpExpr.getOpKind() == BVTYPEPRED || 
+    CHECK_SOUND(tpExpr.getOpKind() == BVTYPEPRED ||
 		(tpExpr.getKind() == NOT && tpExpr[0].getOpKind() == BVTYPEPRED),
 		"BitvectorTheoremProducer::expandTypePred: "
 		"Expected BV_TYPE_PRED wrapper:\n tp = "
@@ -4437,7 +4322,7 @@ BitvectorTheoremProducer::expandTypePred(const Theorem& tp) {
   Proof pf;
   if(withProof())
     pf = newPf("expand_type_pred", tp.getExpr(), tp.getProof());
-  
+
   return newTheorem(res, tp.getAssumptionsRef(), pf);
 }
 
@@ -4445,7 +4330,7 @@ BitvectorTheoremProducer::expandTypePred(const Theorem& tp) {
 
 // Theorem BitvectorTheoremProducer::multiply_coeff( Rational mult_inv, const Expr& e)
 // {
-  
+
 //   Expr rhs= d_theoryBitvector->multiply_coeff( mult_inv, e);
 //   Proof pf= newPf("multiply both sides for a constant");
 //   return newRWTheorem( e, rhs, Assumptions::emptyAssump(), pf);
@@ -4462,7 +4347,7 @@ Theorem BitvectorTheoremProducer::MarkNonSolvableEq( const Expr& e)
 
   if (CHECK_PROOFS)
     CHECK_SOUND( e.isEq() &&
-		( e[0] == bv_zero || e[1] == bv_zero ), 
+		( e[0] == bv_zero || e[1] == bv_zero ),
 		"MarkNonSolvableEq: input must be a canonized equation" + e.toString());
   if( e[1] == bv_zero )
     {
@@ -4475,8 +4360,8 @@ Theorem BitvectorTheoremProducer::MarkNonSolvableEq( const Expr& e)
     {
       return d_theoryBitvector->reflexivityRule(e);
     }
-  
-  
+
+
 }
 
 // Given an expression t = 0, isolate a single leaf on the lhs if possible,
@@ -4517,7 +4402,7 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
       Expr new_lhs, new_rhs, new_coeff;
       vector<Expr> newKids;
       Rational tmp, const_term = 0;
-      for( int i = 0; i < e_kid_arity; ++i) 
+      for( int i = 0; i < e_kid_arity; ++i)
       {
         // it can be a BVMULT, a var, or a const
         Expr e_sub_kid = lhs[i];
@@ -4577,8 +4462,8 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
   Proof pf= newPf("isolate var");
   //  cout<<"TheoryBitvector::isolate_var: result is: " <<res_expr.toString()<<endl;
 
-  DebugAssert(e == res_expr || res_expr.isEq() && d_theoryBitvector->isLeaf(res_expr[0]) &&
-              !d_theoryBitvector->isLeafIn(res_expr[0], res_expr[1]),
+  DebugAssert(e == res_expr || (res_expr.isEq() && d_theoryBitvector->isLeaf(res_expr[0]) &&
+              !d_theoryBitvector->isLeafIn(res_expr[0], res_expr[1])),
               "Expected no change or solved form");
 
   return newRWTheorem(e, res_expr, Assumptions::emptyAssump(), pf);
@@ -4594,17 +4479,17 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 //   if (CHECK_PROOFS)
 //     // the RHS assumptio has to be removed
 //     CHECK_SOUND( e.isEq() &&
-// 		( e[0] == bv_zero || e[1] == bv_zero ), 
+// 		( e[0] == bv_zero || e[1] == bv_zero ),
 // 		"isolate_var: input must be an equation and one of the kids must be a zero" + e.toString());
 
 //   cout<<"BitvectorTheoremProducer::isolate_var: "<<e.toString()<<endl;
-  
+
 //   Expr new_rhs;
 //   Expr lhs;
 //   Expr new_lhs;
 //   //  Expr rhs;
 //   lhs = e[0];
-   
+
 //   int lhs_arity = lhs.arity();
 
 //   int found = 0;
@@ -4619,7 +4504,7 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 //       return newRWTheorem( t.getExpr(), e, Assumptions::emptyAssump(), pf);
 //     }
 //   else
-//     {    
+//     {
 //       //      look for a variable we can solve for
 //       for( index=0; index < lhs_arity; ++index)
 // 	{
@@ -4629,7 +4514,7 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 // 	  cout<<"BitvectorTheoremProducer::isolate_var, lhs[index]: "<<lhs[index]<<endl;
 // 	  if( d_theoryBitvector->canSolveFor( lhs[index], e))
 // 	    //	  if( d_theoryBitvector->isLeaf( lhs[index]) || (lhs[index].getOpKind() == BVMULT && lhs[index][0].isVar() && lhs[index][0].isVar()) )
-// 	    { 
+// 	    {
 // 	      found = 1;
 // 	      solve_pos = index;
 // 	      break;
@@ -4642,11 +4527,11 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 //     }
 //   DebugAssert(found,
 // 	      "BitvectorTheoremProducer::isolate_var: No variable with unary coefficient found");
-  
+
 //   // L:: Index says which variable we are solving the equation for.
 //   // for all other variables we have to invert the sign of the
 //   // coefficient and put them in the rhs with the known term
-  
+
 //   cout<<"we solve for the var in position "<<solve_pos<<endl;
 //   //L:: x= sum(list)
 //   std::vector<Expr> new_rhs_list;
@@ -4656,7 +4541,7 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 //     {
 //       if( scan != solve_pos )
 // 	{
-// 	  // I think the first case is useless	  
+// 	  // I think the first case is useless
 // 	  // the operand of the sum is just a var, but different from
 // 	  // the one we choose to solve the equation
 // // 	  if( lhs[scan].isVar())
@@ -4685,18 +4570,18 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 // 		    new_rhs_list.push_back( lhs[scan][1]);
 // 		  else
 // 		    {
-// 		      Expr bv_new_expr = d_theoryBitvector->newBVMultExpr( bv_size, bv_new_coeff, lhs[scan][1]); 
-// 		      new_rhs_list.push_back( bv_new_expr );  
+// 		      Expr bv_new_expr = d_theoryBitvector->newBVMultExpr( bv_size, bv_new_coeff, lhs[scan][1]);
+// 		      new_rhs_list.push_back( bv_new_expr );
 // 		    }
 // 		}
 // 	      else
-// 		{		  
+// 		{
 // 		  new_rhs_list.push_back( d_theoryBitvector->newBVUminusExpr( lhs[scan] ) );
 // 		}
 // 	    }
 // 	    else
 // 	      if( d_theoryBitvector->isLeaf( lhs[scan] ) )
-// 		new_rhs_list.push_back( lhs[scan] );  
+// 		new_rhs_list.push_back( lhs[scan] );
 // 	      else
 // 		DebugAssert(0,
 // 			    "BitvectorTheoremProducer::isolate_var: subterm of non implemented kind");
@@ -4724,7 +4609,7 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 //   Theorem th_res= newRWTheorem( e, expr_res, Assumptions::emptyAssump(), pf);
 //   cout<<"TheoryBitvector::isolate_var: result is: "<<expr_res.toString()<<endl;
 
-  
+
 //   return newRWTheorem( t.getExpr(), expr_res, Assumptions::emptyAssump(), pf);
 //   //return d_theoryBitvector->iffMP( e, expr_res);
 // }
@@ -4733,14 +4618,14 @@ Theorem BitvectorTheoremProducer::isolate_var(const Expr& e)
 Theorem BitvectorTheoremProducer::BVMult_order_subterms( const Expr& e )
 {
   if (CHECK_PROOFS)
-    CHECK_SOUND(e.getOpKind() == BVMULT, 
+    CHECK_SOUND(e.getOpKind() == BVMULT,
 		"BitvectorTheoremProducer::BVMult_order_vars: input must be a BVMULT expression" + e.toString());
 
   //  cout<<"BitvectorTheoremProducer::BVMult_order_subterms, e: "<<e.toString()<<endl;
   int bv_size= d_theoryBitvector->BVSize(e);
   Expr new_expr;
   vector<Expr> vars;
-  
+
   // as the term has already been processed by BVcanon, a constant can
   // be just at the beginning of the term
   bool hasConst = false;
@@ -4753,8 +4638,8 @@ Theorem BitvectorTheoremProducer::BVMult_order_subterms( const Expr& e )
   }
 
   int vars_size = vars.size();
-  ExprMap<Rational> vars_map;
-	
+  ExprMap<int> vars_map;
+
   for( int i=0; i < vars_size; ++i)
     {
       //      cout<<"vars["<<i<<"]: "<<vars[i].toString()<<endl;
@@ -4762,43 +4647,27 @@ Theorem BitvectorTheoremProducer::BVMult_order_subterms( const Expr& e )
       if( vars_map.count( vars[i] ) == 0)
 	vars_map[ vars[i] ] = 1;
       else
-	vars_map[ vars[i] ] = vars_map[ vars[i] ] + 1;	   
+	vars_map[ vars[i] ] = vars_map[ vars[i] ] + 1;
     }
   // retrieving the variables from the map; the order of the variables
   // is like BVMULT(size, a, BVMULT(size, b, ...))  todo:: be careful
   // about the order in which variables are retrieved
-  ExprMap<Rational>::iterator j = vars_map.begin();
-  if( 1 == (*j).second )
-    new_expr= (*j).first;
-  else
-    {
-      int var_count = (*j).second.getInt();
-      new_expr = (*j).first;
-      for(int k=1; k < var_count; ++k)
-	{
-	  Expr tmp_var_mult = new_expr;
-	  new_expr = d_theoryBitvector->newBVMultExpr( bv_size, (*j).first, tmp_var_mult);
-	}
-      
+  ExprMap<int>::iterator j = vars_map.begin();
+  new_expr = (*j).first;
+  if ((*j).second != 1) {
+    for(int k=1; k < (*j).second; ++k) {
+      new_expr = d_theoryBitvector->newBVMultExpr( bv_size, (*j).first, new_expr);
     }
-  for( ++j; j != vars_map.end(); ++j)
-    {
-      if (1 == (*j).second)
-	{
-	  Expr tmp_expr = new_expr;
-	  new_expr = d_theoryBitvector->newBVMultExpr( bv_size, (*j).first, tmp_expr);
-	}	
-      else
-	{
-	  int var_count = (*j).second.getInt();
-	  new_expr = (*j).first;
-	  for(int k=1; k < var_count; ++k)
-	    {
-	      Expr tmp_var_mult = new_expr;
-	      new_expr = d_theoryBitvector->newBVMultExpr( bv_size, (*j).first, tmp_var_mult);
-	    }
-	}
+  }
+
+  for( ++j; j != vars_map.end(); ++j) {
+    new_expr = d_theoryBitvector->newBVMultExpr( bv_size, (*j).first, new_expr);
+    if ((*j).second != 1) {
+      for(int k=1; k < (*j).second; ++k) {
+        new_expr = d_theoryBitvector->newBVMultExpr( bv_size, (*j).first, new_expr);
+      }
     }
+  }
 
   Proof pf;
   if (withProof()) pf = newPf("BVMult_order_subterms");
@@ -4808,7 +4677,7 @@ Theorem BitvectorTheoremProducer::BVMult_order_subterms( const Expr& e )
   }
 
   Theorem result = newRWTheorem( e, new_expr, Assumptions::emptyAssump(), pf);
-  return result;      
+  return result;
 }
 
 
@@ -4897,18 +4766,19 @@ Theorem BitvectorTheoremProducer::liftConcatBVMult(const Expr& e)
 // 4. else c * \prod_1^n a_i
 // Note that \prod should be ordered and made up of binary mult's
 
-Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e ) 
+Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
 {
+  TRACE("canonBVMult", "canonBVMult: {\n    ", e.toString(), " --");
   if (CHECK_PROOFS)
-    CHECK_SOUND(e.getOpKind() == BVMULT, 
+    CHECK_SOUND(e.getOpKind() == BVMULT,
 		"BitvectorTheoremProducer::canonBVMult: input must be a BVMULT expression" + e.toString());
 
   //  cout<<"BitvectorTheoremProducer::canonBVMult, e:"<<e.toString()<<endl;
-  int expr_arity = e.arity();  
+  int expr_arity = e.arity();
   int bv_size= d_theoryBitvector->BVSize(e);
   Theorem result;
   std::vector<Expr> mult_vars;
-  Rational temp_coeff = 1;		  
+  Rational temp_coeff = 1;
   Expr new_expr;
   Expr no_minus_kid;
   Expr new_prod;
@@ -4916,7 +4786,7 @@ Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
   // separating all the constants and variables in the
   // multiplications
 
-  for( int i = 0; i < expr_arity; ++i) {	   
+  for( int i = 0; i < expr_arity; ++i) {
     if (e[i].getOpKind() == BVUMINUS)	{
       temp_coeff = (temp_coeff * (modulus-1)) % modulus;
       no_minus_kid = e[i][0];
@@ -4941,7 +4811,7 @@ Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
                       no_minus_kid[1].getOpKind() != BVUMINUS,
                       "Expected canonized subterm");
 
-          if (!new_prod.isNull()) {		    
+          if (!new_prod.isNull()) {
             // multiply the kid by the product so far
             new_prod = d_theoryBitvector->newBVMultExpr( bv_size, new_prod, no_minus_kid[1]);
           }
@@ -4951,7 +4821,7 @@ Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
           }
         }
         else {
-          if (!new_prod.isNull()) {		    
+          if (!new_prod.isNull()) {
             // multiply the kid by the product so far
             new_prod = d_theoryBitvector->newBVMultExpr( bv_size, new_prod, no_minus_kid);
           }
@@ -4964,11 +4834,13 @@ Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
       }
 
       case BVPLUS: {
-        return distributive_rule( e );
+        result = distributive_rule( e );
+        TRACE("canonBVMult", "--> ", result.getRHS().toString(), "\n}");
+        return result;
       }
 
       default:
-        if (!new_prod.isNull()) {		    
+        if (!new_prod.isNull()) {
           // multiply the kid by the product so far
           new_prod = d_theoryBitvector->newBVMultExpr( bv_size, new_prod, no_minus_kid);
         }
@@ -4988,36 +4860,18 @@ Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
     if (new_prod.getOpKind() == BVMULT) {
       new_prod = BVMult_order_subterms(new_prod).getRHS();
     }
-    if (temp_coeff != 1 && temp_coeff == modulus-1) {
-      // rewrite as bvneg
-      new_expr = d_theoryBitvector->newBVNegExpr(new_prod);
-      Expr coeff_expr = d_theoryBitvector->newBVConstExpr(1, bv_size);
-      new_expr = d_theoryBitvector->newBVPlusExpr(bv_size, coeff_expr, new_expr);
-    }
-    else {
-      int i = 0;
-      // BVMULT(n, 2^i * k, m) = BVMULT(n-i, k, m) @ i-bit-0-string
-      for (; temp_coeff % 2 == 0; ++i, temp_coeff = temp_coeff / 2);
-      if (i != 0) {
-        bv_size -= i;
-        new_prod = d_theoryBitvector->newBVExtractExpr(new_prod, bv_size-1, 0);
-      }
-      if (temp_coeff == 1) {
-        new_expr = new_prod;
-      }
-      else {
-        Expr coeff_expr = d_theoryBitvector->newBVConstExpr(temp_coeff, bv_size);
-        new_expr = d_theoryBitvector->newBVMultExpr(bv_size, coeff_expr, new_prod);
-      }
-      if (i != 0) {
-        new_expr = d_theoryBitvector->newConcatExpr(new_expr, d_theoryBitvector->newBVZeroString(i));
-      }
-    }
+    ExprMap<Rational> sumHashMap;
+    Rational known_term;
+    Expr coeff_expr = d_theoryBitvector->newBVConstExpr(temp_coeff, bv_size);
+    new_expr = d_theoryBitvector->newBVMultExpr(bv_size, coeff_expr, new_prod);
+    getPlusTerms(new_expr, known_term, sumHashMap);
+    new_expr = buildPlusTerm(bv_size, known_term, sumHashMap);
   }
-  
+
   Proof pf;
   if (withProof()) pf = newPf("canonBVMult");
   result = newRWTheorem(e, new_expr, Assumptions::emptyAssump(), pf);
+  TRACE("canonBVMult", "--> ", new_expr.toString(), "\n}");
   //  cout<<"BitvectorTheoremProducer::canonBVMult, e: "<<e.toString()<<" result: "<<result.toString()<<endl;
   return result;
 }
@@ -5027,7 +4881,7 @@ Theorem BitvectorTheoremProducer::canonBVMult( const Expr& e )
 Theorem BitvectorTheoremProducer::distributive_rule( const Expr& e )
 {
   if (CHECK_PROOFS)
-    CHECK_SOUND(e.getOpKind() == BVMULT, 
+    CHECK_SOUND(e.getOpKind() == BVMULT,
 		"BitvectorTheoremProducer::distributive_rule: input must be a BVMULT expression" + e.toString());
 
   int bv_size= d_theoryBitvector->BVSize(e);
@@ -5050,7 +4904,7 @@ Theorem BitvectorTheoremProducer::distributive_rule( const Expr& e )
   unsigned e0_kids_size = e0_kids.size();
   unsigned e1_kids_size = e1_kids.size();
   for( unsigned i = 0; i < e0_kids_size; ++i) {
-    for( unsigned j = 0; j < e1_kids_size; ++j) {		  
+    for( unsigned j = 0; j < e1_kids_size; ++j) {
       Expr sum_term = d_theoryBitvector->newBVMultExpr ( bv_size, e0_kids[i], e1_kids[j] );
       result_kids.push_back( sum_term );
     }
@@ -5061,7 +4915,7 @@ Theorem BitvectorTheoremProducer::distributive_rule( const Expr& e )
   Theorem result = newRWTheorem( e, result_sum, Assumptions::emptyAssump(), pf);
   return result;
 }
-      
+
 
 // BVPLUS(N, a0, ..., an) = BVPLUS(N-n,a0[N-1:n],...an[N-1:n])@t
 // where n = BVSize(t), and the sum of the lowest n bits of a0..an is exactly
@@ -5190,6 +5044,7 @@ void BitvectorTheoremProducer::getPlusTerms(const Expr& e, Rational& known_term,
         break;
 
       case BVUMINUS:
+        DebugAssert(kidSize == bv_size, "Unexpected size for uminus");
         plusTerms.push_back(plusTerms[i][0]);
         coeffs.push_back((coeff * (modulus - 1)) % modulus);
         break;
@@ -5208,6 +5063,18 @@ void BitvectorTheoremProducer::getPlusTerms(const Expr& e, Rational& known_term,
         break;
 
       case BVMULT:
+        if (kidSize < bv_size) {
+          int shift = 0;
+          Rational tcoeff = coeff;
+          for (; tcoeff % 2 == 0; ++shift, tcoeff = tcoeff / 2);
+          if (shift + kidSize < bv_size) {
+            // can't combine different sizes--
+            // just insert it as is
+            sumHashMap[ kid ] = sumHashMap[ kid ] + coeff;
+            break;
+          }
+        }
+        // OK to combine sizes
         if( kid[0].getOpKind() == BVCONST )
         {
           DebugAssert(kid.arity() == 2, "Expected arity 2 BVMULT");
@@ -5256,7 +5123,8 @@ void BitvectorTheoremProducer::getPlusTerms(const Expr& e, Rational& known_term,
       }
 
       case EXTRACT: {
-        if (kidSize < bv_size) {
+        // TODO: maybe re-enable this in some cases, but it leads to simplification loops
+        if (false && kidSize < bv_size) {
           // If the top part of a term is cut off with an extract, try to put it back
           const Expr& ext_kid = kid[0];
           int size = d_theoryBitvector->BVSize(ext_kid);
@@ -5286,7 +5154,7 @@ void BitvectorTheoremProducer::getPlusTerms(const Expr& e, Rational& known_term,
                         "Unexpected extract bounds");
           }
         }
-        // fall through  
+        // fall through
       }
 
       default:
@@ -5416,7 +5284,7 @@ Expr BitvectorTheoremProducer::chopConcat(int bv_size, Rational c,
   }
   DebugAssert(newKids.size() > 1, "Expected more than one kid");
   bvPlus = d_theoryBitvector->newBVPlusExpr(bv_size-chopSize, newKids);
-  
+
   // Make sure bvPlus is canonized
   ExprMap<Rational> sumHashMap;
   Rational known_term;
@@ -5440,146 +5308,164 @@ Expr BitvectorTheoremProducer::buildPlusTerm(int bv_size,
   unsigned i;
   for(; j != sumHashMap.end(); ++j) {
     coeff = mod((*j).second, modulus);
-    if (coeff == 0) continue;
     Expr term = (*j).first;
     nbits = d_theoryBitvector->BVSize(term);
 
     // Fast case: coeff is 1 and term takes up all the bits
     if (coeff == 1 && nbits == bv_size) {
-      multKids.push_back(term);
+      if (nbits == 1 && known_term == 1) {
+        // rewrite 1-bit x + 1 as ~x
+        multKids.push_back(d_theoryBitvector->newBVNegExpr(term));
+        known_term = 0;
+      }
+      else {
+        multKids.push_back(term);
+      }
       continue;
     }
 
-    for (pos = coeff, lg = 0; pos % 2 == 0; pos = pos / 2, ++lg);
-    pos = pow(Rational(lg), Rational(2));          // Position of lsb containing a 1
+    while (coeff != 0) {
 
-    Expr concatTerm;
-    if (coeff - pos == 0) {
-      concatTerm = term;
-    }
-    else if (((coeff + pos) % modulus) == 0) {
-      // rewrite as bvneg
-      concatTerm = d_theoryBitvector->newBVNegExpr(term);
-      known_term += pos;
-      if (nbits + lg < bv_size) {
-        known_term += (modulus - pow(Rational(nbits+lg), Rational(2)));
+      for (pos = coeff, lg = 0; pos % 2 == 0; pos = pos / 2, ++lg);
+      pos = pow(Rational(lg), Rational(2));          // Position of lsb containing a 1
+
+      Expr concatTerm;
+
+      // pos of first bit beyond term
+      Rational tmodulus = modulus;
+      if (nbits+lg < bv_size) tmodulus = pow(Rational(nbits+lg), Rational(2));
+      Rational tcoeff = coeff % tmodulus;
+
+      if (tcoeff == pos) {
+        coeff -= tcoeff;
+        concatTerm = term;
       }
-      if (pos == 1 && nbits == bv_size) {
-        multKids.push_back(concatTerm);
-        continue;
+      else if (((tcoeff + pos) % tmodulus) == 0) {
+        coeff = (coeff + pos) % modulus;
+        // rewrite as bvneg
+        concatTerm = d_theoryBitvector->newBVNegExpr(term);
+        known_term += pos;
+        if (nbits + lg < bv_size) {
+          known_term += (modulus - tmodulus);
+        }
+        if (pos == 1 && nbits == bv_size) {
+          multKids.push_back(concatTerm);
+          continue;
+        }
       }
-    }
-    else {
-      // create a BVMULT
-      if (nbits + lg > bv_size) {
-        // term is too big: chop it off
-        int diff = nbits + lg - bv_size;
+      else {
+        // create a BVMULT
+        if (nbits + lg > bv_size) {
+          // term is too big: chop it off
+          int diff = nbits + lg - bv_size;
+          int high, low;
+          if (term.getOpKind() == EXTRACT) {
+            // Collapse extract of extract
+            high = d_theoryBitvector->getExtractHi(term) - diff;
+            low = d_theoryBitvector->getExtractLow(term);
+            term = term[0];
+          }
+          else {
+            high = nbits - 1 - diff;
+            low = 0;
+          }
+          term = d_theoryBitvector->newBVExtractExpr(term, high, low);
+        }
+        nbits = bv_size - lg;
+        coeff = coeff / pos;
+        Expr new_coeff = d_theoryBitvector->newBVConstExpr(coeff, nbits);
+        term = d_theoryBitvector->newBVMultPadExpr(nbits, new_coeff, term);
+        coeff = 0;
+        if (lg == 0) {
+          multKids.push_back(term);
+          continue;
+        }
+        concatTerm = term;
+      }
+
+      // Insert concatTerm at position lg into a CONCAT
+      bool found = false;
+      Expr t;
+      vector<Expr> tmp;
+      int bits, size, k, t_arity;
+      for (i = 0; i < concatKids.size(); ++i) {
+        t = concatKids[i];
+        DebugAssert(t.getOpKind() == CONCAT, "Expected CONCAT");
+        bits = bv_size;
+        t_arity = t.arity();
+        for (k = 0; k < t_arity; ++k) {
+          if (k > 0 && bits < lg + nbits) break;
+          size = d_theoryBitvector->BVSize(t[k]);
+          if (bits - size <= lg) {
+            if (t[k].getOpKind() == BVCONST) {
+              found = true;
+            }
+            break;
+          }
+          else {
+            tmp.push_back(t[k]);
+            bits -= size;
+          }
+        }
+        if (found) break;
+        tmp.clear();
+      }
+      if (!found) {
+        bits = bv_size;
+        size = bv_size;
+        k = t_arity = 0;
+      }
+      if (lg + nbits < bits) {
+        tmp.push_back(d_theoryBitvector->newBVZeroString(bits-(lg+nbits)));
+      }
+      if (lg + nbits > bits) {
+        bool negate = false;
+        if (concatTerm.getOpKind() == BVNEG) {
+          // Push extract inside negation
+          negate = true;
+          concatTerm = concatTerm[0];
+        }
+        DebugAssert(!found || k == 0,
+                    "Too big only OK for first child");
+        // If term is too big, chop it off
+        int diff = lg + nbits - bits;
         int high, low;
-        if (term.getOpKind() == EXTRACT) {
+        if (concatTerm.getOpKind() == EXTRACT) {
           // Collapse extract of extract
-          high = d_theoryBitvector->getExtractHi(term) - diff;
-          low = d_theoryBitvector->getExtractLow(term);
-          term = term[0];
+          high = d_theoryBitvector->getExtractHi(concatTerm) - diff;
+          low = d_theoryBitvector->getExtractLow(concatTerm);
+          concatTerm = concatTerm[0];
         }
         else {
           high = nbits - 1 - diff;
           low = 0;
         }
-        term = d_theoryBitvector->newBVExtractExpr(term, high, low);
+        concatTerm = d_theoryBitvector->newBVExtractExpr(concatTerm, high, low);
+        if (negate) {
+          concatTerm = d_theoryBitvector->newBVNegExpr(concatTerm);
+        }
       }
-      nbits = bv_size - lg;
-      coeff = coeff / pos;
-      Expr new_coeff = d_theoryBitvector->newBVConstExpr(coeff, nbits);
-      term = d_theoryBitvector->newBVMultPadExpr(nbits, new_coeff, term);
-      if (lg == 0) {
-        multKids.push_back(term);
-        continue;
+      tmp.push_back(concatTerm);
+      bits -= size;
+      if (lg > bits) {
+        tmp.push_back(d_theoryBitvector->newBVZeroString(lg-bits));
       }
-      concatTerm = term;
-    }
+      for (++k; k < t_arity; ++k) {
+        tmp.push_back(t[k]);
+      }
 
-    // Insert concatTerm at position lg into a CONCAT
-    bool found = false;
-    Expr t;
-    vector<Expr> tmp;
-    int bits, size, k, t_arity;
-    for (i = 0; i < concatKids.size(); ++i) {
-      t = concatKids[i];
-      DebugAssert(t.getOpKind() == CONCAT, "Expected CONCAT");
-      bits = bv_size;
-      t_arity = t.arity();
-      for (k = 0; k < t_arity; ++k) {
-        if (k > 0 && bits < lg + nbits) break;
-        size = d_theoryBitvector->BVSize(t[k]);
-        if (bits - size <= lg) {
-          if (t[k].getOpKind() == BVCONST) {
-            found = true;
-          }
-          break;
-        }
-        else {
-          tmp.push_back(t[k]);
-          bits -= size;
-        }
+      if (tmp.size() == 1) {
+        DebugAssert(!found, "Invariant violated");
+        multKids.push_back(tmp[0]);
       }
-      if (found) break;
-      tmp.clear();
-    }
-    if (!found) {
-      bits = bv_size;
-      size = bv_size;
-      k = t_arity = 0;
-    }
-    if (lg + nbits < bits) {
-      tmp.push_back(d_theoryBitvector->newBVZeroString(bits-(lg+nbits)));
-    }
-    if (lg + nbits > bits) {
-      bool negate = false;
-      if (concatTerm.getOpKind() == BVNEG) {
-        // Push extract inside negation
-        negate = true;
-        concatTerm = concatTerm[0];
-      }
-      DebugAssert(!found || k == 0,
-                  "Too big only OK for first child");
-      // If term is too big, chop it off
-      int diff = lg + nbits - bits;
-      int high, low;
-      if (concatTerm.getOpKind() == EXTRACT) {
-        // Collapse extract of extract
-        high = d_theoryBitvector->getExtractHi(concatTerm) - diff;
-        low = d_theoryBitvector->getExtractLow(concatTerm);
-        concatTerm = concatTerm[0];
+      else if (found) {
+        // replace existing concat term
+        concatKids[i] = d_theoryBitvector->newConcatExpr(tmp);
       }
       else {
-        high = nbits - 1 - diff;
-        low = 0;
+        // push back new concat term
+        concatKids.push_back(d_theoryBitvector->newConcatExpr(tmp));
       }
-      concatTerm = d_theoryBitvector->newBVExtractExpr(concatTerm, high, low);
-      if (negate) {
-        concatTerm = d_theoryBitvector->newBVNegExpr(concatTerm);
-      }
-    }
-    tmp.push_back(concatTerm);
-    bits -= size;
-    if (lg > bits) {
-      tmp.push_back(d_theoryBitvector->newBVZeroString(lg-bits));
-    }
-    for (++k; k < t_arity; ++k) {
-      tmp.push_back(t[k]);
-    }
-
-    if (tmp.size() == 1) {
-      DebugAssert(!found, "Invariant violated");
-      multKids.push_back(tmp[0]);
-    }
-    else if (found) {
-      // replace existing concat term
-      concatKids[i] = d_theoryBitvector->newConcatExpr(tmp);
-    }
-    else {
-      // push back new concat term
-      concatKids.push_back(d_theoryBitvector->newConcatExpr(tmp));
     }
   }
 
@@ -5671,8 +5557,10 @@ Expr BitvectorTheoremProducer::buildPlusTerm(int bv_size,
 // It assumes that all the kids have already been canonized
 Theorem BitvectorTheoremProducer::canonBVPlus( const Expr& e )
 {
+  TRACE("canonBVPlus", "canonBVPlus: {\n    ", e.toString(), " --");
+
   if (CHECK_PROOFS)
-    CHECK_SOUND(e.getOpKind() == BVPLUS, 
+    CHECK_SOUND(e.getOpKind() == BVPLUS,
 		"BitvectorTheoremProducer::canonBVPlus: input must be a BVPLUS expression" + e.toString());
 
   //  cout<<"BitvectorTheoremProducer::canonBVPlus, e is: "<<e.toString()<<endl;
@@ -5690,14 +5578,15 @@ Theorem BitvectorTheoremProducer::canonBVPlus( const Expr& e )
   Proof pf;
   if (withProof()) pf = newPf("canonBVPlus");
   Theorem result = newRWTheorem( e, expr_result, Assumptions::emptyAssump(), pf);
+  TRACE("canonBVPlus", "--> ", expr_result.toString(), "\n}");
   return result;
 }
 
 
-Theorem BitvectorTheoremProducer::canonBVUMinus( const Expr& e ) 
+Theorem BitvectorTheoremProducer::canonBVUMinus( const Expr& e )
 {
   if (CHECK_PROOFS)
-    CHECK_SOUND(e.getOpKind() == BVUMINUS, 
+    CHECK_SOUND(e.getOpKind() == BVUMINUS,
 		"BitvectorTheoremProducer::canonBVUMinus: input must be a BVUMINUS expression" + e.toString());
 
   int bv_size = d_theoryBitvector->BVSize(e);
@@ -5711,49 +5600,172 @@ Theorem BitvectorTheoremProducer::canonBVUMinus( const Expr& e )
 /*End of Lorenzo PLatania's methods*/
 
 
-// t[hi:lo] = rhs --> Exists x,y,z. (t = x @ y @ z AND y = rhs)
-Expr BitvectorTheoremProducer::processExtract(const Expr& ext, const Expr& rhs)
+// Input: t[hi:lo] = rhs
+// if t appears as leaf in rhs, then:
+//    t[hi:lo] = rhs |- Exists x,y,z. (t = x @ y @ z AND y = rhs), solvedForm = false
+// else
+//    t[hi:lo] = rhs |- Exists x,z. (t = x @ rhs @ z), solvedForm = true
+Theorem BitvectorTheoremProducer::processExtract(const Theorem& e, bool& solvedForm)
 {
-  DebugAssert(ext.getOpKind() == EXTRACT, "Expected extract");
-  DebugAssert(d_theoryBitvector->BVSize(ext) == d_theoryBitvector->BVSize(rhs),
-              "Expected same size");
+  Expr expr = e.getExpr();
 
+  if (CHECK_PROOFS) {
+    CHECK_SOUND(expr.getOpKind() == EQ && expr[0].getOpKind() == EXTRACT,
+                "BitvectorTheoremProducer::processExtract: invalid input");
+    CHECK_SOUND(d_theoryBitvector->BVSize(expr[0]) == d_theoryBitvector->BVSize(expr[1]),
+                "Expected same size");
+  }
+
+  Expr ext = expr[0];
+  Expr lhs;
+  Expr rhs = expr[1];
   Expr child = ext[0];
   int size = d_theoryBitvector->BVSize(child);
   int high = d_theoryBitvector->getExtractHi(ext);
   int low  = d_theoryBitvector->getExtractLow(ext);
 
+  DebugAssert(d_theoryBitvector->isLeaf(child), "Expected leaf");
+  solvedForm = !d_theoryBitvector->isLeafIn(child, rhs);
+
   vector<Expr> terms;
+  vector<Expr> boundVars;
   if (high < size-1) {
     terms.push_back(d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(size-1-high)));
+    boundVars.push_back(terms.back());
   }
-  Expr lhs = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(high-low+1));
-  terms.push_back(lhs);
+  if (solvedForm) terms.push_back(rhs);
+  else {
+    lhs = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(high-low+1));
+    terms.push_back(lhs);
+    boundVars.push_back(lhs);
+  }
   if (low > 0) {
     terms.push_back(d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(low)));
+    boundVars.push_back(terms.back());
   }
   DebugAssert(terms.size() > 1, "Expected at least two terms");
   Expr result = child.eqExpr(d_theoryBitvector->newConcatExpr(terms));
-  result = result && lhs.eqExpr(rhs);
-  result = d_theoryBitvector->getEM()->newClosureExpr(EXISTS, terms, result);
-  return result;
+  if (!solvedForm) result = result && lhs.eqExpr(rhs);
+  result = d_theoryBitvector->getEM()->newClosureExpr(EXISTS, boundVars, result);
+  Assumptions a(e);
+  Proof pf;
+  if (withProof()) pf = newPf("processExtract");
+  return newTheorem(result, a, pf);
+}
+
+bool BitvectorTheoremProducer::okToSplit(const Expr& e)
+{
+  if (d_theoryBitvector->isLeaf(e)) return true;
+  switch (e.getOpKind()) {
+    case BVCONST:
+    case EXTRACT:
+    case BVAND:
+    case BVOR:
+    case BVXOR:
+    case BVNEG:
+      return true;
+    case BVSHL:
+    case BVLSHR:
+    case BVASHR:
+    case BVPLUS:
+    case BVMULT:
+    case BVUDIV:
+    case BVSDIV:
+    case BVUREM:
+    case BVSREM:
+    case BVSMOD:
+      return false;
+    default:
+      FatalAssert(false, "unexpected kind in okToSplit");
+      break;
+  }
+  return false;
 }
 
 
 // puts the equation in solved form if possible, otherwise in the form
 // \sum a_i*x_i +c = 0.
-Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
+// default maxEffort is 3: solves only when lhs can be isolated without splitting
+// maxEffort 5: solves when lhs can be isolated with splitting
+// maxEffort 6: solves even when result is not in solved form (good for bitblasting)
+Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e, int maxEffort )
 {
+  TRACE("canonBVEQ", "canonBVEQ: {\n    ", e.toString(), " --");
+  DebugAssert(maxEffort == 3 || maxEffort == 5 || maxEffort == 6,
+              "Unexpected value for maxEffort");
   if(CHECK_PROOFS) {
     CHECK_SOUND( e.getOpKind() == EQ,
                  "BitvectorTheoremProducer::canonBVEQ: expression must be an equation");
     CHECK_SOUND(BITVECTOR==e[0].getType().getExpr().getOpKind(),
 		"input must be a bitvector eqn. \n e = " + e.toString());
   }
+
   Expr lhs = e[0];
-  Expr rhs = d_theoryBitvector->newBVUminusExpr(e[1]);
-  ExprMap<Rational> sumHashMap;
+  Expr rhs = e[1];
   int bv_size = d_theoryBitvector->BVSize( lhs );
+
+  // Look for easy split of concats
+  if (lhs.getOpKind() == CONCAT || rhs.getOpKind() == CONCAT) {
+    Expr::iterator lit, rit;
+    int lsize, rsize;
+    if (lhs.getOpKind() == CONCAT) {
+      lit = e[0].begin();
+    }
+    else {
+      lit = e.begin();
+    }
+    if (rhs.getOpKind() == CONCAT) {
+      rit = e[1].begin();
+    }
+    else {
+      rit = e.begin();
+      ++rit;
+    }
+    int splitSize;
+    lsize = d_theoryBitvector->BVSize(*lit);
+    rsize = d_theoryBitvector->BVSize(*rit);
+    while (true) {
+      DebugAssert(lsize <= bv_size && rsize <= bv_size, "invariant violated");
+      if (lsize < rsize) {
+        if (okToSplit(*rit)) {
+          splitSize = lsize;
+          break;
+        }
+        else {
+          ++lit;
+          lsize += d_theoryBitvector->BVSize(*lit);
+        }
+      }
+      else if (lsize > rsize) {
+        if (okToSplit(*lit)) {
+          splitSize = rsize;
+          break;
+        }
+        else {
+          ++rit;
+          rsize += d_theoryBitvector->BVSize(*rit);
+        }
+      }
+      else {
+        splitSize = lsize;
+        break;
+      }
+    }
+    if (splitSize != bv_size) {
+      Proof pf;
+      if (withProof()) pf = newPf("canonBVEQ");
+      Expr tmp = d_theoryBitvector->newBVExtractExpr(lhs, bv_size-1, bv_size-splitSize);
+      tmp = tmp.eqExpr(d_theoryBitvector->newBVExtractExpr(rhs, bv_size-1, bv_size-splitSize));
+      Expr expr_result = d_theoryBitvector->newBVExtractExpr(lhs, bv_size-splitSize-1, 0);
+      expr_result = expr_result.eqExpr(d_theoryBitvector->newBVExtractExpr(rhs, bv_size-splitSize-1, 0));
+      expr_result = tmp && expr_result;
+      TRACE("canonBVEQ", "--> ", expr_result.toString(), "\n}");
+      return newRWTheorem( e, expr_result, Assumptions::emptyAssump(), pf);
+    }
+  }
+
+  rhs = d_theoryBitvector->newBVUminusExpr(rhs);
+  ExprMap<Rational> sumHashMap;
   Rational modulus = pow(Rational(bv_size), Rational(2));
   Rational known_term;
 
@@ -5762,18 +5774,23 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
   // Loop through all terms and perform two tasks:
   // A. Truncate coefficients
   // B. Look for a something to solve for:
-  //    1. first choice: full-sized leaf
-  //    2. second choice: full-sized extract of a leaf or over-sized leaf or extract of leaf
-  //    3. third choice: under-sized leaf or extract of leaf
-  //    4. fourth choice: even-coeff leaf or extract of leaf
-  //    5. fifth choice: In case we don't find a something to solve for, find the first term with an
-  //                     odd coefficient, so we can set it to 1.
-  //    6. sixth choice: nothing to solve for and all coeffs are even
+  //    1. first choice: full-sized leaf not occurring elsewhere
+  //    2. second choice: full-sized leaf inside BVXOR not occurring elsewhere
+  //    3. third choice: full-sized extract of a leaf or over-sized leaf or extract of leaf
+  //    4. fourth choice: under-sized leaf not occurring elsewhere or extract of leaf
+  //    5. fifth choice: even-coeff leaf not occurring elsewhere or extract of leaf
+  //    6. sixth choice: first term with an odd coeff (even if not a leaf or occurring elsewhere)
+  //    7. seventh choice: nothing to solve for and all coeffs are even
+
+  // If choice > maxEffort (and not 7), put in form sum = 0 instead.
+
   Rational coeff, foundCoeff = 1;
   ExprMap<Rational>::iterator j = sumHashMap.begin();
   ExprMap<Rational>::iterator fixCoeff = j;
-  Expr leaf, foundterm;
-  int priority, size, foundpriority = 6;
+  Expr xor_leaf, leaf, foundterm;
+  unsigned xor_idx=0, xor_size=0;
+  int priority, size, foundpriority = 7;
+  bool isExtract;
   for(; j != sumHashMap.end(); ++j) {
     Expr t = (*j).first;
     coeff = (*j).second;
@@ -5784,59 +5801,116 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
     }
     if (coeff == 0) continue;
 
-    priority = 6;
+    priority = 7;
+    isExtract = false;
     if (coeff % 2 == 1) {
       if (d_theoryBitvector->isLeaf(t)) {
         if (size == bv_size) {
           leaf = t; priority = 1;
         } else if (size > bv_size) {
-          leaf = t; priority = 2;
-        } else {
+          isExtract = true;
           leaf = t; priority = 3;
+        } else {
+          leaf = t; priority = 4;
         }
-//       } else if (t.getOpKind() == EXTRACT &&
-//                  d_theoryBitvector->isLeaf(t[0])) {
-//         if (size >= bv_size) {
-//           leaf = t[0]; priority = 2;
-//         } else {
-//           leaf = t[0]; priority = 3;
-//         }
-      } else {
-        leaf = t; priority = 5;
+      } else if (t.getOpKind() == EXTRACT &&
+                 d_theoryBitvector->isLeaf(t[0])) {
+        isExtract = true;
+        if (size >= bv_size) {
+          leaf = t[0]; priority = 3;
+        } else {
+          leaf = t[0]; priority = 4;
+        }
+      } else if (t.getOpKind() == BVXOR && size == bv_size) {
+        if (foundpriority == 2) continue;
+        xor_idx = 0;
+        xor_size = t.arity();
+        for (xor_idx = 0; xor_idx < xor_size; ++xor_idx) {
+          if (!d_theoryBitvector->isLeaf(t[xor_idx])) {
+            continue;
+          }
+          unsigned l = 0;
+          for (; l < xor_size; ++l) {
+            if (l == xor_idx) continue;
+            if (d_theoryBitvector->isLeafIn(t[xor_idx], t[l])) break;
+          }
+          if (l < xor_size) continue;
+          break;
+        }
+        if (xor_idx < xor_size) {
+          leaf = t[xor_idx];
+          xor_leaf = leaf;
+          priority = 2;
+        }
+        else {
+          leaf = t; priority = 6;
+        }
       }
-    } else {
+      else {
+        leaf = t; priority = 6;
+      }
+    } else if (maxEffort >= 5) {
       if (d_theoryBitvector->isLeaf(t)) {
-        leaf = t; priority = 4;
-//       } else if (t.getOpKind() == EXTRACT &&
-//                  d_theoryBitvector->isLeaf(t[0])) {
-//         leaf = t[0]; priority = 4;
-       }
+        leaf = t; priority = 5;
+      } else if (t.getOpKind() == EXTRACT &&
+                 d_theoryBitvector->isLeaf(t[0])) {
+        isExtract = true;
+        leaf = t[0]; priority = 5;
+      }
     }
 
     if (priority < foundpriority) {
-      if (priority < 5) {
+      if (priority < 6) {
         ExprMap<Rational>::iterator k = sumHashMap.begin();
-        for (; k != sumHashMap.end(); ++k) {
-          if (j == k) continue;
+        while (k != sumHashMap.end()) {
+          if (j == k) {
+            ++k; continue;
+          }
           if (k == fixCoeff) {
             (*k).second = mod((*k).second, modulus);
             ++fixCoeff;
           }
-          if ((*k).second != 0 &&
-              d_theoryBitvector->isLeafIn(leaf, (*k).first)) {
+          if ((*k).second == 0) {
+            ++k; continue;
+          }
+          if (!isExtract && d_theoryBitvector->isLeafIn(leaf, (*k).first)) {
+            if (priority == 2) {
+              // Try to find another leaf in the BVXOR
+              for (++xor_idx; xor_idx < xor_size; ++xor_idx) {
+                if (!d_theoryBitvector->isLeaf(t[xor_idx])) {
+                  continue;
+                }
+                unsigned l = 0;
+                for (; l < xor_size; ++l) {
+                  if (l == xor_idx) continue;
+                  if (d_theoryBitvector->isLeafIn(t[xor_idx], t[l])) break;
+                }
+                if (l < xor_size) continue;
+                break;
+              }
+              if (xor_idx < xor_size) {
+                // found a leaf, continue checking it
+                leaf = t[xor_idx];
+                xor_leaf = leaf;
+                k = sumHashMap.begin();
+                continue;
+              }
+            }
+            // this leaf cannot be solved for
             break;
           }
+          ++k;
         }
         if (k == sumHashMap.end()) {
           foundpriority = priority;
           foundterm = t;
-          if (coeff == 1 || priority == 4) foundCoeff = 1;
+          if (coeff == 1 || priority == 5) foundCoeff = 1;
           else foundCoeff = d_theoryBitvector->multiplicative_inverse(coeff, bv_size);
           if (priority == 1) break;
         }
       }
-      if (foundpriority > 5 && priority != 4) {
-        foundpriority = 5;
+      if (foundpriority > 6 && priority != 5) {
+        foundpriority = 6;
         foundterm = t;
         if (coeff == 1) foundCoeff = 1;
         else foundCoeff = d_theoryBitvector->multiplicative_inverse(coeff, bv_size);
@@ -5844,19 +5918,29 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
     }
   }
 
-  if (foundpriority == 6) {
+  bool solving = (foundpriority <= maxEffort);
+
+  if (foundpriority == 7) {
     // All coeffs are even
     if (known_term % 2 == 1) {
       Proof pf;
       if (withProof()) pf = newPf("canonBVEQ");
+      TRACE("canonBVEQ", "--> ", d_theoryBitvector->falseExpr().toString(), "\n}");
       return newRWTheorem(e, d_theoryBitvector->falseExpr(), Assumptions::emptyAssump(), pf);
     }
     else foundCoeff = foundCoeff / Rational(2);
-    bv_size = bv_size - 1;
-    modulus = pow(Rational(bv_size), Rational(2));
+    if (bv_size > 1) {
+      bv_size = bv_size - 1;
+      modulus = pow(Rational(bv_size), Rational(2));
+    }
+  }
+  else if (!solving && (e[1] == d_theoryBitvector->newBVZeroString(bv_size))) {
+    // if we aren't solving, and rhs was already 0, then stop here: lhs already normalized by plus canonizer
+    // further rewriting risks a simplification loop
+    TRACE("canonBVEQ", "--> ", e, "\n}");
+    return newReflTheorem(e);
   }
 
-  bool solving = (foundpriority < 5);
   Rational solveCoeff = 0;
   // Multiply through by foundCoeff if it is not 1
   // Also, multiply by -1 (i.e. subtract from modulus) if solving
@@ -5888,16 +5972,36 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
   // Solve the equation
   if (solving) {
     DebugAssert(solveCoeff != 0, "Expected solveCoeff != 0");
+    if (foundpriority == 6 && d_theoryBitvector->BVSize(foundterm) < bv_size) {
+      // zero-extend to get the right size
+      foundterm = d_theoryBitvector->pad(bv_size, foundterm);
+    }
     switch (foundpriority) {
       case 1:
         // 1. first choice: full-sized leaf
         // foundterm is full-sized leaf
+      case 6:
+        //  6. sixth choice: Not in solved form, but isolate first term
+        //  with odd coeff on lhs anyway.
         DebugAssert(solveCoeff == 1, "Expected coeff = 1");
         new_lhs = foundterm;
         new_rhs = plusTerm;
         break;
-      case 2:
-        // 2. second choice: full-sized extract of a leaf or over-sized leaf or extract of leaf
+      case 2: {
+        // 2. second choice: leaf inside BVXOR
+        DebugAssert(solveCoeff == 1, "Expected coeff = 1");
+        vector<Expr> rhsTerms;
+        rhsTerms.push_back(plusTerm);
+        for (unsigned l = 0; l < xor_size; ++l) {
+          if (l == xor_idx) continue;
+          rhsTerms.push_back(foundterm[l]);
+        }
+        new_lhs = xor_leaf;
+        new_rhs = d_theoryBitvector->newBVXorExpr(rhsTerms);
+        break;
+      }
+      case 3:
+        // 3. third choice: full-sized extract of a leaf or over-sized leaf or extract of leaf
         // foundterm is full-sized extract of leaf
         DebugAssert(solveCoeff == 1, "Expected coeff = 1");
         if (d_theoryBitvector->BVSize(foundterm) > bv_size) {
@@ -5911,29 +6015,24 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
             foundterm = d_theoryBitvector->newBVExtractExpr(foundterm, bv_size-1, 0);
           }
         }
-        // t[hi:lo] = plusTerm --> Exists x,y,z. (t = x @ y @ z AND y = plusTerm)
-        expr_result = processExtract(foundterm, plusTerm);
+        new_lhs = foundterm;
+        new_rhs = plusTerm;
         break;
-      case 3: {
-        // 3. third choice: under-sized leaf or extract of leaf
+      case 4: {
+        // 4. fourth choice: under-sized leaf or extract of leaf
         // foundterm is less than full-sized extract or leaf
         DebugAssert(solveCoeff == 1, "Expected coeff = 1");
         int foundtermsize = d_theoryBitvector->BVSize(foundterm);
         DebugAssert(foundtermsize < bv_size, "Expected undersized term");
         new_rhs = d_theoryBitvector->newBVExtractExpr(plusTerm, foundtermsize-1, 0);
-        if (foundterm.getOpKind() == EXTRACT) {
-          expr_result = processExtract(foundterm, new_rhs);
-        }
-        else {
-          expr_result = foundterm.eqExpr(new_rhs);
-        }
+        expr_result = foundterm.eqExpr(new_rhs);
         new_rhs = d_theoryBitvector->newBVExtractExpr(plusTerm, bv_size-1, foundtermsize);
         new_lhs = d_theoryBitvector->newBVZeroString(bv_size - foundtermsize);
         expr_result = expr_result && new_lhs.eqExpr(new_rhs);
         break;
       }
-      case 4: {
-        // 4. fourth choice: even-coeff leaf or extract of leaf
+      case 5: {
+        // 5. fifth choice: even-coeff leaf or extract of leaf
         // foundterm has even coeff
         int lg = 0;
         for (; solveCoeff % 2 == 0; solveCoeff = solveCoeff / 2, ++lg);
@@ -5947,7 +6046,7 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
         break;
       }
       default:
-        FatalAssert(false, "Expected priority < 5");
+        FatalAssert(false, "Expected priority < 7");
         break;
     }
   }
@@ -5957,16 +6056,20 @@ Theorem BitvectorTheoremProducer::canonBVEQ( const Expr& e )
   }
 
   if (expr_result.isNull()) {
-    if ( new_lhs >= new_rhs) {
+    if ( new_lhs == new_rhs) {
+      expr_result = d_theoryBitvector->trueExpr();
+    }
+    else if ( new_lhs >= new_rhs) {
       expr_result =  Expr(EQ, new_lhs, new_rhs);
     }
     else {
       expr_result =  Expr(EQ, new_rhs, new_lhs);
     }
   }
-  
+
   Proof pf;
   if (withProof()) pf = newPf("canonBVEQ");
+  TRACE("canonBVEQ", "--> ", expr_result.toString(), "\n}");
   Theorem result = newRWTheorem( e, expr_result, Assumptions::emptyAssump(), pf);
   return result;
 }
@@ -5983,8 +6086,14 @@ Theorem BitvectorTheoremProducer::zeroExtendRule(const Expr& e) {
   }
 
   int extendLen = d_theoryBitvector->getBVIndex(e);
-  Expr extend = d_theoryBitvector->newBVZeroString(extendLen);
-  Expr res = d_theoryBitvector->newConcatExpr(extend, e[0]);
+  Expr res;
+  if (extendLen == 0) {
+    res = e[0];
+  }
+  else {
+    Expr extend = d_theoryBitvector->newBVZeroString(extendLen);
+    res = d_theoryBitvector->newConcatExpr(extend, e[0]);
+  }
 
   Proof pf;
   if(withProof())
@@ -6007,11 +6116,17 @@ Theorem BitvectorTheoremProducer::repeatRule(const Expr& e) {
   }
 
   int repeatVal = d_theoryBitvector->getBVIndex(e);
-  vector<Expr> kids;
-  for (int i = 0; i < repeatVal; ++i) {
-    kids.push_back(e[0]);
+  Expr res;
+  if (repeatVal == 1) {
+    res = e[0];
   }
-  Expr res = d_theoryBitvector->newConcatExpr(kids);
+  else {
+    vector<Expr> kids;
+    for (int i = 0; i < repeatVal; ++i) {
+      kids.push_back(e[0]);
+    }
+    res = d_theoryBitvector->newConcatExpr(kids);
+  }
 
   Proof pf;
   if(withProof())
@@ -6082,4 +6197,618 @@ Theorem BitvectorTheoremProducer::rotrRule(const Expr& e) {
   return result;
 }
 
+Theorem BitvectorTheoremProducer::bvURemConst(const Expr& remExpr) {
+	const Expr& a = remExpr[0];
+	const Expr& b = remExpr[1];
+	int size = d_theoryBitvector->BVSize(remExpr);
+
+	Rational a_value = d_theoryBitvector->computeBVConst(a);
+	Rational b_value = d_theoryBitvector->computeBVConst(b);
+
+	Expr rem;
+
+	if (b_value != 0) {
+		Rational rem_value = a_value - floor(a_value / b_value)*b_value;
+		rem = d_theoryBitvector->newBVConstExpr(rem_value, size);
+	} else {
+		static int div_by_zero_count = 0;
+		div_by_zero_count ++;
+		char var_name[10000];
+		sprintf(var_name, "mod_by_zero_const_%d", div_by_zero_count);
+		rem = d_theoryBitvector->newVar(var_name, remExpr.getType());
+	}
+
+	Proof pf;
+	if (withProof())
+		pf = newPf("bvUDivConst");
+
+	return newRWTheorem(remExpr, rem, Assumptions::emptyAssump(), pf);
+}
+
+Theorem BitvectorTheoremProducer::bvURemRewrite(const Expr& remExpr) {
+	Expr a = remExpr[0];
+	Expr b = remExpr[1];
+	int size = d_theoryBitvector->BVSize(remExpr);
+	Expr div = d_theoryBitvector->newBVUDivExpr(a, b);
+
+	Expr rem = d_theoryBitvector->newBVSubExpr(a, d_theoryBitvector->newBVMultExpr(size, div, b));
+	Proof pf;
+	if (withProof())
+		pf = newPf("bvURemRewrite", remExpr);
+	return newRWTheorem(remExpr, rem, Assumptions::emptyAssump(), pf);
+}
+
+
+Theorem BitvectorTheoremProducer::bvUDivConst(const Expr& divExpr)
+{
+	const Expr& a = divExpr[0];
+	const Expr& b = divExpr[1];
+	int size = d_theoryBitvector->BVSize(divExpr);
+
+    Rational a_value = d_theoryBitvector->computeBVConst(a);
+    Rational b_value = d_theoryBitvector->computeBVConst(b);
+
+    Expr div;
+
+    if (b_value != 0) {
+    	Rational div_value = floor(a_value / b_value);
+    	div = d_theoryBitvector->newBVConstExpr(div_value, size);
+    } else {
+    	static int div_by_zero_count = 0;
+    	div_by_zero_count ++;
+    	char var_name[10000];
+    	sprintf(var_name, "div_by_zero_const_%d", div_by_zero_count);
+    	div = d_theoryBitvector->newVar(var_name, divExpr.getType());
+    }
+
+	Proof pf;
+	if (withProof())
+		pf = newPf("bvUDivConst");
+
+	return newRWTheorem(divExpr, div, Assumptions::emptyAssump(), pf);
+}
+
+Theorem BitvectorTheoremProducer::bvUDivTheorem(const Expr& divExpr)
+{
+	int size = d_theoryBitvector->BVSize(divExpr);
+
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(BITVECTOR == divExpr.getType().getExpr().getOpKind(), "input must be a bitvector. \n e = " + divExpr.toString());
+		CHECK_SOUND(BVUDIV == divExpr.getOpKind(),"input must be BVUDIV(e).\n e = " + divExpr.toString());
+	}
+
+	const Expr a = divExpr[0];
+	const Expr b = divExpr[1];
+
+
+	Type type = divExpr.getType();
+	Expr div = d_theoryBitvector->getEM()->newBoundVarExpr(type);
+	Expr mod = d_theoryBitvector->getEM()->newBoundVarExpr(type);
+	vector<Expr> boundVars;
+	boundVars.push_back(div);
+	boundVars.push_back(mod);
+
+	vector<Expr> assertions;
+	Expr pad          = d_theoryBitvector->newBVConstExpr(Rational(0), size);
+	Expr a_expanded   = d_theoryBitvector->newConcatExpr(pad, a);
+	Expr b_expanded   = d_theoryBitvector->newConcatExpr(pad, b);
+	Expr div_expanded = d_theoryBitvector->newConcatExpr(pad, div);
+	Expr mod_expanded = d_theoryBitvector->newConcatExpr(pad, mod);
+	assertions.push_back(a_expanded.eqExpr(
+			d_theoryBitvector->newBVPlusExpr(2*size,
+					d_theoryBitvector->newBVMultExpr(2*size, b_expanded, div_expanded),
+					mod_expanded
+				)
+			)
+		);
+	assertions.push_back(d_theoryBitvector->newBVLTExpr(mod, b));
+
+	Expr non_zero_div = andExpr(assertions);
+	// b != 0 -> a = b*div + mod ...
+	Expr complete_div = (b.eqExpr(d_theoryBitvector->newBVConstExpr(Rational(0), size))).negate().impExpr(non_zero_div);
+	// x/y = div \wedge complete_div
+	complete_div = divExpr.eqExpr(div).andExpr(complete_div);
+	// Close the result
+	Expr result = d_theoryBitvector->getEM()->newClosureExpr(EXISTS, boundVars, complete_div);
+
+	// Make the proof
+	Proof pf;
+	if (withProof())
+		pf = newPf("bvUDiv");
+
+	// Return the theorem
+	return newTheorem(result, Assumptions::emptyAssump(), pf);
+}
+
+Theorem BitvectorTheoremProducer::bitblastBVMult(const std::vector<Theorem>& a_bits, const std::vector<Theorem>& b_bits,
+    		                            const Expr& a_times_b, std::vector<Theorem>& output_bits)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(a_times_b.arity() == 2, "must be a binary multiplication");
+		CHECK_SOUND(BITVECTOR == a_times_b.getType().getExpr().getOpKind(), "input must be a bitvector. \n e = " + a_times_b.toString());
+		CHECK_SOUND(BVMULT == a_times_b.getOpKind(),"input must be BVMULT(e).\n e = " + a_times_b.toString());
+		CHECK_SOUND(a_bits.size() == b_bits.size(), "given bit expansions of different size");
+		CHECK_SOUND((int) a_bits.size() <= d_theoryBitvector->BVSize(a_times_b), "the expansion is bigger than the multiplier");
+	}
+
+	int size = a_bits.size();
+	Expr falseExpr = d_theoryBitvector->falseExpr();
+
+//  DISABLED FOR NOW, WE ARENT ENSURING THAT ALL TERMS THAT ENTER BITBLASTING
+//  ARE NON-ZERO
+//	if (CHECK_PROOFS) {
+//          bool all_zero = true;
+//          Expr a = a_times_b[0];
+//          for (int bit = 0; bit < size; bit++) {
+//            Theorem bit_i = a_bits[bit];
+//            Expr bit_extract = d_theoryBitvector->newBoolExtractExpr(a, bit);
+//            CHECK_SOUND(bit_extract == bit_i.getLHS(), "not the right bit theorems");
+//            if (bit_i.getRHS() != falseExpr) all_zero = false;
+//          }
+//          CHECK_SOUND(!all_zero, "expected non-zero inputs");
+//          all_zero = true;
+//          Expr b = a_times_b[1];
+//          for (int bit = 0; bit < size; bit++) {
+//            Theorem bit_i = b_bits[bit];
+//            Expr bit_extract = d_theoryBitvector->newBoolExtractExpr(b, bit);
+//            CHECK_SOUND(bit_extract == bit_i.getLHS(), "not the right bit theorems");
+//            if (bit_i.getRHS() != falseExpr) all_zero = false;
+//          }
+//          CHECK_SOUND(!all_zero, "expected non-zero inputs");
+//	}
+
+	vector<Expr> sum_bits;
+	vector<Expr> carry_bits;
+
+	// Find the first non-zero bits in a and b
+	int a_bit, b_bit;
+	for (a_bit = size - 1; a_bit >= 0 && a_bits[a_bit].getRHS() == falseExpr; a_bit --);
+	for (b_bit = size - 1; b_bit >= 0 && b_bits[b_bit].getRHS() == falseExpr; b_bit --);
+//  DISABLED, SAME AS ABOVE
+//	DebugAssert(a_bit >= 0 && b_bit >= 0, "Expected non-zero inputs");
+
+	int new_size = size;
+    if (a_bit + b_bit + 2 < new_size) new_size = a_bit + b_bit + 2;
+
+	// Build the first row of the multiplier
+	for (int i = 0; i < new_size; i ++) {
+		sum_bits.push_back(a_bits[i].getRHS().andExpr(b_bits[0].getRHS()));
+		carry_bits.push_back(d_theoryBitvector->falseExpr());
+	}
+
+	// Now go down the rows
+	Expr carry = d_theoryBitvector->falseExpr();
+	for (int row = 1; row < new_size; row ++) {
+		for (int bit = new_size-1; bit >= row; bit --) {
+			Expr m = a_bits[bit-row].getRHS().andExpr(b_bits[row].getRHS());
+			Expr sum = sum_bits[bit].iffExpr(m).iffExpr(carry_bits[bit - 1]);
+			Expr carry = sum_bits[bit].andExpr(m).orExpr(carry_bits[bit - 1].andExpr(sum_bits[bit].orExpr(m)));
+			sum_bits[bit] = sum;
+			carry_bits[bit] = carry;
+		}
+		// The carry on the side of the multiplier
+		carry = carry.orExpr(carry_bits[new_size - 1]);
+	}
+
+	// Create all the theorems now
+	for (int bit = 0; bit < size; bit ++) {
+		Proof pf;
+		if (withProof()) {
+			pf = newPf("bitblastBVMult", a_times_b, rat(bit));
+		}
+		output_bits.push_back(newRWTheorem(d_theoryBitvector->newBoolExtractExpr(a_times_b, bit), bit < new_size ? sum_bits[bit] : falseExpr, Assumptions::emptyAssump(), pf));
+	}
+
+	Theorem carry_thm;
+	return carry_thm;
+}
+
+Theorem BitvectorTheoremProducer::bitblastBVPlus(const std::vector<Theorem>& a_bits, const std::vector<Theorem>& b_bits,
+                                                 const Expr& a_plus_b, std::vector<Theorem>& output_bits)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(a_plus_b.arity() == 2, "must be a binary addition");
+		CHECK_SOUND(BITVECTOR == a_plus_b.getType().getExpr().getOpKind(), "input must be a bitvector. \n e = " + a_plus_b.toString());
+		CHECK_SOUND(BVPLUS == a_plus_b.getOpKind(),"input must be BVPLUS(e).\n e = " + a_plus_b.toString());
+		CHECK_SOUND(a_bits.size() == b_bits.size(), "given bit expansions of different size");
+		CHECK_SOUND((int) a_bits.size() <= d_theoryBitvector->BVSize(a_plus_b), "the expansion is bigger than the multiplier");
+	}
+
+	int size = a_bits.size();
+
+	if (CHECK_PROOFS) {
+		Expr a = a_plus_b[0];
+		for (int bit = 0; bit < size; bit++) {
+			Theorem bit_i = a_bits[bit];
+			Expr bit_extract = d_theoryBitvector->newBoolExtractExpr(a, bit);
+			CHECK_SOUND(bit_extract == bit_i.getLHS(), "not the right bit theorems");
+		}
+		Expr b = a_plus_b[1];
+		for (int bit = 0; bit < size; bit++) {
+			Theorem bit_i = b_bits[bit];
+			Expr bit_extract = d_theoryBitvector->newBoolExtractExpr(b, bit);
+			CHECK_SOUND(bit_extract == bit_i.getLHS(), "not the right bit theorems");
+		}
+	}
+
+	vector<Expr> sum_bits;
+
+	Expr carry = d_theoryBitvector->falseExpr();
+	for (int i = 0; i < size; i ++)
+	{
+		Expr a_i = a_bits[i].getRHS();
+		Expr b_i = b_bits[i].getRHS();
+		sum_bits.push_back(a_i.iffExpr(b_i).iffExpr(carry));
+		carry = a_i.andExpr(b_i).orExpr(carry.andExpr(a_i.orExpr(b_i)));
+	}
+
+	// Create all the theorems now
+	for (int bit = 0; bit < size; bit ++) {
+		Proof pf;
+		if (withProof()) {
+			pf = newPf("bitblastBVPlus", a_plus_b, rat(bit));
+		}
+		output_bits.push_back(newRWTheorem(d_theoryBitvector->newBoolExtractExpr(a_plus_b, bit), sum_bits[bit], Assumptions::emptyAssump(), pf));
+	}
+
+	Theorem carry_thm;
+	return carry_thm;
+}
+
+/**
+ * Rewrite the signed divide in terms of the unsigned one.
+ */
+Theorem BitvectorTheoremProducer::bvSDivRewrite(const Expr& sDivExpr)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(BITVECTOR == sDivExpr.getType().getExpr().getOpKind(), "input must be a bitvector. \n e = " + sDivExpr.toString());
+		CHECK_SOUND(BVSDIV == sDivExpr.getOpKind(),"input must be BVSDIV(e).\n e = " + sDivExpr.toString());
+	}
+
+	int m      = d_theoryBitvector->BVSize(sDivExpr);
+
+	Proof pf;
+	if (withProof()) pf = newPf("bvSDivRewrite", sDivExpr);
+
+	//	(bvsdiv s t) abbreviates
+	//	      (let (?msb_s (extract[|m-1|:|m-1|] s))
+	//	      (let (?msb_t (extract[|m-1|:|m-1|] t))
+	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit0)) ---------> cond1
+	//	           (bvudiv s t)
+	//	      (ite (and (= ?msb_s bit1) (= ?msb_t bit0)) ---------> cond2
+	//	           (bvneg (bvudiv (bvneg s) t))
+	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit1)) ---------> cond3
+	//	           (bvneg (bvudiv s (bvneg t)))
+	//	           (bvudiv (bvneg s) (bvneg t)))))))
+
+	Expr s     = sDivExpr[0];
+	Expr t     = sDivExpr[1];
+
+	Expr s_neg = d_theoryBitvector->newBVUminusExpr(s);
+	Expr t_neg = d_theoryBitvector->newBVUminusExpr(t);
+
+	Expr msb_s = d_theoryBitvector->newBVExtractExpr(s, m-1, m-1);
+	Expr msb_t = d_theoryBitvector->newBVExtractExpr(t, m-1, m-1);
+
+	Expr bit0  = d_theoryBitvector->newBVConstExpr(Rational(0), 1);
+	Expr bit1  = d_theoryBitvector->newBVConstExpr(Rational(1), 1);
+
+	Expr cond1 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit0));
+	Expr cond2 = msb_s.eqExpr(bit1).andExpr(msb_t.eqExpr(bit0));
+	Expr cond3 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit1));
+
+	Expr result = cond1.iteExpr(
+				d_theoryBitvector->newBVUDivExpr(s, t),
+				cond2.iteExpr(
+						d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVUDivExpr(s_neg, t)),
+						cond3.iteExpr(
+								d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVUDivExpr(s, t_neg)),
+								d_theoryBitvector->newBVUDivExpr(s_neg, t_neg)
+								)
+						)
+			);
+
+	return newRWTheorem(sDivExpr, result, Assumptions::emptyAssump(), pf);
+}
+
+/**
+ * Rewrite the signed remainder in terms of the unsigned one.
+ */
+Theorem BitvectorTheoremProducer::bvSRemRewrite(const Expr& sRemExpr)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(BITVECTOR == sRemExpr.getType().getExpr().getOpKind(), "input must be a bitvector. \n e = " + sRemExpr.toString());
+		CHECK_SOUND(BVSREM == sRemExpr.getOpKind(),"input must be BVSDIV(e).\n e = " + sRemExpr.toString());
+	}
+
+	int m      = d_theoryBitvector->BVSize(sRemExpr);
+
+	Proof pf;
+	if (withProof()) pf = newPf("bvSRemRewrite", sRemExpr);
+
+	//    (bvsrem s t) abbreviates
+	//	      (let (?msb_s (extract[|m-1|:|m-1|] s))
+	//	      (let (?msb_t (extract[|m-1|:|m-1|] t))
+	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit0))
+	//	           (bvurem s t)
+	//	      (ite (and (= ?msb_s bit1) (= ?msb_t bit0))
+	//	           (bvneg (bvurem (bvneg s) t))
+	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit1))
+	//	           (bvurem s (bvneg t))
+	//	           (bvneg (bvurem (bvneg s) (bvneg t))))))))
+
+	Expr s     = sRemExpr[0];
+	Expr t     = sRemExpr[1];
+
+	Expr s_neg = d_theoryBitvector->newBVUminusExpr(s);
+	Expr t_neg = d_theoryBitvector->newBVUminusExpr(t);
+
+	Expr msb_s = d_theoryBitvector->newBVExtractExpr(s, m-1, m-1);
+	Expr msb_t = d_theoryBitvector->newBVExtractExpr(t, m-1, m-1);
+
+	Expr bit0  = d_theoryBitvector->newBVConstExpr(Rational(0), 1);
+	Expr bit1  = d_theoryBitvector->newBVConstExpr(Rational(1), 1);
+
+	Expr cond1 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit0));
+	Expr cond2 = msb_s.eqExpr(bit1).andExpr(msb_t.eqExpr(bit0));
+	Expr cond3 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit1));
+
+	Expr result = cond1.iteExpr(
+				d_theoryBitvector->newBVURemExpr(s, t),
+				cond2.iteExpr(
+						d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVURemExpr(s_neg, t)),
+						cond3.iteExpr(
+								d_theoryBitvector->newBVURemExpr(s, t_neg),
+								d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVURemExpr(s_neg, t_neg))
+								)
+						)
+			);
+
+	return newRWTheorem(sRemExpr, result, Assumptions::emptyAssump(), pf);
+}
+
+/**
+ * Rewrite the signed mod in terms of the unsigned one.
+ */
+Theorem BitvectorTheoremProducer::bvSModRewrite(const Expr& sModExpr)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(BITVECTOR == sModExpr.getType().getExpr().getOpKind(), "input must be a bitvector. \n e = " + sModExpr.toString());
+		CHECK_SOUND(BVSMOD == sModExpr.getOpKind(),"input must be BVSDIV(e).\n e = " + sModExpr.toString());
+	}
+
+	int m      = d_theoryBitvector->BVSize(sModExpr);
+
+	Proof pf;
+	if (withProof()) pf = newPf("bvSModRewrite", sModExpr);
+
+	//      (bvsmod s t) abbreviates
+	//	      (let (?msb_s (extract[|m-1|:|m-1|] s))
+	//	      (let (?msb_t (extract[|m-1|:|m-1|] t))
+	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit0))
+	//	           (bvurem s t)
+	//	      (ite (and (= ?msb_s bit1) (= ?msb_t bit0))
+	//	           (bvadd (bvneg (bvurem (bvneg s) t)) t)
+	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit1))
+	//	           (bvadd (bvurem s (bvneg t)) t)
+	//             (bvneg (bvurem (bvneg s) (bvneg t))))))))
+
+	Expr s     = sModExpr[0];
+	Expr t     = sModExpr[1];
+
+	Expr s_neg = d_theoryBitvector->newBVUminusExpr(s);
+	Expr t_neg = d_theoryBitvector->newBVUminusExpr(t);
+
+	Expr msb_s = d_theoryBitvector->newBVExtractExpr(s, m-1, m-1);
+	Expr msb_t = d_theoryBitvector->newBVExtractExpr(t, m-1, m-1);
+
+	Expr bit0  = d_theoryBitvector->newBVConstExpr(Rational(0), 1);
+	Expr bit1  = d_theoryBitvector->newBVConstExpr(Rational(1), 1);
+
+	Expr cond1 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit0));
+	Expr cond2 = msb_s.eqExpr(bit1).andExpr(msb_t.eqExpr(bit0));
+	Expr cond3 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit1));
+
+	Expr result = cond1.iteExpr(
+				d_theoryBitvector->newBVURemExpr(s, t),
+				cond2.iteExpr(
+						d_theoryBitvector->newBVPlusExpr(m, d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVURemExpr(s_neg, t)), t),
+						cond3.iteExpr(
+								d_theoryBitvector->newBVPlusExpr(m, d_theoryBitvector->newBVURemExpr(s, t_neg), t),
+								d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVURemExpr(s_neg, t_neg))
+								)
+						)
+			);
+
+	return newRWTheorem(sModExpr, result, Assumptions::emptyAssump(), pf);
+}
+
+Theorem BitvectorTheoremProducer::zeroBVOR(const Expr& orEqZero)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(orEqZero.isEq(), "input must be an equality. \n e = " + orEqZero.toString());
+		CHECK_SOUND(orEqZero[0].getKind() == BVOR, "left-hand side must be a bitwise or. \n e = " + orEqZero.toString());
+		CHECK_SOUND(orEqZero[1].getKind() == BVCONST, "right-hand side must be a constant or. \n e = " + orEqZero.toString());
+		CHECK_SOUND(d_theoryBitvector->computeBVConst(orEqZero[1]) == 0, "right-hand side must be 0. \n e = " + orEqZero.toString());
+	}
+
+	vector<Expr> conjuncts;
+
+	for (int disjunct = 0; disjunct < orEqZero[0].arity(); disjunct ++)
+		conjuncts.push_back(orEqZero[0][disjunct].eqExpr(orEqZero[1]));
+
+	Expr result = andExpr(conjuncts);
+
+	Proof pf;
+	if (withProof()) pf = newPf("zeroBVOR", orEqZero);
+
+	return newRWTheorem(orEqZero, result, Assumptions::emptyAssump(), pf);
+}
+
+Theorem BitvectorTheoremProducer::oneBVAND(const Expr& andEqOne)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(andEqOne.isEq(), "input must be an equality. \n e = " + andEqOne.toString());
+		CHECK_SOUND(andEqOne[0].getKind() == BVAND, "left-hand side must be a bitwise and. \n e = " + andEqOne.toString());
+		CHECK_SOUND(andEqOne[1].getKind() == BVCONST, "right-hand side must be a constant or. \n e = " + andEqOne.toString());
+		CHECK_SOUND(d_theoryBitvector->computeBVConst(andEqOne[1]) == pow(d_theoryBitvector->BVSize(andEqOne[1]), 2) - 1, "right-hand side must be 1^n. \n e = " + andEqOne.toString());
+	}
+
+	vector<Expr> conjuncts;
+
+	for (int conjunct = 0; conjunct < andEqOne[0].arity(); conjunct ++)
+		conjuncts.push_back(andEqOne[0][conjunct].eqExpr(andEqOne[1]));
+
+	Expr result = andExpr(conjuncts);
+
+	Proof pf;
+	if (withProof()) pf = newPf("oneBVAND", andEqOne);
+
+	return newRWTheorem(andEqOne, result, Assumptions::emptyAssump(), pf);
+}
+
+Theorem BitvectorTheoremProducer::constEq(const Expr& eq)
+{
+	if(CHECK_PROOFS) {
+		CHECK_SOUND(eq.isEq(), "input must be an equality. \n e = " + eq.toString());
+		CHECK_SOUND(eq[0].getKind() == BVCONST, "left-hand side must be a constant. \n e = " + eq.toString());
+		CHECK_SOUND(eq[1].getKind() == BVCONST, "right-hand side must be a constant. \n e = " + eq.toString());
+	}
+
+	Expr result = eq[0] == eq[1] ? d_theoryBitvector->trueExpr() : d_theoryBitvector->falseExpr();
+
+	Proof pf;
+	if (withProof()) pf = newPf("constEq", eq);
+
+	return newRWTheorem(eq, result, Assumptions::emptyAssump(), pf);
+}
+
+bool BitvectorTheoremProducer::solveExtractOverlapApplies(const Expr& eq)
+{
+  // Both sides should be an extract
+  if (eq[0].getOpKind() != EXTRACT) return false;
+  if (eq[1].getOpKind() != EXTRACT) return false;
+  // Terms under extract should be identical
+  if (eq[0][0] != eq[1][0]) return false;
+  // We have x[i:j] == x[k:l]
+  int i = d_theoryBitvector->getExtractHi(eq[0]);
+  int j = d_theoryBitvector->getExtractLow(eq[0]);
+  int k = d_theoryBitvector->getExtractHi(eq[1]);
+  int l = d_theoryBitvector->getExtractLow(eq[1]);
+  // They can't be equal, so we either have
+  // i > k >= j > l or
+  // k > i >= l > j
+  if (i == k) return false;
+  else if (i > k)
+    return (k >= j && j > l);
+  else
+    return (i >= l && l > j);
+}
+
+Theorem BitvectorTheoremProducer::solveExtractOverlap(const Expr& eq)
+{
+  Expr res;
+
+  if (CHECK_PROOFS)
+    CHECK_SOUND(solveExtractOverlapApplies(eq), "solveExtractOvelap does not apply to " + eq.toString());
+
+  // Left and right side of the equation
+  Expr lhs = eq[0];
+  Expr rhs = eq[1];
+
+  // We have x[i:j] == x[k:l]
+  int i = d_theoryBitvector->getExtractHi(lhs);
+  int j = d_theoryBitvector->getExtractLow(lhs);
+  int k = d_theoryBitvector->getExtractHi(rhs);
+  int l = d_theoryBitvector->getExtractLow(rhs);
+
+  // We only do case where i > k
+  if (i > k)
+  {
+    vector<Expr> terms;
+    vector<Expr> boundVars;
+
+    // Get the term
+    Expr x = lhs[0];
+    int x_size = d_theoryBitvector->BVSize(x);
+
+    // If there is a initial part of x, put it in
+    if (i < x_size - 1) {
+      Expr x_begin = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(x_size - i - 1));
+      terms.push_back(x_begin);
+      boundVars.push_back(x_begin);
+    }
+
+    if (2*k + 1 <= i + j)
+    {
+      // Case when the overlap is smaller then the rest
+      //     i                k   j                l
+      // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      // xxxxAAAAABBBBBBBBBBBBAAAAABBBBBBBBBBBBAAAAAxxxxx
+      //       a       b        c        d       e
+      int o_size = k - j + 1; // Overlap size
+      bool no_rest = (2*k + 1 == i + j);
+
+      // Make The a = c = e expression
+      Expr a = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(o_size));
+      boundVars.push_back(a);
+      terms.push_back(a);
+
+      if (no_rest) {
+        // c and e
+        terms.push_back(a);
+        terms.push_back(a);
+      } else {
+        // Make the b = d expression
+        Expr b = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(i - k - o_size));
+        boundVars.push_back(b);
+        terms.push_back(b);
+        terms.push_back(a);
+        terms.push_back(b);
+        terms.push_back(a);
+      }
+    }
+    else
+    {
+      // Case when the overlap is bigger then the rest
+      //     i  k                               j  l
+      // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      // xxxxABCABCABCABCABCABCABCABCABCABCABCABCABCxxxxx
+      int o_size = k - j + 1; // Overlap size
+      int r_size = i - k;     // Rest szie
+      // Smallest slice
+      int d = gcd(Rational(o_size), Rational(r_size)).getInt();
+      // Number of different pieces
+      int different_pieces = r_size / d; // How many different slices will we get
+      // Add all the initial different pieces
+      for (int p = 0; p < different_pieces; p ++) {
+        Expr piece = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(d));
+        boundVars.push_back(piece);
+        terms.push_back(piece);
+      }
+      // Add the rest of them cyclicly
+      int other_pieces = (o_size + r_size) / d;
+      for (int p = 0; p < other_pieces; p ++)
+        terms.push_back(terms[terms.size() - different_pieces]);
+    }
+
+    // If there is a ending part of x, put it in
+    if (l > 0) {
+      Expr x_end = d_theoryBitvector->getEM()->newBoundVarExpr(d_theoryBitvector->newBitvectorType(l));
+      terms.push_back(x_end);
+      boundVars.push_back(x_end);
+    }
+
+    res = x.eqExpr(d_theoryBitvector->newConcatExpr(terms));
+    res = d_theoryBitvector->getEM()->newClosureExpr(EXISTS, boundVars, res);
+
+  } else
+    // Other case by symmetry
+    res = solveExtractOverlap(rhs.eqExpr(lhs)).getRHS();
+
+  Proof pf;
+  if (withProof()) pf = newPf("solveExtractOverlap", eq);
+
+  return newTheorem(eq.iffExpr(res), Assumptions::emptyAssump(), pf);
+}
 

@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file vcl.cpp
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Tue Dec 31 18:27:11 2002
  *
  * <hr>
@@ -13,7 +13,7 @@
  * LICENSE file provided with this distribution.
  *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -44,6 +44,7 @@
 #include "expr_transform.h"
 #include "theorem_manager.h"
 #include "assumptions.h"
+#include "parser_exception.h"
 
 
 using namespace std;
@@ -72,11 +73,13 @@ CLFlags ValidityChecker::createFlags() {
 
   // Overall system control flags
   flags.addFlag("timeout", CLFlag(0, "Kill cvc3 process after given number of seconds (0==no limit)"));
+  flags.addFlag("stimeout", CLFlag(0, "Set time resource limit in tenths of seconds for a query(0==no limit)"));
   flags.addFlag("resource", CLFlag(0, "Set finite resource limit (0==no limit)"));
   flags.addFlag("mm", CLFlag("chunks", "Memory manager (chunks, malloc)"));
 
   // Information printing flags
   flags.addFlag("help",CLFlag(true, "print usage information and exit"));
+  flags.addFlag("unsupported",CLFlag(true, "print usage for old/unsupported/experimental options"));
   flags.addFlag("version",CLFlag(true, "print version information and exit"));
   flags.addFlag("interactive", CLFlag(false, "Interactive mode"));
   flags.addFlag("stats", CLFlag(false, "Print run-time statistics"));
@@ -87,20 +90,24 @@ CLFlags ValidityChecker::createFlags() {
 				   "(off when file name is \"\")"));
 
   //Translation related flags
-  flags.addFlag("expResult", CLFlag("", "For smtlib translation.  Give the expected result"));
-  flags.addFlag("category", CLFlag("unknown", "For smtlib translation.  Give the category"));
+  flags.addFlag("expResult", CLFlag("", "For smtlib translation.  Give the expected result", false));
+  flags.addFlag("category", CLFlag("unknown", "For smtlib translation.  Give the category", false));
   flags.addFlag("translate", CLFlag(false, "Produce a complete translation from "
-                                           "the input language to output language.  "));
-  flags.addFlag("real2int", CLFlag(false, "When translating, convert reals to integers."));
-  flags.addFlag("convertArith", CLFlag(false, "When translating, try to rewrite arith terms into smt-lib subset"));
-  flags.addFlag("convert2diff", CLFlag("", "When translating, try to force into difference logic.  Legal values are int and real."));
-  flags.addFlag("iteLiftArith", CLFlag(false, "For translation.  If true, ite's are lifted out of arith exprs."));
-  flags.addFlag("convertArray", CLFlag(false, "For translation.  If true, arrays are converted to uninterpreted functions if possible."));
-  flags.addFlag("combineAssump", CLFlag(false, "For translation.  If true, assumptions are combined into the query."));
-  flags.addFlag("convert2array", CLFlag(false, "For translation. If true, try to convert to array-only theory"));
+                                    "the input language to output language.  "));
+  flags.addFlag("real2int", CLFlag(false, "When translating, convert reals to integers.", false));
+  flags.addFlag("convertArith", CLFlag(false, "When translating, try to rewrite arith terms into smt-lib subset", false));
+  flags.addFlag("convert2diff", CLFlag("", "When translating, try to force into difference logic.  Legal values are int and real.", false));
+  flags.addFlag("iteLiftArith", CLFlag(false, "For translation.  If true, ite's are lifted out of arith exprs.", false));
+  flags.addFlag("convertArray", CLFlag(false, "For translation.  If true, arrays are converted to uninterpreted functions if possible.", false));
+  flags.addFlag("combineAssump", CLFlag(false, "For translation.  If true, assumptions are combined into the query.", false));
+  flags.addFlag("convert2array", CLFlag(false, "For translation. If true, try to convert to array-only theory", false));
+  flags.addFlag("convertToBV",CLFlag(0, "For translation.  Set to nonzero to convert ints to bv's of that length", false));
+  flags.addFlag("convert-eq-iff",CLFlag(false, "Convert equality on Boolean expressions to iff.", false));
+  flags.addFlag("preSimplify",CLFlag(false, "Simplify each assertion or query before translating it", false));
+  flags.addFlag("dump-tcc", CLFlag(false, "Compute and dump TCC only"));
 
   // Parser related flags
-  flags.addFlag("old-func-syntax",CLFlag(false, "Enable parsing of old-style function syntax"));
+  flags.addFlag("old-func-syntax",CLFlag(false, "Enable parsing of old-style function syntax", false));
 
   // Pretty-printing related flags
   flags.addFlag("dagify-exprs",
@@ -116,7 +123,7 @@ CLFlags ValidityChecker::createFlags() {
 
   // Search Engine (SAT) related flags
   flags.addFlag("sat",CLFlag("minisat", "choose a SAT solver to use "
-			     "(fast, simple, sat, minisat)"));
+			     "(sat, minisat)"));
   flags.addFlag("de",CLFlag("dfs", "choose a decision engine to use "
 			    "(dfs, sat)"));
 
@@ -124,32 +131,40 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("proofs", CLFlag(false, "Produce proofs"));
   flags.addFlag("check-proofs",
 		CLFlag(IF_DEBUG(true ||) false, "Check proofs on-the-fly"));
-  flags.addFlag("minimizeClauses", CLFlag(false, "Use brute-force minimization of clauses"));
-  flags.addFlag("dynack", CLFlag(false, "Use dynamic Ackermannization"));
+  flags.addFlag("minimizeClauses", CLFlag(false, "Use brute-force minimization of clauses", false));
+  flags.addFlag("dynack", CLFlag(false, "Use dynamic Ackermannization", false));
   flags.addFlag("smart-clauses", CLFlag(true, "Learn multiple clauses per conflict"));
 
 
   // Core framework switches
   flags.addFlag("tcc", CLFlag(false, "Check TCCs for each ASSERT and QUERY"));
-  flags.addFlag("cnf", CLFlag(true, "Convert top-level Boolean formulas to CNF"));
-  flags.addFlag("ignore-cnf-vars", CLFlag(false, "Do not split on aux. CNF vars (with +cnf)"));
-  flags.addFlag("orig-formula", CLFlag(false, "Preserve the original formula with +cnf (for splitter heuristics)"));
-  flags.addFlag("iflift", CLFlag(false, "Translate if-then-else terms to CNF (with +cnf)"));
-  flags.addFlag("circuit", CLFlag(false, "With +cnf, use circuit propagation"));
-  flags.addFlag("un-ite-ify", CLFlag(false, "Unconvert ITE expressions"));
+  flags.addFlag("cnf", CLFlag(true, "Convert top-level Boolean formulas to CNF", false));
+  flags.addFlag("ignore-cnf-vars", CLFlag(false, "Do not split on aux. CNF vars (with +cnf)", false));
+  flags.addFlag("orig-formula", CLFlag(false, "Preserve the original formula with +cnf (for splitter heuristics)", false));
+  flags.addFlag("iflift", CLFlag(false, "Translate if-then-else terms to CNF (with +cnf)", false));
+  flags.addFlag("circuit", CLFlag(false, "With +cnf, use circuit propagation", false));
+  flags.addFlag("un-ite-ify", CLFlag(false, "Unconvert ITE expressions", false));
   flags.addFlag("ite-cond-simp",
-		CLFlag(false, "Replace ITE condition by TRUE/FALSE in subexprs"));
+		CLFlag(false, "Replace ITE condition by TRUE/FALSE in subexprs", false));
   flags.addFlag("preprocess", CLFlag(true, "Preprocess queries"));
   flags.addFlag("pp-pushneg", CLFlag(false, "Push negation in preprocessor"));
-  flags.addFlag("pp-bryant", CLFlag(false, "Enable Bryant algorithm for UF"));
-  flags.addFlag("pushneg", CLFlag(true, "Push negation while simplifying"));
-  flags.addFlag("simp-and", CLFlag(false, "Rewrite x&y to x&y[x/true]"));
-  flags.addFlag("simp-or", CLFlag(false, "Rewrite x|y to x|y[x/false]"));
+  flags.addFlag("pp-bryant", CLFlag(false, "Enable Bryant algorithm for UF", false));
+  flags.addFlag("pp-budget", CLFlag(0, "Budget for new preprocessing step", false));
+  flags.addFlag("pp-care", CLFlag(true, "Enable care-set preprocessing step", false));
+  flags.addFlag("simp-and", CLFlag(false, "Rewrite x&y to x&y[x/true]", false));
+  flags.addFlag("simp-or", CLFlag(false, "Rewrite x|y to x|y[x/false]", false));
   flags.addFlag("pp-batch", CLFlag(false, "Ignore assumptions until query, then process all at once"));
+
+  // Negate the query when translate into tptp
+  flags.addFlag("negate-query", CLFlag(true, "Negate the query when translate into TPTP format"));;
+
   // Concrete model generation (counterexamples) flags
+  flags.addFlag("counterexample", CLFlag(false, "Dump counterexample if formula is invalid or satisfiable"));
+  flags.addFlag("model", CLFlag(false, "Dump model if formula is invalid or satisfiable"));
+  flags.addFlag("unknown-check-model", CLFlag(false, "Try to generate model if formula is unknown"));
   flags.addFlag("applications", CLFlag(true, "Add relevant function applications and array accesses to the concrete countermodel"));
   // Debugging flags (only for the debug build)
-  // #ifdef DEBUG
+  // #ifdef _CVC3_DEBUG_MODE
   vector<pair<string,bool> > sv;
   flags.addFlag("trace", CLFlag(sv, "Tracing.  Multiple flags add up."));
   flags.addFlag("dump-trace", CLFlag("", "Dump debugging trace to "
@@ -158,142 +173,109 @@ CLFlags ValidityChecker::createFlags() {
   // DP-specific flags
 
   // Arithmetic
-  flags.addFlag("arith-new",CLFlag(false, "Use new arithmetic dp"));
-  flags.addFlag("arith3",CLFlag(false, "Use old arithmetic dp that works well with combined theories"));
+  flags.addFlag("arith-new",CLFlag(false, "Use new arithmetic dp", false));
+  flags.addFlag("arith3",CLFlag(false, "Use old arithmetic dp that works well with combined theories", false));
   flags.addFlag("var-order",
-		CLFlag(false, "Use simple variable order in arith"));
-  flags.addFlag("ineq-delay", CLFlag(10, "Accumulate this many inequalities "
-				     "before processing"));
+		CLFlag(false, "Use simple variable order in arith", false));
+  flags.addFlag("ineq-delay", CLFlag(0, "Accumulate this many inequalities before processing (-1 for don't process until necessary)"));
+
+  flags.addFlag("nonlinear-sign-split", CLFlag(true, "Whether to split on the signs of nontrivial nonlinear terms"));
 
   flags.addFlag("grayshadow-threshold", CLFlag(-1, "Ignore gray shadows bigger than this (makes solver incomplete)"));
   flags.addFlag("pathlength-threshold", CLFlag(-1, "Ignore gray shadows bigger than this (makes solver incomplete)"));
-  
+
   // Arrays
   flags.addFlag("liftReadIte", CLFlag(true, "Lift read of ite"));
 
-  // Negate the query when translate into tptp
-  flags.addFlag("negate-query", CLFlag(true, "Negate the query when translate into TPTP format"));;
+  //for LFSC stuff, disable Tseitin CNF conversion, by Yeting
+  flags.addFlag("cnf-formula", CLFlag(false, "the input is already in CNF. This option automatically enables -de sat and disable -preprocess"));
 
   // Quantifiers
   flags.addFlag("max-quant-inst", CLFlag(200, "The maximum number of"
 			       	" naive instantiations"));
 
   flags.addFlag("quant-new",
-		 CLFlag(true, "Use new quantifier instantiation algorithm"));
+		 CLFlag(true, "If this option is false, only naive instantiation is called"));
 
-  flags.addFlag("quant-lazy", CLFlag(false, "Instantiate lazily"));
+  flags.addFlag("quant-lazy", CLFlag(false, "Instantiate lazily", false));
 
   flags.addFlag("quant-sem-match",
-                CLFlag(false, "Attempt to match semantically when instantiating"));
+		CLFlag(false, "Attempt to match semantically when instantiating", false));
 
-  flags.addFlag("quant-const-match",
-                CLFlag(true, "When matching semantically, only match with constants"));
+//   flags.addFlag("quant-const-match",
+//                 CLFlag(true, "When matching semantically, only match with constants", false));
 
-  flags.addFlag("quant-match-old",
-		CLFlag(false, "Use the old match algorithm"));
+  flags.addFlag("quant-complete-inst",
+		CLFlag(false, "Try complete instantiation heuristic.  +pp-batch will be automatically enabled"));
 
-  flags.addFlag("quant-inst-part", 
-                CLFlag(false, "Use partial instantiation"));
+  flags.addFlag("quant-max-IL",
+		CLFlag(100, "The maximum Instantiation Level allowed"));
 
-  flags.addFlag("quant-inst-mult", 
-                CLFlag(true, "Use multi-triggers in instantiation"));
-
-  flags.addFlag("quant-trig-new", 
-		CLFlag(true, "Use new trig algorithms"));
-
-  flags.addFlag("quant-max-inst", 
-		CLFlag(600, "The maximum number of instantiations"));
-
-  flags.addFlag("quant-inst-end", 
-		CLFlag(true, "Use end heuristic"));
-
-  flags.addFlag("quant-inst-lcache", 
+  flags.addFlag("quant-inst-lcache",
                 CLFlag(true, "Cache instantiations"));
 
-  flags.addFlag("quant-inst-gcache", 
-                CLFlag(false, "Cache instantiations"));
+  flags.addFlag("quant-inst-gcache",
+                CLFlag(false, "Cache instantiations", false));
 
-  flags.addFlag("quant-inst-tcache", 
-                CLFlag(false, "Cache instantiations"));
+  flags.addFlag("quant-inst-tcache",
+                CLFlag(false, "Cache instantiations", false));
 
 
-  flags.addFlag("quant-inst-true", 
+  flags.addFlag("quant-inst-true",
                 CLFlag(true, "Ignore true instantiations"));
 
-  flags.addFlag("quant-pullvar", 
-                CLFlag(false, "Pull out vars"));
+  flags.addFlag("quant-pullvar",
+                CLFlag(false, "Pull out vars", false));
 
-  flags.addFlag("quant-trig-loop", 
-                CLFlag(0, "Trigger loop prevention method, 0, 1, 2"));
-
-  flags.addFlag("quant-score", 
+  flags.addFlag("quant-score",
                 CLFlag(true, "Use instantiation level"));
 
-  flags.addFlag("quant-polarity", 
-                CLFlag(false, "Use polarity "));
+  flags.addFlag("quant-polarity",
+                CLFlag(false, "Use polarity ", false));
 
-  flags.addFlag("quant-equ", 
-                CLFlag(true, "Use equality matching"));
-  flags.addFlag("quant-newequ", 
+  flags.addFlag("quant-eqnew",
                 CLFlag(true, "Use new equality matching"));
 
-
-  flags.addFlag("quant-max-score", 
+  flags.addFlag("quant-max-score",
                 CLFlag(0, "Maximum initial dynamic score"));
 
-  flags.addFlag("quant-inst-all", 
-                CLFlag(false, "try all possible instantiation eagerly"));
-
-  flags.addFlag("quant-trans3", 
+  flags.addFlag("quant-trans3",
                 CLFlag(true, "Use trans heuristic"));
 
-  flags.addFlag("quant-trans2", 
+  flags.addFlag("quant-trans2",
                 CLFlag(true, "Use trans2 heuristic"));
 
-  flags.addFlag("quant-naive-num", 
+  flags.addFlag("quant-naive-num",
                 CLFlag(1000, "Maximum number to call naive instantiation"));
 
-  flags.addFlag("quant-naive-inst", 
+  flags.addFlag("quant-naive-inst",
                 CLFlag(true, "Use naive instantiation"));
 
-
-  flags.addFlag("quant-man-trig", 
+  flags.addFlag("quant-man-trig",
                 CLFlag(true, "Use manual triggers"));
 
-  flags.addFlag("quant-gfact", 
-                CLFlag(false, "Send facts to core directly"));
+  flags.addFlag("quant-gfact",
+                CLFlag(false, "Send facts to core directly", false));
 
-  flags.addFlag("quant-glimit", 
-                CLFlag(1000, "Limit for gfacts"));
+  flags.addFlag("quant-glimit",
+                CLFlag(1000, "Limit for gfacts", false));
 
-  
+  flags.addFlag("print-var-type", //by yeting, as requested by Sascha Boehme for proofs
+                CLFlag(false, "Print types for bound variables"));
+
   //Bitvectors
   flags.addFlag("bv32-flag",
-		CLFlag(false, "assume that all bitvectors are 32bits with no overflow"));
-  flags.addFlag("bv-rewrite",
-		CLFlag(true, "Rewrite bitvector expressions"));
-  flags.addFlag("bv-concatnormal-rewrite",
-		CLFlag(true, "Concat Normal Form rewrites"));
-  flags.addFlag("bv-plusnormal-rewrite",
-		CLFlag(true, "Bvplus Normal Form rewrites"));
-  flags.addFlag("bv-rw-bitblast",
-		CLFlag(false, "Rewrite while bit-blasting"));
-  flags.addFlag("bv-cnf-bitblast", 
-		CLFlag(true,"Bitblast equalities in CNFconverter with +cnf"));
-  flags.addFlag("bv-lhs-minus-rhs", 
-		CLFlag(false,"Do lhs-rhs=0 if both lhs/rhs are BVPLUS"));
-  flags.addFlag("bv-pushnegation", 
-		CLFlag(true,"pushnegation to the leaves"));
+		CLFlag(false, "assume that all bitvectors are 32bits with no overflow", false));
 
   // Uninterpreted Functions
   flags.addFlag("trans-closure",
-		CLFlag(false,"enables transitive closure of binary relations"));
+		CLFlag(false,"enables transitive closure of binary relations", false));
 
   // Datatypes
   flags.addFlag("dt-smartsplits",
-                CLFlag(true, "enables smart splitting in datatype theory"));
+                CLFlag(true, "enables smart splitting in datatype theory", false));
   flags.addFlag("dt-lazy",
-                CLFlag(false, "lazy splitting on datatypes"));
+                CLFlag(false, "lazy splitting on datatypes", false));
 
   return flags;
 }
@@ -414,13 +396,30 @@ VCL::VCL(const CLFlags& flags)
 {
   // Set the dependent flags so that they are consistent
 
+  if ((*d_flags)["dump-tcc"].getBool()) {
+    d_flags->setFlag("translate", true);
+    d_flags->setFlag("pp-batch", true);
+    d_flags->setFlag("tcc", true);
+  }
+
   if ((*d_flags)["translate"].getBool()) {
     d_flags->setFlag("printResults", false);
   }
 
   if ((*d_flags)["pp-bryant"].getBool()) {
     d_flags->setFlag("pp-batch", true);
-  }    
+  }
+
+  //added by Yeting
+  if ((*d_flags)["quant-complete-inst"].getBool()) {
+    d_flags->setFlag("pp-batch", true);
+  }
+
+  //added by Yeting
+  if ((*d_flags)["cnf-formula"].getBool()) {
+    d_flags->setFlag("de", "sat");
+    d_flags->setFlag("preprocess", false);
+  }
 
 
   IF_DEBUG( // Initialize the global debugger
@@ -459,7 +458,8 @@ void VCL::init()
                                 (*d_flags)["expResult"].getString(),
                                 (*d_flags)["category"].getString(),
                                 (*d_flags)["convertArray"].getBool(),
-                                (*d_flags)["combineAssump"].getBool());
+                                (*d_flags)["combineAssump"].getBool(),
+                                (*d_flags)["convertToBV"].getInt());
 
   d_dump = d_translator->start((*d_flags)["dump-log"].getString());
 
@@ -483,6 +483,7 @@ void VCL::init()
   else {
     d_theories.push_back(d_theoryArith = new TheoryArithOld(d_theoryCore));
   }
+  d_theoryCore->getExprTrans()->setTheoryArith(d_theoryArith);
   d_theories.push_back(d_theoryArray = new TheoryArray(d_theoryCore));
   d_theories.push_back(d_theoryRecords = new TheoryRecords(d_theoryCore));
   d_theories.push_back(d_theorySimulate = new TheorySimulate(d_theoryCore));
@@ -510,7 +511,7 @@ void VCL::init()
   // based on flags
   const string& satEngine = (*d_flags)["sat"].getString();
   if (satEngine == "simple")
-    d_se = new SearchSimple(d_theoryCore); 
+    d_se = new SearchSimple(d_theoryCore);
   else if (satEngine == "fast")
     d_se = new SearchEngineFast(d_theoryCore);
   else if (satEngine == "sat" || satEngine == "minisat")
@@ -525,8 +526,9 @@ void VCL::init()
   d_stackLevel = new(true) CDO<int>(d_cm->getCurrentContext(), 0);
 
   d_theoryCore->setResourceLimit((unsigned)((*d_flags)["resource"].getInt()));
-  
-  //  myvcl = this; 
+  d_theoryCore->setTimeLimit((unsigned)((*d_flags)["stimeout"].getInt()));
+
+  //  myvcl = this;
 }
 
 
@@ -595,6 +597,12 @@ VCL::~VCL()
   TRACE_MSG("delete", "Deleting d_flags [end of ~VCL()]");
   delete d_flags;
   // No more TRACE-ing after this point (it needs d_flags)
+  // Finalize the global debugger,
+  // otherwise applications with more than one instance of VCL
+  // may use refer to deallocated flags (e.g. test6 uses 2 VLCs)
+  IF_DEBUG(
+	   CVC3::debugger.finalize();
+  )
 }
 
 
@@ -603,7 +611,7 @@ void VCL::reprocessFlags() {
     delete d_se;
     const string& satEngine = (*d_flags)["sat"].getString();
     if (satEngine == "simple")
-      d_se = new SearchSimple(d_theoryCore); 
+      d_se = new SearchSimple(d_theoryCore);
     else if (satEngine == "fast")
       d_se = new SearchEngineFast(d_theoryCore);
     else if (satEngine == "sat" || satEngine == "minisat")
@@ -643,9 +651,30 @@ void VCL::reprocessFlags() {
     d_translator->setTheoryArith(d_theoryArith);
   }
 
+  if ((*d_flags)["dump-tcc"].getBool()) {
+    d_flags->setFlag("translate", true);
+    d_flags->setFlag("pp-batch", true);
+    d_flags->setFlag("tcc", true);
+  }
+
+  if ((*d_flags)["translate"].getBool()) {
+    d_flags->setFlag("printResults", false);
+  }
+
   if ((*d_flags)["pp-bryant"].getBool()) {
     d_flags->setFlag("pp-batch", true);
-  }    
+  }
+
+  //added by Yeting
+  if ((*d_flags)["quant-complete-inst"].getBool()) {
+    d_flags->setFlag("pp-batch", true);
+  }
+
+  if ((*d_flags)["cnf-formula"].getBool()) {
+    d_flags->setFlag("de", "sat");
+    d_flags->setFlag("preprocess", false);
+  }
+
 
   //TODO: handle more flags
 }
@@ -782,7 +811,11 @@ Type VCL::dataType(const string& name,
                    const vector<vector<string> >& selectors,
                    const vector<vector<Expr> >& types)
 {
-  return d_theoryDatatype->dataType(name, constructors, selectors, types);
+  Expr res = d_theoryDatatype->dataType(name, constructors, selectors, types);
+  if(d_dump) {
+    d_translator->dump(res);
+  }
+  return Type(res[0]);
 }
 
 
@@ -792,7 +825,13 @@ void VCL::dataType(const vector<string>& names,
                    const vector<vector<vector<Expr> > >& types,
                    vector<Type>& returnTypes)
 {
-  d_theoryDatatype->dataType(names, constructors, selectors, types, returnTypes);
+  Expr res = d_theoryDatatype->dataType(names, constructors, selectors, types);
+  if(d_dump) {
+    d_translator->dump(res);
+  }
+  for (int i = 0; i < res.arity(); ++i) {
+    returnTypes.push_back(Type(res[i]));
+  }
 }
 
 
@@ -1020,6 +1059,24 @@ Type VCL::importType(const Type& t)
   return Type(d_em->rebuild(t.getExpr()));
 }
 
+void VCL::cmdsFromString(const std::string& s, InputLanguage lang=PRESENTATION_LANG)
+{
+  stringstream ss(s,stringstream::in);
+  return loadFile(ss,lang,false);
+}
+
+Expr VCL::exprFromString(const std::string& s)
+{
+  stringstream ss("PRINT " + s + ";",stringstream::in);
+  Parser p(this,PRESENTATION_LANG,ss);
+  Expr e = p.next();
+  if( e.isNull() ) {
+    throw ParserException("Parser result is null: '" + s + "'");
+  }
+  DebugAssert(e.getKind() == RAW_LIST, "Expected list expression");
+  DebugAssert(e.arity() == 2, "Expected two children");
+  return parseExpr(e[1]);
+}
 
 Expr VCL::trueExpr()
 {
@@ -1084,6 +1141,10 @@ Expr VCL::eqExpr(const Expr& child0, const Expr& child1)
   return child0.eqExpr(child1);
 }
 
+Expr VCL::distinctExpr(const std::vector<Expr>& children)
+{
+	return Expr(DISTINCT, children);
+}
 
 Expr VCL::iteExpr(const Expr& ifpart, const Expr& thenpart, const Expr& elsepart)
 {
@@ -1161,6 +1222,12 @@ Op VCL::createOp(const string& name, const Type& type, const Expr& def)
 }
 
 
+Op VCL::lookupOp(const string& name, Type* type)
+{
+  return d_theoryCore->lookupFunction(name, type);
+}
+
+
 Expr VCL::funExpr(const Op& op, const Expr& child)
 {
   return Expr(op, child);
@@ -1184,6 +1251,13 @@ Expr VCL::funExpr(const Op& op, const vector<Expr>& children)
   return Expr(op, children);
 }
 
+bool VCL::addPairToArithOrder(const Expr& smaller, const Expr& bigger)
+{
+  if (d_dump) {
+    d_translator->dump(Expr(ARITH_VAR_ORDER, smaller, bigger), true);
+  }
+  return d_theoryArith->addPairToArithOrder(smaller, bigger);
+}
 
 Expr VCL::ratExpr(int n, int d)
 {
@@ -1215,7 +1289,12 @@ Expr VCL::ratExpr(const string& n, int base)
   }
   Rational r = Rational(beforedec.c_str(), base);
   Rational fracPart = Rational(afterdec.c_str(), base);
-  r = r + (fracPart / pow(afterdec.size(), base));
+  if( r < 0 ) {
+    r = r - (fracPart / pow(afterdec.size(), base));
+  }
+  else {
+    r = r + (fracPart / pow(afterdec.size(), base));
+  }
   return d_em->newRatExpr(r);
 }
 
@@ -1229,6 +1308,11 @@ Expr VCL::uminusExpr(const Expr& child)
 Expr VCL::plusExpr(const Expr& left, const Expr& right)
 {
   return left + right;
+}
+
+Expr VCL::plusExpr(const std::vector<Expr>& children)
+{
+	return Expr(PLUS, children);
 }
 
 
@@ -1514,10 +1598,43 @@ Expr VCL::newBVPlusExpr(int numbits, const std::vector<Expr>& k)
   return d_theoryBitvector->newBVPlusPadExpr(numbits, k);
 }
 
+Expr VCL::newBVPlusExpr(int numbits, const Expr& t1, const Expr& t2)
+{
+	std::vector<Expr> k;
+	k.push_back(t1);
+	k.push_back(t2);
+	return newBVPlusExpr(numbits, k);
+}
+
 
 Expr VCL::newBVMultExpr(int numbits, const Expr& t1, const Expr& t2)
 {
   return d_theoryBitvector->newBVMultPadExpr(numbits, t1, t2);
+}
+
+Expr VCL::newBVUDivExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVUDivExpr(t1, t2);
+}
+
+Expr VCL::newBVURemExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVURemExpr(t1, t2);
+}
+
+Expr VCL::newBVSDivExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVSDivExpr(t1, t2);
+}
+
+Expr VCL::newBVSRemExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVSRemExpr(t1, t2);
+}
+
+Expr VCL::newBVSModExpr(const Expr& t1, const Expr& t2)
+{
+  return d_theoryBitvector->newBVSModExpr(t1, t2);
 }
 
 
@@ -1581,19 +1698,24 @@ Expr VCL::datatypeTestExpr(const string& constructor, const Expr& arg)
 }
 
 
-Expr VCL::boundVarExpr(const string& name, const string& uid, 
+Expr VCL::boundVarExpr(const string& name, const string& uid,
 		       const Type& type) {
   return d_em->newBoundVarExpr(name, uid, type);
 }
 
 
 Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body) {
-  DebugAssert(vars.size() > 0, "VCL::andExpr()");
+  DebugAssert(vars.size() > 0, "VCL::foralLExpr()");
   return d_em->newClosureExpr(FORALL, vars, body);
 }
 
+Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
+		     const vector<vector<Expr> >& triggers) {
+  DebugAssert(vars.size() > 0, "VCL::foralLExpr()");
+  return d_em->newClosureExpr(FORALL, vars, body, triggers);
+}
 
-void VCL::setTriggers(const Expr& e, const std::vector<Expr>& triggers) {
+void VCL::setTriggers(const Expr& e, const std::vector< std::vector<Expr> >& triggers) {
   e.setTriggers(triggers);
 }
 
@@ -1605,6 +1727,11 @@ Expr VCL::existsExpr(const vector<Expr>& vars, const Expr& body) {
 
 Op VCL::lambdaExpr(const vector<Expr>& vars, const Expr& body) {
   return d_em->newClosureExpr(LAMBDA, vars, body).mkOp();
+}
+
+Op VCL::transClosure(const Op& op) {
+  const string& name = op.getExpr().getName();
+  return d_em->newSymbolExpr(name, TRANS_CLOSURE).mkOp();
 }
 
 
@@ -1644,7 +1771,7 @@ Theorem VCL::checkTCC(const Expr& tcc)
                                "in the current context.");
     case ABORT:
       throw TypecheckException("Budget exceeded:\n\n  "
-                               "Unable to verify TCC:\n\n  "                               
+                               "Unable to verify TCC:\n\n  "
                                +tcc.toString()
                                +"\n\nWhich simplified to:\n\n  "
                                +simplify(tcc).toString());
@@ -1673,20 +1800,24 @@ void VCL::assertFormula(const Expr& e)
 			     +e.getType().toString());
   }
 
-  // Check if the ofstream is open (as opposed to the command line flag)
-  if(d_dump) {
-    if (d_translator->dumpAssertion(e)) return;
-  }
-
-  TRACE("assetFormula", "VCL::assertFormula(", e, ") {");
-
   if (getFlags()["pp-batch"].getBool()) {
     d_batchedAssertions->push_back(e);
   }
   else {
+    // Check if the ofstream is open (as opposed to the command line flag)
+    if(d_dump) {
+      Expr e2 = e;
+      if (getFlags()["preSimplify"].getBool()) {
+        e2 = simplify(e);
+      }
+      if (d_translator->dumpAssertion(e2)) return;
+    }
+
+    TRACE("vclassertFormula", "VCL::assertFormula(", e, ") {");
+
     // See if e was already asserted before
     if(d_userAssertions->count(e) > 0) {
-      TRACE_MSG("assertFormula", "VCL::assertFormula[repeated assertion] => }");
+      TRACE_MSG("vclassertFormula", "VCL::assertFormula[repeated assertion] => }");
       return;
     }
     // Check the validity of the TCC
@@ -1699,7 +1830,7 @@ void VCL::assertFormula(const Expr& e)
     Theorem thm = d_se->newUserAssumption(e);
     (*d_userAssertions)[e] = UserAssertion(thm, tccThm, d_nextIdx++);
   }
-  TRACE_MSG("assertFormula", "VCL::assertFormula => }");
+  TRACE_MSG("vclassertFormula", "VCL::assertFormula => }");
 }
 
 
@@ -1746,10 +1877,6 @@ QueryResult VCL::query(const Expr& e)
 			     +e.getType().toString());
   }
 
-  if(d_dump) {
-    if (d_translator->dumpQuery(e)) return UNKNOWN;
-  }
-
   Expr qExpr = e;
   if (getFlags()["pp-batch"].getBool()) {
     // Add batched assertions
@@ -1759,15 +1886,30 @@ QueryResult VCL::query(const Expr& e)
       kids.push_back((*d_batchedAssertions)[(*d_batchedAssertionsIdx)]);
     }
     if (kids.size() > 0) {
-      qExpr = Expr(AND, kids);
+      qExpr = kids.size() == 1 ? kids[0] : Expr(AND, kids);
       qExpr = qExpr.impExpr(e);
     }
+  }
+
+  if (d_dump && !getFlags()["dump-tcc"].getBool()) {
+    Expr e2 = qExpr;
+    if (getFlags()["preSimplify"].getBool()) {
+      e2 = simplify(qExpr);
+    }
+    if (d_translator->dumpQuery(e2)) return UNKNOWN;
   }
 
   // Check the validity of the TCC
   Theorem tccThm = d_se->getCommonRules()->trueTheorem();
   if(getFlags()["tcc"].getBool()) {
     Expr tcc(d_theoryCore->getTCC(qExpr));
+    if (getFlags()["dump-tcc"].getBool()) {
+      Expr e2 = tcc;
+      if (getFlags()["preSimplify"].getBool()) {
+        e2 = simplify(tcc);
+      }
+      if (d_translator->dumpQuery(e2)) return UNKNOWN;
+    }
     // FIXME: we have to guarantee that the TCC of 'tcc' is always valid
     tccThm = checkTCC(tcc);
   }
@@ -1782,7 +1924,7 @@ QueryResult VCL::query(const Expr& e)
       d_lastQuery = Theorem3();
       d_lastClosure = Theorem3();
   }
-  TRACE("query", "VCL::query => ", 
+  TRACE("query", "VCL::query => ",
         qres == VALID ? "VALID" :
         qres == INVALID ? "INVALID" :
         qres == ABORT ? "ABORT" : "UNKNOWN", " }");
@@ -1872,6 +2014,7 @@ Expr VCL::getProofQuery()
 
 void VCL::getAssumptionsUsed(vector<Expr>& assumptions)
 {
+  throw EvalException ("getAssumptionsUsed not currently supported");
   if(d_dump) {
     d_translator->dump(d_em->newLeafExpr(DUMP_ASSUMPTIONS), true);
   }
@@ -1900,6 +2043,44 @@ void VCL::getConcreteModel(ExprMap<Expr> & m)
     d_se->getConcreteModel(m);
 }
 
+QueryResult VCL::tryModelGeneration() {
+	if (!d_theoryCore->incomplete()) throw Exception("Model generation should be called only after an UNKNOWN result");
+	QueryResult qres = UNKNOWN;
+	int scopeLevel = d_cm->scopeLevel();
+	try  {
+          while (qres == UNKNOWN)
+            {
+              Theorem thm;
+              d_se->push();
+              // Try to generate the model
+              if (d_se->tryModelGeneration(thm))
+                // If success, we are satisfiable
+                qres = INVALID;
+              else
+                {
+                  // Generate the clause to get rid of the faults
+                  vector<Expr> assumptions;
+                  thm.getLeafAssumptions(assumptions, true /*negate*/);
+                  if (!thm.getExpr().isFalse()) assumptions.push_back(thm.getExpr());
+                  // Pop back to where we were
+                  while (d_cm->scopeLevel() > scopeLevel) d_se->pop();
+                  // Restart with the new clause
+                  qres = restart(orExpr(assumptions));
+                  // Keep this level
+                  scopeLevel = d_cm->scopeLevel();
+                }
+            }
+        } catch (Exception& e) {
+          // Pop back to where we were
+          while (d_cm->scopeLevel() > scopeLevel) d_se->pop();
+        }
+	return qres;
+}
+
+FormulaValue VCL::value(const Expr& e) {
+  DebugAssert(!e.isTerm(), "vcl::value: e is not a formula");
+  return d_se->getValue(e);
+}
 
 bool VCL::inconsistent(vector<Expr>& assumptions)
 {
@@ -1911,6 +2092,11 @@ bool VCL::inconsistent(vector<Expr>& assumptions)
     return true;
   }
   return false;
+}
+
+bool VCL::inconsistent()
+{
+  return d_theoryCore->inconsistent();
 }
 
 
@@ -2126,19 +2312,47 @@ void VCL::loadFile(istream& is, InputLanguage lang,
 }
 
 
-unsigned long VCL::printMemory()
+// Verbosity: <= 0 = print nothing, only calculate
+//            1 = only print current level
+//            n = print n recursive levels
+
+unsigned long VCL::getMemory(int verbosity)
 {
-  cout << "VCL: " <<
-    sizeof(VCL) + d_theories.size() * sizeof(Theory*)
-       << endl;
+  unsigned long memSelf = sizeof(VCL);
+  unsigned long mem = 0;
 
-  cout << "Context: " << d_cm->getMemory() << endl;
-  return 0;
-//   d_em->printMemory();
-//   d_tm->printMemory();
-//   d_translator->printMemory();
-//   d_se->printMemory();
+  mem += d_cm->getMemory(verbosity - 1);
+  mem += d_em->getMemory(verbosity - 1);
+//   mem += d_tm->getMemory(verbosity - 1);
+//   mem += d_se->getMemory(verbosity - 1);
 
-//   d_theoryCore->printMemory();
-  
+//   mem += d_theoryCore->getMemory(verbosity - 1);
+//   mem += d_theoryUF->getMemory(verbosity - 1);
+//   mem += d_theoryArith->getMemory(verbosity - 1);
+//   mem += d_theoryArray->getMemory(verbosity - 1);
+//   mem += d_theoryQuant->getMemory(verbosity - 1);
+//   mem += d_theoryRecords->getMemory(verbosity - 1);
+//   mem += d_theorySimulate->getMemory(verbosity - 1);
+//   mem += d_theoryBitvector->getMemory(verbosity - 1);
+//   mem += d_theoryDatatype->getMemory(verbosity - 1);
+//   mem += d_translator->getMemory(verbosity - 1);
+
+//   mem += getMemoryVec(verbosity, d_theories, false, true);
+
+//   mem += d_flags->getMemory(verbosity - 1);
+//   mem += d_stackLevel->getMemory(verbosity - 1);
+//   mem += d_statistics->getMemory(verbosity - 1);
+//   mem += d_userAssertions->getMemory(verbosity - 1);
+//   mem += d_batchedAssertions->getMemory(verbosity - 1);
+//   mem += d_batchedAssertionsIdx->getMemory(verbosity - 1);
+
+  //TODO: how to get memory for Expr and Theorems?
+
+  MemoryTracker::print("VCL", verbosity, memSelf, mem);
+
+  return mem + memSelf;
+}
+
+void VCL::setTimeLimit(unsigned limit) {
+  d_theoryCore->setTimeLimit(limit);
 }

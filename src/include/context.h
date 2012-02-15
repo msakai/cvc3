@@ -1,9 +1,9 @@
 /*****************************************************************************/
 /*!
  * \file context.h
- * 
+ *
  * Author: Clark Barrett
- * 
+ *
  * Created: Tue Dec 31 19:07:38 2002
  *
  * <hr>
@@ -12,9 +12,9 @@
  * and its documentation for any purpose is hereby granted without
  * royalty, subject to the terms and conditions defined in the \ref
  * LICENSE file provided with this distribution.
- * 
+ *
  * <hr>
- * 
+ *
  */
 /*****************************************************************************/
 
@@ -24,8 +24,10 @@
 
 #include <string>
 #include <vector>
+#include <stdlib.h>
 #include "debug.h"
 #include "memory_manager_context.h"
+#include "os.h"
 
 namespace CVC3 {
 
@@ -44,7 +46,7 @@ class ContextObj;
 class ContextObjChain;
 
 /****************************************************************************/
-/*! 
+/*!
  * Author: Clark Barrett
  *
  * Created: Thu Feb 13 00:19:15 2003
@@ -111,6 +113,9 @@ public:
 
   //! Check for memory leaks
   void check(void);
+
+  //! Compute memory used
+  unsigned long getMemory(int verbosity);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -148,7 +153,7 @@ private:
   ContextObj* d_master;
 
   //! Private constructor (only friends can use it)
-  ContextObjChain(ContextObj* data, ContextObj* master, 
+  ContextObjChain(ContextObj* data, ContextObj* master,
 		  ContextObjChain* restore)
     : d_restoreChainNext(NULL), d_restoreChainPrev(NULL),
       d_restore(restore), d_data(data), d_master(master)
@@ -232,7 +237,7 @@ protected:
 
   //! Restore the current object from the given data
   virtual void restoreData(ContextObj* data) {
-    FatalAssert(false, 
+    FatalAssert(false,
                 "ContextObj::restoreData(): call in the base abstract class");
   }
 
@@ -256,9 +261,9 @@ public:
    * reduce the work of pop() (otherwise, if the object is defined
    * only on a very high scope, its scope will be moved down with each
    * pop).  If 'atBottomScope' == false, the scope is set to the
-   * current scope. 
+   * current scope.
    */
-  ContextObj(Context* context, bool atBottomScope = true);
+  ContextObj(Context* context);
   virtual ~ContextObj();
 
   int level() const { return (d_scope==NULL)? 0 : d_scope->level(); }
@@ -298,7 +303,7 @@ public:
  * of a database.
  */
 ///////////////////////////////////////////////////////////////////////////////
-class Context {
+class CVC_DLL Context {
   //! Context Manager
   ContextManager* d_cm;
 
@@ -335,7 +340,7 @@ public:
   void popto(int toLevel);
   void addNotifyObj(ContextNotifyObj* obj) { d_notifyObjList.push_back(obj); }
   void deleteNotifyObj(ContextNotifyObj* obj);
-  unsigned long getMemory();
+  unsigned long getMemory(int verbosity);
 };
 
 // Have to define after Context class
@@ -363,13 +368,12 @@ inline void Scope::restore(void) {
 // object is defined only on a very high scope, its scope will be
 // moved down with each pop).  If 'atBottomScope' == false, the
 // scope is set to the current scope.
-inline ContextObj::ContextObj(Context* context, bool atBottomScope)
+inline ContextObj::ContextObj(Context* context)
   IF_DEBUG(: d_name("ContextObj"))
 {
   IF_DEBUG(d_active=true;)
   DebugAssert(context != NULL, "NULL context pointer");
-  if (atBottomScope) d_scope = context->bottomScope();
-  else d_scope = context->topScope();
+  d_scope = context->bottomScope();
   d_restore = new(true) ContextObjChain(NULL, this, NULL);
   d_scope->addToChain(d_restore);
   //  if (atBottomScope) d_scope->addSpecialObject(d_restore);
@@ -401,13 +405,13 @@ public:
   Context* createContext(const std::string& name="");
   Context* getCurrentContext() { return d_curContext; }
   Context* switchContext(Context* context);
-  unsigned long getMemory();
+  unsigned long getMemory(int verbosity);
 };
 
 /****************************************************************************/
-/*! Author: Clark Barrett                                                     
+/*! Author: Clark Barrett
  *
- * Created: Sat Feb 22 16:21:47 2003					     
+ * Created: Sat Feb 22 16:21:47 2003
  *
  * Lightweight version of ContextObj: objects are simply notified
  * every time there's a pop. notifyPre() is called right before the
@@ -415,7 +419,7 @@ public:
  * restored.
  */
 /****************************************************************************/
- 
+
 class ContextNotifyObj {
   friend class Context;
 protected:
@@ -431,6 +435,7 @@ public:
   }
   virtual void notifyPre(void) {}
   virtual void notify(void) {}
+  virtual unsigned long getMemory(int verbosity) { return sizeof(ContextNotifyObj); }
 };
 
 /*@}*/  // end of group Context
