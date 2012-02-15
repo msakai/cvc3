@@ -1,0 +1,124 @@
+##################################################
+# Project-specific Makefile for including in each
+# module
+##################################################
+
+#Inputs: MODULE, SRC, HEADERS, EXECUTABLE/LIBRARY
+#Optional inputs: CXXFLAGS, INCLUDE_DIR, LD_LIB_DIR, LD_LIBS, EXE_DIR
+
+##################################################
+# Configuration options
+##################################################
+
+#Whether to build static libraries and executable
+STATIC = @STATIC@
+
+#Whether to optimize
+OPTIMIZED = @OPTIMIZED@
+
+#Whether to build for gcov
+GCOV = @GCOV@
+
+#Whether to build for gprof
+GPROF = @GPROF@
+
+#Path to top directory
+ifndef TOP
+  TOP = @TOP@
+endif
+
+#CXX
+CXX = @CXX@
+
+#LD
+LD = @LD@
+
+#CXXFLAGS
+CXXFLAGS = @CXXFLAGS@
+
+#CPPFLAGS
+CPPFLAGS = @CPPFLAGS@
+
+#LDFLAGS
+LDFLAGS = @LDFLAGS@
+
+#LIBS
+LD_LIBS += @LIBS@
+
+#Installation directories
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+bindir=@bindir@
+mandir=@mandir@
+incdir=$(prefix)/include/$(PROJECTNAME)
+
+##################################################
+# Platform-specific definitions
+##################################################
+
+#Name of platform
+ifndef PLATFORM
+  PLATFORM = @OSTYPE@
+endif
+
+ifeq ($(PLATFORM),linux-x86_64)
+ifeq ($(STATIC),0)
+  CXXFLAGS += -fPIC
+endif
+endif
+
+#Install
+INSTALL = @INSTALL@
+INSTALL_FLAGS = @INSTALL_FLAGS@
+
+#Shared/Static libraries
+SHARED = @SHARED@
+STATIC_FLAG = @STATIC_FLAG@
+DYNAMIC_FLAG = @DYNAMIC_FLAG@
+STATIC_LIB_SUFFIX = @STATIC_LIB_SUFFIX@
+SHARED_LIB_SUFFIX = @SHARED_LIB_SUFFIX@
+
+#Etags/Ebrowse
+ETAGS=@ETAGS@
+EBROWSE=@EBROWSE@
+
+#lex
+LEX = flex
+LFLAGS = # -i  use this for a case-insensitive scanner
+
+#yacc
+YACC = bison
+YFLAGS = -d -y
+
+##################################################
+# Project-specific definitions
+##################################################
+
+#Name of project library
+PROJECTNAME = cvc3
+
+#Where to look for include files
+INCLUDE_DIR += -I. -I$(TOP)/src/include
+
+#Where to look for lib files
+LD_LIB_DIR = @LD_LIB_DIR@ -L$(LIB_DIR)
+
+VERSION = @VERSION@
+WEBDIR = /usr/httpd/htdocs_cs/acsys/cvc3
+
+RATIONAL_FLAGS = @RATIONAL_IMPL@
+ifeq ($(RATIONAL_FLAGS),-DRATIONAL_NATIVE)
+  PLATFORM = @OSTYPE@-native-arith
+endif
+
+DPLL_BASIC = @DPLL_BASIC@
+EXTRA_SAT_CPP = @EXTRA_SAT_CPP@
+EXTRA_SAT_HEADERS = @EXTRA_SAT_HEADERS@
+LICENSE_INFO_FILE = @LICENSE_INFO_FILE@
+
+##################################################
+# Include generic Makefile
+##################################################
+
+include $(TOP)/Makefile.std
