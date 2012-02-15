@@ -22,6 +22,7 @@
 #define _cvc3__include__theory_uf_h_
 
 #include "theory.h"
+#include "cdmap.h"
 
 namespace CVC3 {
 
@@ -63,7 +64,11 @@ class TheoryUF :public Theory {
   CDList<Expr> d_funApplications;
   //! Pointer to the last unprocessed element (for lambda expansions)
   CDO<size_t> d_funApplicationsIdx;
-  
+  //! The pointers to the last unprocessed shared pair
+  CDO<size_t> d_sharedIdx1, d_sharedIdx2;
+  //! The set of all shared terms
+  CDMap<Expr, bool> d_sharedTermsMap;
+
 public:
   TheoryUF(TheoryCore* core);
   ~TheoryUF();
@@ -73,7 +78,7 @@ public:
   UFProofRules* createProofRules();
 
   // Theory interface
-  void addSharedTerm(const Expr& e) {}
+  void addSharedTerm(const Expr& e);
   void assertFact(const Theorem& e);
   void checkSat(bool fullEffort);
   Theorem rewrite(const Expr& e);
@@ -95,6 +100,8 @@ public:
   //! Create a transitive closure expression
   Expr transClosureExpr(const std::string& name,
 			const Expr& e1, const Expr& e2);
+private:
+  void printSmtLibShared(ExprStream& os, const Expr& e);
 };
 
 }

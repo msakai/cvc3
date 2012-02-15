@@ -53,6 +53,10 @@ public class ValidityChecker extends Embedded {
 	jniDataType3(Object ValidityChecker, Object[] names, Object[] constructors,
 		     Object[] selectors, Object[] types) throws Cvc3Exception;
     private static native Object
+	jniAnyType(Object ValidityChecker) throws Cvc3Exception;
+    private static native Object
+    jniArrayLiteral(Object ValidityChecker, Object indexVar, Object bodyExpr) throws Cvc3Exception;
+    private static native Object
 	jniArrayType(Object ValidityChecker, Object TypeIndex, Object TypeData) throws Cvc3Exception;
     private static native Object
 	jniBitvecType(Object ValidityChecker, int n) throws Cvc3Exception;
@@ -78,8 +82,13 @@ public class ValidityChecker extends Embedded {
 	jniVarExpr2(Object ValidityChecker, String name, Object Type, Object defExpr) throws Cvc3Exception;
     private static native Object
 	jniBoundVarExpr(Object ValidityChecker, String name, String uid, Object Type) throws Cvc3Exception;
+    /*private static native Object
+    jniBoundVarExpr2(Object ValidityChecker, Object Type) throws Cvc3Exception;
+    */
     private static native Object
-	jniLookupVar(Object ValidityChecker, String name, Object Type) throws Cvc3Exception;
+	jniLookupVar(Object ValidityChecker, String name) throws Cvc3Exception;
+    private static native Object
+	jniLookupOp(Object ValidityChecker, String name) throws Cvc3Exception;
     private static native Object
 	jniGetType(Object ValidityChecker, Object Expr) throws Cvc3Exception;
     private static native Object
@@ -287,11 +296,19 @@ public class ValidityChecker extends Embedded {
     private static native Object
     jniNewBVSModExpr(Object ValidityChecker, Object left, Object right)	throws Cvc3Exception;
     private static native Object
+    jniNewBVSHL(Object ValidityChecker, Object left, Object right)	throws Cvc3Exception;
+    private static native Object
+    jniNewBVLSHR(Object ValidityChecker, Object left, Object right)	throws Cvc3Exception;
+    private static native Object
+    jniNewBVASHR(Object ValidityChecker, Object left, Object right)	throws Cvc3Exception;
+    private static native Object
 	jniNewFixedLeftShiftExpr(Object ValidityChecker, Object Expr1, int r) throws Cvc3Exception;
     private static native Object
 	jniNewFixedConstWidthLeftShiftExpr(Object ValidityChecker, Object Expr1, int r) throws Cvc3Exception;
     private static native Object
 	jniNewFixedRightShiftExpr(Object ValidityChecker, Object Expr1, int r) throws Cvc3Exception;
+    private static native Object
+        jniComputeBVConst(Object ValidityChecker, Object Expr) throws Cvc3Exception;
     private static native Object
 	jniTupleExpr(Object ValidityChecker, Object[] Exprs) throws Cvc3Exception;
     private static native Object
@@ -596,6 +613,14 @@ public class ValidityChecker extends Embedded {
 	return JniUtils.embedList(dataTypes, TypeMut.class, embeddedManager());
     }
 
+    public ExprMut arrayLiteral(Expr var, Expr body) throws Cvc3Exception {
+      return new ExprMut(jniArrayLiteral(embedded(), var.embedded(), body.embedded()),embeddedManager());
+    }
+
+  public TypeMut anyType() throws Cvc3Exception {
+    return new TypeMut(jniAnyType(embedded()),embeddedManager());
+  }
+    
     public TypeMut arrayType(Type typeIndex, Type typeData) throws Cvc3Exception {
 	return new TypeMut(
 	  jniArrayType(embedded(), typeIndex.embedded(), typeData.embedded()),
@@ -668,10 +693,22 @@ public class ValidityChecker extends Embedded {
 	  jniBoundVarExpr(embedded(), name, uid, type.embedded()),
 	  embeddedManager());
     }
+    
+/*    public ExprMut boundVarExpr(Type type) throws Cvc3Exception {
+      return new ExprMut(
+        jniBoundVarExpr(embedded(), type.embedded()),
+        embeddedManager());
+      }*/
 
-    public ExprMut lookupVar(String name, Type type) throws Cvc3Exception {
+    public ExprMut lookupVar(String name) throws Cvc3Exception {
 	return new ExprMut(
-	  jniLookupVar(embedded(), name, type.embedded()),
+	  jniLookupVar(embedded(), name),
+	  embeddedManager());
+    }
+
+    public OpMut lookupOp(String name) throws Cvc3Exception {
+	return new OpMut(
+	  jniLookupOp(embedded(), name),
 	  embeddedManager());
     }
 
@@ -1290,6 +1327,24 @@ public class ValidityChecker extends Embedded {
       embeddedManager());
     }
 
+    public ExprMut newBVSHL(Expr left, Expr right) throws Cvc3Exception {
+    return new ExprMut(
+      jniNewBVSHL(embedded(), left.embedded(), right.embedded()),
+      embeddedManager());
+    }
+
+    public ExprMut newBVLSHR(Expr left, Expr right) throws Cvc3Exception {
+    return new ExprMut(
+      jniNewBVLSHR(embedded(), left.embedded(), right.embedded()),
+      embeddedManager());
+    }
+
+    public ExprMut newBVASHR(Expr left, Expr right) throws Cvc3Exception {
+    return new ExprMut(
+      jniNewBVASHR(embedded(), left.embedded(), right.embedded()),
+      embeddedManager());
+    }
+
     public ExprMut newFixedLeftShiftExpr(Expr expr, int r) throws Cvc3Exception {
 	return new ExprMut(
 	  jniNewFixedLeftShiftExpr(embedded(), expr.embedded(), r),
@@ -1306,6 +1361,14 @@ public class ValidityChecker extends Embedded {
 	return new ExprMut(
 	  jniNewFixedRightShiftExpr(embedded(), expr.embedded(), r),
 	  embeddedManager());
+    }
+
+    public Rational computeBVConst(Expr expr) {
+        Rational rat = new Rational(
+            jniComputeBVConst(embedded(),expr.embedded()), 
+            embeddedManager());
+        assert( rat.isInteger() );
+        return rat;
     }
 
     public ExprMut tupleExpr(List exprs) throws Cvc3Exception {

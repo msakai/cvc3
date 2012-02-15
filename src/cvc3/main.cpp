@@ -139,7 +139,7 @@ int main(int argc, char **argv)
       IF_DEBUG( << " (debug build)")
 	 << "\n\n";
     cout <<
-      "Copyright (C) 2003-2009 by the Board of Trustees of Leland Stanford Junior\n" 
+      "Copyright (C) 2003-2010 by the Board of Trustees of Leland Stanford Junior\n" 
       "University, New York University, and the University of Iowa.\n\n"
       "THIS SOFTWARE PROVIDED AS-IS, WITHOUT ANY WARRANTIES. "
       "USE IT AT YOUR OWN RISK.\n"
@@ -148,9 +148,15 @@ int main(int argc, char **argv)
   }
 
   try {
-    // Test if the output language is correctly specified; if not, an
-    // exception will be thrown
-    vc->getEM()->getOutputLang();
+    // Calling getOutputLang() tests if the output language is
+    // correctly specified; if not, an exception will be thrown
+    InputLanguage outlang = vc->getEM()->getOutputLang();
+    if(outlang == SPASS_LANG &&
+       vc->getFlags()["translate"].getBool() &&
+       !vc->getFlags()["liftITE"].modified()) {
+      // SPASS doesn't support ITE; make sure there are none
+      vc->getFlags().setFlag("liftITE", true);
+    }
     // Set the timer
     IF_DEBUG(CVC3::debugger.setCurrentTime(runtime);)
     // Read the input file

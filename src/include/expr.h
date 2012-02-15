@@ -206,8 +206,11 @@ class CVC_DLL Expr {
   Expr recursiveSubst(const ExprHashMap<Expr>& subst,
                       ExprHashMap<Expr>& visited) const;
 
-  Expr recursiveQuantSubst(ExprHashMap<Expr>& subst,
+  Expr recursiveQuantSubst(const ExprHashMap<Expr>& subst,
                       ExprHashMap<Expr>& visited) const;
+
+  std::vector<std::vector<Expr> > substTriggers(const ExprHashMap<Expr> & subst,
+        ExprHashMap<Expr> & visited) const;
 public:
   /////////////////////////////////////////////////////////////////////////////
   // Public Classes and Types                                                //
@@ -329,7 +332,7 @@ public:
 // by yeting, a special subst function for TheoryQuant
   Expr substExprQuant(const std::vector<Expr>& oldTerms,
 		      const std::vector<Expr>& newTerms) const;
-
+  Expr substExprQuant(const ExprHashMap<Expr>& oldToNew) const;
 
   Expr operator!() const { return notExpr(); }
   Expr operator&&(const Expr& right) const { return andExpr(right); }

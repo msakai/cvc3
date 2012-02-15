@@ -13,6 +13,9 @@ public class Expr extends Embedded {
     private static native int
 	jniHash(Object Expr) throws Cvc3Exception;
 
+    private static native String
+    jniGetKind(Object Expr) throws Cvc3Exception;
+    
     private static native boolean
 	jniIsFalse(Object Expr) throws Cvc3Exception;
     private static native boolean
@@ -57,6 +60,8 @@ public class Expr extends Embedded {
 	jniIsPropAtom(Object Expr) throws Cvc3Exception;
     private static native boolean
 	jniIsPropLiteral(Object Expr) throws Cvc3Exception;
+    private static native boolean
+    jniIsArrayLiteral(Object Expr) throws Cvc3Exception;
     private static native boolean
 	jniIsEq(Object Expr) throws Cvc3Exception;
     private static native boolean
@@ -132,6 +137,8 @@ public class Expr extends Embedded {
 	jniMkOp(Object Expr) throws Cvc3Exception;
     private static native Object
 	jniGetOp(Object Expr) throws Cvc3Exception;
+    private static native Object
+	jniGetOpExpr(Object Expr) throws Cvc3Exception;
 
     private static native boolean
 	jniIsNull(Object Expr) throws Cvc3Exception;
@@ -144,6 +151,25 @@ public class Expr extends Embedded {
 
     private static native Object
     jniSubstExpr(Object Expr, Object[] oldExprs, Object[] newExprs) throws Cvc3Exception;
+
+    private static native boolean
+	jniIsBvLt(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvLe(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvGt(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvGe(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvPlus(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvSub(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvConst(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvExtract(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsBvConcat(Object Expr) throws Cvc3Exception;
 
 
     /// Constructor
@@ -217,6 +243,10 @@ public class Expr extends Embedded {
       print(false);
     }
 
+    public String getKind() throws Cvc3Exception {
+      return jniGetKind(embedded());
+    }
+    
     // Core expression testers
 
 
@@ -311,8 +341,9 @@ public class Expr extends Embedded {
 	return jniIsPropLiteral(embedded());
     }
 
-
-
+    public boolean isArrayLiteral() throws Cvc3Exception {
+      return jniIsArrayLiteral(embedded());
+    }
 
     public boolean isEq() throws Cvc3Exception {
 	return jniIsEq(embedded());
@@ -419,6 +450,42 @@ public class Expr extends Embedded {
 	return jniIsWrite(embedded());
     }
 
+    public boolean isBvLe() throws Cvc3Exception {
+	return jniIsBvLe(embedded());
+    }
+
+    public boolean isBvLt() throws Cvc3Exception {
+	return jniIsBvLt(embedded());
+    }
+
+    public boolean isBvGe() throws Cvc3Exception {
+	return jniIsBvGe(embedded());
+    }
+
+    public boolean isBvGt() throws Cvc3Exception {
+	return jniIsBvGt(embedded());
+    }
+
+    public boolean isBvPlus() throws Cvc3Exception {
+	return jniIsBvPlus(embedded());
+    }
+
+    public boolean isBvSub() throws Cvc3Exception {
+	return jniIsBvSub(embedded());
+    }
+
+    public boolean isBvConstant() throws Cvc3Exception {
+	return jniIsBvConst(embedded());
+    }
+
+    public boolean isBvConcat() throws Cvc3Exception {
+	return jniIsBvConcat(embedded());
+    }
+
+    public boolean isBvExtract() throws Cvc3Exception {
+	return jniIsBvExtract(embedded());
+    }
+
 
     public String getName() throws Cvc3Exception {
 	assert(!jniIsNull(embedded()));
@@ -462,7 +529,7 @@ public class Expr extends Embedded {
     }
 
     public Rational getRational() throws Cvc3Exception {
-	assert(jniIsRational(embedded()));
+	assert(isRational());
 	return new Rational(jniGetRational(embedded()), embeddedManager());
     }
 
@@ -481,6 +548,10 @@ public class Expr extends Embedded {
     
     public OpMut getOp() throws Cvc3Exception {
 	return new OpMut(jniGetOp(embedded()), embeddedManager());
+    }
+
+    public ExprMut getOpExpr() throws Cvc3Exception {
+	return new ExprMut(jniGetOpExpr(embedded()), embeddedManager());
     }
 
     public boolean isNull() throws Cvc3Exception {

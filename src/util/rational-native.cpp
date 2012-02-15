@@ -45,6 +45,58 @@ namespace CVC3 {
     return res;
   }
 
+  //! Add two integers and check for overflows
+  static unsigned long uplus(unsigned long x, unsigned long y) {
+    unsigned long res = x+y;
+    FatalAssert(res >= x && res >= y,
+                "uplus(x,y): arithmetic overflow" OVERFLOW_MSG);
+    return res;
+  }
+
+  //! Subtract two unsigned integers and check for overflows
+  static unsigned long unsigned_minus(unsigned long x, unsigned long y) {
+    unsigned long res = x-y;
+    FatalAssert(res <= x,
+                "unsigned_minus(x,y): arithmetic overflow" OVERFLOW_MSG);
+    return res;
+  }
+
+  //! Multiply two unsigned integers and check for overflows
+  static unsigned long umult(unsigned long x, unsigned long y) {
+    unsigned long res = x*y;
+    FatalAssert(res == 0 || res/x == y,
+                "umult(x,y): arithmetic overflow" OVERFLOW_MSG);
+    return res;
+  }
+
+  //! Shift two unsigned integers and check for overflow
+  static unsigned long ushift(unsigned long x, unsigned y) {
+    FatalAssert(y < (unsigned)numeric_limits<unsigned long>::digits,
+                "ushift(x,y): arithmetic overflow" OVERFLOW_MSG);
+    unsigned long res = (x << y);
+    FatalAssert((res >> y) == x,
+                "ushift(x,y): arithmetic overflow" OVERFLOW_MSG);
+    return res;
+  }
+
+  //! Compute GCD using Euclid's algorithm (from Aaron Stump's code)
+  static unsigned long ugcd(unsigned long n1, unsigned long n2) {
+    DebugAssert(n1!=0 && n2!=0,
+		"gcd("+int2string(n1)+", "+int2string(n2)+"): bad args");
+  if (n1 < n2) {
+    long int tmp = n1;
+    n1 = n2;
+    n2 = tmp;
+  }
+
+  // at this point, n1 >= n2
+  long int r = n1 % n2;
+  if (!r)
+    return n2;
+
+  return ugcd(n2, r);
+}
+
   //! Unary minus which checks for overflows
   static long int uminus(long int x) {
     FatalAssert(x == 0 || x != -x, "uminus(x): arithmetic overflow"
@@ -88,6 +140,11 @@ namespace CVC3 {
     return mult(n1/g, n2);
   }
 
+  static long int ulcm(unsigned long n1, unsigned long n2) {
+    long int g = ugcd(n1,n2);
+    return umult(n1/g, n2);
+  }
+
   // Implementation of the forward-declared internal class
   class Rational::Impl {
     long int d_num; //!< Numerator
@@ -99,6 +156,10 @@ namespace CVC3 {
     Impl(): d_num(0), d_denom(1) { }
     //! Copy constructor
     Impl(const Impl &x) : d_num(x.d_num), d_denom(x.d_denom) { }
+    //! Constructor from unsigned long
+    Impl(unsigned long n) :d_num(n), d_denom(1) {
+      FatalAssert(d_num >= 0, "Rational::Impl(unsigned long) - arithmetic overflow");
+    }
     //! Constructor from a pair of integers
     Impl(long int n, long int d): d_num(n), d_denom(d) { canonicalize(); }
     //! Constructor from a string
@@ -309,6 +370,14 @@ namespace CVC3 {
   }
   //! Copy constructor
   Rational::Rational(const Rational &n) : d_n(new Impl(*n.d_n)) {
+#ifdef _DEBUG_RATIONAL_
+    int &num_created = getCreated();
+    num_created++;
+    printStats();
+#endif
+  }
+
+  Rational::Rational(const Unsigned &n) : d_n(new Impl(n.getUnsigned())) {
 #ifdef _DEBUG_RATIONAL_
     int &num_created = getCreated();
     num_created++;
@@ -604,6 +673,312 @@ namespace CVC3 {
     Rational operator%(const Rational &n1, const Rational &n2) {
       return Rational(Rational::Impl(*n1.d_n % *n2.d_n));
     }
+
+  // Implementation of the forward-declared internal class
+  class Unsigned::Impl {
+    unsigned long d_num;
+  public:
+    //! Default Constructor
+    Impl(): d_num(0) { }
+    //! Copy constructor
+    Impl(const Impl &x) : d_num(x.d_num) { }
+    //! Constructor from an unsigned integer
+    Impl(unsigned long n): d_num(n) { }
+    //! Constructor from an int
+    Impl(int n): d_num(n) {
+      FatalAssert(n >= 0, "Attempt to create Unsigned from negative integer");
+    }
+
+    //! Constructor from a string
+    Impl(const string &n, int base);
+    // Destructor
+    virtual ~Impl() { }
+    //! Get unsigned
+    unsigned long getUnsigned() const { return d_num; }
+
+
+    //! Equality
+    friend bool operator==(const Impl& x, const Impl& y) {
+      return (x.d_num == y.d_num);
+    }
+    //! Dis-equality
+    friend bool operator!=(const Impl& x, const Impl& y) {
+      return (x.d_num != y.d_num);
+    }
+    friend bool operator<(const Impl& x, const Impl& y) {
+      return x.d_num < y.d_num;
+    }
+
+    friend bool operator<=(const Impl& x, const Impl& y) {
+      return (x.d_num <= y.d_num);
+    }
+
+    friend bool operator>(const Impl& x, const Impl& y) {
+      return x.d_num > y.d_num;
+    }
+
+    friend bool operator>=(const Impl& x, const Impl& y) {
+      return x.d_num >= y.d_num;
+    }
+
+    friend Impl operator+(const Impl& x, const Impl& y) {
+      return Impl(uplus(x.d_num, y.d_num));
+    }
+
+    friend Impl operator-(const Impl& x, const Impl& y) {
+      unsigned long n = unsigned_minus(x.d_num, y.d_num);
+      Impl res(n);
+      return res;
+    }
+
+    friend Impl operator*(const Impl& x, const Impl& y) {
+      unsigned long n(umult(x.d_num, y.d_num));
+      return Impl(n);
+    }
+
+    friend Impl operator/(const Impl& x, const Impl& y) {
+      DebugAssert(y.d_num != 0, "Impl::operator/: divisor is 0");
+      unsigned long n(x.d_num / y.d_num);
+      return Impl(n);
+    }
+
+    friend Impl operator%(const Impl& x, const Impl& y) {
+      DebugAssert(y.d_num != 0,
+		  "Impl % Impl: y must be non-zero");
+      return Impl(x.d_num % y.d_num);
+    }
+
+    friend Impl operator<<(const Impl& x, unsigned y) {
+      unsigned long n(ushift(x.d_num, y));
+      return Impl(n);
+    }
+
+    friend Impl operator&(const Impl& x, const Impl& y) {
+      return Impl(x.d_num & y.d_num);
+    }
+
+    //! Print to string
+    string toString(int base = 10) const {
+      ostringstream ss;
+      if (d_num == 0) ss << "0";
+      else if (base == 10) {
+        ss << d_num;
+      }
+      else {
+        vector<int> vec;
+        long num = d_num;
+        while (num) {
+          vec.push_back(num % base);
+          num = num / base;
+        }
+        while (!vec.empty()) {
+          if (base > 10 && vec.back() > 10) {
+            ss << (char)('A' + (vec.back()-10));
+          }
+          else ss << vec.back();
+          vec.pop_back();
+        }
+      }
+      return(ss.str());
+    }
+
+    //! Printing to ostream
+    friend ostream& operator<<(ostream& os, const Unsigned::Impl& n) {
+      return os << n.toString();
+    }
+
+  };
+
+  // Constructor from a pair of strings
+  Unsigned::Impl::Impl(const string &n, int base) {
+    d_num = strtoul(n.c_str(), NULL, base);
+    FatalAssert(d_num != ULONG_MAX,
+                "Unsigned::Impl(string): arithmetic overflow:"
+                "n = "+n+", base="+int2string(base)
+                +OVERFLOW_MSG);
+  }
+
+  //! Default constructor
+  Unsigned::Unsigned() : d_n(new Impl) { }
+  //! Copy constructor
+  Unsigned::Unsigned(const Unsigned &n) : d_n(new Impl(*n.d_n)) { }
+
+  //! Private constructor
+  Unsigned::Unsigned(const Impl& t): d_n(new Impl(t)) { }
+
+  Unsigned::Unsigned(unsigned n): d_n(new Impl((unsigned long)n)) { }
+  Unsigned::Unsigned(int n): d_n(new Impl(n)) { }
+
+  // Constructors from strings
+  Unsigned::Unsigned(const char* n, int base)
+    : d_n(new Impl(string(n), base)) { }
+  Unsigned::Unsigned(const string& n, int base)
+    : d_n(new Impl(n, base)) { }
+
+  // Destructor
+  Unsigned::~Unsigned() {
+    delete d_n;
+  }
+
+  // Assignment
+  Unsigned& Unsigned::operator=(const Unsigned& n) {
+    if(this == &n) return *this;
+    delete d_n;
+    d_n = new Impl(*n.d_n);
+    return *this;
+  }
+
+  ostream &operator<<(ostream &os, const Unsigned &n) {
+    return(os << n.toString());
+  }
+
+  Unsigned gcd(const Unsigned &x, const Unsigned &y) {
+    return Unsigned(Unsigned::Impl(ugcd(x.d_n->getUnsigned(), y.d_n->getUnsigned())));
+  }
+
+  Unsigned gcd(const vector<Unsigned> &v) {
+    unsigned long g(1);
+    if(v.size() > 0) {
+      g = v[0].d_n->getUnsigned();
+    }
+    for(size_t i=1; i<v.size(); i++) {
+      if(g == 0) g = v[i].d_n->getUnsigned();
+      else if(v[i].d_n->getUnsigned() != 0)
+	g = ugcd(g, v[i].d_n->getUnsigned());
+    }
+    return Unsigned(Unsigned::Impl(g));
+  }
+
+  Unsigned lcm(const Unsigned &x, const Unsigned &y) {
+    unsigned long g;
+    g = ulcm(x.d_n->getUnsigned(), y.d_n->getUnsigned());
+    return Unsigned(Unsigned::Impl(g));
+  }
+
+  Unsigned lcm(const vector<Unsigned> &v) {
+    unsigned long g(1);
+    for(size_t i=0; i<v.size(); i++) {
+      if(v[i].d_n->getUnsigned() != 0)
+	g = ulcm(g, v[i].d_n->getUnsigned());
+    }
+    return Unsigned(Unsigned::Impl(g));
+  }
+
+  Unsigned mod(const Unsigned &x, const Unsigned &y) {
+    unsigned long r = x.d_n->getUnsigned() % y.d_n->getUnsigned();
+    return(Unsigned(Unsigned::Impl(r)));
+  }
+
+  Unsigned intRoot(const Unsigned& base, unsigned long int n) {
+    double b = base.d_n->getUnsigned();
+    double root = n;
+    root = 1/root;
+    b = ::pow(b, root);
+    unsigned long res = (unsigned long) ::floor(b);
+    if (::pow((long double)res, (int)n) == base.d_n->getUnsigned()) {
+      return Unsigned(Unsigned::Impl(res));
+    }
+    return Unsigned(Unsigned::Impl((unsigned long)0));
+  }
+
+  string Unsigned::toString(int base) const {
+    return(d_n->toString(base));
+  }
+
+  size_t Unsigned::hash() const {
+    std::hash<const char *> h;
+    return h(toString().c_str());
+  }
+
+  void Unsigned::print() const {
+    cout << (*this) << endl;
+  }
+
+  Unsigned &Unsigned::operator+=(const Unsigned &n2) {
+    *this = (*this) + n2;
+    return *this;
+  }
+
+  Unsigned &Unsigned::operator-=(const Unsigned &n2) {
+    *this = (*this) - n2;
+    return *this;
+  }
+
+  Unsigned &Unsigned::operator*=(const Unsigned &n2) {
+    *this = (*this) * n2;
+    return *this;
+  }
+
+  Unsigned &Unsigned::operator/=(const Unsigned &n2) {
+    *this = (*this) / n2;
+    return *this;
+  }
+
+  unsigned long Unsigned::getUnsigned() const {
+    return d_n->getUnsigned();
+  }
+
+  bool operator==(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n == *n2.d_n);
+  }
+
+  bool operator<(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n < *n2.d_n);
+  }
+
+  bool operator<=(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n <= *n2.d_n);
+  }
+
+  bool operator>(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n > *n2.d_n);
+  }
+
+  bool operator>=(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n >= *n2.d_n);
+  }
+
+  bool operator!=(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n != *n2.d_n);
+  }
+
+  Unsigned operator+(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned(Unsigned::Impl(*n1.d_n + *n2.d_n));
+  }
+
+  Unsigned operator-(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned(Unsigned::Impl((*n1.d_n) - (*n2.d_n)));
+  }
+
+  Unsigned operator*(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned(Unsigned::Impl((*n1.d_n) * (*n2.d_n)));
+  }
+
+  Unsigned operator/(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned(Unsigned::Impl(*n1.d_n / *n2.d_n));
+  }
+
+  Unsigned operator%(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned(Unsigned::Impl(*n1.d_n % *n2.d_n));
+  }
+
+  Unsigned operator<<(const Unsigned& n1, unsigned n2) {
+    return Unsigned(Unsigned::Impl(*n1.d_n << n2));
+  }
+
+  Unsigned operator&(const Unsigned& n1, const Unsigned& n2) {
+    return Unsigned(Unsigned::Impl(*n1.d_n & *n2.d_n));
+  }
+
+  Unsigned Rational::getUnsignedMP() const {
+    checkInt(*this, "getUnsignedMP()");
+    long int res = d_n->getNum();
+    FatalAssert(res >= 0 && res <= (long int)UINT_MAX,
+                "Rational::getUnsignedMP(): arithmetic overflow on " + toString() +
+		OVERFLOW_MSG);
+    return Unsigned((unsigned int)res);
+  }
+
 
 } /* close namespace */
 

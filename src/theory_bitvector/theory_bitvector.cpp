@@ -953,7 +953,7 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
     	  res = transitivityRule(res, simplify(res.getRHS()));
       }
       // if x_1 and x_2 = 1 then both have to be 1
-      else if (e[0].getKind() == BVAND && e[1].getKind() == BVCONST && computeBVConst(e[1]) == pow(BVSize(e[1]), 2) - 1) {
+      else if (e[0].getKind() == BVAND && e[1].getKind() == BVCONST && computeBVConst(e[1]) == pow(BVSize(e[1]), (Unsigned)2) - 1) {
     	  res = d_rules->oneBVAND(e);
     	  res = transitivityRule(res, simplify(res.getRHS()));
       }
@@ -1159,21 +1159,8 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       // * check if any of the kids simplify (if not, don't bother).
       // If kids are already simplified, we'll hit the simplifier
       // cache.  It's only expensive when kids do indeed simplify.
-      if(theoryCore()->inUpdate() || !res.getRHS().hasFind()) {
-	Expr ee = res.getRHS();
-	vector<Theorem> thms;
-	vector<unsigned> changed;
-	for(int i=0, iend=ee.arity(); i<iend; ++i) {
-	  Theorem thm = simplify(ee[i]);
-	  if(thm.getLHS()!=thm.getRHS()) {
-	    thms.push_back(thm);
-	    changed.push_back(i);
-	  }
-	}
-	if(changed.size()>0) {
-	  Theorem subst = substitutivityRule(ee, changed, thms);
-	  res = transitivityRule(res, rewriteBV(subst, cache, 1));
-	}
+      if(!res.isRefl() && (theoryCore()->inUpdate() || !res.getRHS().hasFind())) {
+        res = transitivityRule(res, simplify(res.getRHS()));
       }
       break;
     }
@@ -1390,9 +1377,10 @@ Theorem TheoryBitvector::rewriteBV(const Expr& e, ExprMap<Theorem>& cache, int n
       if (idx >= 0) {
         res = transitivityRule(res, d_rules->bitwiseConstElim(ee, idx, kind));
         ee = res.getRHS();
-        if (ee.getOpKind() != kind) break;
       }
-      res = transitivityRule(res, d_rules->bitwiseConcat(ee, kind));
+      if (ee.getOpKind() == kind) {
+        res = transitivityRule(res, d_rules->bitwiseConcat(ee, kind));
+      }
       if (!res.isRefl()) {
         res = transitivityRule(res, simplify(res.getRHS()));
       }
@@ -1861,12 +1849,6 @@ TheoryBitvector::~TheoryBitvector() {
 
 void TheoryBitvector::addSharedTerm(const Expr& e)
 {
-  if(d_sharedSubterms.count(e)>0) return;
-  TRACE("bvAddSharedTerm", "TheoryBitvector::addSharedTerm(", e.toString(PRESENTATION_LANG), ")");
-  IF_DEBUG(debugger.counter("bv shared subterms")++;)
-  d_sharedSubterms[e]=e;
-  d_sharedSubtermsList.push_back(e);
-  e.addToNotify(this, Expr());
 }
 
 
@@ -2681,28 +2663,6 @@ void TheoryBitvector::checkSat(bool fullEffort)
       // If newly bitblasted formulas, skip the shared term check
       return;
     }
-
-    // Check that all shared terms are distinct
-    Theorem thm;
-    for (; d_index1 < d_sharedSubtermsList.size(); d_index1 = d_index1 + 1, d_index2 = 0) {
-      const Expr& e1 = d_sharedSubtermsList[d_index1];
-      if (find(e1).getRHS() != e1) continue;
-      for (; d_index2 < d_index1; d_index2 = d_index2 + 1) {
-        const Expr& e2 = d_sharedSubtermsList[d_index2];
-        DebugAssert(e1 != e2, "should be distinct");
-        if (e1.getKind() == BVCONST && e2.getKind() == BVCONST) continue;
-        if (find(e2).getRHS() != e2) continue;
-        if (BVSize(e1) != BVSize(e2)) continue;
-        if (e1.getKind() == BVCONST) {
-          if (!comparebv(e2, e1)) continue;
-        }
-        else {
-          if (!comparebv(e1, e2)) continue;
-        }
-        // comparebv enqueued something, so we can return
-        return;
-      }
-    }
   }
 }
 
@@ -2815,8 +2775,15 @@ void TheoryBitvector::update(const Theorem& e, const Expr& d) {
 //     DebugAssert(leavesAreSimp(thm.getRHS()), "updateHelper error: "
 //  		+thm.getExpr().toString());
     Theorem thm = simplify(d);
-    DebugAssert(thm.getRHS().isAtomic(), "Expected atomic");
-    assertEqualities(thm);
+    if (thm.getRHS().isAtomic()) {
+      assertEqualities(thm);
+    }
+    else {
+      // Simplify could introduce case splits in the expression.  Handle this by renaminig
+      Theorem renameTheorem = renameExpr(d);
+      enqueueFact(transitivityRule(symmetryRule(renameTheorem), thm));
+      assertEqualities(renameTheorem);
+    }
   }
 }
 
@@ -2992,7 +2959,7 @@ Cardinality TheoryBitvector::finiteTypeInfo(Expr& e, Unsigned& n,
     }
 
     if (computeSize) {
-      n = max_val.getUnsigned();
+      n = max_val.getUnsignedMP();
     }
   }
   return CARD_FINITE;
@@ -3459,6 +3426,239 @@ TheoryBitvector::computeTypePred(const Type& t, const Expr& e) {
 ///////////////////////////////////////////////////////////////////////////////
 
 ExprStream&
+TheoryBitvector::printSmtLibShared(ExprStream& os, const Expr& e) {
+
+  d_theoryUsed = true;
+  switch( e.getOpKind() ) {
+
+  case CONCAT:
+    if( e.arity() == 0 )
+      throw SmtlibException("TheoryBitvector::print: CONCAT arity = 0");
+    else if( e.arity() == 1 )
+      os << e[0];
+    else {
+      int i;
+      for( i = 0; i < e.arity(); ++i ) {
+        if( (i + 1) == e.arity() ) {
+          os << e[i];
+        } else {
+          os << "(concat" << space << push << e[i] << space << push;
+        }
+      }
+      for( --i; i != 0; --i )
+        os << push << ")";
+    }
+    break;
+  case BVSHL:
+    os << "(bvshl" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVLSHR:
+    os << "(bvlshr" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVASHR:
+    os << "(bvashr" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVAND:
+    if( e.arity() == 0 )
+      throw SmtlibException("TheoryBitvector::print: BVAND arity = 0");
+    else if( e.arity() == 1 )
+      os << e[0];
+    else {
+      int i;
+      for( i = 0; i < e.arity(); ++i ) {
+        if( (i + 1) == e.arity() ) {
+          os << e[i];
+        } else {
+          os << "(bvand" << space << push << e[i] << space << push;
+        }
+      }
+      for( --i; i != 0; --i )
+        os << push << ")";
+    }
+    break;
+  case BVOR:
+    if( e.arity() == 0 )
+      throw SmtlibException("TheoryBitvector::print: BVAND arity = 0");
+    else if( e.arity() == 1 )
+      os << e[0];
+    else {
+      int i;
+      for( i = 0; i < e.arity(); ++i ) {
+        if( (i + 1) == e.arity() ) {
+          os << e[i];
+        } else {
+          os << "(bvor" << space << push << e[i] << space << push;
+        }
+      }
+      for( --i; i != 0; --i )
+        os << push << ")";
+    }
+    break;
+  case BVXOR:
+    if( e.arity() == 0 )
+      throw SmtlibException("TheoryBitvector::print: BVXOR arity = 0");
+    else if( e.arity() == 1 )
+      os << e[0];
+    else {
+      int i;
+      for( i = 0; i < e.arity(); ++i ) {
+        if( (i + 1) == e.arity() ) {
+          os << e[i];
+        } else {
+          os << "(bvxor" << space << push << e[i] << space << push;
+        }
+      }
+      for( --i; i != 0; --i )
+        os << push << ")";
+    }
+    break;
+  case BVXNOR:
+    if( e.arity() == 0 )
+      throw SmtlibException("TheoryBitvector::print: BVXNOR arity = 0");
+    else if( e.arity() == 1 )
+      os << e[0];
+    else {
+      int i;
+      for( i = 0; i < e.arity(); ++i ) {
+        if( (i + 1) == e.arity() ) {
+          os << e[i];
+        } else {
+          os << "(bvxnor" << space << push << e[i] << space << push;
+        }
+      }
+      for( --i; i != 0; --i )
+        os << push << ")";
+    }
+    break;
+  case BVNEG:
+    os << "(bvnot" << space << push << e[0] << push << ")";
+    break;
+  case BVNAND:
+    os << "(bvnand" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVNOR:
+    os << "(bvnor" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVCOMP:
+    os << "(bvcomp" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+
+  case BVUMINUS:
+    os << "(bvneg" << space << push << e[0] << push << ")";
+    break;
+  case BVPLUS: {
+    DebugAssert(e.arity() > 0, "expected arity > 0 in BVPLUS");
+    int length = getBVPlusParam(e);
+    int i;
+    for( i = 0; i < e.arity(); ++i ) {
+      if( (i + 1) == e.arity() ) {
+        os << pad(length, e[i]);
+      } else {
+        os << "(bvadd" << space << push << pad(length, e[i]) << space << push;
+      }
+    }
+    for( --i; i != 0; --i )
+      os << push << ")";
+  }
+    break;
+  case BVSUB:
+    os << "(bvsub" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVMULT: {
+    int length = getBVMultParam(e);
+    os << "(bvmul" << space << push << pad(length, e[0]) << space << push
+        << pad(length, e[1]) << push << ")";
+    break;
+  }
+  case BVUDIV:
+    os << "(bvudiv" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSDIV:
+    os << "(bvsdiv" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVUREM:
+    os << "(bvurem" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSREM:
+    os << "(bvsrem" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSMOD:
+    os << "(bvsmod" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+
+  case BVLT:
+    os << "(bvult" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVLE:
+    os << "(bvule" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVGT:
+    os << "(bvugt" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVGE:
+    os << "(bvuge" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSLT:
+    os << "(bvslt" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSLE:
+    os << "(bvsle" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSGT:
+    os << "(bvsgt" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+  case BVSGE:
+    os << "(bvsge" << space << push << e[0] << space << push << e[1] << push
+        << ")";
+    break;
+
+  case INTTOBV:
+    throw SmtlibException(
+        "TheoryBitvector::print: INTTOBV, SMTLIB not supported");
+    break;
+  case BVTOINT:
+    throw SmtlibException(
+        "TheoryBitvector::print: BVTOINT, SMTLIB not supported");
+    break;
+
+  case BVTYPEPRED:
+    throw SmtlibException(
+        "TheoryBitvector::print: BVTYPEPRED, SMTLIB not supported");
+    if( e.isApply() ) {
+      os << "BVTYPEPRED[" << push << e.getOp().getExpr() << push << "," << pop
+          << space << e[0] << push << "]";
+    } else
+      e.printAST(os);
+    break;
+
+  default:
+    FatalAssert(false, "Unknown BV kind");
+    e.printAST(os);
+    break;
+  }
+  return os;
+}
+
+ExprStream&
 TheoryBitvector::print(ExprStream& os, const Expr& e) {
   switch(os.lang()) {
   case PRESENTATION_LANG:
@@ -3691,9 +3891,7 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
     break;
 
   case SMTLIB_LANG:
-    d_theoryUsed = true;
     switch(e.getOpKind()) {
-
     case BITVECTOR: //printing type expression
       os << push << "BitVec[" << getBitvectorTypeParam(e) << "]";
       break;
@@ -3705,35 +3903,21 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       break;
     }
 
-    case CONCAT:
-      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: CONCAT arity = 0");
-      else if (e.arity() == 1) os << e[0];
-      else {
-        int i;
-	for(i = 0; i < e.arity(); ++i) {
-          if ((i+1) == e.arity()) {
-            os << e[i];
-          }
-          else {
-            os << "(concat" << space << push << e[i] << space << push;
-          }
-	}
-        for (--i; i != 0; --i) os << push << ")";
-      }
-      break;
     case EXTRACT:
-      os << push << "(extract[" << getExtractHi(e) << ":" << getExtractLow(e) << "]";
+      os << push << "(extract[" << getExtractHi(e) << ":" << getExtractLow(e)
+         << "]";
       os << space << push << e[0] << push << ")";
       break;
     case BOOLEXTRACT:
-      os << "(=" << space << push
-         << "(extract[" << getBoolExtractIndex(e) << ":" << getBoolExtractIndex(e) << "]";
-      os << space << push << e[0] << push << ")" << space << "bit1" << push << ")";
+      os << "(=" << space << push << "(extract[" << getBoolExtractIndex(e) << ":"
+         << getBoolExtractIndex(e) << "]";
+      os << space << push << e[0] << push << ")" << space << "bit1" << push
+         << ")";
       break;
 
     case LEFTSHIFT: {
       int bvLength = getFixedLeftShiftParam(e);
-      if (bvLength != 0) {
+      if( bvLength != 0 ) {
         os << "(concat" << space << push << e[0] << space;
         os << push << "bv0[" << bvLength << "]" << push << ")";
         break;
@@ -3741,217 +3925,141 @@ TheoryBitvector::print(ExprStream& os, const Expr& e) {
       // else fall-through
     }
     case CONST_WIDTH_LEFTSHIFT:
-      os << "(bvshl" << space << push << e[0] << space << push
-         << "bv" << getFixedLeftShiftParam(e) << "[" << BVSize(e[0]) << "]" << push << ")";
+      os << "(bvshl" << space << push << e[0] << space << push << "bv"
+         << getFixedLeftShiftParam(e) << "[" << BVSize(e[0]) << "]" << push
+         << ")";
       break;
     case RIGHTSHIFT:
-      os << "(bvlshr" << space << push << e[0] << space << push
-         << "bv" << getFixedRightShiftParam(e) << "[" << BVSize(e[0]) << "]" << push << ")";
+      os << "(bvlshr" << space << push << e[0] << space << push << "bv"
+         << getFixedRightShiftParam(e) << "[" << BVSize(e[0]) << "]" << push
+         << ")";
       break;
-    case BVSHL:
-      os << "(bvshl" << space << push << e[0] << space << push << e[1] << push << ")";
+  case SX: {
+    int extend = getSXIndex(e) - BVSize(e[0]);
+    if( extend == 0 )
+      os << e[0];
+    else if( extend < 0 )
+      throw SmtlibException(
+          "TheoryBitvector::print: SX: extension is shorter than argument");
+    else
+      os << "(sign_extend[" << extend << "]" << space << push << e[0] << push
+          << ")";
+    break;
+  }
+  case BVREPEAT:
+    os << "(repeat[" << getBVIndex(e) << "]" << space << push << e[0] << push
+        << ")";
+    break;
+  case BVZEROEXTEND: {
+    int extend = getBVIndex(e);
+    if( extend == 0 )
+      os << e[0];
+    else if( extend < 0 )
+      throw SmtlibException(
+          "TheoryBitvector::print: ZEROEXTEND: extension is less than zero");
+    else
+      os << "(zero_extend[" << extend << "]" << space << push << e[0] << push
+          << ")";
+    break;
+  }
+  case BVROTL:
+    os << "(rotate_left[" << getBVIndex(e) << "]" << space << push << e[0]
+        << push << ")";
+    break;
+  case BVROTR:
+    os << "(rotate_right[" << getBVIndex(e) << "]" << space << push << e[0]
+        << push << ")";
+    break;
+
+    default:
+      printSmtLibShared(os,e);
+    }
+    break;
+
+  case SMTLIB_V2_LANG:
+    switch(e.getOpKind()) {
+    case BITVECTOR: //printing type expression
+      os << push << "(_" << space << "BitVec" << space << getBitvectorTypeParam(e) << ")" << pop;
       break;
-    case BVLSHR:
-      os << "(bvlshr" << space << push << e[0] << space << push << e[1] << push << ")";
+
+    case BVCONST: {
+      Rational r = computeBVConst(e);
+      DebugAssert(r.isInteger() && r >= 0, "Expected non-negative integer");
+      os << push << "(_ bv" << r << space << BVSize(e) << ")";
       break;
-    case BVASHR:
-      os << "(bvashr" << space << push << e[0] << space << push << e[1] << push << ")";
+    }
+
+    case EXTRACT:
+      os << push << "((_ extract" << space << getExtractHi(e) << space << getExtractLow(e)
+         << ")";
+      os << space << push << e[0] << push << ")";
+      break;
+
+    case BOOLEXTRACT:
+      os << "(=" << space << push << "((_ extract" << getBoolExtractIndex(e) << space
+         << getBoolExtractIndex(e) << ")";
+      os << space << push << e[0] << push << ")" << space << "#b1" << push
+         << ")";
+      break;
+
+    case LEFTSHIFT: {
+      int bvLength = getFixedLeftShiftParam(e);
+      if( bvLength != 0 ) {
+        os << "(concat" << space << push << e[0] << space;
+        os << push << "#b";
+        for (int i = 0; i < bvLength; ++i) os << "0";
+        os << push << ")";
+        break;
+      }
+      // else fall-through
+    }
+    case CONST_WIDTH_LEFTSHIFT:
+      os << "(bvshl" << space << push << e[0] << space << push;
+      os << newBVConstExpr(getFixedLeftShiftParam(e), BVSize(e[0])) << push  << ")";
+      break;
+    case RIGHTSHIFT:
+      os << "(bvlshr" << space << push << e[0] << space << push;
+      os << newBVConstExpr(getFixedRightShiftParam(e), BVSize(e[0])) << push << ")";
       break;
     case SX: {
       int extend = getSXIndex(e) - BVSize(e[0]);
-      if (extend == 0) os << e[0];
-      else if (extend < 0)
-        throw SmtlibException("TheoryBitvector::print: SX: extension is shorter than argument");
-      else os << "(sign_extend[" << extend << "]" << space << push << e[0] << push << ")";
+      if( extend == 0 )
+        os << e[0];
+      else if( extend < 0 )
+        throw SmtlibException(
+          "TheoryBitvector::print: SX: extension is shorter than argument");
+      else
+        os << "((_ sign_extend" << space << extend << ")" << space << push << e[0] << push
+           << ")";
       break;
-    }
-    case BVREPEAT:
-      os << "(repeat[" << getBVIndex(e) << "]" << space << push << e[0] << push << ")";
-      break;
-    case BVZEROEXTEND: {
-      int extend = getBVIndex(e);
-      if (extend == 0) os << e[0];
-      else if (extend < 0)
-        throw SmtlibException("TheoryBitvector::print: ZEROEXTEND: extension is less than zero");
-      else os << "(zero_extend[" << extend << "]" << space << push << e[0] << push << ")";
-      break;
-    }
-    case BVROTL:
-      os << "(rotate_left[" << getBVIndex(e) << "]" << space << push << e[0] << push << ")";
-      break;
-    case BVROTR:
-      os << "(rotate_right[" << getBVIndex(e) << "]" << space << push << e[0] << push << ")";
-      break;
-
-    case BVAND:
-      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVAND arity = 0");
-      else if (e.arity() == 1) os << e[0];
-      else {
-        int i;
-	for(i = 0; i < e.arity(); ++i) {
-          if ((i+1) == e.arity()) {
-            os << e[i];
-          }
-          else {
-            os << "(bvand" << space << push << e[i] << space << push;
-          }
-	}
-        for (--i; i != 0; --i) os << push << ")";
-      }
-      break;
-    case BVOR:
-      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVAND arity = 0");
-      else if (e.arity() == 1) os << e[0];
-      else {
-        int i;
-	for(i = 0; i < e.arity(); ++i) {
-          if ((i+1) == e.arity()) {
-            os << e[i];
-          }
-          else {
-            os << "(bvor" << space << push << e[i] << space << push;
-          }
-	}
-        for (--i; i != 0; --i) os << push << ")";
-      }
-      break;
-    case BVXOR:
-      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVXOR arity = 0");
-      else if (e.arity() == 1) os << e[0];
-      else {
-        int i;
-	for(i = 0; i < e.arity(); ++i) {
-          if ((i+1) == e.arity()) {
-            os << e[i];
-          }
-          else {
-            os << "(bvxor" << space << push << e[i] << space << push;
-          }
-	}
-        for (--i; i != 0; --i) os << push << ")";
-      }
-      break;
-    case BVXNOR:
-      if (e.arity() == 0) throw SmtlibException("TheoryBitvector::print: BVXNOR arity = 0");
-      else if (e.arity() == 1) os << e[0];
-      else {
-        int i;
-	for(i = 0; i < e.arity(); ++i) {
-          if ((i+1) == e.arity()) {
-            os << e[i];
-          }
-          else {
-            os << "(bvxnor" << space << push << e[i] << space << push;
-          }
-	}
-        for (--i; i != 0; --i) os << push << ")";
-      }
-      break;
-    case BVNEG:
-      os << "(bvnot" << space << push << e[0] << push << ")";
-      break;
-    case BVNAND:
-      os << "(bvnand" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVNOR:
-      os << "(bvnor" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVCOMP:
-      os << "(bvcomp" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-
-    case BVUMINUS:
-      os << "(bvneg" << space << push << e[0] << push << ")";
-      break;
-    case BVPLUS:
-      {
-        DebugAssert(e.arity() > 0, "expected arity > 0 in BVPLUS");
-        int length = getBVPlusParam(e);
-        int i;
-        for(i = 0; i < e.arity(); ++i) {
-          if ((i+1) == e.arity()) {
-            os << pad(length, e[i]);
-          }
-          else {
-            os << "(bvadd" << space << push << pad(length, e[i]) << space << push;
-          }
-        }
-        for (--i; i != 0; --i) os << push << ")";
-      }
-      break;
-    case BVSUB:
-      os << "(bvsub" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVMULT: {
-      int length = getBVMultParam(e);
-      os << "(bvmul"
-         << space << push << pad(length, e[0])
-         << space << push << pad(length, e[1])
-         << push << ")";
-      break;
-    }
-    case BVUDIV:
-      os << "(bvudiv" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSDIV:
-      os << "(bvsdiv" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVUREM:
-      os << "(bvurem" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSREM:
-      os << "(bvsrem" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSMOD:
-      os << "(bvsmod" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-
-    case BVLT:
-      os << "(bvult" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVLE:
-      os << "(bvule" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVGT:
-      os << "(bvugt" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVGE:
-      os << "(bvuge" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSLT:
-      os << "(bvslt" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSLE:
-      os << "(bvsle" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSGT:
-      os << "(bvsgt" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-    case BVSGE:
-      os << "(bvsge" << space << push << e[0] << space << push << e[1] << push << ")";
-      break;
-
-    case INTTOBV:
-      throw SmtlibException("TheoryBitvector::print: INTTOBV, SMTLIB not supported");
-      break;
-    case BVTOINT:
-      throw SmtlibException("TheoryBitvector::print: BVTOINT, SMTLIB not supported");
-      break;
-
-    case BVTYPEPRED:
-      throw SmtlibException("TheoryBitvector::print: BVTYPEPRED, SMTLIB not supported");
-      if(e.isApply()) {
-	os << "BVTYPEPRED[" << push << e.getOp().getExpr()
-	   << push << "," << pop << space << e[0]
-	   << push << "]";
-      } else
-	e.printAST(os);
-      break;
+  }
+  case BVREPEAT:
+    os << "((_ repeat" << space << getBVIndex(e) << ")" << space << push << e[0] << push
+        << ")";
+    break;
+  case BVZEROEXTEND: {
+    int extend = getBVIndex(e);
+    if( extend == 0 )
+      os << e[0];
+    else if( extend < 0 )
+      throw SmtlibException(
+          "TheoryBitvector::print: ZEROEXTEND: extension is less than zero");
+    else
+      os << "((_ zero_extend" << space << extend << ")" << space << push << e[0] << push
+          << ")";
+    break;
+  }
+  case BVROTL:
+    os << "((_ rotate_left" << space << getBVIndex(e) << ")" << space << push << e[0]
+        << push << ")";
+    break;
+  case BVROTR:
+    os << "((_ rotate_right" << space << getBVIndex(e) << ")" << space << push << e[0]
+        << push << ")";
+    break;
 
     default:
-      FatalAssert(false, "Unknown BV kind");
-      e.printAST(os);
-      break;
+      printSmtLibShared(os,e);
     }
     break;
 
@@ -4316,8 +4424,15 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
       // The first element is the kind, and the second is the
       // numOfBits of the bvplus operator.
       ++i;++i;
+      Expr child;
       // Parse the kids of e and push them into the vector 'k'
-      for(; i!=iend; ++i) k.push_back(parseExpr(*i));
+      for(; i!=iend; ++i) {
+        child = parseExpr(*i);
+        if (getBaseType(child).getExpr().getOpKind() != BITVECTOR) {
+          throw ParserException("BVPLUS argument is not bitvector");
+        }
+        k.push_back(child);
+      }
       return newBVPlusPadExpr(e[1].getRational().getInt(), k);
     }
     break;
@@ -4326,6 +4441,10 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
     if (e.arity() == 3) {
       Expr summand1 = parseExpr(e[1]);
       Expr summand2 = parseExpr(e[2]);
+      if (getBaseType(summand1).getExpr().getOpKind() != BITVECTOR
+          || getBaseType(summand2).getExpr().getOpKind() != BITVECTOR) {
+        throw ParserException("BVSUB argument is not bitvector");
+      } 
       if (BVSize(summand1) != BVSize(summand2)) {
         throw ParserException("BVSUB: expected same sized arguments"
                               +e.toString());
@@ -4344,8 +4463,12 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
                             +e.toString());
     int bvsublength = e[1].getRational().getInt();
     Expr summand1 = parseExpr(e[2]);
-    summand1 = pad(bvsublength, summand1);
     Expr summand2 = parseExpr(e[3]);
+    if (getBaseType(summand1).getExpr().getOpKind() != BITVECTOR
+        || getBaseType(summand2).getExpr().getOpKind() != BITVECTOR) {
+      throw ParserException("BVSUB argument is not bitvector");
+    } 
+    summand1 = pad(bvsublength, summand1);
     summand2 = pad(bvsublength, summand2);
     return newBVSubExpr(summand1, summand2);
     break;
@@ -4384,8 +4507,13 @@ Expr TheoryBitvector::parseExprOp(const Expr& e)
     if(!(e[1].getRational().getInt() > 0))
       throw ParserException("parameter must be an integer constant > 0.\n"
 			    +e.toString());
-    return newBVMultPadExpr(e[1].getRational().getInt(),
-                            parseExpr(e[2]), parseExpr(e[3]));
+    Expr a = parseExpr(e[2]);
+    Expr b = parseExpr(e[3]);
+    if (getBaseType(a).getExpr().getOpKind() != BITVECTOR
+        || getBaseType(b).getExpr().getOpKind() != BITVECTOR) {
+      throw ParserException("BVMULT argument is not bitvector");
+    }    
+    return newBVMultPadExpr(e[1].getRational().getInt(),a,b);
     break;
   }
   case BVUDIV:

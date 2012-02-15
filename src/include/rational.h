@@ -38,7 +38,10 @@
 // To be defined only in bignum.cpp
 namespace CVC3 {
 
+  class Unsigned;
+
   class CVC_DLL Rational {
+    friend class Unsigned;
   private:
     class Impl;
     Impl *d_n;
@@ -66,6 +69,7 @@ namespace CVC3 {
     Rational();
     // Copy constructor
     Rational(const Rational &n);
+    Rational(const Unsigned& n);
     Rational(int n, int d = 1);
     Rational(const char* n, int base = 10);
     Rational(const std::string& n, int base = 10);
@@ -122,8 +126,10 @@ namespace CVC3 {
     bool isUnsigned() const { return (isInteger() && (*this) >= 0); }
     // Convert to unsigned int; defined only on non-negative integer values
     unsigned int getUnsigned() const;
+    Unsigned getUnsignedMP() const;
 
     friend std::ostream &operator<<(std::ostream &os, const Rational &n);
+    friend std::ostream &operator<<(std::ostream &os, const Impl &n);
 
     /* Computes gcd and lcm on *integer* values. Result is always a
        positive integer. */
@@ -194,8 +200,104 @@ namespace CVC3 {
   // Debugging print
   void printRational(const Rational &x);
 
-  // TODO: implement this properly
-  typedef unsigned long Unsigned;
+  class CVC_DLL Unsigned {
+  private:
+    friend class Rational::Impl;
+    class Impl;
+    Impl *d_n;
+
+    // Private constructor (for internal consumption only)
+    Unsigned(const Impl& t);
+
+  public:
+    // Constructors
+    Unsigned();
+    // Copy constructor
+    Unsigned(const Unsigned &n);
+    Unsigned(int n);
+    Unsigned(unsigned n);
+    Unsigned(const char* n, int base = 10);
+    Unsigned(const std::string& n, int base = 10);
+    // Destructor
+    ~Unsigned();
+
+    // Assignment
+    Unsigned& operator=(const Unsigned& n);
+
+    std::string toString(int base = 10) const;
+
+    // Compute hash value (for DAG expression representation)
+    size_t hash() const;
+
+    friend CVC_DLL bool operator==(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL bool operator<(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL bool operator<=(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL bool operator>(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL bool operator>=(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL bool operator!=(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL Unsigned operator+(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL Unsigned operator-(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL Unsigned operator*(const Unsigned &n1, const Unsigned &n2);
+    friend CVC_DLL Unsigned operator/(const Unsigned &n1, const Unsigned &n2);
+    // 'mod' operator, defined only for integer values of n1 and n2
+    friend CVC_DLL Unsigned operator%(const Unsigned &n1, const Unsigned &n2);
+
+    friend CVC_DLL Unsigned operator<<(const Unsigned& n1, unsigned n2);
+    friend CVC_DLL Unsigned operator&(const Unsigned& n1, const Unsigned& n2);
+
+    Unsigned &operator+=(const Unsigned &n2);
+    Unsigned &operator-=(const Unsigned &n2);
+    Unsigned &operator*=(const Unsigned &n2);
+    Unsigned &operator/=(const Unsigned &n2);
+    //! Prefix increment
+    const Unsigned& operator++() { *this = (*this)+1; return *this; }
+    //! Postfix increment
+    Unsigned operator++(int) { Unsigned x(*this); *this = x+1; return x; }
+    //! Prefix decrement
+    const Unsigned& operator--() { *this = (*this)-1; return *this; }
+    //! Postfix decrement
+    Unsigned operator--(int) { Unsigned x(*this); *this = x-1; return x; }
+
+    // Convert to unsigned int if possible
+    unsigned long getUnsigned() const;
+
+    friend std::ostream &operator<<(std::ostream &os, const Unsigned &n);
+
+    /* Computes gcd and lcm on *integer* values. Result is always a
+       positive integer. */
+
+    friend CVC_DLL Unsigned gcd(const Unsigned &x, const Unsigned &y);
+    friend CVC_DLL Unsigned gcd(const std::vector<Unsigned> &v);
+    friend CVC_DLL Unsigned lcm(const Unsigned &x, const Unsigned &y);
+    friend CVC_DLL Unsigned lcm(const std::vector<Unsigned> &v);
+
+    //! Compute non-negative remainder for *integer* x,y.
+    friend CVC_DLL Unsigned mod(const Unsigned &x, const Unsigned &y);
+    //! nth root: return 0 if no exact answer (base should be nonzero)
+    friend CVC_DLL Unsigned intRoot(const Unsigned& base, unsigned long int n);
+
+    // For debugging, to be able to print in gdb
+    void print() const;
+
+  }; // Unsigned class
+
+  //! Raise 'base' into the power of 'pow' (pow must be an integer)
+  inline Unsigned pow(Unsigned pow, const Unsigned& base) {
+    Unsigned res(1);
+    for(; pow > (unsigned)0; --pow) res *= base;
+    return res;
+  }
+
+  // Methods creating new Unsigned values, similar to the
+  // constructors, but can be nested
+  inline Unsigned newUnsigned(int n) { return Unsigned(n); }
+  inline Unsigned newUnsigned(const char* n, int base = 10)
+    { return Unsigned(n, base); }
+  inline Unsigned newUnsigned(const std::string& n, int base = 10)
+    { return Unsigned(n, base); }
+    
+  // Debugging print
+  void printUnsigned(const Unsigned &x);
 
 } // end of namespace CVC3
 

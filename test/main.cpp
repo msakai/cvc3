@@ -9,6 +9,7 @@
 
 #include "vc.h"
 #include "theory_arith.h" // for arith kinds and expressions
+#include "theory_array.h"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -652,7 +653,7 @@ void test5()
 	      else if (term.getKind() == CVC3::MULT && term[0] == minusone && term[1] == j && !foundj) foundj = true;
 	      else newPlus.push_back(term);
 	    }
-	    if (foundi && foundj && (negi && negj || (!negi && !negj))) {
+	    if (foundi && foundj && ((negi && negj) || (!negi && !negj))) {
 	      e = plusExpr(vc, newPlus);
 	      if (negi && negj) e = vc->uminusExpr(e);
 	      e = vc->simplify(e);
@@ -1937,6 +1938,128 @@ void test23() {
   delete vc;
 }
 
+void test24() {
+  CLFlags flags = ValidityChecker::createFlags();
+  ValidityChecker* vc = ValidityChecker::create(flags);
+
+  try {
+    Type intType(vc->intType());
+    Type aType(vc->arrayType(intType,intType));
+
+    Expr a(vc->varExpr("a",aType));
+    Expr x(vc->varExpr("x",intType));
+    Expr ax(vc->exprFromString("a[x]"));
+
+    Expr p(vc->exprFromString("FORALL (x:INT) : PATTERN (a[x]) : x < a[x]"));
+
+    cout << p  << "\n";
+
+    vector<vector<Expr> > pTriggers(p.getTriggers());
+    DebugAssert( pTriggers.size() == 1, 
+                 "Expected one trigger set. Found: " + 
+                 int2string(pTriggers.size()));
+    DebugAssert( pTriggers[0].size() == 1, 
+                 "Expected one trigger. Found: " +
+                 int2string( pTriggers[0].size()));
+    /* We can't check that the trigger == ax, because x will have
+     * been replaced with a bvar
+     */
+    DebugAssert( pTriggers[0][0].getKind() == READ,
+                 "Expected READ expression. Found: " +
+                 pTriggers[0][0].getKind());
+    DebugAssert( pTriggers[0][0][0] == a,
+                 "Expected read on array: " + a.toString() +
+                 "\nFound: " + pTriggers[0][0][0].toString() );
+
+    Expr aPrime(vc->varExpr("a'",aType));
+    Expr axPrime(vc->exprFromString("a'[x]"));
+
+    ExprHashMap<Expr> substMap;
+    substMap.insert(a,aPrime);
+
+    Expr q(p.substExpr(substMap));
+
+    cout << q << "\n";
+
+    vector<vector<Expr> > qTriggers(q.getTriggers());
+    DebugAssert( qTriggers.size() == 1, 
+                 "Expected one trigger set. Found: " + 
+                 int2string(qTriggers.size()));
+    DebugAssert( qTriggers[0].size() == 1, 
+                 "Expected one trigger. Found: " +
+                 int2string( qTriggers[0].size()));
+    DebugAssert( qTriggers[0][0].getKind() == READ,
+                 "Expected READ expression. Found: " +
+                 qTriggers[0][0].getKind());
+    DebugAssert( qTriggers[0][0][0] == aPrime,
+                 "Expected read on array: " + aPrime.toString() +
+                 "\nFound: " + qTriggers[0][0][0].toString() );
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test24(): \n" << e << endl;
+  }
+  delete vc;
+}
+
+
+void test25() {
+  CLFlags flags = ValidityChecker::createFlags();
+  ValidityChecker* vc = ValidityChecker::create(flags);
+
+  try {
+    Type realType(vc->realType());
+
+    Expr x = vc->ratExpr("-0.1");
+    cout << "-0.1: " << x << endl;
+    Expr y = vc->ratExpr("-1/10");
+    cout << "-1/10: " << y << endl;
+    Expr z = vc->ratExpr("-1","10",10);
+    cout << "-1 over 10: " << z << endl;
+    Expr w = vc->ratExpr(-1,10);
+    cout << "-1 over 10 (ints): " << w << endl;
+
+    DebugAssert(x == y && y == z && z == w, "Error in rational constants");
+
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test25(): \n" << e << endl;
+  }
+  delete vc;
+}
+
+
+void test26() {
+  CLFlags flags = ValidityChecker::createFlags();
+  ValidityChecker* vc = ValidityChecker::create(flags);
+
+  try {
+    Type bvType(vc->bitvecType(32));
+
+    Expr x = vc->varExpr("x", bvType);
+    Expr e1 = vc->newFixedConstWidthLeftShiftExpr(x, 16);
+    Expr e2 = vc->newBVSHL(x, vc->newBVConstExpr(16, 32));
+
+    bool b = check(vc, vc->eqExpr(e1, e2));
+    DebugAssert(b, "Should be valid");
+
+    e1 = vc->newFixedRightShiftExpr(x, 16);
+    e2 = vc->newBVLSHR(x, vc->newBVConstExpr(16, 32));
+
+    b = check(vc, vc->eqExpr(e1, e2));
+    DebugAssert(b, "Should be valid");
+
+    e2 = vc->newBVASHR(x, vc->newBVConstExpr(16, 32));
+    b = check(vc, vc->eqExpr(e1, e2));
+    DebugAssert(!b, "Should be invalid");
+
+  } catch(const Exception& e) {
+    exitStatus = 1;
+    cout << "*** Exception caught in test26(): \n" << e << endl;
+  }
+  delete vc;
+}
+
+
 int main(int argc, char** argv)
 {
   int regressLevel = 3;
@@ -1944,6 +2067,8 @@ int main(int argc, char** argv)
   cout << "Running API test, regress level = " << regressLevel << endl;
   exitStatus = 0;
   try {
+    cout << "\n}\ntest26(): {" << endl;
+    test26();
     cout << "\ntest(): {" << endl;
     test();
     cout << "\n}\ntest1(): {" << endl;
@@ -2003,6 +2128,10 @@ int main(int argc, char** argv)
     test22();
     cout << "\n}\ntest23(): {" << endl;
     test23();
+    cout << "\n}\ntest24(): {" << endl;
+    test24();
+    cout << "\n}\ntest25(): {" << endl;
+    test25();
 
     if (regressLevel > 1) {
       cout << "\n}\ntestgeorge1(): {" << endl;

@@ -1,6 +1,7 @@
 INCLUDE: <expr.h>
 INCLUDE: <theory_array.h>
 INCLUDE: <theory_arith.h>
+INCLUDE: <theory_bitvector.h>
 
 DEFINITION: Java_cvc3_Expr_jniEquals
 jboolean c Expr expr1 c Expr expr2
@@ -17,6 +18,10 @@ dagify ? expr->pprint() : expr->pprintnodag();
 DEFINITION: Java_cvc3_Expr_jniHash
 jint c Expr expr
 return expr->hash();
+
+DEFINITION: Java_cvc3_Expr_jniGetKind
+jstring c Expr expr
+return toJava(env, expr->getEM()->getKindName( expr->getKind() ));
 
 DEFINITION: Java_cvc3_Expr_jniIsFalse
 jboolean c Expr expr
@@ -108,8 +113,9 @@ DEFINITION: Java_cvc3_Expr_jniIsPropLiteral
 jboolean c Expr expr
 return expr->isPropLiteral();
 
-
-
+DEFINITION: Java_cvc3_Expr_jniIsArrayLiteral
+jboolean c Expr expr
+return CVC3::isArrayLiteral(*expr);
 
 
 DEFINITION: Java_cvc3_Expr_jniIsEq
@@ -262,6 +268,10 @@ DEFINITION: Java_cvc3_Expr_jniGetOp
 jobject c Expr expr
 return embed_copy<Op>(env, expr->getOp());
 
+DEFINITION: Java_cvc3_Expr_jniGetOpExpr
+jobject c Expr expr
+return embed_copy<Expr>(env, expr->getOpExpr());
+
 DEFINITION: Java_cvc3_Expr_jniIsNull
 jboolean c Expr expr
 return expr->isNull();
@@ -281,3 +291,39 @@ return toJavaVConstRef(env, expr->getKids());
 DEFINITION: Java_cvc3_Expr_jniSubstExpr
 jobject c Expr e cv Expr oldExprs cv Expr newExprs
 return embed_copy(env, e->substExpr(oldExprs,newExprs));
+
+DEFINITION: Java_cvc3_Expr_jniIsBvLt
+jboolean c Expr expr
+return expr->getKind() == BVLT;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvLe
+jboolean c Expr expr
+return expr->getKind() == BVLE;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvGt
+jboolean c Expr expr
+return expr->getKind() == BVGT;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvGe
+jboolean c Expr expr
+return expr->getKind() == BVGE;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvPlus
+jboolean c Expr expr
+return expr->getKind() == BVPLUS;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvSub
+jboolean c Expr expr
+return expr->getKind() == BVSUB;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvConst
+jboolean c Expr expr
+return expr->getKind() == BVCONST;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvExtract
+jboolean c Expr expr
+return expr->getKind() == EXTRACT;
+
+DEFINITION: Java_cvc3_Expr_jniIsBvConcat
+jboolean c Expr expr
+return expr->getKind() == CONCAT;

@@ -110,7 +110,8 @@ configuration option. The configuration script refers to the
 environment variables JAVAC, JAVAH, JAR, and CXX to set up the
 standard Java and C++ compiler commands. It refers to the environment
 variable JFLAGS for default Java compiler flags. It refers to the
-variable javadir for the installation directory of libcvc3.jar.
+variable javadir for the installation directory of the CVC3 Java
+library.
 
 The configuration options --with-java-home and --with-java-includes
 can be used to specify the path to the directories containing the JDK
@@ -140,7 +141,8 @@ Two dynamic libraries:
 - libcvc3jni.so: the wrapper library containing the implementations
   of native functions
 
-- libcvc3.jar: the Java library containing the Java wrapper classes
+- libcvc3-X.Y.Z.jar (where "X.Y.Z" is the version of CVC3): 
+  the Java library containing the Java wrapper classes
 
 Two Java programs:
 
@@ -152,18 +154,18 @@ Two Java programs:
 ----------------
 
 "make install" copies libcvc3jni.so into the same directory as
-libcvc3.so (by default, /usr/local/lib) and libcvc3.jar into
+libcvc3.so (by default, /usr/local/lib) and the Java library into
 the directory specified by javadir (by default, /usr/local/java).
 
 
 3.5 Execution
 -------------
 
-To access the library, you must add libcvc3.jar to the classpath
-(e.g., by setting the CLASSPATH environment variable) and both
-libcvc3.so and libcvc3jni.so to the runtime library path (e.g., by
-setting the LD_LIBRARY_PATH environment variable and the 
-java.library.path JVM system variable). 
+To access the library, you must add the file libcvc3-X.Y.Z.jar (where
+"X.Y.Z" is the CVC3 version) to the classpath (e.g., by setting the
+CLASSPATH environment variable) and both libcvc3.so and libcvc3jni.so
+to the runtime library path (e.g., by setting the LD_LIBRARY_PATH
+environment variable and the java.library.path JVM system variable). 
 
 For example, to compile the class Client.java:
 
@@ -173,6 +175,12 @@ To run:
 
   export LD_LIBRARY_PATH=/path/to/cvc3/libs
   java -Djava.library.path=/path/to/cvc3/libs -cp lib/libcvc3.jar Client
+
+Note that libcvc3.so and libcvc3jni.so may be installed into different
+directories, so that LD_LIBRARY_PATH may need to include multiple paths.
+For example,
+
+  export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/java/lib
 
 The cvc3.jar can be used the same way as the cvc3 command line tool,
 but instead of
@@ -192,8 +200,9 @@ which gives:
   
 
 Running cvc3.jar will cause loading of the dynamic libraries:
-1. libcvc3.jar, as CVC3 uses the Java wrapper classes
-2. libcvc3jni.so, as it implements the native functions declared in libcvc3.jar
+1. libcvc3-X.Y.Z.jar, as CVC3 uses the Java wrapper classes
+2. libcvc3jni.so, as it implements the native functions declared in 
+   libcvc3-X.Y.Z.jar
 3. libcvc3.so, as it is used by libcvc3jni.so
 
 

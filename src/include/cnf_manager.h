@@ -127,6 +127,9 @@ private:
   //! Return the expr corresponding to the literal unless the expr is TRUE of FALSE
   CVC3::Expr concreteExpr(const CVC3::Expr& e, const Lit& literal);
 
+  //! Return the theorem if e is not as concreteExpr(e).
+  CVC3::Theorem concreteThm(const CVC3::Expr& e);
+
   //! Recursively translate e into cnf
   /*! A non-context dependent cache, d_cnfVars is used to remember translations
    * of expressions.  A context-dependent attribute, isTranslated, is used to

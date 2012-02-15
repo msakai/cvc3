@@ -711,12 +711,13 @@ QueryResult SearchSat::check(const Expr& e, Theorem& result, bool isRestart)
   }
 
   if (qres == UNSATISFIABLE) {
-    DebugAssert(d_core->getCM()->scopeLevel() == d_bottomScope,
+     DebugAssert(d_core->getCM()->scopeLevel() == d_bottomScope,
                 "Expected unchanged context after unsat");
     e2 = d_lastCheck;
     pop();
     if (d_core->getTM()->withProof()) {
       Proof pf = d_dpllt->getSatProof(d_cnfManager, d_core);
+      //      std::cout<<"WITH PROOF:"<<pf<<std::endl;
       d_lastValid = d_rules->satProof(e2, pf);
     }
     else {

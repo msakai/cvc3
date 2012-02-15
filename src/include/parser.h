@@ -34,6 +34,7 @@
 namespace CVC3 {
 
   class ValidityChecker;
+  class Translator;
   class Expr;
   
   // Internal parser state and other data
@@ -47,11 +48,11 @@ namespace CVC3 {
     void deleteParser();
   public:
     // Constructors
-    Parser(ValidityChecker* vc, InputLanguage lang,
+    Parser(ValidityChecker* vc, Translator* translator, InputLanguage lang,
 	   // The 'interactive' flag is ignored when fileName != ""
 	   bool interactive = true,
 	   const std::string& fileName = "");
-    Parser(ValidityChecker* vc, InputLanguage lang, std::istream& is,
+    Parser(ValidityChecker* vc, Translator* translator, InputLanguage lang, std::istream& is,
 	   bool interactive = false);
     // Destructor
     ~Parser();

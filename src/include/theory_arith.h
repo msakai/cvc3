@@ -82,7 +82,8 @@ class TheoryArith :public Theory {
   Theorem canonRec(const Expr& e);
 
   //! Print a rational in SMT-LIB format
-  void printRational(ExprStream& os, const Rational& r, bool printAsReal = false);
+  void printRational(ExprStream& os, const Rational& r,
+                     bool printAsReal = false);
 
   //! Whether any ite's appear in the arithmetic part of the term e
   bool isAtomicArithTerm(const Expr& e);

@@ -136,6 +136,13 @@ Expr CNF_Manager::concreteExpr(const CVC3::Expr& e, const Lit& literal){
     return concreteLit(literal);
 }
 
+Theorem CNF_Manager::concreteThm(const CVC3::Expr& ine){
+  Theorem ret = d_iteMap[ine];
+  if (ret.isNull()) {
+    ret  = d_commonRules->reflexivityRule(ine);
+  }
+  return ret;
+}
 
 Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem& thmIn)
 {
@@ -178,6 +185,15 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
         lits.push_back(translateExprRec(*i, cnf, thmIn));
       }
 
+      vector<Expr> new_chls;
+      vector<Theorem> thms;
+      for (idx = 0; idx < lits.size(); ++idx) {
+	new_chls.push_back(concreteExpr(e[idx],lits[idx]));
+	thms.push_back(concreteThm(e[idx]));
+      }
+      
+      Expr after = (isAnd ? Expr(AND,new_chls) : Expr(OR,new_chls)) ;    
+
       //      DebugAssert(concreteExpr(e,Lit(v)) == e,"why here");
 
       for (idx = 0; idx < lits.size(); ++idx) {
@@ -188,8 +204,8 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
 	//	DebugAssert(concreteExpr(e[idx],lits[idx]) == e[idx], "why here");
 
 	std::string reasonStr = (isAnd ? "and_mid" : "or_mid");
-	Expr after = e[idx] ;
-	cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, idx)); // by yeting
+
+	cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, idx,thms)); // by yeting
       }
 
       cnf.newClause();
@@ -199,15 +215,23 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       }
 
       std::string reasonStr = (isAnd ? "and_final" : "or_final") ;   
-      Expr after = e ;
-
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, 0)); // by yeting
+      
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, reasonStr, 0, thms)); // by yeting
       DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
     case IMPLIES: {
       Lit arg0 = translateExprRec(e[0], cnf, thmIn);
       Lit arg1 = translateExprRec(e[1], cnf, thmIn);
+
+      vector<Theorem> thms;
+      thms.push_back(concreteThm(e[0]));
+      thms.push_back(concreteThm(e[1]));
+
+      Expr left = (concreteExpr(e[0],arg0));
+      Expr right = (concreteExpr(e[1],arg1));
+      Expr after = left.impExpr(right);
+
 
       //      DebugAssert(concreteExpr(e, Lit(v)) == e, "why here");
       //      DebugAssert(concreteExpr(e[0], arg0) == e[0], "why here");
@@ -217,20 +241,20 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
 
-      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 0)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, after, "imp", 0,thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg1,true);
 
-      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 1)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, after, "imp", 1, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
 
-      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, e, "imp", 2)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem( d_rules->CNFtranslate(e, after, "imp", 2,thms)); // by yeting
       DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
@@ -241,34 +265,42 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       //      DebugAssert(concreteExpr(e, Lit(v)) == e, "why here");
       //      DebugAssert(concreteExpr(e[0], arg0) == e[0], "why here");
       //      DebugAssert(concreteExpr(e[1], arg1) == e[1], "why here");
+      vector<Theorem> thms;
+      thms.push_back(concreteThm(e[0]));
+      thms.push_back(concreteThm(e[1]));
+
+      Expr left = (concreteExpr(e[0],arg0));
+      Expr right = (concreteExpr(e[1],arg1));
+      Expr after = left.iffExpr(right);
+
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 0)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "iff", 0, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1,true);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 1)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "iff", 1, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 2)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "iff", 2, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1,true);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "iff", 3)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "iff", 3, thms)); // by yeting
       DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
@@ -281,34 +313,42 @@ Lit CNF_Manager::translateExprRec(const Expr& e, CNF_Formula& cnf, const Theorem
       //      DebugAssert(concreteExpr(e[0], arg0) == e[0], "why here");
       //      DebugAssert(concreteExpr(e[1], arg1) == e[1], "why here");
 
+      vector<Theorem> thms;
+      thms.push_back(concreteThm(e[0]));
+      thms.push_back(concreteThm(e[1]));
+
+      Expr left = (concreteExpr(e[0],arg0));
+      Expr right = (concreteExpr(e[1],arg1));
+      Expr after = left.xorExpr(right);
+
 
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 0)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "xor", 0, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v),true);
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1,true);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 1)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "xor", 1, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0,true);
       cnf.addLiteral(arg1);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 2)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "xor", 2, thms)); // by yeting
 
       cnf.newClause();
       cnf.addLiteral(Lit(v));
       cnf.addLiteral(arg0);
       cnf.addLiteral(arg1,true);
 
-      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, e, "xor", 3)); // by yeting
+      cnf.getCurrentClause().setClauseTheorem(d_rules->CNFtranslate(e, after, "xor", 3,thms)); // by yeting
       DebugAssert(!d_flags["cnf-formula"].getBool(), "Found impossible case when cnf-formula is enabled");
       break;
     }
@@ -556,11 +596,10 @@ void CNF_Manager::convertLemma(const Theorem& thm, CNF_Formula& cnf)
   vector<Theorem> clauses;
 
   d_rules->learnedClauses(thm, clauses, false);
-  
+
   vector<Theorem>::iterator i = clauses.begin(), iend = clauses.end();
   for (; i < iend; ++i) {
     // for dumping lemmas:
-    //    cerr << "QUERY " << (*i).getExpr() << ";" << endl;
     cnf.newClause();
     Expr e = (*i).getExpr();
     if (!e.isOr()) {

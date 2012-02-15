@@ -2466,19 +2466,10 @@ TheoryArithOld::setupRec(const Expr& e) {
 
 
 void TheoryArithOld::addSharedTerm(const Expr& e) {
+  return;
   if (d_sharedTerms.find(e) == d_sharedTerms.end()) {
 	  d_sharedTerms[e] = true;
 	  d_sharedTermsList.push_back(e);
-
-//	  if (!isIntegerThm(e).isNull()) {
-//		  int i, size = d_sharedTermsList.size();
-//		  for (i = 0; i < size - 1; i ++) {
-//			  Expr e2 = d_sharedTermsList[i];
-//			  if (!isIntegerThm(e2).isNull())
-//				  if (!find(e).getRHS().isRational() || !find(e2).getRHS().isRational())
-//					  addSplitter(e.eqExpr(e2));
-//		  }
-//	  }
   }
 }
 
@@ -2757,96 +2748,6 @@ void TheoryArithOld::checkSat(bool fullEffort)
     	  // Mark it as split already
     	  diseqSplitAlready[diseq] = true;
       }
-    }
-
-    // Split on shared term equalities
-    if (!something_enqueued && !inconsistent() && total_buffer_size > 0 && constrained_vars > 0) {
-    	unsigned size = d_sharedTermsList.size();
-
-    	Expr t1, t2;
-    	Expr t1_find, t2_find;
-
-    	TRACE("arith shared", "expanding on shared term equalities","","");
-
-    	TheoryArithOld::DifferenceLogicGraph::EpsRational t1_find_lowerBound;
-    	TheoryArithOld::DifferenceLogicGraph::EpsRational t1_find_upperBound;
-
-    	// start from (0, 0)
-    	if (shared_index_1 < size) {
-    		t1 = d_sharedTermsList[shared_index_1];
-			DebugAssert(!t1.isNull(), "t1 is null!");
-    		DebugAssert(t1.hasFind(), "t1 has no find");
-    		t1_find = find(t1).getRHS();
-    		t1_find_lowerBound = getLowerBound(t1_find);
-    		t1_find_upperBound = getUpperBound(t1_find);
-    	}
-    	while (!something_enqueued && !inconsistent() && shared_index_1 < size) {
-
-       		// Take the next t2
-       		shared_index_2 = shared_index_2 + 1;
-
-    		// If off limits, move on t1
-    		if (shared_index_2 >= shared_index_1 || t1_find != t1 || !isConstrained(t1_find)) {
-    			// Take the fist t2
-    			shared_index_2 = 0;
-    			t2 = d_sharedTermsList[0];
-    			DebugAssert(!t2.isNull(), "t2 is null!");
-
-    			// Take the next t1
-    			shared_index_1 = shared_index_1 + 1;
-    			while (shared_index_1 < size) {
-    				t1 = d_sharedTermsList[shared_index_1];
-    				DebugAssert(!t1.isNull(), "t1 is null!");
-					DebugAssert(t1.hasFind(), "t1 has no find");
-    	    		t1_find = find(t1).getRHS();
-    	    		if (t1_find != t1 || !isConstrained(t1_find)) {
-    	    			shared_index_1 = shared_index_1 + 1;
-    	    			continue;
-    	    		} else {
-    	        		t1_find_lowerBound = getLowerBound(t1_find);
-    	        		t1_find_upperBound = getUpperBound(t1_find);
-    	    			break;
-    	    		}
-    			}
-    			if (shared_index_1 >= size) break;
-    		} else {
-    			t2 = d_sharedTermsList[shared_index_2];
-    			DebugAssert(!t2.isNull(), "t2 is null!");
-    		}
-
-    		TRACE("arith shared", "comparing : ", int2string(shared_index_1) + " with", int2string(shared_index_2));
-
-    		DebugAssert(t2.hasFind(), "t2 has no find");
-    		t2_find = find(t2).getRHS();
-    		if (t2_find != t2) continue;
-    		if (t2_find == t1_find) continue;
-    		if (t2_find.isRational() && t1_find.isRational()) continue;
-			if (!isConstrained(t2_find)) continue;
-    		if (getUpperBound(t2_find) < t1_find_lowerBound) continue;
-    		if (t1_find_upperBound < getLowerBound(t2_find)) continue;
-
-    		TRACE("arith shared", "comparing : ", int2string(shared_index_1) + " with ", int2string(shared_index_2) + " (of " + int2string(size) + ")");
-    		TRACE("arith shared", "checking shared term eq for ", t1.toString() + " and ", t2.toString());
-
-    		// Construct the equality disjunct if both are integers
-    		if (!isIntegerThm(t1_find).isNull() && !isIntegerThm(t2_find).isNull()) {
-    			// The equality
-    			Expr eq = t2_find.eqExpr(t1_find);
-    			// Try to simplify it to trivial
-    			Theorem simplifyEq = canonSimp(eq);
-    			if (simplifyEq.getRHS().isBoolConst()) {
-    				// It must not be true, false is possible due to asserted disequalities
-    				// Only exception are non-linear equalities which might be asserted
-    				DebugAssert(simplifyEq.getRHS().isFalse() || isNonlinearEq(eq), "Simplification of the shared equality is true!!!" + eq.toString());
-    				continue;
-    			}
-    			// Add it if not trivial
-    			addSplitter(eq, 0);
-    			// We've enqueued something interesting
-    			something_enqueued = true;
-    			TRACE("arith shared", "adding shared term eq for ", eq.toString(), "");
-    		}
-    	}
     }
 
     IF_DEBUG(
@@ -3401,7 +3302,8 @@ Theorem TheoryArithOld::rewrite(const Expr& e)
 		  }
 
 		  // Non-solvable nonlinear equations are rewritten as conjunction of inequalities
-		  if (!canPickEqMonomial(nonlinearEq[0])) {
+		  if ( (nonlinearEq[0].arity() > 1 && !canPickEqMonomial(nonlinearEq[0])) ||
+                       (nonlinearEq[1].arity() > 1 && !canPickEqMonomial(nonlinearEq[1])) ) {
 			  thm = transitivityRule(thm, d_rules->eqToIneq(nonlinearEq));
 			  thm = transitivityRule(thm, simplify(thm.getRHS()));
 			  TRACE("arith nonlinear", "nonlinear eq rewrite (not solvable): ", thm.getRHS(), "");
@@ -3998,7 +3900,7 @@ TheoryArithOld::computeTCC(const Expr& e) {
 ///////////////////////////////////////////////////////////////////////////////
 Expr
 TheoryArithOld::parseExprOp(const Expr& e) {
-  TRACE("parser", "TheoryArithOld::parseExprOp(", e, ")");
+  //TRACE("parser", "TheoryArithOld::parseExprOp(", e, ")");
   //std::cout << "Were here";
   // If the expression is not a list, it must have been already
   // parsed, so just return it as is.
@@ -4045,7 +3947,8 @@ TheoryArithOld::parseExprOp(const Expr& e) {
     }
     case MINUS: {
       if(e.arity() == 2) {
-        if (false && getEM()->getInputLang() == SMTLIB_LANG) {
+        if (false && (getEM()->getInputLang() == SMTLIB_LANG
+                      || getEM()->getInputLang() == SMTLIB_V2_LANG)) {
           throw ParserException("Unary Minus should use '~' instead of '-' in SMT-LIB expr:"
                                 +e.toString());
         }
@@ -4421,7 +4324,141 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
           break;
       }
       break; // end of case PRESENTATION_LANG
-    case SMTLIB_LANG: {
+ case SPASS_LANG: {
+      switch(e.getKind()) {
+        case REAL_CONST:
+          printRational(os, e[0].getRational(), true);
+          break;
+        case RATIONAL_EXPR:
+          printRational(os, e.getRational());
+          break;
+        case REAL:
+          throw SmtlibException("TheoryArithOld::print: SPASS: REAL not implemented");
+          break;
+        case INT:
+          throw SmtlibException("TheoryArithOld::print: SPASS: INT not implemented");
+          break;
+        case SUBRANGE:
+          throw SmtlibException("TheoryArithOld::print: SPASS: SUBRANGE not implemented");
+          break;
+        case IS_INTEGER:
+          throw SmtlibException("TheoryArithOld::print: SPASS: IS_INTEGER not implemented");
+        case PLUS: {
+	  int arity = e.arity();
+	  if(2 == arity) {
+	    os << push << "plus("
+               << e[0] << "," << space << e[1]
+               << push << ")";
+	  }
+	  else if(2 < arity) {
+	    for (int i = 0 ; i < arity - 2; i++){
+	      os << push << "plus(";
+	      os << e[i] << "," << space;
+	    }
+	    os << push << "plus("
+               << e[arity - 2] << "," << space << e[arity - 1]
+               << push << ")";
+	    for (int i = 0 ; i < arity - 2; i++){
+	      os << push << ")";
+	    }
+	  }
+	  else {
+	    throw SmtlibException("TheoryArithOld::print: SPASS: Less than two arguments for plus");
+	  }
+          break;
+        }
+        case MINUS: {
+          os << push << "plus(" << e[0]
+             << "," << space << push << "mult(-1,"
+             << space << e[1] << push << ")" << push << ")";
+          break;
+        }
+        case UMINUS: {
+          os << push << "plus(0,"
+             << space << push << "mult(-1,"
+             << space << e[0] << push << ")" << push << ")";
+          break;
+        }
+        case MULT: {
+	  int arity = e.arity();
+	  if (2 == arity){
+	    os << push << "mult("
+               << e[0] << "," << space << e[1]
+               << push << ")";
+	  }
+	  else if (2 < arity){
+	    for (int i = 0 ; i < arity - 2; i++){
+	      os << push << "mult(";
+	      os << e[i] << "," << space;
+	    }
+	    os << push << "mult("
+               << e[arity - 2] << "," << space << e[arity - 1]
+               << push << ")";
+	    for (int i = 0 ; i < arity - 2; i++){
+	      os << push << ")";
+	    }
+	  }
+	  else{
+	    throw SmtlibException("TheoryArithOld::print: SPASS: Less than two arguments for mult");
+	  }
+          break;
+        }
+        case POW:
+          if (e[0].isRational() && e[0].getRational().isInteger()) {
+            int i=0, iend=e[0].getRational().getInt();
+              for(; i!=iend; ++i) {
+                if (i < iend-2) {
+                  os << push << "mult(";
+                }
+                os << e[1] << "," << space;
+              }
+	      os << push << "mult("
+                 << e[1] << "," << space << e[1];
+              for (i=0; i < iend-1; ++i) {
+                os << push << ")";
+              }
+          }
+          else {
+            throw SmtlibException("TheoryArithOld::print: SPASS: POW not supported: " + e.toString(PRESENTATION_LANG));
+          }
+          break;
+        case DIVIDE: {
+	  os << "ERROR "<< endl;break;
+          throw SmtlibException("TheoryArithOld::print: SPASS: unexpected use of DIVIDE");
+          break;
+        }
+        case LT: {
+          Rational r;
+          os << push << "ls(" << space;
+          os << e[0] << "," << space << e[1] << push << ")";
+          break;
+        }
+        case LE: {
+          Rational r;
+          os << push << "le(" << space;
+          os << e[0] << "," << space << e[1] << push << ")";
+          break;
+        }
+        case GT: {
+          Rational r;
+          os << push << "gs(" << space;
+          os << e[0] << "," << space << e[1] << push << ")";
+          break;
+        }
+        case GE: {
+          Rational r;
+          os << push << "ge(" << space;
+          os << e[0] << "," << space << e[1] << push << ")";
+          break;
+        }
+
+        default:
+          throw SmtlibException("TheoryArithOld::print: SPASS: default not supported");
+      }
+      break; // end of case SPASS_LANG
+    }
+    case SMTLIB_LANG:
+    case SMTLIB_V2_LANG: {
       switch(e.getKind()) {
         case REAL_CONST:
           printRational(os, e[0].getRational(), true);
@@ -4443,18 +4480,28 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
 // 	       << space << e[1] << push << ")";
           break;
         case IS_INTEGER:
- 	  if(e.arity() == 1)
- 	    os << "(" << push << "IsInt" << space << e[0] << push << ")";
+ 	  if(e.arity() == 1) {
+            if (os.lang() == SMTLIB_LANG) {
+              os << "(" << push << "IsInt" << space << e[0] << push << ")";
+            }
+            else {
+              os << "(" << push << "is_int" << space << e[0] << push << ")";
+            }
+          }
  	  else
             throw SmtlibException("TheoryArithOld::print: SMTLIB: IS_INTEGER used unexpectedly");
 	  break;
         case PLUS:  {
-          os << "(" << push << "+";
-          Expr::iterator i = e.begin(), iend = e.end();
-          for(; i!=iend; ++i) {
-            os << space << (*i);
+          if(e.arity() == 1 && os.lang() == SMTLIB_V2_LANG) {
+            os << e[0];
+          } else {
+            os << "(" << push << "+";
+            Expr::iterator i = e.begin(), iend = e.end();
+            for(; i!=iend; ++i) {
+              os << space << (*i);
+            }
+            os << push << ")";
           }
-          os << push << ")";
           break;
         }
         case MINUS: {
@@ -4462,18 +4509,27 @@ TheoryArithOld::print(ExprStream& os, const Expr& e) {
           break;
         }
         case UMINUS: {
-          os << "(" << push << "~" << space << e[0] << push << ")";
+          if (os.lang() == SMTLIB_LANG) {
+            os << "(" << push << "~" << space << e[0] << push << ")";
+          }
+          else {
+            os << "(" << push << "-" << space << e[0] << push << ")";
+          }
           break;
         }
         case MULT:  {
           int i=0, iend=e.arity();
-          for(; i!=iend; ++i) {
-            if (i < iend-1) {
-              os << "(" << push << "*";
+          if(iend == 1 && os.lang() == SMTLIB_V2_LANG) {
+            os << e[0];
+          } else {
+            for(; i!=iend; ++i) {
+              if (i < iend-1) {
+                os << "(" << push << "*";
+              }
+              os << space << e[i];
             }
-            os << space << e[i];
+            for (i=0; i < iend-1; ++i) os << push << ")";
           }
-          for (i=0; i < iend-1; ++i) os << push << ")";
           break;
         }
         case POW:
@@ -5357,6 +5413,8 @@ int TheoryArithOld::termDegree(const Expr& e) {
 
 bool TheoryArithOld::canPickEqMonomial(const Expr& right)
 {
+	DebugAssert(right.arity() > 1, "TheoryArithOld::canPickEqMonomial, expecting > 1 child, got " + right.arity());
+
 	Expr::iterator istart = right.begin();
 	Expr::iterator iend   = right.end();
 

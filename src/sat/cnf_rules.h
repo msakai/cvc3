@@ -60,7 +60,8 @@ namespace CVC3 {
     virtual Theorem CNFtranslate(const Expr& before, 
 				 const Expr& after, 
 				 std::string reason, 
-				 int pos) = 0;
+				 int pos,
+				 const std::vector<Theorem>& thms) = 0;
 
     virtual Theorem CNFITEtranslate(const Expr& before, 
 				    const std::vector<Expr>& after,

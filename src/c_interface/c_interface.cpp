@@ -822,7 +822,7 @@ extern "C" char* vc_printExprString(VC vc, Expr e)
     cvc->printExpr(fromExpr(e), os);
     os.flush();
     aa=os.str();
-    result=new char[aa.length()];
+    result=new char[aa.length()+1];
     strcpy(result,aa.c_str());
     return result;
   } catch(CVC3::Exception ex) {
@@ -1031,6 +1031,29 @@ extern "C" Expr vc_iteExpr(VC vc, Expr ifpart, Expr thenpart, Expr elsepart)
     return NULL;
   }
 }
+
+
+extern "C" Expr vc_substExpr(VC vc, Expr e,
+                             Expr* oldTerms, int numOldTerms,
+                             Expr* newTerms, int numNewTerms)
+{
+  try{
+  vector<CVC3::Expr> oldExprs, newExprs;
+  CVC3::Expr ex = fromExpr(e);
+  //CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
+  for (int i = 0; i < numOldTerms; ++i) {
+    oldExprs.push_back(fromExpr(oldTerms[i]));
+  }
+  for (int i = 0; i < numNewTerms; ++i) {
+    newExprs.push_back(fromExpr(newTerms[i]));
+  }
+  return toExpr(ex.substExpr(oldExprs, newExprs));
+  }catch(CVC3::Exception ex){
+    signal_error("vc_substExpr",error_int,ex);
+    return NULL;
+  }
+}
+
 
 
 extern "C" Op vc_createOp(VC vc, char* name, Type type)
@@ -2528,7 +2551,7 @@ extern "C" Expr vc_getProofOfFile(VC vc, char* fileName){
   try{
    CVC3::ValidityChecker* cvc = (CVC3::ValidityChecker*) vc;
   CVC3::Parser* parser;
-  parser = new CVC3::Parser(cvc,
+  parser = new CVC3::Parser(cvc, NULL,
 			cvc->getEM()->getInputLang(),
 			0,
                         string(fileName));

@@ -52,15 +52,16 @@ void CNF_TheoremProducer::getSmartClauses(const Theorem& thm, vector<Theorem>& c
   vector<Theorem> assumptions;
   thm.clearAllFlags();
   thm.GetSatAssumptions(assumptions);  
-  Proof pf;
-  if (withProof()) {
-    pf = newPf("learned_clause", thm.getProof());
-  }
+//   Proof pf;
+//   if (withProof()) {
+//     pf = newPf("learned_clause_smart", thm.getProof());
+//   }
   Theorem thm2; 
   vector<Expr> TempVec;
-
+  vector<Proof> pfs; 
   if (!thm.getExpr().isFalse()) {
     TempVec.push_back(thm.getExpr());
+    pfs.push_back(thm.getProof());
   }
   for (vector<Theorem>::size_type i = 0; i < assumptions.size(); i++) {
     if (thm.getExpr() == assumptions[i].getExpr()) {
@@ -71,12 +72,20 @@ void CNF_TheoremProducer::getSmartClauses(const Theorem& thm, vector<Theorem>& c
       return;
     }
     TempVec.push_back(assumptions[i].getExpr().negate());
+    pfs.push_back(assumptions[i].getProof());
   }
 
+  Proof pf;
   if (TempVec.size() == 1){
+    if (withProof()) {
+      pf = newPf("learned_clause_smart", TempVec[0], pfs);
+    }
     thm2 = newTheorem(TempVec[0], Assumptions::emptyAssump(), pf);
   }
   else if (TempVec.size() > 1) {   
+    if (withProof()) {
+      pf = newPf("learned_clause_smart", Expr(OR, TempVec), pfs);
+    }
     thm2 = newTheorem(Expr(OR, TempVec), Assumptions::emptyAssump(), pf);
   }
   else {
@@ -103,7 +112,7 @@ void CNF_TheoremProducer::learnedClauses(const Theorem& thm,
     os << "learnedClause {" << endl;
     os << thm;
   })
-
+    
   if (!newLemma && d_smartClauses) {
     getSmartClauses(thm, clauses);
     return;
@@ -132,14 +141,14 @@ void CNF_TheoremProducer::learnedClauses(const Theorem& thm,
   Theorem thm2;
   if (assumptions.size() == 1) {
     if(withProof()) {
-      pf = newPf("learned_clause", assumptions[0], thm.getProof());
+      pf = newPf("learned_clause", thm.getProof());
     }
     thm2 = newTheorem(assumptions[0], Assumptions::emptyAssump(), pf);
   }
   else {
     Expr clauseExpr = Expr(OR, assumptions);
     if(withProof()) {
-      pf = newPf("learned_clause", clauseExpr, thm.getProof());
+      pf = newPf("learned_clause", thm.getProof());
     }
     thm2 = newTheorem(clauseExpr, Assumptions::emptyAssump(), pf);
   }
@@ -237,19 +246,26 @@ Theorem CNF_TheoremProducer::ifLiftRule(const Expr& e, int itePos) {
 Theorem CNF_TheoremProducer::CNFtranslate(const Expr& before, 
 					  const Expr& after, 
 					  std::string reason, 
-					  int pos) {
+					  int pos,
+					  const vector<Theorem>& thms) {
   //well, this is assert the e as a theorem without any justification.
   //change this as soon as possible
- 
+  //  cout << "###" << before; 
   Proof pf;
   if (withProof()){
     vector<Expr> chs ;
+    chs.push_back(d_em->newStringExpr(reason));
     chs.push_back(before);
     chs.push_back(after);
     chs.push_back(d_em->newRatExpr(pos));
-    pf = newPf("CNF", d_em->newStringExpr(reason), chs );
+    vector<Proof> pfs;
+    for(vector<Theorem>::const_iterator i = thms.begin(), iend= thms.end();
+	i != iend; i++){
+      pfs.push_back((*i).getProof());
+    }
+    pf = newPf("CNF", chs, pfs );
   }
-  return newTheorem(after, Assumptions::emptyAssump(), pf);
+  return newTheorem(after, Assumptions(thms), pf);
 }
 
 Theorem CNF_TheoremProducer::CNFITEtranslate(const Expr& before, 

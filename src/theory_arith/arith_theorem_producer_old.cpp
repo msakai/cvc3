@@ -1096,7 +1096,7 @@ ArithTheoremProducerOld::canonPowConst(const Expr& e) {
   else res = rat(pow(p, base));
   Proof pf;
   if(withProof())
-    pf = newPf("canon_pow_const", e);
+    pf = newPf("canon_pow_const", e, res);
   return newRWTheorem(e, res, Assumptions::emptyAssump(), pf);
 }
 
@@ -3318,7 +3318,7 @@ Theorem ArithTheoremProducerOld::rafineStrictInteger(const Theorem& isIntConstrT
   	// Construct the proof object if necessary
   	Proof pf;
 	if (withProof())
-		pf = newPf("rafineStrictInteger", constr, isIntConstrThm.getProof());
+	  pf = newPf("rafineStrictInteger", constr,newConstr, isIntConstrThm.getProof());
 
 	// Return the rewrite theorem that explains the phenomenon
 	return newRWTheorem(constr, newConstr, assump, pf);
@@ -3683,7 +3683,7 @@ Theorem ArithTheoremProducerOld::compactNonLinearTerm(const Expr& nonLinear) {
 
     Proof pf;
 	if(withProof())
-		pf = newPf("compactNonlinear", nonLinear);
+	  pf = newPf("compactNonlinear", nonLinear, result);
 
 	return newRWTheorem(nonLinear, result, Assumptions::emptyAssump(), pf);
 }

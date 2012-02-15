@@ -49,6 +49,8 @@
 (defvar cvc-font-lock-mode-on t
   "If not nil, turn the fontification on.")
 
+(defvar cvc-running-xemacs (string-match "XEmacs\\|Lucid" emacs-version))
+
 ;;;; Syntax definitions
 
 (defvar cvc-mode-syntax-table nil  "Syntax table used while in CVC mode.")
@@ -126,22 +128,28 @@
     "CONTEXT")
   "The list of keywords that open a declaration. Used for indentation.")
 
-(defconst cvc-declaration-keywords-regexp
+(defconst cvc-declaration-regexp
   (mapconcat 'cvc-keyword-match cvc-declaration-keywords "\\|"))
 
-(defconst cvc-openning-keywords
-  '("case" "for" "next" "init")
+(defconst cvc-opening-keywords
+  '("case" "for" "next" "init" "(")
   "The list of keywords that open a subexpression. Used for indentation.")
 
-(defconst cvc-openning-keywords-regexp
-  (mapconcat 'cvc-keyword-match cvc-openning-keywords "\\|"))
+(defconst cvc-opening-keywords-regexp
+  (mapconcat 'cvc-keyword-match cvc-opening-keywords "\\|"))
 
 (defconst cvc-closing-keywords
-  '("esac")
+  '("esac" ")")
   "The list of keywords that close a subexpression. Used for indentation.")
 
 (defconst cvc-closing-keywords-regexp
   (mapconcat 'cvc-keyword-match cvc-closing-keywords "\\|"))
+
+(defconst cvc-opening-paren-regexp
+  (concat cvc-opening-keywords-regexp "\\|\\s("))
+
+(defconst cvc-closing-paren-regexp
+  (concat cvc-closing-keywords-regexp "\\|\\s)"))
 
 (defconst cvc-infix-operators
   '("<->" "<-" "->" ":=" "<=w\\>" ">=w\\>" "<w\\>" ">w\\>" "=w\\>"
@@ -534,59 +542,110 @@ override the *.opt file if the options have changed."
 
 ;;;; Indentation
 
+;; Definitions
+;; - A balanced expression is a matching-paren string or a command 
+;;   (with the semicolon serving as the close-paren)
+;; - An enclosing expression for line N is a balanced expression that
+;;   includes the beginning of line N.
+
+;; Indentation rules:
+;; - The indentation of the first line of the buffer or a command is 0.
+;; - If the current line has the same innermost enclosing expression as
+;;   the line before it, it has the same indentation as the line before it.
+;; - Otherwise, the indentation of a line is cvc-basic-offset to the right 
+;;   of the first character of its innermost enclosing expression.
+;;
+;; NOTE: In keeping with Emacs terminology, we consider
+;; opening/closing keywords and other paired delimiters as "parens."
+;; For simplicity's sake, we treat all such delimiters as parens and
+;; make no attempt to enforce true matching (e.g., we will treat "( [ ) ]"
+;; as a balanced expression).
+
+(defcustom cvc-basic-offset 2
+  "Amount of basic offset used when indenting CVC code.")
+
 (defun cvc-previous-line ()
-  "Moves the point to the fisrt non-comment non-blank string before
-the current one and positions the cursor on the first non-blank character."
+  "Moves the point to the first non-comment non-blank string before
+the current one and positions the cursor on the first non-blank character.
+Returns nil if there is no previous non-comment non-blank line in the buffer."
   (interactive)
-  (forward-line -1)
   (beginning-of-line)
   (skip-chars-forward " \t")
-  (while (and (not (bobp)) (looking-at "$\\|%"))
+  (let ((starting-point (point)))
     (forward-line -1)
     (beginning-of-line)
-    (skip-chars-forward " \t")))
+    (while (and (not (bobp)) (looking-at "\\s-*\\(?:$\\|%\\)"))
+      (forward-line -1)
+      (beginning-of-line))
+    (cond ((bobp) 
+           (goto-char starting-point)
+           nil)
+          (t (skip-chars-forward " \t")))))
 
-(defun cvc-previous-indentation () 
-  "Returns a pair (INDENT . TYPE). INDENT is the indentation of the
-previous string, if there is one, and TYPE is 'openning, 'declaration
-or 'plain, depending on whether previous string starts with an
-openning, declarative keyword or neither. \"Previous string\" means
-the last string before the current that is not an empty string or a
-comment."
-  (if (bobp) '(0 . 'plain)
+(defun cvc-goto-indentation-anchor ()
+  "Moves the point to the \"indentation anchor\" of the current line,
+i.e., the beginning of the innermost enclosing expression or command."
+  (let ((starting-point
+         ;; Find the beginning of the enclosing declaration
+         (save-excursion
+           (while (and (cvc-previous-line)
+                       (not (looking-at cvc-declaration-regexp))))
+           (point)))
+        (depth 1))
+    (while (and (> depth 0) 
+                (search-backward-regexp
+                 (concat cvc-opening-paren-regexp "\\|" 
+                         cvc-closing-paren-regexp)
+                 starting-point t))
+      (if (looking-at cvc-opening-paren-regexp)
+          (setq depth (1- depth))
+        (setq depth (1+ depth))))
+    (if (> depth 0)
+        (goto-char starting-point))))
+
+(defun cvc-current-indentation () 
+  "Find the current indentation at point. The current indentation is 
+cvc-basic-offset to the right of where the innermost enclosing expression 
+or command starts, unless the previous line has the same indentation 
+anchor and a customized indentation, in which case the customized 
+indentation is used."
+  (let (anchor anchor-column previous-line previous-anchor previous-column)
+    (save-excursion
+      (cvc-goto-indentation-anchor)
+      (setq anchor (point))
+      (setq anchor-column (current-column)))
     (save-excursion
       (cvc-previous-line)
-      (let ((type (cond ((looking-at cvc-openning-keywords-regexp) 'openning)
-			((looking-at cvc-declaration-keywords-regexp)
-			 'declaration)
-			(t 'plain)))
-	    (indent (current-indentation)))
-	(cons indent type)))))
+      (setq previous-line (point))
+      (setq previous-column (current-column))
+      (cvc-goto-indentation-anchor)
+      (setq previous-anchor (point)))
+    (if (and (eq anchor previous-anchor) 
+             (not (eq anchor previous-line)))
+        previous-column
+      (+ anchor-column cvc-basic-offset))))
 
 (defun cvc-compute-indentation ()
   "Computes the indentation for the current string based on the
-previous string. Current algorithm is too simple and needs
-improvement."
+previous string."
   (save-excursion
    (beginning-of-line)
    (skip-chars-forward " \t")
-   (cond ((looking-at cvc-declaration-keywords-regexp) 0)
-	 (t (let* ((indent-data (cvc-previous-indentation))
-		   (indent (car indent-data))
-		   (type (cdr indent-data)))
-	      (setq indent
-		    (cond ((looking-at cvc-closing-keywords-regexp) 
-			   (if (< indent 2) 0 (- indent 2)))
-			  ((or (eq type 'openning) (eq type 'declaration))
-			   (+ indent 2))
-			  (t indent)))
-	      indent)))))
+   (if (looking-at cvc-declaration-regexp) 0
+     (let ((indent (cvc-current-indentation)))
+       (if (looking-at cvc-closing-keywords-regexp) 
+           (if (< indent cvc-basic-offset) 0 
+             (- indent cvc-basic-offset))
+         indent)))))
+             ;; ((or (eq type 'opening) (eq type 'declaration))
+             ;;  (+ indent cvc-basic-offset))
+             ;; (t indent))))))
 
 (defun cvc-indent-line ()
   "Indent the current line relative to the previous meaningful line."
   (interactive)
   (let* ((initial (point))
-	 (final (let ((case-fold-search nil))(cvc-compute-indentation)))
+	 (final (let ((case-fold-search nil)) (cvc-compute-indentation)))
 	 (offset0 (save-excursion
 		    (beginning-of-line)
 		    (skip-chars-forward " \t")
@@ -594,6 +653,9 @@ improvement."
 	 (offset (if (< offset0 0) 0 offset0)))
     (indent-line-to final)
     (goto-char (+ (point) offset))))
+
+;; TODO: What's wrong with M-;?
+
 
 ;;;; Now define the keymap
 
@@ -657,14 +719,12 @@ Please report bugs to barrett@cs.nyu.edu."
 ;;  (setq case-fold-search nil)
 ;;; Set syntax table
   (set-syntax-table cvc-mode-syntax-table)
-  (make-local-variable 'comment-start)
 ;; fix up comment handling
-  (setq comment-start "%")
-  (make-local-variable 'comment-end)
-  (setq comment-end "")
-  (make-local-variable 'comment-start-skip)
-  (setq comment-start-skip "%+\\s-*")
+  (set (make-local-variable 'comment-start) "%")
+  (set (make-local-variable 'comment-end) "")
+  (set (make-local-variable 'comment-start-skip) "%+\\s-*")
   (setq require-final-newline t)
+  (set (make-local-variable 'indent-line-function) 'cvc-indent-line)
 ;;; Define the major mode
   (setq major-mode 'cvc-mode)
   (setq mode-name "CVC")
@@ -684,11 +744,12 @@ Please report bugs to barrett@cs.nyu.edu."
 	(if font-lock-maximum-decoration
 	    cvc-font-lock-keywords-2
 	  cvc-font-lock-keywords-1))
-  (if running-xemacs
+  (if cvc-running-xemacs
       (put 'cvc-mode 'font-lock-defaults
 	   '(cvc-font-lock-keywords nil nil nil nil))
     (setq font-lock-defaults '(cvc-font-lock-keywords nil nil nil nil)))
-    (if (and cvc-font-lock-mode-on (or running-xemacs font-lock-global-modes)
+    (if (and cvc-font-lock-mode-on 
+             (or cvc-running-xemacs font-lock-global-modes)
 	     window-system)
 	(font-lock-mode 1))
   (setq mode-line-process nil) ; put 'cvc-status when hooked up to inferior CVC
@@ -706,7 +767,7 @@ find the associated CVC file and updates its options accordingly.  See
   (cvc-make-local-vars)
   (setq major-mode 'cvc-options-edit-mode)
   (setq mode-name "CVC Options")
-  (if (and cvc-font-lock-mode-on (or running-xemacs font-lock-global-modes)
+  (if (and cvc-font-lock-mode-on (or cvc-running-xemacs font-lock-global-modes)
 	   window-system)
       (font-lock-mode t))
   (use-local-map (copy-keymap (current-local-map)))

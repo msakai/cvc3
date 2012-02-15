@@ -93,6 +93,10 @@ namespace CVC3 {
     // a /= b |- exists i. a[i] /= b[i]
     Theorem arrayNotEq(const Theorem& e);
 
+    Theorem splitOnConstants(const Expr& a, const std::vector<Expr>& consts);
+
+    Theorem propagateIndexDiseq(const Theorem& read1eqread2isFalse);
+
   }; // end of class ArrayTheoremProducer
 
 } // end of namespace CVC3

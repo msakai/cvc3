@@ -3112,7 +3112,7 @@ Theorem ArithTheoremProducer::rafineStrictInteger(const Theorem& isIntConstrThm,
 
   	// Construct the proof object if necessary
   	Proof pf;
-	if (withProof()) pf = newPf("rafineStrictInteger", constr, isIntConstrThm.getProof());
+	if (withProof()) pf = newPf("rafineStrictInteger", constr, newConstr,isIntConstrThm.getProof());
 
 	// Return the rewrite theorem that explains the phenomenon
 	return newRWTheorem(constr, newConstr, assump, pf);

@@ -23,7 +23,10 @@
 #include "theory_core.h"
 #include "theorem_manager.h"
 #include "common_proof_rules.h"
-
+#include "command_line_flags.h"
+#include "theory_arith.h"
+// UNCOMMENT THIS FOR LFSC
+#include "LFSCPrinter.h" // by liana for LFSC conversion
 
 #define _CVC3_TRUSTED_
 #include "search_theorem_producer.h"
@@ -37,8 +40,21 @@ using namespace CVC3;
 // class SearchEngine trusted methods
 /////////////////////////////////////////////////////////////////////////////
 
+
+
 SearchEngineRules*
 SearchEngine::createRules() {
+  return new SearchEngineTheoremProducer(d_core->getTM());
+}
+
+
+// hack for printing original assumptions in LFSC by liana
+bool lfsc_called = false;
+SearchEngine* search_engine;
+
+SearchEngineRules*
+SearchEngine::createRules(SearchEngine* s_eng) {
+  search_engine = s_eng;
   return new SearchEngineTheoremProducer(d_core->getTM());
 }
 
@@ -56,25 +72,29 @@ SearchEngineTheoremProducer::SearchEngineTheoremProducer(TheoremManager* tm)
 // have to be present in the assumptions.
 Theorem
 SearchEngineTheoremProducer::proofByContradiction(const Expr& a,
-						  const Theorem& pfFalse) {
+                                                  const Theorem& pfFalse) {
   if(CHECK_PROOFS)
     CHECK_SOUND(pfFalse.getExpr().isFalse(),
-		"proofByContradiction: pfFalse = : " + pfFalse.toString());
+                "proofByContradiction: pfFalse = : " + pfFalse.toString());
   Expr not_a(!a);
   Assumptions assump(pfFalse.getAssumptionsRef() - not_a);
   Proof pf;
   if(withProof()) {
     // TODO: optimize with 1 traversal?
     Theorem thm(pfFalse.getAssumptionsRef()[not_a]);
-    Proof u; // proof label for !a
+    Proof u; // proof label for !aLFSCL
     if(!thm.isNull()) u = thm.getProof();
     // Proof compaction: if u is Null, use "FALSE => A" rule
-    if(u.isNull())
+    if(u.isNull()){
       pf = newPf("false_implies_anything", a, pfFalse.getProof());
+      if(!lfsc_called){
+        satProof(a, pf);
+      }
+    }
     else
       pf = newPf("pf_by_contradiction", a,
-		 // LAMBDA-abstraction (LAMBDA (u: !a): pfFalse)
-		 newPf(u, not_a, pfFalse.getProof()));
+                 // LAMBDA-abstraction (LAMBDA (u: !a): pfFalse)
+                 newPf(u, not_a, pfFalse.getProof()));
   }
   return newTheorem(a, assump, pf);
 }
@@ -83,10 +103,10 @@ SearchEngineTheoremProducer::proofByContradiction(const Expr& a,
 // A |- FALSE ==> !A
 Theorem
 SearchEngineTheoremProducer::negIntro(const Expr& not_a,
-				      const Theorem& pfFalse) {
+                                      const Theorem& pfFalse) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(pfFalse.getExpr().isFalse(),
-		"negIntro: pfFalse = : " + pfFalse.toString());
+                "negIntro: pfFalse = : " + pfFalse.toString());
     CHECK_SOUND(not_a.isNot(), "negIntro: not_a = "+not_a.toString());
   }
 
@@ -100,10 +120,11 @@ SearchEngineTheoremProducer::negIntro(const Expr& not_a,
     // Proof compaction: if u is Null, use "FALSE => !A" rule
     if(u.isNull())
       pf = newPf("false_implies_anything", not_a, pfFalse.getProof());
+
     else
       pf = newPf("neg_intro", not_a,
-		 // LAMBDA-abstraction (LAMBDA (u: a): pfFalse)
-		 newPf(u, a, pfFalse.getProof()));
+                 // LAMBDA-abstraction (LAMBDA (u: a): pfFalse)
+                 newPf(u, a, pfFalse.getProof()));
   }
   return newTheorem(not_a, assump, pf);
 }
@@ -112,23 +133,23 @@ SearchEngineTheoremProducer::negIntro(const Expr& not_a,
 // Case split: u1:A |- C, u2:!A |- C  ==>  |- C
 Theorem
 SearchEngineTheoremProducer::caseSplit(const Expr& a,
-				       const Theorem& a_proves_c,
-				       const Theorem& not_a_proves_c) {
+                                       const Theorem& a_proves_c,
+                                       const Theorem& not_a_proves_c) {
   Expr c(a_proves_c.getExpr());
 
   if(CHECK_PROOFS) {
     CHECK_SOUND(c == not_a_proves_c.getExpr(), 
-		"caseSplit: conclusions differ:\n  positive case C = "
-		+ c.toString() + "\n  negative case C = "
-		+ not_a_proves_c.getExpr().toString());
+                "caseSplit: conclusions differ:\n  positive case C = "
+                + c.toString() + "\n  negative case C = "
+                + not_a_proves_c.getExpr().toString());
     // The opposite assumption should not appear in the theorems
     // Actually, this doesn't violate soundness, no reason to check
 //     CHECK_SOUND(a_proves_c.getAssumptions()[!a].isNull(), 
-// 		"caseSplit: wrong assumption: " + (!a).toString()
-// 		+"\n in "+a_proves_c.toString());
+//              "caseSplit: wrong assumption: " + (!a).toString()
+//              +"\n in "+a_proves_c.toString());
 //     CHECK_SOUND(not_a_proves_c.getAssumptions()[a].isNull(), 
-// 		"caseSplit: wrong assumption: " + a.toString()
-// 		+"\n in "+not_a_proves_c.toString());
+//              "caseSplit: wrong assumption: " + a.toString()
+//              +"\n in "+not_a_proves_c.toString());
   }
 
   const Assumptions& a1(a_proves_c.getAssumptionsRef());
@@ -151,9 +172,9 @@ SearchEngineTheoremProducer::caseSplit(const Expr& a,
     // Create lambda-abstractions
     vector<Proof> pfs;
     pfs.push_back(newPf(a1[a].getProof(), 
-			a, a_proves_c.getProof()));
+                        a, a_proves_c.getProof()));
     pfs.push_back(newPf(a2[!a].getProof(), 
-			!a, not_a_proves_c.getProof()));
+                        !a, not_a_proves_c.getProof()));
     pf = newPf("case_split", a, c, pfs);
   }
   return newTheorem(c, a3, pf);
@@ -169,26 +190,26 @@ SearchEngineTheoremProducer::caseSplit(const Expr& a,
 
 // verification function used by conflictClause
 void SearchEngineTheoremProducer::verifyConflict(const Theorem& thm, 
-						 TheoremMap& m) {
+                                                 TheoremMap& m) {
   const Assumptions& a(thm.getAssumptionsRef());
   const Assumptions::iterator iend = a.end();
   for (Assumptions::iterator i = a.begin(); 
        i != iend; ++i) {
     CHECK_SOUND(!i->isNull(),
-		"SearchEngineTheoremProducer::conflictClause: "
-		"Found null theorem");
+                "SearchEngineTheoremProducer::conflictClause: "
+                "Found null theorem");
     if (!i->isRefl() && !i->isFlagged()) {
       i->setFlag();
       if (m.count(*i) == 0) {
-	CHECK_SOUND(!i->isAssump(), 
-		    "SearchEngineTheoremProducer::conflictClause: "
-		    "literal and gamma sets do not form a complete "
-		    "cut of Theorem assumptions. Stray theorem: \n"
+        CHECK_SOUND(!i->isAssump(),
+                    "SearchEngineTheoremProducer::conflictClause: "
+                    "literal and gamma sets do not form a complete "
+                    "cut of Theorem assumptions. Stray theorem: \n"
                     +i->toString());
-	verifyConflict(*i, m);
+        verifyConflict(*i, m);
       }
       else {
-	m[*i] = true;
+        m[*i] = true;
       }
     }
   }
@@ -198,17 +219,17 @@ void SearchEngineTheoremProducer::verifyConflict(const Theorem& thm,
 Theorem
 SearchEngineTheoremProducer::
 conflictClause(const Theorem& thm, const vector<Theorem>& lits, 
-	       const vector<Theorem>& gamma) {
+               const vector<Theorem>& gamma) {
   //  TRACE("search proofs", "conflictClause(", thm.getExpr(), ") {");
   IF_DEBUG(if(debugger.trace("search proofs")) {
     ostream& os = debugger.getOS();
     os << "lits = [";
     for(vector<Theorem>::const_iterator i=lits.begin(), iend=lits.end();
-	i!=iend; ++i)
+        i!=iend; ++i)
       os << i->getExpr() << ",\n";
     os << "]\n\ngamma = [";
     for(vector<Theorem>::const_iterator i=gamma.begin(), iend=gamma.end();
-	i!=iend; ++i)
+        i!=iend; ++i)
       os << i->getExpr() << ",\n";
     os << "]" << endl;
   });
@@ -216,7 +237,7 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
   // This rule only makes sense when runnnig with assumptions
   if(checkProofs) {
     CHECK_SOUND(withAssumptions(),
-		"conflictClause: called while running without assumptions");
+                "conflictClause: called while running without assumptions");
   }
 
   // Assumptions aOrig(thm.getAssumptions());
@@ -237,7 +258,7 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
     TheoremMap m;
     //    TRACE_MSG("search proofs", "adding gamma to m: {");
     for(vector<Theorem>::const_iterator i = gamma.begin();
-	i != gamma.end(); ++i) {
+        i != gamma.end(); ++i) {
       //      TRACE("search proofs", "m[", *i, "]");
       m[*i] = false;
     }
@@ -246,9 +267,9 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
     for(vector<Theorem>::const_iterator i = lits.begin(); i!=iend; ++i) {
       //      TRACE("search proofs", "check lit: ", *i, "");
       CHECK_SOUND(m.count(*i) == 0, 
-		  "SearchEngineTheoremProducer::conflictClause: "
-		  "literal and gamma sets are not disjoint: lit = "
-		  +i->toString());
+                  "SearchEngineTheoremProducer::conflictClause: "
+                  "literal and gamma sets are not disjoint: lit = "
+                  +i->toString());
       m[*i] = false;
     }
     thm.clearAllFlags();
@@ -256,9 +277,9 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
     TheoremMap::iterator t = m.begin(), tend = m.end();
     for (; t != tend; ++t) {
       CHECK_SOUND(t->second == true,
-		  "SearchEngineTheoremProducer::conflictClause: "
-		  "literal or gamma set contains extra element : "
-		  + t->first.toString());
+                  "SearchEngineTheoremProducer::conflictClause: "
+                  "literal or gamma set contains extra element : "
+                  + t->first.toString());
     }
   }
  
@@ -277,18 +298,18 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
       ExprHashMap<Expr> subst;
       DebugAssert(u.size() == lits.size(), "");
       for(size_t i=0, iend=lits.size(); i<iend; ++i) {
-	const Expr& e(lits[i].getExpr());
-	assump.push_back(e);
-	Proof& v = u[i];
-	if(!v.getExpr().isVar()) {
-	  Proof label = newLabel(e);
-	  subst[v.getExpr()] = label.getExpr();
-	  v = label;
-	}
+        const Expr& e(lits[i].getExpr());
+        assump.push_back(e);
+        Proof& v = u[i];
+        if(!v.getExpr().isVar()) {
+          Proof label = newLabel(e);
+          subst[v.getExpr()] = label.getExpr();
+          v = label;
+        }
       }
       Proof body(thm.getProof());
       if(!subst.empty())
-	body = Proof(body.getExpr().substExpr(subst));
+        body = Proof(body.getExpr().substExpr(subst));
       pf = newPf("conflict_clause", newPf(u, assump, body));
     }
     else
@@ -307,7 +328,7 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
 //   // This rule only makes sense when runnnig with assumptions
 //   if(checkProofs) {
 //     CHECK_SOUND(withAssumptions(),
-// 		"conflictClause: called while running without assumptions");
+//              "conflictClause: called while running without assumptions");
 //   }
 
 //   Assumptions aOrig(thm.getAssumptions());
@@ -323,9 +344,9 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
 //     Expr neg(i->isNot()? (*i)[0] : !(*i));
 //     if(checkProofs)
 //       CHECK_SOUND(!aOrig[neg].isNull(), 
-// 		  "SearchEngineTheoremProducer::conflictClause: "
-// 		  "literal is not in the set of assumptions: neg = "
-// 		  +neg.toString() + "\n Theorem = " + thm.toString());
+//                "SearchEngineTheoremProducer::conflictClause: "
+//                "literal is not in the set of assumptions: neg = "
+//                +neg.toString() + "\n Theorem = " + thm.toString());
 //     literals.push_back(*i);
 //     negations.push_back(neg);
 //     if(withProof()) u.push_back(aOrig[neg].getProof());
@@ -352,10 +373,10 @@ conflictClause(const Theorem& thm, const vector<Theorem>& lits,
 Theorem
 SearchEngineTheoremProducer::
 cutRule(const vector<Theorem>& thmsA,
-	const Theorem& as_prove_b) {
+        const Theorem& as_prove_b) {
   if(CHECK_PROOFS)
     CHECK_SOUND(withAssumptions(),
-		"cutRule called without assumptions activated");
+                "cutRule called without assumptions activated");
   // Optimization: use only those theorems that occur in B's assumptions.
   // *** No, take it back, it's a mis-optimization.  Most of the time,
   // cutRule is applied when we *know* thmsA are present in the
@@ -388,16 +409,16 @@ cutRule(const vector<Theorem>& thmsA,
 
 void 
 SearchEngineTheoremProducer::checkSoundNoSkolems(const Expr& e, 
-						 ExprMap<bool>& visited, 
-						 const ExprMap<bool>& skolems)
+                                                 ExprMap<bool>& visited,
+                                                 const ExprMap<bool>& skolems)
 {
   if(visited.count(e)>0)
     return;
   else
     visited[e] = true;
   CHECK_SOUND(skolems.count(e) == 0, 
-	      "skolem constant found in axioms of false theorem: "
-	      + e.toString());
+              "skolem constant found in axioms of false theorem: "
+              + e.toString());
   for(Expr::iterator it = e.begin(), end = e.end(); it!= end; ++it)
     checkSoundNoSkolems(*it, visited, skolems);
   if(e.getKind() == FORALL || e.getKind() == EXISTS)
@@ -406,8 +427,8 @@ SearchEngineTheoremProducer::checkSoundNoSkolems(const Expr& e,
 
 void 
 SearchEngineTheoremProducer::checkSoundNoSkolems(const Theorem& t, 
-						 ExprMap<bool>& visited, 
-						 const ExprMap<bool>& skolems)
+                                                 ExprMap<bool>& visited,
+                                                 const ExprMap<bool>& skolems)
 {
   if(t.isRefl() || t.isFlagged())
     return;
@@ -431,7 +452,7 @@ SearchEngineTheoremProducer::checkSoundNoSkolems(const Theorem& t,
 
 Theorem 
 SearchEngineTheoremProducer::eliminateSkolemAxioms(const Theorem& tFalse, 
-					    const std::vector<Theorem>& delta)
+                                            const std::vector<Theorem>& delta)
 {
   TRACE("skolem", "=>eliminateSkolemAxioms ", delta.size(), "{");
   if(delta.empty())
@@ -442,26 +463,26 @@ SearchEngineTheoremProducer::eliminateSkolemAxioms(const Theorem& tFalse,
   const Expr& falseExpr = tFalse.getExpr();
   if(CHECK_PROOFS) {
     CHECK_SOUND(falseExpr.isFalse(),
-		"eliminateSkolemAxiom called on non-false theorem");
+                "eliminateSkolemAxiom called on non-false theorem");
     ExprMap<bool> visited;
     ExprMap<bool> skolems;
     vector<Theorem>::const_iterator it = delta.begin(), end = delta.end();
     for(; it!=end; ++it) {
       CHECK_SOUND(it->isRewrite(),
-		  "eliminateSkolemAxioms(): Skolem axiom is not "
-		  "an IFF: "+it->toString());
+                  "eliminateSkolemAxioms(): Skolem axiom is not "
+                  "an IFF: "+it->toString());
       const Expr& ex = it->getLHS();
       CHECK_SOUND(ex.isExists(), 
-		  "Did not receive skolem axioms in Delta"
-		  " of eliminateSkolemAxioms" + it->toString());
+                  "Did not receive skolem axioms in Delta"
+                  " of eliminateSkolemAxioms" + it->toString());
       // Collect the Skolem constants for further soundness checks
       for(unsigned int j=0; j<ex.getVars().size(); j++) {
-	Expr sk_var(ex.skolemExpr(j));
-	if(sk_var.getType().isBool()) {
+        Expr sk_var(ex.skolemExpr(j));
+        if(sk_var.getType().isBool()) {
           sk_var = d_em->newLeafExpr(sk_var.mkOp());
-	}
-	skolems[sk_var] = true;
-	TRACE("skolem", ">> Eliminating variable: ", sk_var, "<<");
+        }
+        skolems[sk_var] = true;
+        TRACE("skolem", ">> Eliminating variable: ", sk_var, "<<");
       }
     }
     tFalse.clearAllFlags();
@@ -475,10 +496,10 @@ SearchEngineTheoremProducer::eliminateSkolemAxioms(const Theorem& tFalse,
       std::vector<Proof>skolemizeLabels;
       std::vector<Expr> exprs;
       for(unsigned int i=0; i<delta.size(); i++)
-	{
-	  exprs.push_back(delta[i].getExpr());
-	  skolemizeLabels.push_back(delta[i].getProof());
-	}
+        {
+          exprs.push_back(delta[i].getExpr());
+          skolemizeLabels.push_back(delta[i].getProof());
+        }
       pf = newPf(skolemizeLabels, exprs, origFalse);
     }
   TRACE("skolem",  "eliminateSkolemAxioms","" , "}");
@@ -488,32 +509,32 @@ SearchEngineTheoremProducer::eliminateSkolemAxioms(const Theorem& tFalse,
 
 Theorem
 SearchEngineTheoremProducer::unitProp(const std::vector<Theorem>& thms,
-				      const Theorem& clause,
-				      unsigned i) {
+                                      const Theorem& clause,
+                                      unsigned i) {
   Expr e(clause.getExpr());
   if(CHECK_PROOFS) {
     // Soundness check: first, check the form of the 'clause' theorem
     CHECK_SOUND(e.isOr() && e.arity() > (int)i,
-		"SearchEngineTheoremProducer::unitProp: bad theorem or i="
-		+int2string(i)+" > arity="+int2string(e.arity())
-		+" in clause = " + clause.toString());
+                "SearchEngineTheoremProducer::unitProp: bad theorem or i="
+                +int2string(i)+" > arity="+int2string(e.arity())
+                +" in clause = " + clause.toString());
     // Now, check correspondence of thms to the disjunction
     CHECK_SOUND(((int)thms.size()) == e.arity() - 1,
-		"SearchEngineTheoremProducer::unitProp: "
-		"wrong number of theorems"
-		"\n  thms.size = " + int2string(thms.size())
-		+"\n  clause.arity = " + int2string(e.arity()));
+                "SearchEngineTheoremProducer::unitProp: "
+                "wrong number of theorems"
+                "\n  thms.size = " + int2string(thms.size())
+                +"\n  clause.arity = " + int2string(e.arity()));
 
     for(unsigned j=0,k=0; j<thms.size(); j++) {
       if(j!=i) {
-	Expr ej(e[j]), ek(thms[k].getExpr());
-	CHECK_SOUND((ej.isNot() && ej[0] == ek) || (ek.isNot() && ej == ek[0]),
-		    "SearchEngineTheoremProducer::unitProp: "
-		    "wrong theorem["+int2string(k)+"]"
-		    "\n  thm = " + thms[k].toString() +
-		    "\n  literal = " + e[j].toString() +
-		    "\n  clause = " + clause.toString());
-	k++;
+        Expr ej(e[j]), ek(thms[k].getExpr());
+        CHECK_SOUND((ej.isNot() && ej[0] == ek) || (ek.isNot() && ej == ek[0]),
+                    "SearchEngineTheoremProducer::unitProp: "
+                    "wrong theorem["+int2string(k)+"]"
+                    "\n  thm = " + thms[k].toString() +
+                    "\n  literal = " + e[j].toString() +
+                    "\n  clause = " + clause.toString());
+        k++;
       }
     }
   }
@@ -541,14 +562,14 @@ SearchEngineTheoremProducer::unitProp(const std::vector<Theorem>& thms,
 
 Theorem
 SearchEngineTheoremProducer::propAndrAF(const Theorem& andr_th,
-					bool left,
-					const Theorem& b_th) {
+                                        bool left,
+                                        const Theorem& b_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R &&
-		((left && b_th.refutes(andr_e[1])) ||
-		 (!left && b_th.refutes(andr_e[2]))),
-		"SearchEngineTheoremProducer::propAndrAF");
+                ((left && b_th.refutes(andr_e[1])) ||
+                 (!left && b_th.refutes(andr_e[2]))),
+                "SearchEngineTheoremProducer::propAndrAF");
   }
 
   Assumptions a(andr_th, b_th);
@@ -570,13 +591,13 @@ SearchEngineTheoremProducer::propAndrAF(const Theorem& andr_th,
 
 Theorem
 SearchEngineTheoremProducer::propAndrAT(const Theorem& andr_th,
-					const Theorem& l_th,
-					const Theorem& r_th) {
+                                        const Theorem& l_th,
+                                        const Theorem& r_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R &&
-		l_th.proves(andr_e[1]) && r_th.proves(andr_e[2]),
-		"SearchEngineTheoremProducer::propAndrAT");
+                l_th.proves(andr_e[1]) && r_th.proves(andr_e[2]),
+                "SearchEngineTheoremProducer::propAndrAT");
   }
 
   Assumptions a(andr_th, l_th);
@@ -600,13 +621,13 @@ SearchEngineTheoremProducer::propAndrAT(const Theorem& andr_th,
 
 void
 SearchEngineTheoremProducer::propAndrLRT(const Theorem& andr_th,
-					 const Theorem& a_th,
-					 Theorem* l_th,
-					 Theorem* r_th) {
+                                         const Theorem& a_th,
+                                         Theorem* l_th,
+                                         Theorem* r_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R && a_th.proves(andr_e[0]),
-		"SearchEngineTheoremProducer::propAndrLRT");
+                "SearchEngineTheoremProducer::propAndrLRT");
   }
 
   Assumptions a(andr_th, a_th);
@@ -628,13 +649,13 @@ SearchEngineTheoremProducer::propAndrLRT(const Theorem& andr_th,
 
 Theorem
 SearchEngineTheoremProducer::propAndrLF(const Theorem& andr_th,
-					const Theorem& a_th,
-					const Theorem& r_th) {
+                                        const Theorem& a_th,
+                                        const Theorem& r_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R &&
-		a_th.refutes(andr_e[0]) && r_th.proves(andr_e[2]),
-		"SearchEngineTheoremProducer::propAndrLF");
+                a_th.refutes(andr_e[0]) && r_th.proves(andr_e[2]),
+                "SearchEngineTheoremProducer::propAndrLF");
   }
 
   Assumptions a(andr_th, a_th);
@@ -658,13 +679,13 @@ SearchEngineTheoremProducer::propAndrLF(const Theorem& andr_th,
 
 Theorem
 SearchEngineTheoremProducer::propAndrRF(const Theorem& andr_th,
-					const Theorem& a_th,
-					const Theorem& l_th) {
+                                        const Theorem& a_th,
+                                        const Theorem& l_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R &&
-		a_th.refutes(andr_e[0]) && l_th.proves(andr_e[1]),
-		"SearchEngineTheoremProducer::propAndrRF");
+                a_th.refutes(andr_e[0]) && l_th.proves(andr_e[1]),
+                "SearchEngineTheoremProducer::propAndrRF");
   }
 
   Assumptions a(andr_th, a_th);
@@ -688,15 +709,15 @@ SearchEngineTheoremProducer::propAndrRF(const Theorem& andr_th,
 
 Theorem
 SearchEngineTheoremProducer::confAndrAT(const Theorem& andr_th,
-					const Theorem& a_th,
-					bool left,
-					const Theorem& b_th) {
+                                        const Theorem& a_th,
+                                        bool left,
+                                        const Theorem& b_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R && a_th.proves(andr_e[0]) &&
-		((left && b_th.refutes(andr_e[1])) ||
-		 (!left && b_th.refutes(andr_e[2]))),
-		"SearchEngineTheoremProducer::confAndrAT");
+                ((left && b_th.refutes(andr_e[1])) ||
+                 (!left && b_th.refutes(andr_e[2]))),
+                "SearchEngineTheoremProducer::confAndrAT");
   }
 
   Assumptions a(andr_th, a_th);
@@ -721,14 +742,14 @@ SearchEngineTheoremProducer::confAndrAT(const Theorem& andr_th,
 
 Theorem
 SearchEngineTheoremProducer::confAndrAF(const Theorem& andr_th,
-					const Theorem& a_th,
-					const Theorem& l_th,
-					const Theorem& r_th) {
+                                        const Theorem& a_th,
+                                        const Theorem& l_th,
+                                        const Theorem& r_th) {
   const Expr& andr_e(andr_th.getExpr());
   if(CHECK_PROOFS) {
     CHECK_SOUND(andr_e.getKind() == AND_R && a_th.refutes(andr_e[0]) &&
-		l_th.proves(andr_e[1]) && r_th.proves(andr_e[2]),
-		"SearchEngineTheoremProducer::confAndrAF");
+                l_th.proves(andr_e[1]) && r_th.proves(andr_e[2]),
+                "SearchEngineTheoremProducer::confAndrAF");
   }
 
   Assumptions a;
@@ -759,15 +780,15 @@ SearchEngineTheoremProducer::confAndrAF(const Theorem& andr_th,
 
 Theorem
 SearchEngineTheoremProducer::propIffr(const Theorem& iffr_th,
-				      int p,
-				      const Theorem& a_th,
-				      const Theorem& b_th)
+                                      int p,
+                                      const Theorem& a_th,
+                                      const Theorem& b_th)
 {
   int a(-1), b(-1);
   if(CHECK_PROOFS)
     CHECK_SOUND(p == 0 || p == 1 || p == 2,
-		"SearchEngineTheoremProducer::propIffr: p="
-		+int2string(p));
+                "SearchEngineTheoremProducer::propIffr: p="
+                +int2string(p));
   switch (p) {
   case 0: a = 1; b = 2; break;
   case 1: a = 0; b = 2; break;
@@ -781,9 +802,9 @@ SearchEngineTheoremProducer::propIffr(const Theorem& iffr_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iffr_e.getKind() == IFF_R &&
-		(v0 || a_th.refutes(iffr_e[a])) &&
-		(v1 || b_th.refutes(iffr_e[b])),
-		"SearchEngineTheoremProducer::propIffr");
+                (v0 || a_th.refutes(iffr_e[a])) &&
+                (v1 || b_th.refutes(iffr_e[b])),
+                "SearchEngineTheoremProducer::propIffr");
   }
 
   Assumptions aa;
@@ -811,9 +832,9 @@ SearchEngineTheoremProducer::propIffr(const Theorem& iffr_th,
 
 Theorem
 SearchEngineTheoremProducer::confIffr(const Theorem& iffr_th,
-				      const Theorem& i_th,
-				      const Theorem& l_th,
-				      const Theorem& r_th)
+                                      const Theorem& i_th,
+                                      const Theorem& l_th,
+                                      const Theorem& r_th)
 {
   const Expr& iffr_e(iffr_th.getExpr());
 
@@ -823,11 +844,11 @@ SearchEngineTheoremProducer::confIffr(const Theorem& iffr_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iffr_e.getKind() == IFF_R &&
-		(v0 || i_th.refutes(iffr_e[0])) &&
-		(v1 || l_th.refutes(iffr_e[1])) &&
-		(v2 || r_th.refutes(iffr_e[2])) &&
-		((v0 && v1 != v2) || (!v0 && v1 == v2)),
-		"SearchEngineTheoremProducer::confIffr");
+                (v0 || i_th.refutes(iffr_e[0])) &&
+                (v1 || l_th.refutes(iffr_e[1])) &&
+                (v2 || r_th.refutes(iffr_e[2])) &&
+                ((v0 && v1 != v2) || (!v0 && v1 == v2)),
+                "SearchEngineTheoremProducer::confIffr");
   }
 
   Assumptions a;
@@ -858,9 +879,9 @@ SearchEngineTheoremProducer::confIffr(const Theorem& iffr_th,
 
 Theorem
 SearchEngineTheoremProducer::propIterIte(const Theorem& iter_th,
-					 bool left,
-					 const Theorem& if_th,
-					 const Theorem& then_th)
+                                         bool left,
+                                         const Theorem& if_th,
+                                         const Theorem& then_th)
 {
   const Expr& iter_e(iter_th.getExpr());
 
@@ -869,10 +890,10 @@ SearchEngineTheoremProducer::propIterIte(const Theorem& iter_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iter_e.getKind() == ITE_R &&
-		(v0 || if_th.refutes(iter_e[1])) &&
-		(v1 || then_th.refutes(iter_e[left ? 2 : 3])) &&
-		v0 == left,
-		"SearchEngineTheoremProducer::propIterIte");
+                (v0 || if_th.refutes(iter_e[1])) &&
+                (v1 || then_th.refutes(iter_e[left ? 2 : 3])) &&
+                v0 == left,
+                "SearchEngineTheoremProducer::propIterIte");
   }
 
   Assumptions a;
@@ -900,11 +921,11 @@ SearchEngineTheoremProducer::propIterIte(const Theorem& iter_th,
 
 void
 SearchEngineTheoremProducer::propIterIfThen(const Theorem& iter_th,
-					    bool left,
-					    const Theorem& ite_th,
-					    const Theorem& then_th,
-					    Theorem* if_th,
-					    Theorem* else_th)
+                                            bool left,
+                                            const Theorem& ite_th,
+                                            const Theorem& then_th,
+                                            Theorem* if_th,
+                                            Theorem* else_th)
 {
   const Expr& iter_e(iter_th.getExpr());
 
@@ -913,10 +934,10 @@ SearchEngineTheoremProducer::propIterIfThen(const Theorem& iter_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iter_e.getKind() == ITE_R &&
-		(v0 || ite_th.refutes(iter_e[0])) &&
-		(v1 || then_th.refutes(iter_e[left ? 2 : 3])) &&
-		v0 != v1,
-		"SearchEngineTheoremProducer::propIterIfThen");
+                (v0 || ite_th.refutes(iter_e[0])) &&
+                (v1 || then_th.refutes(iter_e[left ? 2 : 3])) &&
+                v0 != v1,
+                "SearchEngineTheoremProducer::propIterIfThen");
   }
 
   Assumptions a;
@@ -947,8 +968,8 @@ SearchEngineTheoremProducer::propIterIfThen(const Theorem& iter_th,
 
 Theorem
 SearchEngineTheoremProducer::propIterThen(const Theorem& iter_th,
-					  const Theorem& ite_th,
-					  const Theorem& if_th)
+                                          const Theorem& ite_th,
+                                          const Theorem& if_th)
 {
   const Expr& iter_e(iter_th.getExpr());
 
@@ -957,9 +978,9 @@ SearchEngineTheoremProducer::propIterThen(const Theorem& iter_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iter_e.getKind() == ITE_R &&
-		(v0 || ite_th.refutes(iter_e[0])) &&
-		(v1 || if_th.refutes(iter_e[1])),
-		"SearchEngineTheoremProducer::propIterThen");
+                (v0 || ite_th.refutes(iter_e[0])) &&
+                (v1 || if_th.refutes(iter_e[1])),
+                "SearchEngineTheoremProducer::propIterThen");
   }
 
   Assumptions a;
@@ -983,15 +1004,15 @@ SearchEngineTheoremProducer::propIterThen(const Theorem& iter_th,
   }
 
   return newTheorem(v1 ?
-		    (v0 ? iter_e[2] : iter_e[2].negate()) :
-		    (v0 ? iter_e[3] : iter_e[3].negate()), a, pf);
+                    (v0 ? iter_e[2] : iter_e[2].negate()) :
+                    (v0 ? iter_e[3] : iter_e[3].negate()), a, pf);
 }
 
 Theorem
 SearchEngineTheoremProducer::confIterThenElse(const Theorem& iter_th,
-					      const Theorem& ite_th,
-					      const Theorem& then_th,
-					      const Theorem& else_th)
+                                              const Theorem& ite_th,
+                                              const Theorem& then_th,
+                                              const Theorem& else_th)
 {
   const Expr& iter_e(iter_th.getExpr());
 
@@ -1001,11 +1022,11 @@ SearchEngineTheoremProducer::confIterThenElse(const Theorem& iter_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iter_e.getKind() == ITE_R &&
-		(v0 || ite_th.refutes(iter_e[0])) &&
-		(v1 || then_th.refutes(iter_e[2])) &&
-		(v2 || else_th.refutes(iter_e[3])) &&
-		((v0 && !v1 && !v2) || (!v0 && v1 && v2)),
-		"SearchEngineTheoremProducer::confIterThenElse");
+                (v0 || ite_th.refutes(iter_e[0])) &&
+                (v1 || then_th.refutes(iter_e[2])) &&
+                (v2 || else_th.refutes(iter_e[3])) &&
+                ((v0 && !v1 && !v2) || (!v0 && v1 && v2)),
+                "SearchEngineTheoremProducer::confIterThenElse");
   }
 
   Assumptions a;
@@ -1036,10 +1057,10 @@ SearchEngineTheoremProducer::confIterThenElse(const Theorem& iter_th,
 
 Theorem
 SearchEngineTheoremProducer::confIterIfThen(const Theorem& iter_th,
-					    bool left,
-					    const Theorem& ite_th,
-					    const Theorem& if_th,
-					    const Theorem& then_th)
+                                            bool left,
+                                            const Theorem& ite_th,
+                                            const Theorem& if_th,
+                                            const Theorem& then_th)
 {
   const Expr& iter_e(iter_th.getExpr());
 
@@ -1049,11 +1070,11 @@ SearchEngineTheoremProducer::confIterIfThen(const Theorem& iter_th,
 
   if (CHECK_PROOFS) {
     CHECK_SOUND(iter_e.getKind() == ITE_R &&
-		(v0 || ite_th.refutes(iter_e[0])) &&
-		(v1 || if_th.refutes(iter_e[1])) &&
-		(v2 || then_th.refutes(iter_e[left ? 2 : 3])) &&
-		v1 == left && v0 != v2,
-		"SearchEngineTheoremProducer::confIterThenElse");
+                (v0 || ite_th.refutes(iter_e[0])) &&
+                (v1 || if_th.refutes(iter_e[1])) &&
+                (v2 || then_th.refutes(iter_e[left ? 2 : 3])) &&
+                v1 == left && v0 != v2,
+                "SearchEngineTheoremProducer::confIterThenElse");
   }
 
   Assumptions a;
@@ -1086,28 +1107,28 @@ SearchEngineTheoremProducer::confIterIfThen(const Theorem& iter_th,
 // { G_j |- !l_j, j in [1..n] } , G |- (OR l_1 ... l_n) ==> FALSE
 Theorem
 SearchEngineTheoremProducer::conflictRule(const std::vector<Theorem>& thms,
-					  const Theorem& clause) {
+                                          const Theorem& clause) {
   Expr e(clause.getExpr());
   if(CHECK_PROOFS) {
     // Soundness check: first, check the form of the 'clause' theorem
     CHECK_SOUND(e.isOr(),
-		"SearchEngineTheoremProducer::unitProp: "
-		"bad theorem in clause = "+clause.toString());
+                "SearchEngineTheoremProducer::unitProp: "
+                "bad theorem in clause = "+clause.toString());
     // Now, check correspondence of thms to the disjunction
     CHECK_SOUND(((int)thms.size()) == e.arity(),
-		"SearchEngineTheoremProducer::conflictRule: "
-		"wrong number of theorems"
-		"\n  thms.size = " + int2string(thms.size())
-		+"\n  clause.arity = " + int2string(e.arity()));
+                "SearchEngineTheoremProducer::conflictRule: "
+                "wrong number of theorems"
+                "\n  thms.size = " + int2string(thms.size())
+                +"\n  clause.arity = " + int2string(e.arity()));
 
     for(unsigned j=0; j<thms.size(); j++) {
       Expr ej(e[j]), ek(thms[j].getExpr());
       CHECK_SOUND((ej.isNot() && ej[0] == ek) || (ek.isNot() && ej == ek[0]),
-		  "SearchEngineTheoremProducer::conflictRule: "
-		  "wrong theorem["+int2string(j)+"]"
-		  "\n  thm = " + thms[j].toString() +
-		  "\n  literal = " + e[j].toString() +
-		  "\n  clause = " + clause.toString());
+                  "SearchEngineTheoremProducer::conflictRule: "
+                  "wrong theorem["+int2string(j)+"]"
+                  "\n  thm = " + thms[j].toString() +
+                  "\n  literal = " + e[j].toString() +
+                  "\n  clause = " + clause.toString());
     }
   }
 
@@ -1167,8 +1188,8 @@ SearchEngineTheoremProducer::iteToClauses(const Theorem& ite) {
 
   if(CHECK_PROOFS) {
     CHECK_SOUND(iteExpr.isITE() && iteExpr.getType().isBool(),
-		"SearchEngineTheoremProducer::iteToClauses("+iteExpr.toString()
-		+")\n Argument must be a Boolean ITE");
+                "SearchEngineTheoremProducer::iteToClauses("+iteExpr.toString()
+                +")\n Argument must be a Boolean ITE");
   }
   const Expr& cond = iteExpr[0];
   const Expr& t1 = iteExpr[1];
@@ -1185,8 +1206,8 @@ Theorem
 SearchEngineTheoremProducer::iffToClauses(const Theorem& iff) {
   if(CHECK_PROOFS) {
     CHECK_SOUND(iff.isRewrite() && iff.getLHS().getType().isBool(),
-		"SearchEngineTheoremProducer::iffToClauses("+iff.getExpr().toString()
-		+")\n Argument must be a Boolean IFF");
+                "SearchEngineTheoremProducer::iffToClauses("+iff.getExpr().toString()
+                +")\n Argument must be a Boolean IFF");
   }
   const Expr& t1 = iff.getLHS();
   const Expr& t2 = iff.getRHS();
@@ -1206,28 +1227,28 @@ SearchEngineTheoremProducer::opCNFRule(const Theorem& thm,
                                        int kind,
                                        const string& ruleName) {
   TRACE("mycnf", "opCNFRule["+d_em->getKindName(kind)+"](",
-	thm.getExpr(), ") {");
+        thm.getExpr(), ") {");
   ExprMap<Expr> localCache;
   if(CHECK_PROOFS) {
     Expr phiIffVar = thm.getExpr();
     CHECK_SOUND(phiIffVar.isIff(),
-		"SearchEngineTheoremProducer::opCNFRule("
-		+d_em->getKindName(kind)+"): "
-		"input must be an IFF: thm = " + phiIffVar.toString());
+                "SearchEngineTheoremProducer::opCNFRule("
+                +d_em->getKindName(kind)+"): "
+                "input must be an IFF: thm = " + phiIffVar.toString());
     CHECK_SOUND(phiIffVar[0].getKind() == kind,
-		"SearchEngineTheoremProducer::opCNFRule("
-		+d_em->getKindName(kind)+"): "
-		"input phi has wrong kind: thm = " + phiIffVar.toString());
+                "SearchEngineTheoremProducer::opCNFRule("
+                +d_em->getKindName(kind)+"): "
+                "input phi has wrong kind: thm = " + phiIffVar.toString());
     CHECK_SOUND(phiIffVar[0] != phiIffVar[1],
-		"SearchEngineTheoremProducer::opCNFRule("
-		+d_em->getKindName(kind)+"): "
-		"wrong input thm = " + phiIffVar.toString());   
+                "SearchEngineTheoremProducer::opCNFRule("
+                +d_em->getKindName(kind)+"): "
+                "wrong input thm = " + phiIffVar.toString());
     for(Expr::iterator it=phiIffVar[0].begin(), itend=phiIffVar[0].end();
-	it!=itend;++it){
+        it!=itend;++it){
       CHECK_SOUND(phiIffVar[1] != *it,
-		  "SearchEngineTheoremProducer::opCNFRule("
-		  +d_em->getKindName(kind)+"): "
-		  "wrong input thm = " + phiIffVar.toString());
+                  "SearchEngineTheoremProducer::opCNFRule("
+                  +d_em->getKindName(kind)+"): "
+                  "wrong input thm = " + phiIffVar.toString());
     }
   }
   const Expr& phi = thm.getExpr()[0];
@@ -1246,29 +1267,29 @@ SearchEngineTheoremProducer::opCNFRule(const Theorem& thm,
       boundVarsAndLiterals.push_back(*i); 
     else
       boundVarsAndLiterals.push_back(findInLocalCache(*i, localCache,
-						      boundVars));
+                                                      boundVars));
   }
   
   for(ExprMap<Expr>::iterator it=localCache.begin(), itend=localCache.end(); 
       it != itend; it++) {
     DebugAssert((*it).second.isIff(),
-		"SearchEngineTheoremProducer::opCNFRule: " +
-		(*it).second.toString());
+                "SearchEngineTheoremProducer::opCNFRule: " +
+                (*it).second.toString());
     DebugAssert(!(*it).second[0].isPropLiteral() && 
-		(*it).second[1].isAbsLiteral(),
-		"SearchEngineTheoremProducer::opCNFRule: " +
-		(*it).second.toString());
+                (*it).second[1].isAbsLiteral(),
+                "SearchEngineTheoremProducer::opCNFRule: " +
+                (*it).second.toString());
     equivs.push_back((*it).second);
   }
   
   DebugAssert(boundVarsAndLiterals.size() == (unsigned)phi.arity(),
-	      "SearchEngineTheoremProducer::opCNFRule: "
-	      "wrong size of boundvars: phi = " + phi.toString());
+              "SearchEngineTheoremProducer::opCNFRule: "
+              "wrong size of boundvars: phi = " + phi.toString());
   
   DebugAssert(boundVars.size() == equivs.size(),
-	      "SearchEngineTheoremProducer::opCNFRule: "
-	      "wrong size of boundvars: phi = " + phi.toString());
-	      
+              "SearchEngineTheoremProducer::opCNFRule: "
+              "wrong size of boundvars: phi = " + phi.toString());
+
   Expr cnfInput = phi.arity() > 0 ? Expr(phi.getOp(), boundVarsAndLiterals) : phi;
   Expr  result = convertToCNF(phiVar, cnfInput);
   if(boundVars.size() > 0)
@@ -1280,7 +1301,7 @@ SearchEngineTheoremProducer::opCNFRule(const Theorem& thm,
     pf = newPf(ruleName, thm.getExpr(), thm.getProof());
   Theorem res(newTheorem(result, thm.getAssumptionsRef(), pf));
   TRACE("mycnf", "opCNFRule["+d_em->getKindName(kind)+"] => ", res.getExpr(),
-	" }");
+        " }");
   return res;
 }
 
@@ -1296,7 +1317,6 @@ Expr SearchEngineTheoremProducer::convertToCNF(const Expr& v, const Expr & phi) 
     const Expr& negV = v.negate();
     lastClause.push_back(v);
     for(;i!=iend; ++i) {
-      clauses.push_back(negV.orExpr(*i));
       lastClause.push_back(i->negate());
     }
     clauses.push_back(orExpr(lastClause));
@@ -1349,7 +1369,7 @@ Expr SearchEngineTheoremProducer::convertToCNF(const Expr& v, const Expr & phi) 
     break;
   default:
     DebugAssert(false, "SearchEngineTheoremProducer::convertToCNF: "
-		"bad operator in phi = "+phi.toString());
+                "bad operator in phi = "+phi.toString());
     break;
   }
   return andExpr(clauses);
@@ -1390,209 +1410,40 @@ Expr SearchEngineTheoremProducer::findInLocalCache(const Expr& i,
   return v;
 }
 
-class LFSCPrinter{
-  const Expr d_bool_res_str;
-  const Expr d_assump_str;
-  ExprMap<string> d_assump_map; 
-  ExprMap<string> d_let_map; 
-  ExprMap<bool> d_visited;
-  void collect_assumps(const Expr& pf, ExprMap<bool>&);
-  string new_name();
-  void print_helper(const Expr& pf, bool definition = false);
-  void print_clause(const Expr& );
- public:
-  LFSCPrinter(const Expr, const Expr);
-  void print(const Expr& pf);
-};
-
-string LFSCPrinter::new_name(){
-  static int count = 1;
-  ostringstream name;
-  name << "c" << count++;
-  return name.str();
-}
-
-bool is_leaf(const Expr & e){
-  if (0 == e.arity()) return true;
-  if ( 1 == e.arity() && e.isNot() ) return true;
-  return false;
-}
-
-void LFSCPrinter::collect_assumps(const Expr& pf, ExprMap<bool>& visited){
-  // If seen before, and it's not something trivial, add to d_dagMap
-  if( visited.count(pf) > 0 && ( ! is_leaf(pf))) {
-    if (pf.arity() > 0 && pf[0] == d_assump_str){ 
-      return; // this is a assumption, we will deal this later
-    }
-    d_let_map[pf] = new_name();
-    return;
-  }
-
-  visited[pf] = true;
-  
-  if (pf.arity() > 0 && pf[0] == d_assump_str){ 
-    d_assump_map[pf[1]] = new_name();
-    return;
-  }
-
-  for(Expr::iterator i = pf.begin(), iend = pf.end(); i!=iend; ++i)
-    collect_assumps(*i, visited);
-}
 
 
-LFSCPrinter::LFSCPrinter(const Expr b_str, const Expr a_str):
-  d_bool_res_str(b_str), d_assump_str(a_str){}
+// for LFSC proof style, by yeting
 
-
-void LFSCPrinter::print_clause(const Expr& clause){
-  if ( ! clause.isOr()){
-    cout << "ERROR2 " << endl;
-  }
-  
-  int num_lit = clause.arity();
-  
-  cout << "(holds ";
-  
-  for (int i = 0; i < num_lit; i++){
-    cout <<"(clc " ; 
-    if (clause[i].isNot()){
-      cout << "(neg " << clause[i][0] << ") "; 
-    }
-    else {
-      cout << "(pos " << clause[i] << ") " ;
-    }
-  }
-  cout << "cln";
-  for (int i = 0; i < num_lit; i++){
-    cout <<")";
-  }
-  cout << ")\n";
-}
-
-void LFSCPrinter::print(const Expr& pf){
-  ExprMap<bool> visited;
-  collect_assumps(pf, visited);
-  ExprMap<string>::iterator i = d_assump_map.begin(), iend = d_assump_map.end();
-  int num_clause = 0; 
-  while( i != iend){
-    num_clause++;
-    cout << "(% " << (*i).second << " "  ; 
-    print_clause((*i).first);
-    i++;
-  }
-  
-  cout << "(: (holds cln) \n";
-  
-  ExprMap<string>::iterator j = d_let_map.begin(), jend = d_let_map.end();
-  int num_lets = 0; 
-  while( j != jend){
-    num_lets++;
-    cout << "(satlem _ _ " ;
-    print_helper((*j).first, true);
-    cout << "(\\ "<< (*j).second << " "  ; 
-    cout << endl;
-    j++;
-  }
-
-  print_helper(pf);
-  for ( int i = 0; i < num_clause; i++){
-    cout <<")";
-  }
-  for ( int i = 0; i < num_lets; i++){
-    cout <<"))";
-  }
-
-}
-
-void LFSCPrinter::print_helper(const Expr& pf, bool is_definition){
-  if (d_let_map.count(pf) > 0 && (! is_definition)){
-    cout << d_let_map[pf] << " " ;
-    return;
-  }
-  if (pf.arity() > 0 &&  pf[0] == d_bool_res_str){
-    cout << "(R _ _ _ " ;
-
-    Expr v = pf[1];
-    if (v.isNot()){
-      print_helper(pf[3]);
-      print_helper(pf[2]);
-      cout << v[0] ;
-    }
-    else{
-      print_helper(pf[2]);
-      print_helper(pf[3]);
-      cout << v;
-    }
-    cout <<")";
-  }
-  else if (pf.arity() > 0 && pf[0] == d_assump_str){
-    Expr clause = pf[1];
-    cout << d_assump_map[clause] << " " ;
-  }
-  else {
-    cout << "ERROR1" << endl;
-    cout << pf << endl;
-  }
-}
-
-
-
-// for LFSC proof style, by yeting 
-void collectVars(const Expr& e, ExprMap<bool>& varCache, ExprMap<bool>& visited) {
-  // If seen before, and it's not something trivial, add to d_dagMap
-  if( visited.count(e) > 0) {
-    return;
-  }
-
-  visited[e] = true;
-
-  if (e.getKind() == UCONST){ //this is for bool vars
-    //    cout << "var is " << e << endl;
-    //    cout << "kind string" << e.getEM()->getKindName(e.getKind()) << endl;
-    varCache[e] = true;
-  }
-  for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i)
-    collectVars(*i, varCache,visited);
-}
 
 // theorem for minisat generated proofs,  by yeting
 Theorem SearchEngineTheoremProducer::satProof(const Expr& queryExpr, const Proof& satProof) {
   Proof pf;
   if(withProof())
     pf = newPf("minisat_proof", queryExpr, satProof);
+
+  if ((d_tm->getFlags()["lfsc-mode"]).getInt()!= 0)
   {
-    Expr pf_expr =  pf.getExpr()[2] ;
-    //     cout << pf_expr << endl;
-    ExprMap<bool> vars,visited;
-    collectVars(pf_expr,vars,visited);
+    // UNCOMMENT THIS FOR LFSC
 
-    cout << "(check \n" ; 
-    
-    vector<Expr> vars_vec ;
-    ExprMap<bool>::iterator i = vars.begin(), iend = vars.end();
-    while (i != iend){
-      vars_vec.push_back((*i).first);
-      //      cout << "var " << (*i).first << endl;
-      i++;
+    if(!lfsc_called){
+      int lfscm = (d_tm->getFlags()["lfsc-mode"]).getInt();
+      std::vector<Expr> assumps;
+      search_engine->getUserAssumptions(assumps);
+
+      Expr pf_expr =  pf.getExpr()[2] ;
+      if( lfscm == -1 ){
+        cout << "CVC3 Proof: ";
+        cout << pf.getExpr() << endl;
+      }else{
+        LFSCPrinter* lfsc_printer = new LFSCPrinter(pf_expr, queryExpr, assumps, lfscm, d_commonRules);
+        lfsc_printer->print_LFSC(pf_expr);
+        lfsc_called = true;
+        exit( 0 );
+      }
     }
-    int num_vars = vars_vec.size();
-    for (int i = 0; i < num_vars; i++){
-      cout << "(% " << vars_vec[i] << " var " << endl;
-    }
 
-
-
-    const Expr bool_res_string = pf_expr.getEM()->newStringExpr("bool_resolution");
-    const Expr assump_string = pf_expr.getEM()->newStringExpr("assumptions");
-    LFSCPrinter lfsc_printer(bool_res_string, assump_string);
-    lfsc_printer.print(pf_expr);
-    
-    for (int i = 0; i < num_vars; i++){
-      cout << ")";
-    }
-    cout << ")" << endl;
-    cout << ")" << endl;
   }
+
   return newTheorem(queryExpr, Assumptions::emptyAssump() , pf);
 }
 

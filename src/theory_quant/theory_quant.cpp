@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*!
- * \file theory_quant.cpp
+ * \File theory_quant.cpp
  *
  * Author: Daniel Wichs, Yeting Ge
  *
@@ -325,6 +325,12 @@ bool usefulInMatch(const Expr& e){
     TRACE("usefulInMatch", e.toString()+": ",e.arity(), "");
     TRACE("usefulInMatch", e.isRational(), "", "");
   }
+  //  cout << "is useful in match" << (canGetHead(e) || (isSysPred(e) && (!e.isEq()) )) << "#" <<  e<< endl;
+  //  if (e.getKind() == APPLY){
+  //    cout << (e.getKind() == APPLY) << endl;
+  //    cout << e.getOp().getExpr() << endl;
+  //    cout << e.getOp() << endl;
+  //  }
   return ( canGetHead(e) || (isSysPred(e) && (!e.isEq()) ) );
 }
 
@@ -342,6 +348,7 @@ void TheoryQuant::debug(int i){
   for(size_t gtermIndex =0; gtermIndex <  d_usefulGterms.size() ; gtermIndex++){
     cout << gtermIndex << " :: " << getExprScore(d_usefulGterms[gtermIndex]) << " | " << d_usefulGterms[gtermIndex] << endl;
   }
+
   cout << " =============  all terms ========================== " << endl;
   const CDList<Expr>&  allterms = theoryCore()->getTerms();
   for(size_t gtermIndex =0; gtermIndex <  allterms.size() ; gtermIndex++){
@@ -1543,6 +1550,29 @@ Expr CompleteInstPreProcessor::instMacros(const Expr& assert, const Expr macro_q
   return recInstMacros(assert);
 }
 
+
+bool CompleteInstPreProcessor::hasShieldVar(const Expr& e){
+  if (isUniterpFunc(e) && e.arity() > 0 ){
+    for (int i = 0; i<e.arity(); i++){
+      if (e[i].isBoundVar() ){  
+	return true;
+      }
+    }
+  }
+  else if (e.getKind() == READ || e.getKind() == WRITE){
+    return (hasShieldVar(e[0]) || e[1].isBoundVar());
+  }
+  else if (e.arity() > 0 ){
+    for (int i = 0; i<e.arity(); i++){
+      if (hasShieldVar(e[i])){
+	return true;
+      }
+    }
+  }
+  return false;
+}
+
+
 //if bound vars only appear as argument of uninterpreted function/predidate and array reads/writes. 
 bool CompleteInstPreProcessor::isShield(const Expr& e){
   if (isGround(e)){
@@ -2013,6 +2043,9 @@ bool CompleteInstPreProcessor::isGood(const Expr& assert){
     if(cur_expr.isForall()) {
       if (Pos == pol){
 	if( isGoodQuant(cur_expr)){
+	  if ( ! hasShieldVar(cur_expr)) {
+	    return false;
+	  }
 	}
 	else{
 	  d_all_good = false;
@@ -2142,8 +2175,10 @@ class recCompleteInster{
   const std::vector<Expr>& d_bvs;
   std::vector<Expr> d_buff;
   const std::set<Expr>& d_all_index;
+  std::vector<Expr> d_exprs;
   Expr d_result;
   void inst_helper(int num_vars);
+  Expr& build_tree();
 public:
   recCompleteInster(const Expr&, const std::vector<Expr>&, std::set<Expr>& , Expr);
   Expr inst();
@@ -2154,15 +2189,15 @@ recCompleteInster::recCompleteInster(const Expr& body, const std::vector<Expr>& 
 Expr recCompleteInster::inst(){
   d_buff.resize(d_bvs.size());
   //  cout << "there are " << d_all_index.size() << " gterms" << endl;
-  inst_helper(d_bvs.size());  
-  return d_result;
+  inst_helper(d_bvs.size());
+  return build_tree();
 }
 
 void recCompleteInster::inst_helper(int num_vars){
   if (1 == num_vars){
     for (set<Expr>::const_iterator i = d_all_index.begin(), iend = d_all_index.end();  i != iend; i++ ){
       d_buff[num_vars-1] = *i;
-      d_result = d_result.andExpr(d_body.substExpr(d_bvs,d_buff));
+      d_exprs.push_back(d_body.substExpr(d_bvs,d_buff));
     }
   }
   else{
@@ -2171,6 +2206,24 @@ void recCompleteInster::inst_helper(int num_vars){
       inst_helper(num_vars-1);
     }
   }
+}
+
+Expr& recCompleteInster::build_tree() {
+    std::vector<Expr>& d_old = d_exprs, d_new;
+    while (d_old.size() > 1) {
+        int old_size = d_old.size();
+        for (int i = 0; i < old_size - 1; i += 2) {
+            d_new.push_back(d_old[i].andExpr(d_old[i + 1]));
+        }
+        if (old_size % 2 == 1) {
+            d_new.push_back(d_old[old_size - 1]);
+        }
+        d_old.clear();
+        d_old.swap(d_new);
+    }
+    if (d_old.size() > 0) d_result = d_result.andExpr(d_old[0]);
+    d_old.clear();
+    return d_result;
 }
 
 Expr CompleteInstPreProcessor::inst(const Expr& assert){
@@ -2289,7 +2342,8 @@ void flatAnds(const Expr& ands, vector<Expr>& results){
 
 Theorem TheoryQuant::theoryPreprocess(const Expr& e){
   //  cout<<"theory process " << e << endl;
-
+  // COMMENT for LFSC on 4-2-2010, Yeting
+  //  return reflexivityRule(e);
   if ( ! theoryCore()->getFlags()["quant-complete-inst"].getBool()){
     return reflexivityRule(e);
   }
@@ -2930,10 +2984,15 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
     if(*d_useManTrig && e.getTriggers().size() > 0  ){
       std::vector<std::vector<Expr> > man_trigs = e.getTriggers();
       for(std::vector<std::vector<Expr> >::const_iterator i=man_trigs.begin(), iend=man_trigs.end(); i != iend; i++){
-	//	if(1 == i->arity()){
 	if(1 == i->size()){
-	  trig_list.push_back((*i)[0]);
-	  //	  cout<<"full manual pushed "<<(*i)[0] << endl;
+	  if (isGoodFullTrigger((*i)[0],bVarsThm)){
+	    trig_list.push_back((*i)[0]);
+	    //	    cout<<"full manual pushed "<<(*i)[0] << endl;
+	  }
+	  else{
+	    //	    cout<<"full manual discarded "<<(*i)[0] << endl;
+	  }
+	  
 	}
 	//	else if(2 == i->arity()){
 	else if(2 == i->size()){
@@ -3119,23 +3178,28 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
 	  if (i->size() > 1) count++;
 	  //	  cout << "count" << count << " " <<  *i << endl;
 	}
-
+	/*
 	if(count > 1){
+	  
 	  //cout<<"en, cannot handle this now"<<endl;
 
 	}
 	//	if(man_trig[count-1].arity() != 2){
 	if(man_trig[count-1].size() != 2){
-
 	  //	  cout<<man_trig[count-1]<<endl;
 	  //	  cout<<"sorry, only two exprs are handled now"<<endl;
 	  //cout<<man_trig[count-1]<<endl;
 	  //cout<<"sorry, only two exprs are handled now"<<endl;
 
-	}
-
-	for(std::vector<Expr>::const_iterator j = man_trig[count-1].begin(), jend = man_trig[count-1].end(); j != jend; ++j){
-	  cur_trig.push_back(*j);
+	  }*/
+	if (1 == count && 2 == man_trig[count-1].size()){
+	  for(std::vector<Expr>::const_iterator j = man_trig[count-1].begin(), jend = man_trig[count-1].end(); j != jend; ++j){
+	    cur_trig.push_back(*j);
+	  }
+	  if (! goodMultiTriggers(cur_trig, bVarsThm)){
+	    cur_trig.clear();
+	    return;
+	  }
 	}
       }
       else{
@@ -3254,6 +3318,9 @@ void TheoryQuant::setupTriggers(ExprMap<ExprMap<vector<dynTrig>* >*>& trig_maps,
 		  cur_trig.clear();
 		  cur_trig.push_back(tempList[0]);
 		  cur_trig.push_back(tempList[1]);
+		  //		  cout << "good multi triggers" << endl;
+		  //		  cout << (tempList[0]) << endl;
+		  //		  cout << (tempList[1]) << endl;
 		  break;
 	      }
 	      }
@@ -3470,10 +3537,74 @@ void TheoryQuant::assertFact(const Theorem& thm){
 
 
  if(result.getExpr().isForall()){
+
+   // Added by Clark:
+   // If domain of quantified variable is finite and not too big, just do complete instantiation
+   const vector<Expr>& vars = result.getExpr().getVars();
+   Unsigned u, count = 1;
+   Cardinality card;
+   vector<Expr>::const_iterator it = vars.begin(), iend = vars.end();
+   for (; it != iend; ++it) {
+     card = (*it).getType().card();
+     if (card != CARD_FINITE) {
+       count = 0;
+       break;
+     }
+     u = (*it).getType().sizeFinite();
+     if (u > 100) u = 0;
+     count = count * u;
+     if (count == 0 || count > 100) {
+       count = 0;
+       break;
+     }
+   }
+   bool incomplete = false;
+   if (count > 0 && count <= 100) {
+     vector<Expr> terms(vars.size());
+     vector<Unsigned> indices(vars.size());
+     for (unsigned i = 0; i < vars.size(); ++i) {
+       indices[i] = 0;
+       terms[i] = vars[i].getType().enumerateFinite(0);
+       if (terms[i].isNull()) {
+         incomplete = true;
+         break;
+       }
+     }
+     Theorem thm;
+     unsigned i = 0;
+     for (;;) {
+       thm = d_rules->universalInst(result, terms, 0);
+       enqueueFact(thm);
+       while (i < indices.size()) {
+         indices[i] = indices[i] + 1;
+         if (indices[i] < vars[i].getType().sizeFinite()) {
+           terms[i] = vars[i].getType().enumerateFinite(indices[i]);
+           if (terms[i].isNull()) {
+             incomplete = true;
+             i = indices.size();
+           }
+           break;
+         }
+         ++i;
+       }
+       if (i > 0) {
+         if (i == indices.size()) break;
+         for (unsigned j = 0; j < i; ++j) {
+           indices[j] = 0;
+           terms[j] = vars[j].getType().enumerateFinite(0);
+         }
+         i = 0;
+       }
+     }
+     if (!incomplete) return;
+   }
+
    if(*d_useNew){
 
      if(result.getExpr().getBody().isForall()){ // if it is of the form forall x. forall. y
+       // COMMENT for LFSC on 4-3-2010, Yeting 
        result=d_rules->packVar(result);
+
      }
      result = d_rules->boundVarElim(result); //eliminate useless bound variables
      
@@ -7514,6 +7645,7 @@ void TheoryQuant::semInst(const Theorem & univ, size_t tBegin){
 
 
 void TheoryQuant::checkSat(bool fullEffort){
+
   if(*d_translate) return;
   if(d_rawUnivs.size() <=0 ) return;
   if (d_maxILReached) {
@@ -8737,6 +8869,7 @@ TheoryQuant::print(ExprStream& os, const Expr& e) {
             os << space << pushdag << (*i).getType() << popdag;
           os << push << ")" << pop << pop;
         }
+
         os << space << pushdag
            << e.getBody() << push;
 
@@ -8745,6 +8878,7 @@ TheoryQuant::print(ExprStream& os, const Expr& e) {
         for (vector<vector<Expr> >::const_iterator i=triggers.begin(), iend=triggers.end(); i != iend; ++i) {
 	  //          const vector<Expr>& terms = (*i).getKids();
           const vector<Expr>& terms = (*i);
+          /* TODO: How does SMT-LIB v2 handle patterns? */
           if (terms.size() > 0) {
             os << push << space << ":pat {" << space << pushdag << push;
             vector<Expr>::const_iterator j=terms.begin(), jend=terms.end();
@@ -8765,6 +8899,67 @@ TheoryQuant::print(ExprStream& os, const Expr& e) {
     }
     break;
   } // End of SMTLIB_LANG
+  case SMTLIB_V2_LANG: {
+    d_theoryUsed = true;
+    switch(e.getKind()){
+      case FORALL:
+      case EXISTS: {
+        if(!e.isQuantifier()) {
+          e.print(os);
+          break;
+        }
+        os << "(" << push << ((e.getKind() == FORALL)? "forall" : "exists")
+           << space;
+        const vector<Expr>& vars = e.getVars();
+        bool first(true);
+        os << "(" << push;
+        for(vector<Expr>::const_iterator i=vars.begin(), iend=vars.end();
+            i!=iend; ++i) {
+          if(first) first = false;
+          else os << space;
+          os << "(" << push << *i;
+          // The quantifier may be in a raw parsed form, in which case
+          // the type is not assigned yet
+          if(i->isVar())
+            os << space << pushdag << (*i).getType() << popdag;
+          os << push << ")" << pop << pop;
+        }
+        os << ")" << pop;
+
+        const vector<vector<Expr> >& triggers = e.getTriggers();
+        if( !triggers.empty() ) {
+          os << space << push << "(!";
+        }
+        os << space << pushdag << e.getBody() << popdag;
+
+        // print manual triggers
+        for (vector<vector<Expr> >::const_iterator i=triggers.begin(), iend=triggers.end(); i != iend; ++i) {
+          //          const vector<Expr>& terms = (*i).getKids();
+          const vector<Expr>& terms = (*i);
+          if (terms.size() > 0) {
+            os << push << space << ":pattern" << space << push << "(" ;
+            vector<Expr>::const_iterator j=terms.begin(), jend=terms.end();
+            os << nodag << pushdag << *j << popdag; ++j;
+            for(;j!=jend; ++j) {
+              os << space << pushdag << *j << popdag;
+            }
+            os << ")" << pop << space ;
+          }
+        }
+        if( !triggers.empty() ) {
+          os << ")" << pop;
+        }
+        os << ")" << pop;
+        break;
+      }
+      default:
+        throw SmtlibException("TheoryQuant::print: SMTLIB_LANG: Unexpected expression: "
+                              +getEM()->getKindName(e.getKind()));
+        break;
+    }
+    break;
+  } // End of SMTLIB_LANG
+
   case LISP_LANG: {
     switch(e.getKind()){
     case FORALL:
@@ -8812,6 +9007,10 @@ TheoryQuant::print(ExprStream& os, const Expr& e) {
 ///////////////////////////////////////////////////////////////////////////////
 Expr
 TheoryQuant::parseExprOp(const Expr& e) {
+  if(theoryCore()->getFlags()["unknown-check-model"].getBool()) {
+    throw ParserException("ERROR: +unknown-check-model unsafe with quantifiers");
+  }
+
   TRACE("parser", "TheoryQuant::parseExprOp(", e, ")");
   // If the expression is not a list, it must have been already
   // parsed, so just return it as is.
@@ -8878,6 +9077,10 @@ TheoryQuant::parseExprOp(const Expr& e) {
 	  catch (Exception e){
 	    //	    cout <<e << endl;
 	    //	    cout <<"exception in pattern" << flush << endl;
+            if(theoryCore()->getFlags()["translate"].getBool()) {
+              // don't tolerate bad patterns when translating
+              throw;
+            }
 	    cur_pattern.clear();
 	  }
 	}

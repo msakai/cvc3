@@ -88,6 +88,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("dump-log", CLFlag("", "Dump API call log in CVC3 input "
 				   "format to given file "
 				   "(off when file name is \"\")"));
+  flags.addFlag("parse-only", CLFlag(false,"Parse the input, then exit."));
 
   //Translation related flags
   flags.addFlag("expResult", CLFlag("", "For smtlib translation.  Give the expected result", false));
@@ -105,6 +106,9 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("convert-eq-iff",CLFlag(false, "Convert equality on Boolean expressions to iff.", false));
   flags.addFlag("preSimplify",CLFlag(false, "Simplify each assertion or query before translating it", false));
   flags.addFlag("dump-tcc", CLFlag(false, "Compute and dump TCC only"));
+  flags.addFlag("trans-skip-pp", CLFlag(false, "Skip preprocess step in translation module", false));
+  flags.addFlag("trans-skip-difficulty", CLFlag(false, "Leave out difficulty attribute during translation to SMT v2.0", false));
+  flags.addFlag("promote", CLFlag(true, "Promote undefined logic combinations to defined logic combinations during translation to SMT", false));
 
   // Parser related flags
   flags.addFlag("old-func-syntax",CLFlag(false, "Enable parsing of old-style function syntax", false));
@@ -113,9 +117,9 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("dagify-exprs",
 		CLFlag(true, "Print expressions with sharing as DAGs"));
   flags.addFlag("lang", CLFlag("presentation", "Input language "
-			       "(presentation, smtlib, internal)"));
+			       "(presentation, smt, smt2, internal)"));
   flags.addFlag("output-lang", CLFlag("", "Output language "
-				      "(presentation, smtlib, simplify, internal, lisp, tptp)"));
+				      "(presentation, smtlib, simplify, internal, lisp, tptp, spass)"));
   flags.addFlag("indent", CLFlag(false, "Print expressions with indentation"));
   flags.addFlag("width", CLFlag(80, "Suggested line width for printing"));
   flags.addFlag("print-depth", CLFlag(-1, "Max. depth to print expressions "));
@@ -141,6 +145,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("cnf", CLFlag(true, "Convert top-level Boolean formulas to CNF", false));
   flags.addFlag("ignore-cnf-vars", CLFlag(false, "Do not split on aux. CNF vars (with +cnf)", false));
   flags.addFlag("orig-formula", CLFlag(false, "Preserve the original formula with +cnf (for splitter heuristics)", false));
+  flags.addFlag("liftITE", CLFlag(false, "Eagerly lift all ITE exprs"));
   flags.addFlag("iflift", CLFlag(false, "Translate if-then-else terms to CNF (with +cnf)", false));
   flags.addFlag("circuit", CLFlag(false, "With +cnf, use circuit propagation", false));
   flags.addFlag("un-ite-ify", CLFlag(false, "Unconvert ITE expressions", false));
@@ -188,7 +193,15 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("liftReadIte", CLFlag(true, "Lift read of ite"));
 
   //for LFSC stuff, disable Tseitin CNF conversion, by Yeting
-  flags.addFlag("cnf-formula", CLFlag(false, "the input is already in CNF. This option automatically enables -de sat and disable -preprocess"));
+  flags.addFlag("cnf-formula", CLFlag(false, "The input must be in CNF. This option automatically enables '-de sat' and disable preprocess"));
+
+  //for LFSC print out, by Yeting
+  //flags.addFlag("lfsc", CLFlag(false, "the input is already in CNF. This option automatically enables -de sat and disable -preprocess"));
+
+  // for LFSC print, allows different modes by Liana
+  flags.addFlag("lfsc-mode",
+                  CLFlag(0, "lfsc mode 0: off, 1:normal, 2:cvc3-mimic etc."));
+
 
   // Quantifiers
   flags.addFlag("max-quant-inst", CLFlag(200, "The maximum number of"
@@ -276,6 +289,7 @@ CLFlags ValidityChecker::createFlags() {
                 CLFlag(true, "enables smart splitting in datatype theory", false));
   flags.addFlag("dt-lazy",
                 CLFlag(false, "lazy splitting on datatypes", false));
+
 
   return flags;
 }
@@ -411,7 +425,7 @@ VCL::VCL(const CLFlags& flags)
   }
 
   //added by Yeting
-  if ((*d_flags)["quant-complete-inst"].getBool()) {
+  if ((*d_flags)["quant-complete-inst"].getBool() && !(*d_flags)["translate"].getBool()) {
     d_flags->setFlag("pp-batch", true);
   }
 
@@ -666,7 +680,7 @@ void VCL::reprocessFlags() {
   }
 
   //added by Yeting
-  if ((*d_flags)["quant-complete-inst"].getBool()) {
+  if ((*d_flags)["quant-complete-inst"].getBool() && !(*d_flags)["translate"].getBool()) {
     d_flags->setFlag("pp-batch", true);
   }
 
@@ -1068,7 +1082,7 @@ void VCL::cmdsFromString(const std::string& s, InputLanguage lang=PRESENTATION_L
 Expr VCL::exprFromString(const std::string& s)
 {
   stringstream ss("PRINT " + s + ";",stringstream::in);
-  Parser p(this,PRESENTATION_LANG,ss);
+  Parser p(this,d_translator,PRESENTATION_LANG,ss);
   Expr e = p.next();
   if( e.isNull() ) {
     throw ParserException("Parser result is null: '" + s + "'");
@@ -1289,11 +1303,11 @@ Expr VCL::ratExpr(const string& n, int base)
   }
   Rational r = Rational(beforedec.c_str(), base);
   Rational fracPart = Rational(afterdec.c_str(), base);
-  if( r < 0 ) {
-    r = r - (fracPart / pow(afterdec.size(), base));
+  if( r < 0 || ((r == 0) && (beforedec.rfind("-") != string::npos)) ) {
+    r = r - (fracPart / pow(afterdec.size(), (Rational)base));
   }
   else {
-    r = r + (fracPart / pow(afterdec.size(), base));
+    r = r + (fracPart / pow(afterdec.size(), (Rational)base));
   }
   return d_em->newRatExpr(r);
 }
@@ -1656,6 +1670,24 @@ Expr VCL::newFixedRightShiftExpr(const Expr& t1, int r)
 }
 
 
+Expr VCL::newBVSHL(const Expr& t1, const Expr& t2)
+{
+  return Expr(BVSHL, t1, t2);
+}
+
+
+Expr VCL::newBVLSHR(const Expr& t1, const Expr& t2)
+{
+  return Expr(BVLSHR, t1, t2);
+}
+
+
+Expr VCL::newBVASHR(const Expr& t1, const Expr& t2)
+{
+  return Expr(BVASHR, t1, t2);
+}
+
+
 Rational VCL::computeBVConst(const Expr& e)
 {
   return d_theoryBitvector->computeBVConst(e);
@@ -1710,9 +1742,9 @@ Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body) {
 }
 
 Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
-                     const Expr& trig) {
+                     const Expr& trigger) {
   DebugAssert(vars.size() > 0, "VCL::foralLExpr()");
-  return d_em->newClosureExpr(FORALL, vars, body, trig);
+  return d_em->newClosureExpr(FORALL, vars, body, trigger);
 }
 
 Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
@@ -1727,11 +1759,11 @@ Expr VCL::forallExpr(const vector<Expr>& vars, const Expr& body,
   return d_em->newClosureExpr(FORALL, vars, body, triggers);
 }
 
-void VCL::setTriggers(const Expr& e, const std::vector< std::vector<Expr> >& triggers) {
+void VCL::setTriggers(const Expr& e, const vector< vector<Expr> >& triggers) {
   e.setTriggers(triggers);
 }
 
-void VCL::setTriggers(const Expr& e, const std::vector<Expr>& triggers) {
+void VCL::setTriggers(const Expr& e, const vector<Expr>& triggers) {
   e.setTriggers(triggers);
 }
 
@@ -1739,7 +1771,7 @@ void VCL::setTrigger(const Expr& e, const Expr& trigger) {
   e.setTrigger(trigger);
 }
 
-void VCL::setMultiTrigger(const Expr& e, const std::vector<Expr>& multiTrigger) {
+void VCL::setMultiTrigger(const Expr& e, const vector<Expr>& multiTrigger) {
   e.setMultiTrigger(multiTrigger);
 }
 
@@ -2317,10 +2349,17 @@ void VCL::reset()
   init();
 }
 
+void VCL::logAnnotation(const Expr& annot)
+{
+  if (d_dump) {
+    d_translator->dump(annot);
+  }
+}
+
 void VCL::loadFile(const string& fileName, InputLanguage lang,
 		   bool interactive, bool calledFromParser) {
   // TODO: move these?
-  Parser parser(this, lang, interactive, fileName);
+  Parser parser(this, d_translator, lang, interactive, fileName);
   VCCmd cmd(this, &parser, calledFromParser);
   cmd.processCommands();
 }
@@ -2329,7 +2368,7 @@ void VCL::loadFile(const string& fileName, InputLanguage lang,
 void VCL::loadFile(istream& is, InputLanguage lang,
 		   bool interactive) {
   // TODO: move these?
-  Parser parser(this, lang, is, interactive);
+  Parser parser(this, d_translator, lang, is, interactive);
   VCCmd cmd(this, &parser);
   cmd.processCommands();
 }

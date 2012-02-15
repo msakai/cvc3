@@ -595,11 +595,13 @@ Expr Theory::newVar(const string& name, const Type& type)
   d_theoryCore->addToVarDB(res);
   // Add the new global declaration
   installID(name, res);
-  
-  DebugAssert(type.getExpr().getKind() != ARROW,"");
-  DebugAssert(res.lookupType().isNull(), 
-	      "newVarExpr: redefining a variable "
-	       + name);
+
+  if( type.isFunction() ) {
+    throw Exception("newVar: expected non-function type");
+  }
+  if( !res.lookupType().isNull() ) {
+    throw Exception("newVarExpr: redefining a variable " + name);
+  }
   res.setType(type);
   return res;
 }
@@ -708,6 +710,18 @@ Expr Theory::addBoundVar(const string& name, const Type& type) {
   ostringstream ss;
   ss << boundVarCount++;
   Expr v(getEM()->newBoundVarExpr(name, ss.str(), type));
+  if (d_theoryCore->d_boundVarStack.size() == 0) {
+    DebugAssert(d_theoryCore->d_parseCache == &d_theoryCore->d_parseCacheTop,
+                "Parse cache invariant violated");
+    d_theoryCore->d_parseCache = &d_theoryCore->d_parseCacheOther;
+    DebugAssert(d_theoryCore->d_parseCache->empty(),
+                "Expected empty cache");
+  }
+  else {
+    DebugAssert(d_theoryCore->d_parseCache == &d_theoryCore->d_parseCacheOther,
+                "Parse cache invariant violated 2");
+    d_theoryCore->d_parseCache->clear();
+  }
   d_theoryCore->d_boundVarStack.push_back(pair<string,Expr>(name,v));
   DebugAssert(v.getKind() != RAW_LIST, "Bound vars cannot be bound to RAW_LIST");
   hash_map<string, Expr>::iterator iBoundVarMap = d_theoryCore->d_boundVarMap.find(name);
@@ -715,7 +729,7 @@ Expr Theory::addBoundVar(const string& name, const Type& type) {
     (*iBoundVarMap).second = Expr(RAW_LIST, v, (*iBoundVarMap).second);
   }
   else d_theoryCore->d_boundVarMap[name] = v;
-  d_theoryCore->d_parseCache.clear();
+  
   TRACE("vars", "addBoundVar("+name+", ", type, ") => "+v.toString());
   return v;
 }
@@ -733,6 +747,18 @@ Expr Theory::addBoundVar(const string& name, const Type& type,
     ss << boundVarCount++;
     res = Expr(LETDECL,
                getEM()->newBoundVarExpr(name, ss.str(), type), def);
+  }
+  if (d_theoryCore->d_boundVarStack.size() == 0) {
+    DebugAssert(d_theoryCore->d_parseCache == &d_theoryCore->d_parseCacheTop,
+                "Parse cache invariant violated");
+    d_theoryCore->d_parseCache = &d_theoryCore->d_parseCacheOther;
+    DebugAssert(d_theoryCore->d_parseCache->empty(),
+                "Expected empty cache");
+  }
+  else {
+    DebugAssert(d_theoryCore->d_parseCache == &d_theoryCore->d_parseCacheOther,
+                "Parse cache invariant violated 2");
+    d_theoryCore->d_parseCache->clear();
   }
   d_theoryCore->d_boundVarStack.push_back(pair<string,Expr>(name,res));
   DebugAssert(res.getKind() != RAW_LIST, "Bound vars cannot be bound to RAW_LIST");
@@ -906,3 +932,10 @@ Theorem Theory::rewriteIte(const Expr& e)
 }
 
 
+Theorem Theory::renameExpr(const Expr& e) {
+  Theorem thm = d_commonRules->varIntroSkolem(e);
+  DebugAssert(thm.isRewrite() && thm.getRHS().isSkolem(),
+              "thm = "+thm.toString());
+  d_theoryCore->addToVarDB(thm.getRHS());
+  return thm;
+}

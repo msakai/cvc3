@@ -58,13 +58,13 @@ struct VarOrder_lt {
 };
 
 class VarOrder {
-  const std::vector<char>&    assigns;     // var->val. Pointer to external assignment table.
+  const std::vector<signed char>&    assigns;     // var->val. Pointer to external assignment table.
   const std::vector<double>&  activity;    // var->act. Pointer to external activity table.
   Heap<VarOrder_lt>   heap;
   double              random_seed; // For the internal random number generator
 
 public:
-  VarOrder(const std::vector<char>& ass, const std::vector<double>& act) :
+  VarOrder(const std::vector<signed char>& ass, const std::vector<double>& act) :
     assigns(ass), activity(act), heap(VarOrder_lt(act)), random_seed(91648253)
   { }
 

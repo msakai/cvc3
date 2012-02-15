@@ -76,6 +76,7 @@ void test1()
   Op f;
   Expr* assertions;
   int i, size, res;
+  Kind k;
 
   vc_setStringFlag(flags, "dump-log", ".testc1.cvc");
   vc_setStrSeqFlag(flags, "trace", "pushpop", 1);
@@ -91,6 +92,9 @@ void test1()
 
   res = check(vc, e);
   FatalAssert(res == 1, "Expected Valid");
+
+  FatalAssert(vc_getKind(e) == OR, "Expected TRUE for kind check");
+  FatalAssert(vc_getKind(vc_getType(vc, e)) == BOOLEAN, "Expected TRUE for type kind check");
 
   vc_deleteType(b);
   vc_deleteExpr(p);
@@ -697,6 +701,24 @@ void test10()
 }
 
 
+void test11()
+{
+  Flags flags = vc_createFlags();
+  VC vc = vc_createValidityChecker(flags);
+  Type a = vc_createType(vc, "a");
+  Type aa = vc_funType1(vc, a, a);
+  Op f = vc_createOp(vc, "f", aa);
+  Expr x = vc_varExpr(vc, "x", a);
+  Expr fx = vc_funExpr1(vc, f, x);
+  Expr ffx = vc_funExpr1(vc, f, fx);
+  Expr e = vc_eqExpr(vc, x, fx);
+  Expr expectE = vc_eqExpr(vc, fx, ffx);
+  Expr newE = vc_substExpr(vc, e, &x, 1, &fx, 1);
+  FatalAssert(expectE == newE, "Expected equal");
+  vc_destroyValidityChecker(vc);
+}
+
+
 int main(int argc, char** argv)
 {
   int regressLevel = 2;
@@ -737,5 +759,9 @@ int main(int argc, char** argv)
   printf("\n}");
   printf("\ntest10() {\n");
   test10();
+  printf("\n}");
+  printf("\ntest11() {\n");
+  test11();
+  printf("\n}\n");
   return 0;
 }

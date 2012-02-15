@@ -91,6 +91,10 @@ readAgain:
     TRACE_MSG("commands", "** [commands] Null command; read again");
     goto readAgain;
   }
+  if( d_vc->getFlags()["parse-only"].getBool() ) {
+    TRACE_MSG("commands", "** [commands] parse-only; skipping evaluateCommand");
+    goto readAgain;
+  }
 
   return evaluateCommand(e);
 }
@@ -98,7 +102,8 @@ readAgain:
 void VCCmd::reportResult(QueryResult qres, bool checkingValidity)
 {
   if (d_vc->getFlags()["printResults"].getBool()) {
-    if (d_vc->getEM()->getOutputLang() == SMTLIB_LANG) {
+    if (d_vc->getEM()->getOutputLang() == SMTLIB_LANG
+        || d_vc->getEM()->getOutputLang() == SMTLIB_V2_LANG) {
       switch (qres) {
         case VALID:
           cout << "unsat" << endl;
@@ -851,6 +856,18 @@ bool VCCmd::evaluateCommand(const Expr& e0)
 			  throw EvalException("ARITH_VAR_ORDER only takes arithmetic terms");
 	  }
 	  return true;
+  }
+  case ANNOTATION: {
+    for (int i = 1; i < e.arity(); ++i) {
+      if (e[i].arity() == 1) {
+        d_vc->logAnnotation(Expr(ANNOTATION, e[i][0]));
+      }
+      else {
+        DebugAssert(e[i].arity() == 2, "Expected arity 2");
+        d_vc->logAnnotation(Expr(ANNOTATION, e[i][0], e[i][1]));
+      }
+    }
+    break;
   }
   case INCLUDE: { // read in the specified file
     if(e.arity() != 2)

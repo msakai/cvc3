@@ -66,6 +66,8 @@ protected:
   //! Create the trusted component
   /*! This function is defined in search_theorem_producer.cpp */
   SearchEngineRules* createRules();
+  // hack for printing original assumptions in LFSC proofs by liana
+  SearchEngineRules* createRules(SearchEngine* s_eng);
 
  public:
 

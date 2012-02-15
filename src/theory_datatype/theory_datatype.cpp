@@ -85,7 +85,7 @@ void TheoryDatatype::instantiate(const Expr& e, const Unsigned& u)
   ExprMap<unsigned>& c = d_datatypes[getBaseType(e).getExpr()];
   ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
   for (; c_it != c_end; ++c_it) {
-    if (u & (1 << Unsigned((*c_it).second))) break;
+    if ((u & (Unsigned(1) << (unsigned)(*c_it).second)) != 0) break;
   }
   DebugAssert(c_it != c_end,
               "datatype: instantiate: couldn't find constructor");
@@ -123,14 +123,13 @@ void TheoryDatatype::initializeLabels(const Expr& e, const Type& t)
     DebugAssert(c.find(cons) != c.end(),
                 "datatype: initializeLabels: Couldn't find constructor "
                 +cons.toString());
-    Unsigned position = c[cons];
     d_labels.insert(e,
       SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
-                            1 << position, 0));
+                         (Unsigned)1 << c[cons], 0));
   }
   else {
     DebugAssert(c.size() > 0, "No constructors?");
-    Unsigned value = (1 << Unsigned(c.size())) - 1;
+    Unsigned value = ((Unsigned)1 << c.size()) - 1;
     d_labels.insert(e,
       SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             value, 0));
@@ -173,11 +172,11 @@ void TheoryDatatype::mergeLabels(const Theorem& thm, const Expr& e,
   DebugAssert(d_labels.find(e) != d_labels.end(),
               "mergeLabels2: expr is not labeled");
   Unsigned u = d_labels[e].get().get();
-  Unsigned uNew = 1 << Unsigned(position);
+  Unsigned uNew = (Unsigned)1 << position;
   if (positive) {
     uNew = u & uNew;
     if (u == uNew) return;
-  } else if (u & uNew) uNew = u - uNew;
+  } else if ((u & uNew) != 0) uNew = u - uNew;
   else return;
   d_facts.push_back(thm);
   d_labels[e].get().set(uNew);
@@ -231,7 +230,7 @@ void TheoryDatatype::assertFact(const Theorem& e)
         ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
         Expr bigConj;
         for (; c_it != c_end; ++c_it) {
-          if (u1 & u2 & (1 << Unsigned((*c_it).second))) {
+          if ((u1 & u2 & ((Unsigned)1 << unsigned((*c_it).second))) != 0) {
             vector<Expr>& selectors = d_constructorMap[(*c_it).first];
             Expr conj;
             for (unsigned i = 0; i < selectors.size(); ++i) {
@@ -281,7 +280,7 @@ void TheoryDatatype::checkSat(bool fullEffort)
           ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
           vector<Expr> vec;
           for (; c_it != c_end; ++c_it) {
-            if (u & (1 << Unsigned((*c_it).second))) {
+            if ((u & ((Unsigned)1 << unsigned((*c_it).second))) != 0) {
               vec.push_back(datatypeTestExpr((*c_it).first.getName(), e));
             }
           }
@@ -298,8 +297,8 @@ void TheoryDatatype::checkSat(bool fullEffort)
       Unsigned u = d_labels[f].get().get();
       if ((u & (u-1)) != 0) {
         pair<Expr, unsigned> selectorInfo = getSelectorInfo(e.getOpExpr());
-        Unsigned pos = getConsPos(selectorInfo.first);
-        if (u & (1 << pos)) {
+        unsigned pos = getConsPos(selectorInfo.first);
+        if ((u & ((Unsigned)1 << pos)) != 0) {
           done = true;
           DebugAssert(!d_splitterAsserted || !fullEffort,
                       "splitter should have been resolved");
@@ -1245,7 +1244,7 @@ bool TheoryDatatype::canCollapse(const Expr& e)
               "canCollapse: Expected find(e[0])=e[0]");
   Unsigned u = d_labels[e[0]].get().get();
   Expr cons = getSelectorInfo(e.getOpExpr()).first;
-  Unsigned uCons = 1 << Unsigned(getConsPos(cons));
+  Unsigned uCons = (Unsigned)1 << unsigned(getConsPos(cons));
   if ((u & uCons) == 0) return true;
   return false;
 }

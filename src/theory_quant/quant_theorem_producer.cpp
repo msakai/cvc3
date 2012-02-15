@@ -154,6 +154,18 @@ Theorem QuantTheoremProducer::rewriteNotExists(const Expr& e) {
 Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Expr>& terms, int quantLevel, Expr gterm){
   Expr e = t1.getExpr();
   const vector<Expr>& boundVars = e.getVars();
+
+     for(unsigned int i=0; i<terms.size(); i++){
+       if (d_theoryQuant->getBaseType(boundVars[i]) !=
+ 	  d_theoryQuant->getBaseType(terms[i])){
+ 	Proof pf;
+ 	return newRWTheorem(terms[i],terms[i], 
+ 			    Assumptions::emptyAssump(), pf);
+       }
+ //this is the same as return a TRUE theorem, which will be ignored immeridatele.  So, this is just return doing nothing. 
+     }
+
+
   if(CHECK_PROOFS) {
     CHECK_SOUND(boundVars.size() == terms.size(),
 		"Universal instantiation: size of terms array does "
@@ -161,6 +173,7 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
     CHECK_SOUND(e.isForall(),
 		"universal instantiation: expr must be FORALL:\n"
 		+e.toString());
+
     for(unsigned int i=0; i<terms.size(); i++)
       CHECK_SOUND(d_theoryQuant->getBaseType(boundVars[i]) ==
 		  d_theoryQuant->getBaseType(terms[i]),
@@ -212,7 +225,6 @@ Theorem QuantTheoremProducer::universalInst(const Theorem& t1, const  vector<Exp
 
 
    Expr imp;
-   //   if(typePred == tr || true ) //just for a easy life, yeting, change this assp
    if(typePred == tr ) //just for a easy life, yeting, change this assp
      imp = inst;
    else

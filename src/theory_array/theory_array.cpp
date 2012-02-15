@@ -20,6 +20,7 @@
 
 
 #include "theory_array.h"
+#include "theory_bitvector.h"
 #include "array_proof_rules.h"
 #include "typecheck_exception.h"
 #include "parser_exception.h"
@@ -34,19 +35,6 @@ using namespace CVC3;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// TheoryArray Private Methods                                               //
-///////////////////////////////////////////////////////////////////////////////
-
-Theorem TheoryArray::renameExpr(const Expr& e) {
-  Theorem thm = getCommonRules()->varIntroSkolem(e);
-  DebugAssert(thm.isRewrite() && thm.getRHS().isSkolem(),
-              "thm = "+thm.toString());
-  theoryCore()->addToVarDB(thm.getRHS());
-  return thm;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
 // TheoryArray Public Methods                                                //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +46,8 @@ TheoryArray::TheoryArray(TheoryCore* core)
     d_sharedSubterms(core->getCM()->getCurrentContext()),
     d_sharedSubtermsList(core->getCM()->getCurrentContext()),
     d_index(core->getCM()->getCurrentContext(), 0, 0),
+    d_sharedIdx1(core->getCM()->getCurrentContext(), 0, 0),
+    d_sharedIdx2(core->getCM()->getCurrentContext(), 0, 0),
     d_inCheckSat(0)
 {
   d_rules = createProofRules();
@@ -266,6 +256,86 @@ void TheoryArray::checkSat(bool fullEffort)
       }
       return;
     }
+
+    // All the terms should be normalized now... Ok, lets split on the read
+    // indices.
+    TRACE("sharing", "checking shared terms, size = ", int2string(d_reads.size()), "");
+    // Collect all the arrays and indices of interest
+    ExprMap< hash_set<Expr> > reads_by_array;
+    ExprMap< hash_set<Expr> > const_reads_by_array;
+    for (unsigned i = 0; i < d_reads.size(); ++i) {
+      Expr read = d_reads[i];
+      if (read.getSig().isNull()) continue;
+      if( d_sharedSubterms.find(read[1]) == d_sharedSubterms.end() ) continue;
+      Expr read_array = getBaseArray(read[0]);
+      if (read[1].getKind() != BVCONST) {
+        hash_set<Expr>& reads = reads_by_array[read_array];
+        reads.insert(read);
+      } else {
+        hash_set<Expr>& reads = const_reads_by_array[read_array];
+        reads.insert(read);
+      }
+    }
+
+    ExprMap< hash_set<Expr> >::iterator it = reads_by_array.begin();
+    ExprMap< hash_set<Expr> >::iterator it_end = reads_by_array.end();
+    for(; it != it_end; ++ it) {
+      Expr array = it->first;
+      hash_set<Expr>& reads_single_array = it->second;
+
+      hash_set<Expr>::iterator read1_it = reads_single_array.begin();
+      hash_set<Expr>::iterator read1_end = reads_single_array.end();
+      for (; read1_it != read1_end; ++ read1_it) {
+        Expr read1 = (*read1_it);
+        Expr x_k = read1[1];
+        Expr read1_find = find(read1).getRHS();
+        // The non-const reads arrays
+        hash_set<Expr>::iterator read2_it = reads_single_array.begin();
+        for (; read2_it != read1_it; ++ read2_it) {
+          Expr read2 = (*read2_it);
+          Expr read2_find = find(read2).getRHS();
+          if (read1_find != read2_find) {
+            Theorem simpl = simplify(read1.eqExpr(read2));
+            Expr y_k = read2[1];
+            Expr eq = x_k.eqExpr(y_k);
+            if( !simplify(eq).getRHS().isBoolConst() ) {
+              if (simpl.getRHS().isFalse()) {
+                enqueueFact(d_rules->propagateIndexDiseq(simpl));
+              } else {
+                TRACE("sharing", "from " + read2.toString(), "with find = ", find(read2).getRHS());
+                TRACE("sharing", "from " + read1.toString(), "with find = ", find(read1).getRHS());
+                TRACE("sharing", "splitting " + y_k.toString(), " and ", x_k.toString());
+                addSplitter(eq);
+              }
+            }
+          }
+        }
+        // The const reads arrays
+        hash_set<Expr>& const_reads_single_array = const_reads_by_array[array];
+        read2_it = const_reads_single_array.begin();
+        hash_set<Expr>::iterator read2_it_end = const_reads_single_array.end();
+        for (; read2_it != read2_it_end; ++ read2_it) {
+          Expr read2 = (*read2_it);
+          Expr read2_find = find(read2).getRHS();
+          if (read1_find != read2_find) {
+            Theorem simpl = simplify(read1.eqExpr(read2));
+            Expr y_k = read2[1];
+            Expr eq = x_k.eqExpr(y_k);
+            if( !simplify(eq).getRHS().isBoolConst() ) {
+              if (simpl.getRHS().isFalse()) {
+                enqueueFact(d_rules->propagateIndexDiseq(simpl));
+              } else {
+                TRACE("sharing", "from " + read2.toString(), "with find = ", find(read2).getRHS());
+                TRACE("sharing", "from " + read1.toString(), "with find = ", find(read1).getRHS());
+                TRACE("sharing", "splitting " + y_k.toString(), " and ", x_k.toString());
+                addSplitter(eq);
+              }
+            }
+          }
+        }
+      }
+    }
+    TRACE("sharing", "checking shared terms, done", int2string(d_reads.size()), "");
   }
 }
 
@@ -425,6 +495,10 @@ void TheoryArray::setup(const Expr& e)
     e[k].addToNotify(this, e);
   }
   if (isRead(e)) {
+    if (e.getType().card() != CARD_INFINITE) {
+      addSharedTerm(e);
+      theoryOf(e.getType())->addSharedTerm(e);
+    }
     Theorem thm = reflexivityRule(e);
     e.setSig(thm);
     e.setRep(thm);
@@ -1046,6 +1120,7 @@ ExprStream& TheoryArray::print(ExprStream& os, const Expr& e)
     }
     break; // end of case PRESENTATION_LANGUAGE
   case SMTLIB_LANG:
+  case SMTLIB_V2_LANG:
     switch(e.getKind()) {
     case READ:
       if(e.arity() == 2)
@@ -1173,6 +1248,11 @@ TheoryArray::parseExprOp(const Expr& e) {
 		  + e.toString());
     break;
   }
+  return e;
+}
+
+Expr TheoryArray::getBaseArray(const Expr& e) const {
+  if (e.getKind() == WRITE) return getBaseArray(e[0]);
   return e;
 }
 

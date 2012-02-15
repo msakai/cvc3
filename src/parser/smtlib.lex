@@ -192,6 +192,8 @@ IDCHAR  ({LETTER}|{DIGIT}|{OPCHAR})
 "formula"       { return FORMULA_TOK; }
 "status"        { return STATUS_TOK; }
 "benchmark"     { return BENCHMARK_TOK; }
+"source"        { return SOURCE_TOK; }
+"category"      { return CATEGORY_TOK; }
 "extrasorts"    { return EXTRASORTS_TOK; }
 "extrafuns"     { return EXTRAFUNS_TOK; }
 "extrapreds"    { return EXTRAPREDS_TOK; }
@@ -209,6 +211,7 @@ IDCHAR  ({LETTER}|{DIGIT}|{OPCHAR})
 
 [=<>&@#+\-*/%|~]+ { smtliblval.str = new std::string(smtlibtext); return AR_SYMB; }
 ({LETTER})({IDCHAR})* {smtliblval.str = new std::string(smtlibtext); return SYM_TOK; }
+({IDCHAR})({IDCHAR})* {smtliblval.str = new std::string(smtlibtext); return ID_TOK; }
 
 <<EOF>>         { return EOF_TOK; }
 

@@ -24,6 +24,8 @@
 #include "parser_temp.h"
 #include "parser.h"
 #include "parser_exception.h"
+#include "vc.h"
+#include "command_line_flags.h"
 
 using namespace std;
 
@@ -65,6 +67,16 @@ extern int smtlib_bufSize();
 extern void *smtlibBufState();
 void smtlib_setInteractive(bool);
 
+// for smtlib language v2 (smtlib2.y and smtlib2.lex)
+extern int smtlib2parse(); 
+extern void *smtlib2_createBuffer(int);
+extern void smtlib2_deleteBuffer(void *);
+extern void smtlib2_switchToBuffer(void *);
+extern int smtlib2_bufSize();
+extern void *smtlib2BufState();
+void smtlib2_setInteractive(bool);
+
+
 namespace CVC3 {
 
   // The global pointer to ParserTemp.  Each instance of class Parser
@@ -94,11 +106,13 @@ namespace CVC3 {
   };
 
   // Constructors
-  Parser::Parser(ValidityChecker* vc, InputLanguage lang,
+  Parser::Parser(ValidityChecker* vc, Translator* translator,
+                 InputLanguage lang,
 		 bool interactive,
 		 const std::string& fileName)
     : d_data(new ParserData) {
     d_data->temp.vc = vc;
+    d_data->temp.translator = translator;
     d_data->lang = lang;
     if(fileName == "") {
       // Use std::cin
@@ -119,10 +133,12 @@ namespace CVC3 {
     initParser();
   }
 
-  Parser::Parser(ValidityChecker* vc, InputLanguage lang, std::istream& is,
+  Parser::Parser(ValidityChecker* vc, Translator* translator,
+                 InputLanguage lang, std::istream& is,
 		 bool interactive)
     : d_data(new ParserData) {
     d_data->temp.vc = vc;
+    d_data->temp.translator = translator;
     d_data->lang = lang;
     d_data->useName = false;
     d_data->temp.is = &is;
@@ -154,6 +170,12 @@ namespace CVC3 {
       d_data->buffer = smtlib_createBuffer(smtlib_bufSize());
       d_data->temp.lineNum = 1;
       break;
+    case SMTLIB_V2_LANG:
+      d_data->buffer = smtlib2_createBuffer(smtlib2_bufSize());
+      d_data->temp.lineNum = 1;
+      // SMT2 uses '=' for IFF
+      d_data->temp.vc->getFlags().setFlag("convert-eq-iff",true);
+      break;
     default: FatalAssert(false, "Bad input language specified"); exit(1);
     }
   }
@@ -169,6 +191,9 @@ namespace CVC3 {
       break;
     case SMTLIB_LANG:
       smtlib_deleteBuffer(d_data->buffer);
+      break;
+    case SMTLIB_V2_LANG:
+      smtlib2_deleteBuffer(d_data->buffer);
       break;
     default: FatalAssert(false, "Bad input language specified");
     }
@@ -202,6 +227,13 @@ namespace CVC3 {
         smtlib_switchToBuffer(d_data->buffer);
 	smtlib_setInteractive(d_data->temp.interactive);
 	smtlibparse();
+	// Reset the prompt to the main one
+	d_data->temp.setPrompt1();
+	break;
+      case SMTLIB_V2_LANG:
+        smtlib2_switchToBuffer(d_data->buffer);
+	smtlib2_setInteractive(d_data->temp.interactive);
+	smtlib2parse();
 	// Reset the prompt to the main one
 	d_data->temp.setPrompt1();
 	break;

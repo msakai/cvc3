@@ -97,7 +97,7 @@ namespace CVC3 {
       return mpz_get_si(mpq_numref(d_n));
     }
 
-    unsigned int getUnsigned() const {
+     unsigned int getUnsigned() const {
       // Check for overflow
       static Impl min(0, 1, 0), max(UINT_MAX, 1, 0);
       FatalAssert(min <= *this && *this <= max,
@@ -105,6 +105,8 @@ namespace CVC3 {
                   +toString());
       return mpz_get_ui(mpq_numref(d_n));
     }
+
+    Unsigned getUnsignedMP() const;
 
     //! Unary minus
     Impl operator-() const;
@@ -244,12 +246,6 @@ namespace CVC3 {
       free(str);
       return res;
     }
-
-    //! Printing to ostream
-    friend ostream& operator<<(ostream& os, const Rational::Impl& n) {
-      return os << n.toString();
-    }
-
   };
 
   // Constructor from a pair of integers
@@ -330,6 +326,13 @@ namespace CVC3 {
 #endif
   }
 
+  Rational::Rational(const Unsigned& n): d_n(new Impl(n.toString(), 10)) {
+#ifdef _DEBUG_RATIONAL_
+    int &num_created = getCreated();
+    num_created++;
+    printStats();
+#endif
+  }
   //! Private constructor
   Rational::Rational(const Impl& t): d_n(new Impl(t)) {
 #ifdef _DEBUG_RATIONAL_
@@ -406,6 +409,11 @@ namespace CVC3 {
 
   ostream &operator<<(ostream &os, const Rational &n) {
     return(os << n.toString());
+  }
+
+  //! Printing to ostream
+  std::ostream& operator<<(std::ostream& os, const Rational::Impl& n) {
+    return os << n.toString();
   }
 
 
@@ -532,6 +540,11 @@ namespace CVC3 {
     return d_n->getUnsigned();
   }
 
+  Unsigned Rational::getUnsignedMP() const {
+    checkInt(*this, "getUnsignedMP()");
+    return d_n->getUnsignedMP();
+  }
+
 #ifdef _DEBUG_RATIONAL_
   void Rational::printStats() {
       int &num_created = getCreated();
@@ -588,6 +601,382 @@ namespace CVC3 {
     Rational operator%(const Rational &n1, const Rational &n2) {
       return Rational((*n1.d_n) % (*n2.d_n));
     }
+
+  //! Implementation of the forward-declared internal class
+  class Unsigned::Impl {
+    mpz_t d_n;
+  public:
+    //! Default Constructor
+    Impl() { mpz_init(d_n); }
+    //! Copy constructor (assumes x is canonicalized)
+    Impl(const Impl &x) { mpz_init(d_n); mpz_set(d_n, x.d_n); }
+    //! Constructor from mpz_t
+    Impl(const mpz_t n) {
+      mpz_init(d_n);
+      mpz_set(d_n, n);
+    }
+    //! Constructor from an unsigned integer
+    Impl(unsigned int n);
+    //! Constructor from a string
+    Impl(const string &n, int base);
+    // Destructor
+    virtual ~Impl() { mpz_clear(d_n); }
+
+    //! Assignment
+    Impl& operator=(const Impl& x) {
+      if(this == &x) return *this;
+      mpz_set(d_n, x.d_n);
+      return *this;
+    }
+
+    int getInt() const {
+      // Check for overflow
+      static Impl max((int)INT_MAX);
+      FatalAssert(*this <= max,
+                  "Unsigned::getInt(): Arithmetic overflow for "
+                  +toString());
+      return mpz_get_si(d_n);
+    }
+
+    unsigned long getUnsigned() const {
+      // Check for overflow
+      static Impl max(UINT_MAX);
+      FatalAssert(*this <= max,
+                  "Unsigned::getUnsigned(): Arithmetic overflow for "
+                  +toString());
+      return mpz_get_ui(d_n);
+    }
+
+    //! Unary minus
+    Impl operator-() const;
+
+    //! Equality
+    friend bool operator==(const Impl& x, const Impl& y) {
+      return mpz_cmp(x.d_n, y.d_n) == 0;
+    }
+
+    //! Dis-equality
+    friend bool operator!=(const Impl& x, const Impl& y) {
+      return mpz_cmp(x.d_n, y.d_n) != 0;
+    }
+    //! Less than
+    friend bool operator<(const Impl& x, const Impl& y) {
+      return mpz_cmp(x.d_n, y.d_n) < 0;
+    }
+
+    friend bool operator<=(const Impl& x, const Impl& y) {
+      return mpz_cmp(x.d_n, y.d_n) <= 0;
+    }
+
+    friend bool operator>(const Impl& x, const Impl& y) {
+      return mpz_cmp(x.d_n, y.d_n) > 0;
+    }
+
+    friend bool operator>=(const Impl& x, const Impl& y) {
+      return mpz_cmp(x.d_n, y.d_n) >= 0;
+    }
+
+    //! Addition
+    friend Impl operator+(const Impl& x, const Impl& y) {
+      Impl res;
+      mpz_add(res.d_n, x.d_n, y.d_n);
+      return res;
+    }
+
+    //! Subtraction
+    friend Impl operator-(const Impl& x, const Impl& y) {
+      Impl res;
+      mpz_sub(res.d_n, x.d_n, y.d_n);
+      return res;
+    }
+
+    //! Multiplication
+    friend Impl operator*(const Impl& x, const Impl& y) {
+      Impl res;
+      mpz_mul(res.d_n, x.d_n, y.d_n);
+      return res;
+    }
+
+    //! Division
+    friend Impl operator/(const Impl& x, const Impl& y) {
+      Impl res;
+      mpz_div(res.d_n, x.d_n, y.d_n);
+      return res;
+    }
+
+    friend Impl operator%(const Impl& x, const Impl& y) {
+      mpz_t res;
+      mpz_init(res);
+      // Put the remainder directly into 'res'
+      mpz_fdiv_r(res, x.d_n, y.d_n);
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    friend Impl operator<<(const Impl& x, unsigned y) {
+      mpz_t res;
+      mpz_init(res);
+      mpz_mul_2exp (res, x.d_n, y);
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    friend Impl operator&(const Impl& x, const Impl& y) {
+      mpz_t res;
+      mpz_init(res);
+      mpz_and (res, x.d_n, y.d_n);
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    //! Compute the remainder of x/y
+    friend Impl mod(const Impl& x, const Impl& y) {
+      mpz_t res;
+      mpz_init(res);
+      mpz_mod(res, x.d_n, y.d_n);
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    friend Impl intRoot(const Impl& x, unsigned long int y) {
+      mpz_t res;
+      mpz_init(res);
+      int exact = mpz_root(res, x.d_n, y);
+      if (!exact) {
+        mpz_set_ui(res, 0);
+      }
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    friend Impl gcd(const Impl& x, const Impl& y) {
+      mpz_t res;
+      mpz_init(res);
+      mpz_gcd(res, x.d_n, y.d_n);
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    friend Impl lcm(const Impl& x, const Impl& y) {
+      mpz_t res;
+      mpz_init(res);
+      mpz_lcm(res, x.d_n, y.d_n);
+      Impl r(res);
+      mpz_clear(res);
+      return r;
+    }
+
+    //! Print to string
+    string toString(int base = 10) const {
+      char* str = (char*)malloc(mpz_sizeinbase(d_n, base)+2);
+      mpz_get_str(str, base, d_n);
+      string res(str);
+      free(str);
+      return res;
+    }
+
+    //! Printing to ostream
+    friend ostream& operator<<(ostream& os, const Unsigned::Impl& n) {
+      return os << n.toString();
+    }
+
+  };
+
+  // Constructor from a pair of unsigned integers
+  Unsigned::Impl::Impl(unsigned int n) {
+    mpz_init(d_n);
+    mpz_set_ui(d_n, n);
+  }
+
+  // Constructor from a string
+  Unsigned::Impl::Impl(const string &n, int base) {
+    mpz_init(d_n);
+    mpz_set_str(d_n, n.c_str(), base);
+  }
+
+  Unsigned::Impl Unsigned::Impl::operator-() const {
+    Impl res;
+    mpz_neg(res.d_n, d_n);
+    return res;
+  }
+
+  //! Default constructor
+  Unsigned::Unsigned() : d_n(new Impl) { }
+  //! Copy constructor
+  Unsigned::Unsigned(const Unsigned &n) : d_n(new Impl(*n.d_n)) { }
+
+  Unsigned::Unsigned(int n) : d_n(new Impl((unsigned)n)) { }
+
+  Unsigned::Unsigned(unsigned n) : d_n(new Impl(n)) { }
+  //! Private constructor
+  Unsigned::Unsigned(const Impl& t): d_n(new Impl(t)) { }
+  // Constructors from strings
+  Unsigned::Unsigned(const char* n, int base)
+    : d_n(new Impl(string(n), base)) { }
+  Unsigned::Unsigned(const string& n, int base)
+    : d_n(new Impl(n, base)) { }
+  // Destructor
+  Unsigned::~Unsigned() {
+    delete d_n;
+  }
+
+  // Assignment
+  Unsigned& Unsigned::operator=(const Unsigned& n) {
+    if(this == &n) return *this;
+    delete d_n;
+    d_n = new Impl(*n.d_n);
+    return *this;
+  }
+
+  ostream &operator<<(ostream &os, const Unsigned &n) {
+    return(os << n.toString());
+  }
+
+
+  // Check that argument is an int and print an error message otherwise
+
+    /* Computes gcd and lcm on *integer* values. Result is always a
+       positive integer.  In this implementation, it is guaranteed by
+       GMP. */
+
+  Unsigned gcd(const Unsigned &x, const Unsigned &y) {
+    return Unsigned(gcd(*x.d_n, *y.d_n));
+  }
+
+  Unsigned gcd(const vector<Unsigned> &v) {
+    Unsigned::Impl g(1), zero;
+    if(v.size() > 0) {
+      g = *v[0].d_n;
+    }
+    for(size_t i=1; i<v.size(); i++) {
+      if(g == zero)
+	g = *(v[i].d_n);
+      else if(*(v[i].d_n) != zero)
+	g = gcd(g, *(v[i].d_n));
+    }
+    return Unsigned(g);
+  }
+
+  Unsigned lcm(const Unsigned &x, const Unsigned &y) {
+    return Unsigned(lcm(*x.d_n, *y.d_n));
+  }
+
+  Unsigned lcm(const vector<Unsigned> &v) {
+    Unsigned::Impl g(1), zero;
+    for(size_t i=0; i<v.size(); i++) {
+      if(*v[i].d_n != zero)
+	g = lcm(g, *v[i].d_n);
+    }
+    return Unsigned(g);
+  }
+
+  Unsigned mod(const Unsigned &x, const Unsigned &y) {
+    return(Unsigned(mod(*x.d_n, *y.d_n)));
+  }
+
+  Unsigned intRoot(const Unsigned& base, unsigned long int n) {
+    return Unsigned(intRoot(*base.d_n, n));
+  }
+
+  string Unsigned::toString(int base) const {
+    return(d_n->toString(base));
+  }
+
+  size_t Unsigned::hash() const {
+    std::hash<const char *> h;
+    return h(toString().c_str());
+  }
+
+  void Unsigned::print() const {
+    cout << (*this) << endl;
+  }
+
+  Unsigned &Unsigned::operator+=(const Unsigned &n2) {
+    *this = (*this) + n2;
+    return *this;
+  }
+
+  Unsigned &Unsigned::operator-=(const Unsigned &n2) {
+    *this = (*this) - n2;
+    return *this;
+  }
+
+  Unsigned &Unsigned::operator*=(const Unsigned &n2) {
+    *this = (*this) * n2;
+    return *this;
+  }
+
+  Unsigned &Unsigned::operator/=(const Unsigned &n2) {
+    *this = (*this) / n2;
+    return *this;
+  }
+
+  unsigned long Unsigned::getUnsigned() const {
+    return d_n->getUnsigned();
+  }
+
+  bool operator==(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n == *n2.d_n);
+  }
+
+  bool operator<(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n < *n2.d_n);
+  }
+
+  bool operator<=(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n <= *n2.d_n);
+  }
+
+  bool operator>(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n > *n2.d_n);
+  }
+
+  bool operator>=(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n >= *n2.d_n);
+  }
+
+  bool operator!=(const Unsigned &n1, const Unsigned &n2) {
+    return(*n1.d_n != *n2.d_n);
+  }
+
+  Unsigned operator+(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned((*n1.d_n) + (*n2.d_n));
+  }
+
+  Unsigned operator-(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned((*n1.d_n) - (*n2.d_n));
+  }
+
+  Unsigned operator*(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned((*n1.d_n) * (*n2.d_n));
+  }
+
+  Unsigned operator/(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned((*n1.d_n) / (*n2.d_n));
+  }
+
+  Unsigned operator%(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned((*n1.d_n) % (*n2.d_n));
+  }
+
+  Unsigned operator<<(const Unsigned &n1, unsigned n2) {
+    return Unsigned((*n1.d_n) << n2);
+  }
+
+  Unsigned operator&(const Unsigned &n1, const Unsigned &n2) {
+    return Unsigned((*n1.d_n) & (*n2.d_n));
+  }
+
+  Unsigned Rational::Impl::getUnsignedMP() const {
+    return Unsigned(Unsigned::Impl(mpq_numref(d_n)));
+  }
+
 
 } /* close namespace */
 

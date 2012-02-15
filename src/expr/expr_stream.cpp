@@ -42,7 +42,7 @@ namespace CVC3 {
   //! Generating unique names in DAG expr
   string ExprStream::newName() {
     ostringstream name;
-    name << "cvc_" << d_idCounter++;
+    name << "v_" << d_idCounter++;
     return name.str();
   }
 
@@ -64,6 +64,9 @@ namespace CVC3 {
           else {
             s = "?" + s;
           }
+        }
+        else if (d_lang == SMTLIB_V2_LANG) {
+          s = "?" + s;
         }
         if (d_lang == TPTP_LANG) {
 	  
@@ -174,7 +177,8 @@ namespace CVC3 {
     default: break;
     }
     // Check cache for DAG printing
-    if(os.d_dag && !os.d_nodag) {
+    if(os.d_dag && !os.d_nodag &&
+       os.d_lang != SPASS_LANG) { // SPASS doesn't support LET
       if(os.d_dagBuilt) {
 	ExprMap<string>::iterator i(os.d_dagMap.find(e));
 	if(i != os.d_dagMap.end()) {

@@ -1,15 +1,20 @@
 dnl Process with autoconf to generate configure script   -*- sh -*-
 
 dnl Init with sanity check for source directory
-AC_INIT(cvc3,devel)
+AC_INIT(cvc3,2.4)
 
 
-##################################################
-# Library version information
-# IMPORTANT: This version number needs to be 
-# bumped if binary incompatabilities are 
-# introduced in the shared library
-##################################################
+######################################################################
+# Library version information 
+#
+# IMPORTANT: This version number needs to be bumped if binary
+# incompatibilities are introduced in the shared library.  
+#
+# NOTE: This is the *library* version, not the version of the CVC3
+# release (which is set by the VERSION variable below). In general,
+# LIB_MAJOR_VERSION will be greater than VERSION, because we break
+# compatibility fairly often in point releases.
+######################################################################
 
 # Major version: increases for non-backwards-compatible API changes 
 AC_SUBST(LIB_MAJOR_VERSION)
@@ -18,9 +23,9 @@ AC_SUBST(LIB_MINOR_VERSION)
 # Teeny version: increases for library bug fixes (API hasn't changed)
 AC_SUBST(LIB_TEENY_VERSION)
 
-LIB_MAJOR_VERSION=2
-LIB_MINOR_VERSION=1
-LIB_TEENY_VERSION=1
+LIB_MAJOR_VERSION=4
+LIB_MINOR_VERSION=0
+LIB_TEENY_VERSION=0
 
 dnl We don't want the default autoconf CXXFLAGS=-g -O2
 if test "${CXXFLAGS+set}" != set; then
@@ -42,6 +47,44 @@ EXTRA_SAT_HEADERS=""
 EXTRA_SAT_CPP=""
 LICENSE_INFO=/dev/null
 DPLL_BASIC=""
+#BEGIN zchaff
+cvc_use_zchaff="yes"
+AC_ARG_ENABLE(zchaff,
+[  --enable-zchaff         Include zchaff code (default = yes)
+  --disable-zchaff        Remove zchaff code (default = no)],
+if test "$enableval" = "no"; then
+   cvc_use_zchaff="no"
+fi)
+if test "$cvc_use_zchaff" = "yes"; then
+/bin/sh >.zchaff <<EOF
+echo "This copy of CVC3 is also configured to use the SAT solver zchaff whose"
+echo "copyright is owned by Princeton University and is more restrictive."
+echo ""
+echo "Specifically, it may be used for internal, noncommercial, research purposes"
+echo "only.  See the copyright notice in the following files for more information."
+echo "To build CVC3 without these files, please delete them and then run:"
+echo "<pre>"
+echo "   ./configure --disable-zchaff"
+echo "   make"
+echo "</pre>"
+echo ""
+echo "<pre>"
+echo "src/sat/xchaff_base.h"
+echo "src/sat/xchaff_dbase.h"
+echo "src/sat/xchaff_solver.h"
+echo "src/sat/xchaff_utils.h"
+echo "src/sat/xchaff_dbase.cpp"
+echo "src/sat/xchaff_solver.cpp"
+echo "src/sat/xchaff_utils.cpp"
+echo "</pre>"
+echo ""
+EOF
+EXTRA_SAT_HEADERS="xchaff.h xchaff_base.h xchaff_dbase.h xchaff_solver.h xchaff_utils.h"
+EXTRA_SAT_CPP="xchaff.cpp xchaff_dbase.cpp xchaff_solver.cpp xchaff_utils.cpp "
+LICENSE_INFO=.zchaff
+DPLL_BASIC="-DDPLL_BASIC"
+fi
+#END zchaff
 
 dnl # Name of the OS
 dnl AC_SUBST(OSTYPE)
@@ -186,6 +229,11 @@ else
 # Seems like the arguments to 'install' are changing wildly with platform...
   INSTALL_FLAGS=""
 fi
+
+AC_SUBST(LDCONFIG)
+AC_PATH_PROG(LDCONFIG, ldconfig, 
+    AC_MSG_WARN([ldconfig not found. Library installation may fail.]),
+    [$PATH:/sbin:/usr/sbin])
 
 AC_SUBST(TIME)
 if test -n "$MAC_OSX"; then
@@ -579,7 +627,8 @@ AC_SUBST(EBROWSE)
 AC_CHECK_PROG(EBROWSE, ebrowse, "ebrowse")
 
 CVC_OUTPUT_FILES="Makefile.local \
-LICENSE"
+LICENSE \
+src/cvc3.pc"
 
 OTHER_OUTPUT_FILES="bin/unpack \
 bin/run_tests \

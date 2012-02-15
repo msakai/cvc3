@@ -1,5 +1,6 @@
 INCLUDE: <sstream>
 INCLUDE: <theory_arith.h>
+INCLUDE: <theory_array.h>
 
 DEFINITION: Java_cvc3_ValidityChecker_jniCreate1
 jobject
@@ -83,6 +84,14 @@ vector<Type> result;
 vc->dataType(names, constructors, selectors, types, result);
 return toJavaVCopy(env, result);
 
+DEFINITION: Java_cvc3_ValidityChecker_jniAnyType
+jobject m ValidityChecker vc
+return embed_copy(env, Type::anyType(vc->getEM()));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniArrayLiteral
+jobject m ValidityChecker vc c Expr indexVar c Expr bodyExpr
+return embed_copy(env, CVC3::arrayLiteral(*indexVar, *bodyExpr));
+
 DEFINITION: Java_cvc3_ValidityChecker_jniArrayType
 jobject m ValidityChecker vc c Type typeIndex c Type typeData
 return embed_copy(env, vc->arrayType(*typeIndex, *typeData));
@@ -134,8 +143,18 @@ jobject m ValidityChecker vc n string name n string uid c Type type
 return embed_copy(env, vc->boundVarExpr(name, uid, *type));
 
 DEFINITION: Java_cvc3_ValidityChecker_jniLookupVar
-jobject m ValidityChecker vc n string name m Type type
-return embed_copy(env, vc->lookupVar(name, type));
+jobject m ValidityChecker vc n string name 
+Type* type = new Type;
+jobject result = embed_copy(env, vc->lookupVar(name, type));
+delete type;
+return result;
+
+DEFINITION: Java_cvc3_ValidityChecker_jniLookupOp
+jobject m ValidityChecker vc n string name
+Type* type = new Type;
+jobject result = embed_copy(env, vc->lookupOp(name, type));
+delete type;
+return result;
 
 DEFINITION: Java_cvc3_ValidityChecker_jniGetType
 jobject m ValidityChecker vc c Expr expr
@@ -543,6 +562,18 @@ DEFINITION: Java_cvc3_ValidityChecker_jniNewBVSModExpr
 jobject m ValidityChecker vc c Expr expr1 c Expr expr2
 return embed_copy(env, vc->newBVSModExpr(*expr1, *expr2));
 
+DEFINITION: Java_cvc3_ValidityChecker_jniNewBVSHL
+jobject m ValidityChecker vc c Expr expr1 c Expr expr2
+return embed_copy(env, vc->newBVSHL(*expr1, *expr2));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniNewBVLSHR
+jobject m ValidityChecker vc c Expr expr1 c Expr expr2
+return embed_copy(env, vc->newBVLSHR(*expr1, *expr2));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniNewBVASHR
+jobject m ValidityChecker vc c Expr expr1 c Expr expr2
+return embed_copy(env, vc->newBVASHR(*expr1, *expr2));
+
 DEFINITION: Java_cvc3_ValidityChecker_jniNewFixedLeftShiftExpr
 jobject m ValidityChecker vc c Expr expr n int r
 return embed_copy(env, vc->newFixedLeftShiftExpr(*expr, r));
@@ -554,6 +585,10 @@ return embed_copy(env, vc->newFixedConstWidthLeftShiftExpr(*expr, r));
 DEFINITION: Java_cvc3_ValidityChecker_jniNewFixedRightShiftExpr
 jobject m ValidityChecker vc c Expr expr n int r
 return embed_copy(env, vc->newFixedRightShiftExpr(*expr, r));
+
+DEFINITION: Java_cvc3_ValidityChecker_jniComputeBVConst
+jobject m ValidityChecker vc c Expr expr
+return embed_copy(env, vc->computeBVConst(*expr));
 
 DEFINITION: Java_cvc3_ValidityChecker_jniTupleExpr
 jobject m ValidityChecker vc cv Expr exprs

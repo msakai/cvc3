@@ -686,7 +686,8 @@ ExprStream& TheoryRecords::print(ExprStream& os, const Expr& e)
      }
      break;
    }
-   case SMTLIB_LANG: {
+   case SMTLIB_LANG:
+   case SMTLIB_V2_LANG: {
      d_theoryUsed = true;
      throw SmtlibException("TheoryRecords::print: SMTLIB not supported");
      switch(e.getOpKind()){

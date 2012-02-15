@@ -190,7 +190,8 @@ public class Rational extends Embedded {
     }
 
     public int getInteger() throws Cvc3Exception {
-	return jniGetInteger(embedded());
+        assert(isInteger());
+        return jniGetInteger(embedded());
     }
 
 

@@ -180,7 +180,7 @@ script refers to the environment variables <code>JAVAC</code>,
 the standard Java and C++ compiler commands. It refers to the
 environment variable <code>JFLAGS</code> for default Java compiler
 flags. It refers to the variable <code>javadir</code> for the
-installation directory of <code>libcvc3.jar</code>.
+installation directory of the CVC3 Java library.
 
 The configuration options <code>--with-java-home</code> and
 <code>--with-java-includes</code> can be used to specify the path to
@@ -205,8 +205,9 @@ rebuilding the entire %CVC3 package will suffice).
 Using the Java interface
 </h4>
 
-To access the library, you must add <code>libcvc3.jar</code> to the
-classpath (e.g., by setting the <code>CLASSPATH</code> environment
+To access the library, you must add the file
+<code>libcvc3-X.Y.Z.jar</code> (where "X.Y.Z" is the CVC3 version) to
+the classpath (e.g., by setting the <code>CLASSPATH</code> environment
 variable) and both <code>libcvc3.so</code> and
 <code>libcvc3jni.so</code> to the runtime library path (e.g., by
 setting the <code>LD_LIBRARY_PATH</code> environment variable
@@ -215,16 +216,17 @@ java.library.path JVM variable).
 For example, to compile the class Client.java:
 
 <pre>
-    javac -cp lib/libcvc3.jar Client.java
+    javac -cp lib/libcvc3-X.Y.Z.jar Client.java
 </pre>
 
 To run:
 
 <pre>
   export LD_LIBRARY_PATH=/path/to/cvc3/libs
-  java -Djava.library.path=/path/to/cvc3/libs -cp lib/libcvc3.jar Client
+  java -Djava.library.path=/path/to/cvc3/libs -cp lib/libcvc3-X.Y.Z.jar Client
 </pre>
 
+<!-- !!! THE .NET INTERFACE IS NO LONGER SUPPORTED !!!
 <h3>
 .NET interface
 </h3>
@@ -270,6 +272,7 @@ For more information, see the file <code>windows/INSTALL</code>.
 <b>Note:</b> the .NET interface can only be used on Microsoft's CLR,
 because Visual Studio produces <a
 href="http://mono-project.com/CPlusPlus">mixed-mode assemblies</a>.
+-->
 
 <h3>
 Mac OS X
@@ -369,7 +372,7 @@ compile in 64-bit mode on a x86-64 CPU, you can use <code>./configure
 <em><strong>Note: Compiling %CVC3 with LLVM is not supported and 
 may cause runtime errors.</strong></em>
 
-To compiler with LLVM, run configure with the options:
+To compile with LLVM, run configure with the options:
 
 <pre>
 ./configure CXX=llvm-gcc LIBS='-lstdc++'

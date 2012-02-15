@@ -359,3 +359,42 @@ Theorem ArrayTheoremProducer::arrayNotEq(const Theorem& e)
   return newTheorem(d_theoryArray->getEM()->newClosureExpr(EXISTS, var, !eq),
                     Assumptions(e), pf);
 }
+
+Theorem ArrayTheoremProducer::splitOnConstants(const Expr& a, const std::vector<Expr>& consts) {
+  Theorem res;
+  Expr result;
+
+  vector<Expr> eq;
+  vector<Expr> diseq;
+  for (unsigned i = 0; i < consts.size(); ++ i) {
+    eq.push_back(a.eqExpr(consts[i]));
+    diseq.push_back(a.eqExpr(consts[i]).notExpr());
+  }
+
+  if (eq.size() == 1) {
+    result = eq[0].orExpr(diseq[0]);
+  } else {
+    eq.push_back(andExpr(diseq));
+    result = orExpr(eq);
+  }
+
+  Proof pf;
+  if (withProof())
+    pf = newPf("splitOnConstants");
+
+  return newTheorem(result, Assumptions::emptyAssump(), pf);
+}
+
+Theorem ArrayTheoremProducer::propagateIndexDiseq(const Theorem& read1eqread2isFalse) {
+  Expr read1eqread2 = read1eqread2isFalse.getLHS();
+  Expr read1 = read1eqread2[0];
+  Expr read2 = read1eqread2[1];
+  Expr i1 = read1[1];
+  Expr i2 = read2[1];
+
+  Proof pf;
+  if (withProof())
+    pf = newPf("propagateIndexDiseq", read1eqread2isFalse.getProof());
+
+  return newTheorem(i1.eqExpr(i2).notExpr(), Assumptions(read1eqread2isFalse), pf);
+}

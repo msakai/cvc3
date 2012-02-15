@@ -379,7 +379,7 @@ CVC3::Proof DPLLTMiniSat::getSatProof(CNF_Manager* cnfManager, CVC3::TheoryCore*
   SAT::SatProof* proof = getProof();
   SAT::SatProofNode * rootNode = proof->getRoot();
   
-  //printSatProof(rootNode);
+  //  printSatProof(rootNode);
   
   CVC3::TheoremProducer* thmProducer = new TheoremProducer(core->getTM());
 

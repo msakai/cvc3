@@ -43,7 +43,10 @@ TheoryUF::TheoryUF(TheoryCore* core)//, bool useAckermann)
   : Theory(core, "Uninterpreted Functions"),
     d_applicationsInModel(core->getFlags()["applications"].getBool()),
     d_funApplications(core->getCM()->getCurrentContext()),
-    d_funApplicationsIdx(core->getCM()->getCurrentContext(), 0)
+    d_funApplicationsIdx(core->getCM()->getCurrentContext(), 0),
+    d_sharedIdx1(core->getCM()->getCurrentContext(), 0),
+    d_sharedIdx2(core->getCM()->getCurrentContext(), 0),
+    d_sharedTermsMap(core->getCM()->getCurrentContext())
     //    d_useAckermann(useAckermann)
 {
   d_rules = createProofRules();
@@ -153,12 +156,53 @@ void TheoryUF::assertFact(const Theorem& e)
 void TheoryUF::checkSat(bool fullEffort)
 {
   // Check for any unexpanded lambdas
+  bool enqueued = false;
   for(; d_funApplicationsIdx < d_funApplications.size();
       d_funApplicationsIdx = d_funApplicationsIdx + 1) {
     const Expr& e = d_funApplications[d_funApplicationsIdx];
     if(e.getOp().getExpr().isLambda()) {
       IF_DEBUG(debugger.counter("Expanded lambdas (checkSat)")++;)
       enqueueFact(d_rules->applyLambda(e));
+      enqueued = true;
+    }
+  }
+
+  // If something has been returned, we are done
+  if (!fullEffort || enqueued) return;
+
+  // Expand on the shared terms
+  for( ; d_sharedIdx1 < d_funApplications.size(); d_sharedIdx1 = d_sharedIdx1
+      + 1, d_sharedIdx2 = 0 ) {
+    Expr f1 = d_funApplications[d_sharedIdx1];
+    if( f1.getOpKind() == UFUNC && !f1.getSig().isNull() ) {
+      f1 = f1.getSig().getRHS();
+      Expr f1_fun = f1.getOp().getExpr();
+      for( ; d_sharedIdx2 < d_sharedIdx1; d_sharedIdx2 = d_sharedIdx2 + 1 ) {
+        Expr f2 = d_funApplications[d_sharedIdx2];
+        if (f2.getOpKind() == UFUNC && !f2.getSig().isNull() ) {
+          f2 = f2.getSig().getRHS();
+          Expr f2_fun = f2.getOp().getExpr();
+          if( f1 != f2 && find(f1).getRHS() != find(f2).getRHS() && f1_fun == f2_fun ) {
+            for( int k = 0; k < f1.arity(); ++k ) {
+              Expr x_k = f1[k];
+              Expr y_k = f2[k];
+              if( d_sharedTermsMap.find(x_k) == d_sharedTermsMap.end() )
+                continue;
+              if( d_sharedTermsMap.find(y_k) == d_sharedTermsMap.end() )
+                continue;
+              Expr eq = x_k.eqExpr(y_k);
+              if( !simplify(eq).getRHS().isBoolConst() ) {
+                TRACE("sharing", "splitting " + y_k.toString(), " and ", x_k.toString());
+                TRACE("sharing", "from " + f2.toString(), " and ", f1.toString());
+                addSplitter(eq);
+                enqueued = true;
+              }
+            }
+            if( enqueued )
+              return;
+          }
+        }
+      }
     }
   }
 }
@@ -191,6 +235,10 @@ Theorem TheoryUF::rewrite(const Expr& e)
 
 void TheoryUF::setup(const Expr& e)
 {
+  if (e.isTerm() && e.getType().card() != CARD_INFINITE) {
+    addSharedTerm(e);
+    theoryOf(e.getType())->addSharedTerm(e);
+  }
   if (e.getKind() != APPLY) return;
 //   if (d_useAckermann) {
 //     Theorem thm = getCommonRules()->varIntroSkolem(e);
@@ -320,8 +368,10 @@ void TheoryUF::checkType(const Expr& e)
 Cardinality TheoryUF::finiteTypeInfo(Expr& e, Unsigned& n,
                                      bool enumerate, bool computeSize)
 {
-  DebugAssert(e.getKind() == ARROW,
-              "Unexpected kind in TheoryUF::finiteTypeInfo");
+  if (e.getKind() != ARROW) {
+    // uninterpreted type
+    return CARD_UNKNOWN;
+  }
   Expr::iterator i = e.begin(), iend = e.end();
   Cardinality card = CARD_FINITE, cardTmp;
   Unsigned thisSize = 1, size;
@@ -604,6 +654,48 @@ Expr TheoryUF::computeTCC(const Expr& e)
 // Pretty-printing			                                     //
 ///////////////////////////////////////////////////////////////////////////////
 
+void TheoryUF::printSmtLibShared(ExprStream& os, const Expr& e) {
+  DebugAssert( os.lang() == SMTLIB_LANG || os.lang() == SMTLIB_V2_LANG, "Illegal state in printSmtLibShared");
+  switch( e.getKind() ) {
+  case TYPEDECL:
+    if( e.arity() == 1 && e[0].isString() ) {
+      os << e[0].getString();
+      break;
+    }
+    // If it's straight from the parser, we may have several type
+    // names in one declaration.  Print these in LISP format.
+    // Otherwise, print the name of the type.
+    throw SmtlibException("TheoryUF::print: TYPEDECL not supported");
+    //       if(e.arity() != 1) e.print(os);
+    //       else if(e[0].isString()) os << e[0].getString();
+    //       else e[0].print(os);
+    break;
+  case APPLY:
+    if( e.arity() == 0 )
+      os << e.getOp().getExpr();
+    else {
+      os << "(" << push << e.getOp().getExpr();
+      for( int i = 0, iend = e.arity(); i < iend; ++i )
+        os << space << e[i];
+      if( e.getOpKind() == TRANS_CLOSURE ) {
+        os << space << ":transclose";
+      }
+      os << push << ")";
+    }
+    break;
+  case TRANS_CLOSURE:
+    os << e.getName();
+    break;
+  case UFUNC:
+    DebugAssert(e.isSymbol(), "Expected symbol");
+    os << theoryCore()->getTranslator()->fixConstName(e.getName());
+    break;
+  default: {
+    DebugAssert(false, "TheoryUF::print: SMTLIB_LANG: Unexpected expression: "
+        +getEM()->getKindName(e.getKind()));
+  }
+  }
+}
 
 ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
   switch(os.lang()) {
@@ -793,44 +885,36 @@ ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
       os.dagFlag(oldDagFlag);
       break;
     }
-    case TYPEDECL:
-      if (e.arity() == 1 && e[0].isString()) {
-        os << e[0].getString();
-        break;
-      }
-      // If it's straight from the parser, we may have several type
-      // names in one declaration.  Print these in LISP format.
-      // Otherwise, print the name of the type.
-      throw SmtlibException("TheoryUF::print: TYPEDECL not supported");
-//       if(e.arity() != 1) e.print(os);
-//       else if(e[0].isString()) os << e[0].getString();
-//       else e[0].print(os);
-      break;
-    case APPLY:
-      if (e.arity() == 0) os << e.getOp().getExpr();
-      else {
-	os << "(" << push << e.getOp().getExpr();
-	for (int i=0, iend=e.arity(); i<iend; ++i)
-	  os << space << e[i];
-        if (e.getOpKind() == TRANS_CLOSURE) {
-          os << space << ":transclose";
-        }
-	os << push << ")";
-      }
-      break;
-    case TRANS_CLOSURE:
-      os << e.getName();
-      break;
-    case UFUNC:
-      DebugAssert(e.isSymbol(), "Expected symbol");
-      os << theoryCore()->getTranslator()->fixConstName(e.getName());
-      break;
-    default: {
-      DebugAssert(false, "TheoryUF::print: SMTLIB_LANG: Unexpected expression: "
-		  +getEM()->getKindName(e.getKind()));
-    }
+    default:
+      printSmtLibShared(os,e);
     }
     break; // End of SMT_LIB
+  case SMTLIB_V2_LANG:
+    switch(e.getKind()) {
+    case OLD_ARROW:
+    case ARROW: {
+      /* Prints out a function type (A,B,C) -> D as "(A B C) D" */
+      if(e.arity() < 2) {
+        throw SmtlibException("TheoryUF::print: Expected 2 or more arguments to ARROW");
+        //        e.print(os);
+      }
+      d_theoryUsed = true;
+      bool oldDagFlag = os.dagFlag(false);
+      os << push << "(";
+      for( int i = 0; i < e.arity() - 1; ++i ) {
+        if( i != 0 ) {
+          os << space;
+        }
+        os << e[i];
+      }
+      os << ")" << space << e[e.arity() - 1] << pop ;
+      os.dagFlag(oldDagFlag);
+      break;
+    }
+    default:
+      printSmtLibShared(os,e);
+    }
+    break; // End of SMT-LIB v2
   case LISP_LANG:
     switch(e.getKind()) {
     case OLD_ARROW:
@@ -889,6 +973,31 @@ ExprStream& TheoryUF::print(ExprStream& os, const Expr& e) {
     }
     }
     break; // End of LISP_LANG
+  case SPASS_LANG:
+    switch(e.getKind()) {
+    case UFUNC:
+      os << e.getName();
+      break;
+    case APPLY:
+      os << push << e.getOp().getExpr();
+      if(e.arity() > 0) {
+        os << "(" << e[0];
+	for (int i=1, iend=e.arity(); i<iend; ++i)
+          os << "," << space << e[i];
+        os << ")";
+      }
+      os << push;
+      break;
+    case OLD_ARROW:
+    case ARROW:
+    case TRANS_CLOSURE:
+    case TYPEDECL:
+    case LAMBDA:
+    default:
+      throw SmtlibException("TheoryUF::print: Unexpected expression for SPASS_LANG: "
+                            +getEM()->getKindName(e.getKind()));
+    }
+    break;
   default:
     // Print the top node in the default format, continue with
     // pretty-printing for children.
@@ -1025,4 +1134,8 @@ Expr TheoryUF::lambdaExpr(const vector<Expr>& vars, const Expr& body) {
 Expr TheoryUF::transClosureExpr(const std::string& name, const Expr& e1,
 				const Expr& e2) {
   return Expr(getEM()->newSymbolExpr(name, TRANS_CLOSURE).mkOp(), e1, e2);
+}
+
+void TheoryUF::addSharedTerm(const CVC3::Expr& e) {
+  d_sharedTermsMap[e] = true;
 }

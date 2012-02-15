@@ -6652,7 +6652,7 @@ Theorem BitvectorTheoremProducer::oneBVAND(const Expr& andEqOne)
 		CHECK_SOUND(andEqOne.isEq(), "input must be an equality. \n e = " + andEqOne.toString());
 		CHECK_SOUND(andEqOne[0].getKind() == BVAND, "left-hand side must be a bitwise and. \n e = " + andEqOne.toString());
 		CHECK_SOUND(andEqOne[1].getKind() == BVCONST, "right-hand side must be a constant or. \n e = " + andEqOne.toString());
-		CHECK_SOUND(d_theoryBitvector->computeBVConst(andEqOne[1]) == pow(d_theoryBitvector->BVSize(andEqOne[1]), 2) - 1, "right-hand side must be 1^n. \n e = " + andEqOne.toString());
+		CHECK_SOUND(d_theoryBitvector->computeBVConst(andEqOne[1]) == pow(d_theoryBitvector->BVSize(andEqOne[1]), (Unsigned)2) - 1, "right-hand side must be 1^n. \n e = " + andEqOne.toString());
 	}
 
 	vector<Expr> conjuncts;

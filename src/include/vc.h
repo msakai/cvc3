@@ -696,6 +696,12 @@ public:
   virtual Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r) = 0;
   // Logical right shift by r bits: result is same size as t1
   virtual Expr newFixedRightShiftExpr(const Expr& t1, int r) = 0;
+  // Left shift with shift parameter an arbitrary bit-vector expr
+  virtual Expr newBVSHL(const Expr& t1, const Expr& t2) = 0;
+  // Logical right shift with shift parameter an arbitrary bit-vector expr
+  virtual Expr newBVLSHR(const Expr& t1, const Expr& t2) = 0;
+  // Arithmetic right shift with shift parameter an arbitrary bit-vector expr
+  virtual Expr newBVASHR(const Expr& t1, const Expr& t2) = 0;
   // Get value of BV Constant
   virtual Rational computeBVConst(const Expr& e) = 0;
 
@@ -1046,6 +1052,9 @@ public:
 
   //! Destroy and recreate validity checker: resets everything except for flags
   virtual void reset() = 0;
+
+  //! Add an annotation to the current script - prints annot when translating
+  virtual void logAnnotation(const Expr& annot) = 0;
 
   /*@}*/ // End of Context methods
 

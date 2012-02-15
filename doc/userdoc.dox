@@ -989,13 +989,17 @@ word-level, bitwise, arithmetic, and comparison operators.
 \verbatim
 WORD-LEVEL OPERATORS:
 
-Description       Symbol         Example
-================================================================
-Concatenation     _ @ _          0bin01@0bin0    (= 0bin010)
-Extraction        _ [i:j]        0bin0011[3:1]   (= 0bin001)
-Left shift        _ << k         0bin0011 << 3   (= 0bin0011000)
-Right shift       _ >> k         0bin1000 >> 3   (= 0bin0001)
-Sign extension    SX(_,k)        SX(0bin100, 5)  (= 0bin11100)
+Description      Symbol            Example
+====================================================================
+Concatenation   _ @ _             0bin01@0bin0          (= 0bin010)
+Extraction      _ [i:j]           0bin0011[3:1]         (= 0bin001)
+Left shift      _ << k            0bin0011 << 3         (= 0bin0011000)
+Right shift     _ >> k            0bin1000 >> 3         (= 0bin0001)
+Sign extension  SX(_,k)           SX(0bin100, 5)        (= 0bin11100)
+Zero extension  BVZEROEXTEND(_,k) BVZEROEXTEND(0bin1,3) (= 0bin0001)
+Repeat          BVREPEAT(_,k)     BVREPEAT(0bin10,3)    (= 0bin101010)
+Rotate left     BVROTL(_,k)       BVROTL(0bin101,1)     (= 0bin011)
+Rotate right    BVROTR(_,k)       BVROTR(0bin101,1)     (= 0bin110)
 \endverbatim
 
 
@@ -1022,7 +1026,26 @@ one mixfix sign extension operator \f$\mathrm{SX}(\_, k)\f$ for each \f$k >= n\f
 taking an \f$n\f$-bit vector \f$v\f$ and 
 returning the \f$k\f$-bit concatenation of \f$k-n\f$ copies of the MSB of \f$v\f$
 and \f$v\f$.
-
+-
+one mixfix zero extension operator \f$\mathrm{BVZEROEXTEND}(\_, k)\f$ for each \f$k >= 1\f$,
+taking an \f$n\f$-bit vector \f$v\f$ and 
+returning the \f$n+k\f$-bit concatenation of \f$k\f$ zeroes and \f$v\f$.
+-
+one mixfix repeat operator \f$\mathrm{BVREPEAT}(\_, k)\f$ for each \f$k >= 1\f$,
+taking an \f$n\f$-bit vector \f$v\f$ and 
+returning the \f$n*k\f$-bit concatenation of \f$k\f$ copies of \f$v\f$.
+-
+one mixfix rotate left operator \f$\mathrm{BVROTL}(\_, k)\f$ for each \f$k >= 0\f$,
+taking an \f$n\f$-bit vector \f$v\f$ and 
+returning the \f$(n)\f$-bit vector obtained by rotating the bits of \f$v\f$
+left \f$k\f$ times, where a single rotation means removing the MSB and
+concatenating it as the new LSB.
+-
+one mixfix rotate right operator \f$\mathrm{BVROTR}(\_, k)\f$ for each \f$k >= 0\f$,
+taking an \f$n\f$-bit vector \f$v\f$ and 
+returning the \f$(n)\f$-bit vector obtained by rotating the bits of \f$v\f$
+right \f$k\f$ times, where a single rotation means removing the LSB and
+concatenating it as the new MSB.
 
 \verbatim
 BITWISE OPERATORS:
@@ -1036,22 +1059,32 @@ Bitwise XOR       BVXOR(_,_)
 Bitwise NAND      BVNAND(_,_) 
 Bitwise NOR       BVNOR(_,_)  
 Bitwise XNOR      BVXNOR(_,_) 
+Bitwise Compare   BVCOMP(_,_)
 \endverbatim
 
 For each \f$n > 0\f$ there are operators with the names and syntax above,
-performing the usual bitwise Boolean operations from \f$n\f$-bit arguments
-to an \f$n\f$-bit result.
-
+performing the usual bitwise Boolean operations on \f$n\f$-bit arguments.  All
+produce \f$n\f$-bit results except for \f$\mathrm{BVCOMP}\f$ which always
+produces a 1-bit result: \f$\mathrm{0bin1}\f$ if its two arguments are equal
+and \f$\mathrm{0bin0}\f$ otherwise.
 
 \verbatim
 ARITHMETIC OPERATORS:
 
 Description               Symbol
 ========================================
-Bit vector addition        BVPLUS(k,_,_,...)
-Bit vector multiplication  BVMULT(k,_,_) 
-Bit vector negation        BVUMINUS(_)
-Bit vector subtraction     BVSUB(k,_,_)
+Bit vector addition            BVPLUS(k,_,_,...)
+Bit vector multiplication      BVMULT(k,_,_) 
+Bit vector negation            BVUMINUS(_)
+Bit vector subtraction         BVSUB(k,_,_)
+Bit vector left shift          BVSHL(_,_)
+Bit vector arith shift right   BVASHR(_,_)
+Bit vector logic shift right   BVLSHR(_,_)
+Bit vector unsigned divide     BVUDIV(_,_)
+Bit vector signed divide       BVSDIV(_,_)
+Bit vector unsigned remainder  BVUREM(_,_)
+Bit vector signed remainder    BVSREM(_,_)
+Bit vector signed modulus      BVSMOD(_,_)
 \endverbatim
 
 
@@ -1075,6 +1108,47 @@ returning the \f$k\f$-bit vector
 \f$\mathrm{BVPLUS}(k,v_1,\mathrm{BVUMINUS}(v'))\f$ where \f$v'\f$ is \f$v_2\f$
 if the size of \f$v_2\f$ is greater than or equal to \f$k\f$, and \f$v_2\f$
 extended to size \f$k\f$ by concatenating zeroes in the most significant bits otherwise.
+- 
+one left shift operator \f$\mathrm{BVSHL}(\_, \_)\f$,
+taking two \f$n\f$-bit vectors \f$v_1\f$ and \f$v_2\f$, and 
+returning the \f$n\f$-bit vector obtained by creating a vector of zeroes whose
+length is the value of \f$v_2\f$, concatenating this vector onto the least
+significant bits of \f$v_1\f$, and then taking the least significant \f$n\f$
+bits of the result.
+-
+one arithmetic shift right operator \f$\mathrm{BVASHR}(\_, \_)\f$,
+taking two \f$n\f$-bit vectors \f$v_1\f$ and \f$v_2\f$, and 
+returning the \f$n\f$-bit vector obtained by creating a vector whose
+length is the value of \f$v_2\f$ and each of whose bits has the same value as
+the MSB of \f$v_1\f$, concatenating this vector onto the most
+significant bits of \f$v_1\f$, and then taking the most significant \f$n\f$
+bits of the result.
+-
+one logical shift right operator \f$\mathrm{BVLSHR}(\_, \_)\f$,
+taking two \f$n\f$-bit vectors \f$v_1\f$ and \f$v_2\f$, and 
+returning the \f$n\f$-bit vector obtained by creating a vector of zeroes whose
+length is the value of \f$v_2\f$, concatenating this vector onto the most
+significant bits of \f$v_1\f$, and then taking the most significant \f$n\f$
+bits of the result.
+-
+one unsigned integer division operator \f$\mathrm{BVUDIV}(\_, \_)\f$,
+taking two \f$n\f$-bit vectors \f$v_1\f$ and \f$v_2\f$, and 
+returning the \f$n\f$-bit vector that is the largest integer value that can be
+multiplied by the integer value of \f$v_2\f$ to obtain an integer less than or
+equal to the integer value of \f$v_1\f$.
+-
+one signed integer division operator \f$\mathrm{BVSDIV}(\_, \_)\f$.
+-
+one unsigned integer remainder operator \f$\mathrm{BVUREM}(\_, \_)\f$.
+-
+one signed integer remainder operator \f$\mathrm{BVSREM}(\_, \_)\f$ (sign
+follows dividend).
+-
+one signed integer modulus operator \f$\mathrm{BVSMOD}(\_, \_)\f$ (sign follows
+divisor).
+
+For precise definitions of the last four operators, we refer the reader to the
+equivalent operators defined in the SMT-LIB QF_BV logic (\ref user_doc_smtlib_lang).
 
 CVC3 does not have dedicated operators for multiplexers.
 However, specific multiplexers can be easily defined with the aid of conditional terms.
@@ -1094,10 +1168,14 @@ COMPARISON OPERATORS:
 
 Description              Symbol
 ===================================
-Less than                BVLT(_,_)
-Less than or equal to    BVLE(_,_)
-Greater than             BVGT(_,_)
-Greater than equal to    BVGE(_,_)
+Less than                      BVLT(_,_)
+Less than or equal to          BVLE(_,_)
+Greater than                   BVGT(_,_)
+Greater than equal to          BVGE(_,_)
+Signed less than               BVSLT(_,_)
+Signed less than or equal to   BVSLE(_,_)
+Signed greater than            BVSGT(_,_)
+Signed greater than equal to   BVSGE(_,_)
 \endverbatim
 
 For each \f$m, n > 0\f$ there is
@@ -1121,6 +1199,9 @@ having the same value as \f$\mathrm{BVLT}(v_2, v_1)\f$.
 one prefix "greater than or equal to" operator \f$\mathrm{BVGE}(\_, \_)\f$,
 taking an \f$m\f$-bit vector \f$v_1\f$ and an \f$n\f$-bit vector \f$v_2\f$, and 
 having the same value as \f$\mathrm{BVLE}(v_2, v_1)\f$.
+
+The signed operators are similar except that the values being compared are
+considered to be signed bit vector representations (in 2's complement) of integers.
 
 Following are some example CVC3 input formulas involving bit vector expressions
 

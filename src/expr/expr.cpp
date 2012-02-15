@@ -41,6 +41,24 @@ Expr Expr::s_null;
 // Class Expr methods                                                //
 ///////////////////////////////////////////////////////////////////////
 
+vector<vector<Expr> > Expr::substTriggers(const ExprHashMap<Expr> & subst,
+      ExprHashMap<Expr> & visited) const {
+    /* Do the substitution in triggers */
+    vector<vector<Expr> > vvOldTriggers(getTriggers());
+    vector<vector<Expr> > vvNewTriggers;
+    vector<vector<Expr> >::const_iterator i, iEnd;
+    for( i = vvOldTriggers.begin(), iEnd = vvOldTriggers.end(); i != iEnd; ++i ) {
+      vector<Expr> vOldTriggers(*i);
+      vector<Expr> vNewTriggers;
+      vector<Expr>::const_iterator j, jEnd;
+      for( j = vOldTriggers.begin(), jEnd = vOldTriggers.end(); j != jEnd; ++j ) {
+        vNewTriggers.push_back((*j).recursiveSubst(subst, visited));
+      }
+      vvNewTriggers.push_back(vNewTriggers);
+    }
+
+    return vvNewTriggers;
+}
 
 Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
                           ExprHashMap<Expr>& visited) const {
@@ -84,9 +102,12 @@ Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
 	j->first.setFlag();
       }
     
+      vector<vector<Expr> > vvNewTriggers = substTriggers(newSubst,visited);
+
       replaced = 
 	getEM()->newClosureExpr(getKind(), vars,
-                                getBody().recursiveSubst(newSubst, visited));
+                                getBody().recursiveSubst(newSubst, visited),
+                                vvNewTriggers);
 
       // Clear the flags again, as we restore the substitution
       visited.clear();
@@ -97,9 +118,11 @@ Expr Expr::recursiveSubst(const ExprHashMap<Expr>& subst,
 	   i != iend; ++i)
 	i->first.setFlag();
     } else {
+      vector<vector<Expr> > vvNewTriggers = substTriggers(subst,visited);
       replaced =
         getEM()->newClosureExpr(getKind(), vars,
-                                getBody().recursiveSubst(subst, visited));
+                                getBody().recursiveSubst(subst, visited),
+                                vvNewTriggers);
     }
   } else { // Not a Closure
     int changed=0;
@@ -209,27 +232,34 @@ Expr Expr::substExprQuant(const vector<Expr>& oldTerms,
   
   if(oldTerms.size() == 0) return *this;
 
-  ExprHashMap<Expr> oldToNew(10);
+  ExprHashMap<Expr> oldToNew(oldTerms.size());
 
   //  clearFlags();
   for(unsigned int i=0; i<oldTerms.size(); i++) {
     oldToNew.insert(oldTerms[i], newTerms[i]);
     //     oldTerms[i].setFlag();
   }
+
   // For cache, initialized by the substitution
   ExprHashMap<Expr> visited(oldToNew);
   Expr returnExpr = recursiveQuantSubst(oldToNew, visited);;
-    //  return recursiveQuantSubst(oldToNew, visited);
+
   //  substCache[cacheIndex] = returnExpr;
   //  cout<<"pushed " << cacheIndex << endl << "RET " << returnExpr << endl;
+
   return returnExpr;
 
 }
 
+Expr Expr::substExprQuant(const ExprHashMap<Expr>& oldToNew) const
+{
+  ExprHashMap<Expr> visited(oldToNew);
+  return recursiveQuantSubst(oldToNew,visited);
+}
 
-
-Expr Expr::recursiveQuantSubst(ExprHashMap<Expr>& substMap,
+Expr Expr::recursiveQuantSubst(const ExprHashMap<Expr>& substMap,
 			       ExprHashMap<Expr>& visited) const {
+  /* [chris 12/3/2009] It appears that visited is never used. */
 
   if (!containsBoundVar()){
     //    std::cout <<"no bound var " << *this << std::endl;
@@ -241,11 +271,17 @@ Expr Expr::recursiveQuantSubst(ExprHashMap<Expr>& substMap,
   // the above invariant is no longer true.  yeting
   
    if(getKind() == BOUND_VAR ) {
+     ExprHashMap<Expr>::const_iterator find = substMap.find(*this);
+     if (find != substMap.end()) {
+       return find->second;
+     }
+/*
      //     Expr ret  = visited[*this];
      const Expr ret  = substMap[*this];
      if (!ret.isNull()){
        return ret; 
      }
+*/
    }
   
    //  if(getFlag()) return visited[*this];
@@ -273,9 +309,14 @@ Expr Expr::recursiveQuantSubst(ExprHashMap<Expr>& substMap,
 //     if(common.size() > 0) {
 //       cout<<"error in quant subst" << endl;
 //     } else {
+
+      /* Perform substition on the triggers */
+
+      vector<vector<Expr> > vvNewTriggers = substTriggers(substMap,visited);
       replaced =
         getEM()->newClosureExpr(getKind(), vars,
-                                getBody().recursiveQuantSubst(substMap, visited));
+                                getBody().recursiveQuantSubst(substMap, visited),
+                                vvNewTriggers );
 //     }
   } else { // Not a Closure
     int changed=0;

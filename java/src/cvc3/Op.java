@@ -11,6 +11,8 @@ public class Op extends Embedded {
 
     private static native Object
 	jniGetExpr(Object op) throws Cvc3Exception;
+    private static native boolean
+	jniIsNull(Object Op) throws Cvc3Exception;
 
     /// Constructor
 
@@ -57,5 +59,8 @@ public class Op extends Embedded {
     public ExprMut getExpr() throws Cvc3Exception {
 	return new ExprMut(jniGetExpr(embedded()), embeddedManager());
     }
-    
+
+    public boolean isNull() throws Cvc3Exception {
+	return jniIsNull(embedded());
+    }
 }

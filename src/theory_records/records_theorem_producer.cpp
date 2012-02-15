@@ -58,7 +58,7 @@ Theorem RecordsTheoremProducer::rewriteLitSelect(const Expr &e){
     case TUPLE_SELECT: {
       if(CHECK_PROOFS) {
 	CHECK_SOUND(e[0].getOpKind()==TUPLE,
-		    "expected TUPLE childs:\n"
+		    "expected TUPLE child:\n"
 		    +e.toString());
       } 
       index = getIndex(e);

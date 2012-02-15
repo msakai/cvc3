@@ -27,10 +27,12 @@
 #include <vector>
 #include <map>
 #include "queryresult.h"
+#include "compat_hash_map.h"
 
 namespace CVC3 {
 
 class Expr;
+template <class Data> class ExprMap;
 class Type;
 class ExprManager;
 class ExprStream;
@@ -63,9 +65,19 @@ class Translator {
   const std::string& d_convertToDiff;
   bool d_iteLiftArith;
   const std::string& d_expResult;
-  const std::string& d_category;
+  std::string d_category;
   bool d_convertArray;
   bool d_combineAssump;
+
+  /** Private class for hashing strings; copied from ExprManager */
+  class HashString {
+    std::hash<char*> h;
+  public:
+    size_t operator()(const std::string& s) const {
+      return h(const_cast<char*>(s.c_str()));
+    }
+  };
+  std::hash_map<std::string, std::string, HashString> d_replaceSymbols;
 
   //! The log file for top-level API calls in the CVC3 input language
   std::ostream* d_osdump;
@@ -102,6 +114,13 @@ class Translator {
   Type* d_arrayType;
   std::vector<Expr> d_equalities;
 
+  // Name of benchmark in SMT-LIB
+  std::string d_benchName;
+  // Status of benchmark in SMT-LIB
+  std::string d_status;
+  // Source of benchmark in SMT-LIB
+  std::string d_source;
+
   std::string fileToSMTLIBIdentifier(const std::string& filename);
   Expr preprocessRec(const Expr& e, ExprMap<Expr>& cache);
   Expr preprocess(const Expr& e, ExprMap<Expr>& cache);
@@ -109,6 +128,12 @@ class Translator {
   Expr preprocess2(const Expr& e, ExprMap<Expr>& cache);
   bool containsArray(const Expr& e);
   Expr processType(const Expr& e);
+
+  /*
+  Expr spassPreprocess(const Expr& e, ExprMap<Expr>& mapping,
+                       std::vector<Expr>& functions,
+                       std::vector<Expr>& predicates);
+  */
 
 public:
   // Constructors
@@ -148,7 +173,18 @@ public:
   void setTheoryBitvector(TheoryBitvector* theoryBitvector) { d_theoryBitvector = theoryBitvector; }
   void setTheoryDatatype(TheoryDatatype* theoryDatatype) { d_theoryDatatype = theoryDatatype; }
 
+  void setBenchName(std::string name) { d_benchName = name; }
+  std::string benchName() { return d_benchName; }
+  void setStatus(std::string status) { d_status = status; }
+  std::string status() { return d_status; }
+  void setSource(std::string source) { d_source = source; }
+  std::string source() { return d_source; }
+  void setCategory(std::string category) { d_category = category; }
+  std::string category() { return d_category; }
+
   const std::string fixConstName(const std::string& s);
+  const std::string escapeSymbol(const std::string& s);
+  const std::string quoteAnnotation(const std::string& s);
   //! Returns true if expression has been printed
   /*! If false is returned, array theory should print expression as usual */
   bool printArrayExpr(ExprStream& os, const Expr& e);

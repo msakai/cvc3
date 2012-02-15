@@ -727,6 +727,9 @@ public:
   
   //! Derived rule for rewriting ITE
   Theorem rewriteIte(const Expr& e);
+
+  //! Derived rule to create a new name for an expression
+  Theorem renameExpr(const Expr& e);
   
   /*@}*/ // End of Commonly Used Proof Rules
 

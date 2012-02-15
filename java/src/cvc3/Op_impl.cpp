@@ -12,3 +12,7 @@ return toJava(env, op->toString());
 DEFINITION: Java_cvc3_Op_jniGetExpr
 jobject c Op op
 return embed_const_ref<Expr>(env, &op->getExpr());
+
+DEFINITION: Java_cvc3_Op_jniIsNull
+jboolean c Op op
+return op->isNull();

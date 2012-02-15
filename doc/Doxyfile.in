@@ -1232,7 +1232,7 @@ DOTFILE_DIRS           =
 # visualized by representing a node as a red box. Note that doxygen will always 
 # show the root nodes and its direct children regardless of this setting.
 
-DOT_GRAPH_MAX_NODES    = 50
+DOT_GRAPH_MAX_NODES    = 1
 
 # Set the DOT_TRANSPARENT tag to YES to generate images with a transparent 
 # background. This is disabled by default, which results in a white background. 

@@ -121,6 +121,8 @@ class QuantProofRules;
    //! if e satisfies the shiled property, that is all bound vars are parameters of uninterpreted functions/predicates and array reads/writes
    bool isShield(const Expr& e);
 
+   bool hasShieldVar(const Expr& e);
+
    //! insert an index
    void addIndex(const Expr& e);
    

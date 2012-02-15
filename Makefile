@@ -27,6 +27,7 @@ doc/userdoc.dox \
 doc/theory_api.dox \
 doc/theory_api_flow.fig \
 src/Makefile \
+src/cvc3.pc.in \
 test/Makefile \
 test/george.h \
 test/george.cpp \

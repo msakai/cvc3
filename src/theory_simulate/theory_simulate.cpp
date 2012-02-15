@@ -236,6 +236,7 @@ TheorySimulate::print(ExprStream& os, const Expr& e) {
     }
     break;
   case SMTLIB_LANG:
+  case SMTLIB_V2_LANG:
     d_theoryUsed = true;
     throw SmtlibException("TheorySimulate::print: SMTLIB not supported");
     switch(e.getKind()) {

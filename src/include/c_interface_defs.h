@@ -21,6 +21,8 @@
 #ifndef _cvc3__include__c_interface_defs_h_
 #define _cvc3__include__c_interface__defs_h_
 
+#include "kinds.h"
+
 #ifdef CVC3_STRONG_TYPING
 
         typedef struct _cvc_VC *VC;
@@ -46,3 +48,4 @@
 
 #endif
 #endif
+

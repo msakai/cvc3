@@ -29,6 +29,7 @@
 namespace CVC3 {
 
   class ValidityChecker;
+  class Translator;
 
   class ParserTemp {
   private:
@@ -42,6 +43,7 @@ namespace CVC3 {
     std::string prompt;
   public:
     ValidityChecker* vc;
+    Translator* translator;
     std::istream* is;
     // The current input line
     int lineNum;

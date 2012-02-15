@@ -60,7 +60,7 @@ void TheoryDatatypeLazy::instantiate(const Expr& e, const Unsigned& u)
   ExprMap<unsigned>& c = d_datatypes[e.getType().getExpr()];
   ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
   for (; c_it != c_end; ++c_it) {
-    if (u & (1 << Unsigned((*c_it).second))) break;
+    if ((u & ((Unsigned)1 << unsigned((*c_it).second))) != 0) break;
   }
   DebugAssert(c_it != c_end,
               "datatype: instantiate: couldn't find constructor");
@@ -101,14 +101,14 @@ void TheoryDatatypeLazy::initializeLabels(const Expr& e, const Type& t)
     DebugAssert(c.find(cons) != c.end(),
                 "datatype: initializeLabels: Couldn't find constructor "
                 +cons.toString());
-    Unsigned position = c[cons];
+    unsigned position = c[cons];
     d_labels.insert(e,
       SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             1 << position, 0));
   }
   else {
     DebugAssert(c.size() > 0, "No constructors?");
-    Unsigned value = (1 << Unsigned(c.size())) - 1;
+    Unsigned value = ((Unsigned)1 << unsigned(c.size())) - 1;
     d_labels.insert(e,
       SmartCDO<Unsigned>(theoryCore()->getCM()->getCurrentContext(),
                             value, 0));
@@ -158,11 +158,11 @@ void TheoryDatatypeLazy::mergeLabels(const Theorem& thm, const Expr& e,
   DebugAssert(d_labels.find(f) != d_labels.end(),
               "mergeLabels2: expr is not labeled");
   Unsigned u = d_labels[f].get().get();
-  Unsigned uNew = 1 << Unsigned(position);
+  Unsigned uNew = (Unsigned)1 << position;
   if (positive) {
     uNew = u & uNew;
     if (u == uNew) return;
-  } else if (u & uNew) uNew = u - uNew;
+  } else if ((u & uNew) != 0) uNew = u - uNew;
   else return;
   if (e != f) d_facts.push_back(fthm);
   d_facts.push_back(thm);
@@ -196,7 +196,7 @@ void TheoryDatatypeLazy::checkSat(bool fullEffort)
           ExprMap<unsigned>& c = d_datatypes[e.getType().getExpr()];
           ExprMap<unsigned>::iterator c_it = c.begin(), c_end = c.end();
           for (; c_it != c_end; ++c_it) {
-            if (u & (1 << Unsigned((*c_it).second))) break;
+            if ((u & ((Unsigned)1 << unsigned((*c_it).second))) != 0) break;
           }
           DebugAssert(c_it != c_end,
               "datatype: checkSat: couldn't find constructor");

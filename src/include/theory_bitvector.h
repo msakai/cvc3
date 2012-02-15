@@ -258,6 +258,8 @@ class TheoryBitvector :public Theory {
   Theorem generalBitBlast( const Theorem& thm );
 /*End of Lorenzo PLatania's methods*/
 
+  ExprStream& printSmtLibShared(ExprStream& os, const Expr& e);
+
 public:
   TheoryBitvector(TheoryCore* core);
   ~TheoryBitvector();

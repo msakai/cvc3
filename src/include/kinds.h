@@ -21,7 +21,9 @@
 #ifndef _cvc3__include__kinds_h_
 #define _cvc3__include__kinds_h_
 
+#ifdef __cplusplus
 namespace CVC3 {
+#endif /* __cplusplus */
 
   // The commonly used kinds and the kinds needed by the parser.  All
   // these kinds are registered by the ExprManager and are readily
@@ -131,6 +133,7 @@ typedef enum {
   SUBSTITUTE,
   SEQ,
   ARITH_VAR_ORDER,
+  ANNOTATION,
 
   // Kinds used mostly in the parser
 
@@ -289,6 +292,8 @@ typedef enum {
   LAST_KIND
 } Kind;
 
+#ifdef __cplusplus
 } // end of namespace CVC3
+#endif /* __cplusplus */
 
 #endif

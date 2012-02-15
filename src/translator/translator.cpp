@@ -20,6 +20,8 @@
 /*****************************************************************************/
 
 
+#include <cctype>
+
 #include "translator.h"
 #include "expr.h"
 #include "theory_core.h"
@@ -74,6 +76,12 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
     return (*i).second;
   }
 
+  if (d_theoryCore->getFlags()["liftITE"].getBool() &&
+      e.isPropAtom() && e.containsTermITE()) {
+    Theorem thm = d_theoryCore->getCommonRules()->liftOneITE(e);
+    return preprocessRec(thm.getRHS(), cache);
+  }
+
   if (e.isClosure()) {
     Expr newBody = preprocessRec(e.getBody(), cache);
     Expr e2(e);
@@ -107,7 +115,7 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
         if (!r.isInteger()) {
           FatalAssert(false, "Cannot convert non-integer constant to BV");
         }
-        Rational limit = pow(d_convertToBV-1, 2);
+        Rational limit = pow(d_convertToBV-1, (Rational)2);
         if (r >= limit) {
           FatalAssert(false, "Cannot convert to BV: integer too big");
         }
@@ -438,7 +446,8 @@ Expr Translator::preprocessRec(const Expr& e, ExprMap<Expr>& cache)
       if (d_langUsed == NOT_USED) d_langUsed = TERMS_ONLY;
       break;
     case IS_INTEGER:
-      d_unknown = true;
+      d_realUsed = true;
+      d_intUsed = true;
       break;
     case PLUS: {
       if (e2.arity() == 2) {
@@ -553,6 +562,7 @@ Expr Translator::preprocess(const Expr& e, ExprMap<Expr>& cache)
 
 Expr Translator::preprocess2Rec(const Expr& e, ExprMap<Expr>& cache, Type desiredType)
 {
+  TRACE("smtlib2-linear", "preprocess2Rec: ", e, "");
   ExprMap<Expr>::iterator i(cache.find(e));
   if(i != cache.end()) {
     if ((desiredType.isNull() &&
@@ -626,6 +636,14 @@ Expr Translator::preprocess2Rec(const Expr& e, ExprMap<Expr>& cache, Type desire
     funType = e.getOpExpr().getType();
     if (funType.getExpr().getKind() == ANY_TYPE) funType = Type();
   }
+  else if (e.getKind() == WRITE) {
+    // an array store is like a function ARRAY -> INDEX -> ELEMENT -> ARRAY
+    vector<Type> kids;
+    kids.push_back(e.getType());
+    kids.push_back(e.getType()[0]);
+    kids.push_back(e.getType()[1]);
+    funType = Type::funType(kids, e.getType());
+  }
 
   for(int k = 0; k < e.arity(); ++k) {
     Type t;
@@ -640,20 +658,121 @@ Expr Translator::preprocess2Rec(const Expr& e, ExprMap<Expr>& cache, Type desire
   if (diff) {
     e2 = Expr(e.getOp(), children);
   }
-  else if (e2.getKind() == RATIONAL_EXPR) {
+  else if (e2.getKind() == RATIONAL_EXPR && d_realUsed && d_intUsed) {
     if (e2.getType() == d_theoryArith->realType() ||
         (e2.getType() == d_theoryArith->intType() &&
          desiredType == d_theoryArith->realType()))
       e2 = Expr(REAL_CONST, e2);
   }
+  if (e2.getKind() == MULT) {
+    // SMT-LIBv2 is strict about where * is permitted in linear logics
+    if (d_langUsed > NOT_USED && d_langUsed <= LINEAR &&
+        d_em->getOutputLang() == SMTLIB_V2_LANG) {
+      Expr e2save = e2;
+      TRACE("smtlib2-linear", "SMT-LIBv2 linearizing: ", e2save, "");
+      FatalAssert(e2.arity() > 1, "Unary MULT not permitted here");
+      // combine constants to form a linear term
+      Expr trm;// the singular, non-constant term in the MULT
+      Rational constCoef = 1;// constant coefficient
+      bool realConst = false;
+      bool trmFirst = false;
+      for(int i = 0; i < e2.arity(); ++i) {
+        Expr x = e2[i];
+        if(x.getKind() == REAL_CONST) {
+          x = x[0];
+          realConst = true;
+          DebugAssert(x.isRational(), "unexpected REAL_CONST-wrapped kind");
+        }
+        if(x.isRational()) {
+          constCoef *= x.getRational();
+        } else {
+          FatalAssert(trm.isNull(), "translating with LINEAR restriction, but found > 1 non-constant under MULT");
+          trm = x;
+          trmFirst = (i == 0);
+        }
+      }
+
+      // First, do no harm: if it was a binary MULT already in correct shape
+      // for SMT-LIBv2 linear logics, use it.
+      if( !( e2.arity() == 2 && !trm.isNull() &&
+             (trm.isApply() || trm.getKind() == READ || trm.isVar()) ) ) {
+        // Otherwise, there are several cases, enumerated below.
+
+        Expr coef = d_em->newRatExpr(constCoef);
+        if(realConst) {
+          // if any part of the coefficient was wrapped with REAL_CONST to
+          // force printing as a real (e.g. "1.0"), then wrap the combined
+          // coefficient
+          coef = Expr(REAL_CONST, coef);
+        }
+
+        if(trm.isNull()) {
+          // Case 1: entirely constant; the mult goes away
+          TRACE("smtlib2-linear", "(1) constant", "", "");
+          e2 = coef;
+        } else if(constCoef == 1) {
+          // Case 2: unit coefficient; the mult goes away
+          TRACE("smtlib2-linear", "(2) unit coefficient: ", trm, "");
+          e2 = trm;
+        } else if(trm.getKind() == PLUS || trm.getKind() == MINUS) {
+          // Case 3: have to distribute the MULT over PLUS/MINUS
+          TRACE("smtlib2-linear", "(3) mult over plus/minus: ", trm, "");
+          vector<Expr> kids;
+          for(int i = 0; i < trm.arity(); ++i) {
+            Expr trmi(MULT, coef, trm[i]);
+            trmi = preprocess2Rec(trmi, cache, desiredType);
+            kids.push_back(trmi);
+          }
+          e2 = Expr(trm.getKind(), kids);
+        } else if(trm.getKind() == MULT) {
+          // Case 4: have to distribute MULT over MULT
+          TRACE("smtlib2-linear", "(4) mult over mult: ", trm, "");
+          vector<Expr> kids;
+          kids.push_back(coef);
+          for(int i = 0; i < trm.arity(); ++i) {
+            kids.push_back(trm[i]);
+          }
+          e2 = Expr(MULT, kids);
+          e2 = preprocess2Rec(e2, cache, desiredType);
+        } else if(trm.getKind() == ITE) {
+          // Case 5: have to distribute MULT over ITE
+          TRACE("smtlib2-linear", "(5) mult over ite: ", trm, "");
+          Expr thn = Expr(MULT, coef, trm[1]);
+          Expr els = Expr(MULT, coef, trm[2]);
+          thn = preprocess2Rec(thn, cache, desiredType);
+          els = preprocess2Rec(els, cache, desiredType);
+          e2 = Expr(ITE, trm[0], thn, els);
+        } else {
+          // Default case: 
+          TRACE("smtlib2-linear", "(*) coef, trm: ", coef, trm);
+          // don't change order if not necessary (makes it easier to inspect the translation)
+          if(trmFirst) {
+            e2 = Expr(MULT, trm, coef);
+          } else {
+            e2 = Expr(MULT, coef, trm);
+          }
+          FatalAssert(trm.isVar(), string("translating with LINEAR restriction, but found malformed MULT over term that's not a free constant: ") + e2.toString());
+        }
+      } else {
+        TRACE("smtlib2-linear", "(x) no handling necessary: ", trm, "");
+      }
+      TRACE("smtlib2-linear", "SMT-LIBv2 linearized: ", e2save, "");
+      TRACE("smtlib2-linear", "                into: ", e2, "");
+    }
+  }
+
   if (!desiredType.isNull() && e2.getType() != desiredType) {
-    d_unknown = true;
-    throw SmtlibException("Type error: expected "+
-                          desiredType.getExpr().toString()+
-                          " but instead got "+
-                          e2.getType().getExpr().toString()+
-                          "\n\nwhile processing term:\n"+
-                          e.toString());
+    if(isInt(e2.getType()) && isReal(desiredType) && !d_intUsed) {
+      // the implicit cast is ok here
+    } else {
+      d_unknown = true;
+      throw SmtlibException("Type error: expected "+
+                            desiredType.getExpr().toString()+
+                            " but instead got "+
+                            e2.getType().getExpr().toString()+
+                            "\n\nwhile processing term:\n"+
+                            e.toString());
+    }
   }
 
   cache[e] = e2;
@@ -725,7 +844,7 @@ Translator::~Translator()
 
 bool Translator::start(const string& dumpFile)
 {
-  if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
+  if (d_translate && (d_em->getOutputLang() == SMTLIB_LANG)) {
     d_dump = true;
     if (dumpFile == "") {
       d_osdump = &cout;
@@ -739,9 +858,7 @@ bool Translator::start(const string& dumpFile)
         d_osdump = &d_osdumpFile;
       }
     }
-    *d_osdump <<
-      "(benchmark " << fileToSMTLIBIdentifier(dumpFile) << endl <<
-      "  :source {" << endl;
+
     string tmpName;
     string::size_type pos = dumpFile.rfind("/");
     if (pos == string::npos) {
@@ -751,24 +868,51 @@ bool Translator::start(const string& dumpFile)
       tmpName = dumpFile.substr(0,pos+1) + "README";
     }
     d_tmpFile.open(tmpName.c_str());
-    char c;
-    if (d_tmpFile.is_open()) {
-      d_tmpFile.get(c);
-      while (!d_tmpFile.eof()) {
-        if (c == '{' || c == '}') *d_osdump << '\\';
-        *d_osdump << c;
+
+      *d_osdump << "(benchmark " << fileToSMTLIBIdentifier(dumpFile) << endl
+          << "  :source {" << endl;
+
+      char c;
+      if (d_tmpFile.is_open()) {
         d_tmpFile.get(c);
+        while (!d_tmpFile.eof()) {
+          if ( c == '{' || c == '}' ) {
+            *d_osdump << '\\';
+          }
+          *d_osdump << c;
+          d_tmpFile.get(c);
+        }
       }
-      d_tmpFile.close();
+      else {
+        *d_osdump << "Source unknown";
+      }
+      *d_osdump << endl;
+
+      *d_osdump << "}" << endl;
+
+    d_tmpFile.close();
+  }
+  else if (d_translate && d_em->getOutputLang() == SPASS_LANG) {
+    d_dump = true;
+    if (dumpFile == "") {
+      d_osdump = &cout;
     }
     else {
-      *d_osdump << "Source unknown";
+      d_osdumpFile.open(dumpFile.c_str());
+      if(!d_osdumpFile)
+        throw Exception("cannot open a log file: "+dumpFile);
+      else {
+        d_dumpFileOpen = true;
+        d_osdump = &d_osdumpFile;
+      }
     }
-    *d_osdump << endl;// <<
-    //        "This benchmark was automatically translated into SMT-LIB format from" << endl <<
-    //        "CVC format using CVC3" << endl;
-    *d_osdump << "}" << endl;
 
+    *d_osdump << "begin_problem(Unknown). " << endl;
+    *d_osdump << endl;
+    *d_osdump << "list_of_descriptions. " << endl;
+    *d_osdump << "name({* " <<  fileToSMTLIBIdentifier(dumpFile) << " *}). " << endl;
+    *d_osdump << "author({* CVC2SPASS translator *})." << endl;
+    //end of SPASS
   }
   else {
     if (dumpFile == "") {
@@ -806,26 +950,19 @@ void Translator::dump(const Expr& e, bool dumpOnly)
         }
         Expr funType = Expr(ARROW, e[1][0], e[1][1]);
         Expr outExpr = Expr(CONST, e[0], funType);
-        if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
-          d_dumpExprs.push_back(outExpr);
-        }
-        else {
-          *d_osdump << outExpr << endl;
-        }
+        d_dumpExprs.push_back(outExpr);
       }
       else if (containsArray(e[1])) {
         throw Exception("convertArray failed becauase of use of arrays in"+
                         e[1].toString());
       }
-      else if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
+      else {
         d_dumpExprs.push_back(e);
       }
-      else *d_osdump << e << endl;
     }
-    else if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
+    else {
       d_dumpExprs.push_back(e);
     }
-    else *d_osdump << e << endl;
   }
 }
 
@@ -833,12 +970,7 @@ void Translator::dump(const Expr& e, bool dumpOnly)
 bool Translator::dumpAssertion(const Expr& e)
 {
   Expr outExpr = Expr(ASSERT, e);
-  if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
-    d_dumpExprs.push_back(outExpr);
-  }
-  else {
-    *d_osdump << outExpr << endl;
-  }
+  d_dumpExprs.push_back(outExpr);
   return d_translate;
 }
 
@@ -846,33 +978,86 @@ bool Translator::dumpAssertion(const Expr& e)
 bool Translator::dumpQuery(const Expr& e)
 {
   Expr outExpr = Expr(QUERY, e);
-  if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
-    d_dumpExprs.push_back(outExpr);
-  }
-  else {
-    *d_osdump << outExpr << endl;
-  }
+  d_dumpExprs.push_back(outExpr);
   return d_translate;
 }
 
 
 void Translator::dumpQueryResult(QueryResult qres)
 {
-  if(d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
+  if( d_translate && d_em->getOutputLang() == SMTLIB_LANG ) {
     *d_osdump << "  :status ";
-    switch (qres) {
-      case UNSATISFIABLE:
-        *d_osdump << "unsat" << endl;
-        break;
-      case SATISFIABLE:
-        *d_osdump << "sat" << endl;
-        break;
-      default:
-        *d_osdump << "unknown" << endl;
-        break;
+    switch( qres ) {
+    case UNSATISFIABLE:
+      *d_osdump << "unsat" << endl;
+      break;
+    case SATISFIABLE:
+      *d_osdump << "sat" << endl;
+      break;
+    default:
+      *d_osdump << "unknown" << endl;
+      break;
     }
+  } else if( d_translate && d_em->getOutputLang() == SMTLIB_V2_LANG ) {
+    *d_osdump << "(set-info :status ";
+    switch( qres ) {
+    case UNSATISFIABLE:
+      *d_osdump << "unsat";
+      break;
+    case SATISFIABLE:
+      *d_osdump << "sat";
+      break;
+    default:
+      *d_osdump << "unknown";
+      break;
+    }
+    *d_osdump << ")" << endl;
+  } else if( d_translate && d_em->getOutputLang() == SPASS_LANG ) {
+    *d_osdump << "status(";
+    switch( qres ) {
+    case UNSATISFIABLE:
+      *d_osdump << "unsatisfiable";
+      break;
+    case SATISFIABLE:
+      *d_osdump << "satisfiable";
+      break;
+    default:
+      *d_osdump << "unknown";
+      break;
+    }
+    *d_osdump << ")." << endl;
   }
 }
+
+
+/*
+Expr Translator::spassPreprocess(const Expr& e, ExprMap<Expr>& mapping,
+                                 vector<Expr>& functions,
+                                 vector<Expr>& predicates)
+{
+  if(e.getKind() == LET) {
+    if(e.arity() != 2) {
+      throw SmtlibException("Translator::spassPreprocess(): LET with arity != 2 not supported");
+    }
+    char name[80];
+    snprintf(name, sizeof(name), "_cvc3_let%u", mapping.size());
+    Expr id(ID, d_em->newStringExpr(name));
+    cout << "ENCOUNTERED A LET:" << endl << id << endl;
+    mapping.insert(e[0][0], e[0][1]);
+    functions.push_back(Expr(CONST, id, e[1].getType().getExpr()));
+    return spassPreprocess(e[1], mapping, functions, predicates);
+  //} else if(e.getKind() == x) {
+  } else if(e.arity() > 0) {
+    vector<Expr> args;
+    for(int i = 0, iend = e.arity(); i < iend; ++i) {
+      args.push_back(spassPreprocess(e[i], mapping, functions, predicates));
+    }
+    Expr out(e.getOp(), args);
+    return out;
+  }
+  return e;
+}
+*/
 
 
 Expr Translator::processType(const Expr& e)
@@ -959,126 +1144,296 @@ Expr Translator::processType(const Expr& e)
 
 void Translator::finish()
 {
-  if (d_translate && d_em->getOutputLang() == SMTLIB_LANG) {
+  bool qf_uf = false;
 
-    // Print the rest of the preamble for smt-lib benchmarks
+  if (d_translate) {
 
-    // Get status from expResult flag
-    *d_osdump << "  :status ";
-    if (d_expResult == "invalid" ||
-        d_expResult == "satisfiable")
-      *d_osdump << "sat";
-    else if (d_expResult == "valid" ||
-             d_expResult == "unsatisfiable")
-      *d_osdump << "unsat";
-    else *d_osdump << "unknown";
-    *d_osdump << endl;
+    if (d_em->getOutputLang() == SPASS_LANG) {
+      *d_osdump << "status(";
+      if (d_expResult == "invalid" ||
+          d_expResult == "satisfiable" ||
+          d_expResult == "sat")
+        *d_osdump << "satisfiable";
+      else if (d_expResult == "valid" ||
+               d_expResult == "unsatisfiable" ||
+               d_expResult == "unsat")
+        *d_osdump << "unsatisfiable";
+      else if (d_expResult != "")
+        *d_osdump << "unknown";
+      else if (status() == "invalid" ||
+               status() == "satisfiable" ||
+               status() == "sat")
+        *d_osdump << "satisfiable";
+      else if (status() == "valid" ||
+               status() == "unsatisfiable" ||
+               status() == "unsat")
+        *d_osdump << "unsatisfiable";
+      else *d_osdump << "unknown";
+      *d_osdump << ")." << endl;
+      *d_osdump << "description({* Unknown *})." << endl;
+      *d_osdump << "end_of_list." << endl;
 
-    // difficulty
-    *d_osdump << "  :difficulty { unknown }" << endl;
+      vector<Expr> functions, predicates, sorts;
 
-    // category
-    *d_osdump << "  :category { ";
-    *d_osdump << d_category << " }" << endl;
-
-    // Create types for theory QF_AX if needed
-    if (d_theoryCore->getFlags()["convert2array"].getBool()) {
-      d_indexType = new Type(d_theoryCore->newTypeExpr("Index"));
-      d_elementType = new Type(d_theoryCore->newTypeExpr("Element"));
-      d_arrayType = new Type(arrayType(*d_indexType, *d_elementType));
-    }
-
-    // Compute logic for smt-lib
-    bool qf_uf = false;
-    {
-      {
-        ExprMap<Expr> cache;
-        // Step 1: preprocess asserts, queries, and types
-        vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
-        for (; i != iend; ++i) {
-          Expr e = *i;
-          switch (e.getKind()) {
-            case ASSERT: {
-              Expr e2 = preprocess(e[0], cache);
-              if (e[0] == e2) break;
-              e2.getType();
-              *i = Expr(ASSERT, e2);
-              break;
+      for(vector<Expr>::reverse_iterator i = d_dumpExprs.rbegin(), iend = d_dumpExprs.rend(); i != iend; ++i) {
+        Expr e = *i;
+        switch(e.getKind()) {
+        case TYPE:
+          sorts.push_back(e);
+          d_dumpExprs.erase(i.base() - 1);
+          break;
+        case CONST:
+          if(e.arity() == 2) {
+            if (e[1].getKind() == BOOLEAN ||
+                (e[1].getKind() == ARROW && e[1][e[1].arity()-1].getKind() == BOOLEAN)) {
+              predicates.push_back(e);
+            } else {
+              functions.push_back(e);
             }
-            case QUERY: {
-              Expr e2 = preprocess(e[0].negate(), cache);
-              if (e[0].negate() == e2) break;
-              e2.getType();
-              *i = Expr(QUERY, e2.negate());
-              break;
-            }
-            case CONST: {
-              DebugAssert(e.arity() == 2, "Expected CONST with arity 2");
-              if (d_theoryCore->getFlags()["convert2array"].getBool()) break;
-              Expr e2 = processType(e[1]);
-              if (e[1] == e2) break;
-              if (d_convertToBV) {
-                Expr newName = Expr(ID, d_em->newStringExpr(e[0][0].getString()+"_bv"));
-                *i = Expr(CONST, newName, e2);
-              }
-              else {
-                *i = Expr(CONST, e[0], e2);
-              }
-              break;
-            }
-            default:
-              break;
+            d_dumpExprs.erase(i.base() - 1);
+          } else {
+            throw SmtlibException("Translator::finish: SPASS_LANG: CONST not implemented for arity != 2");
           }
+          break;
+        case ANNOTATION:
+          if (d_theoryCore->getFlags()["trans-skip-difficulty"].getBool() &&
+              e[0].getKind() == STRING_EXPR && e[0].getString() == "difficulty") {
+            // do nothing; skip the difficulty annotation
+          } else {
+            *d_osdump << "%% ";
+            *d_osdump << e[0];
+            if (e.arity() > 1) {
+              *d_osdump << ": " << e[1];
+            }
+          }
+          d_dumpExprs.erase(i.base() - 1);
+          break;
+
+          /*
+        case ASSERT:
+        case QUERY: {
+          ExprMap<Expr> m;
+          *i = Expr(e.getKind(), spassPreprocess(e[0], m, functions, predicates));
+          break;
+        }
+          */
+
+        default:
+          //*d_osdump << "DOING NOTHING FOR: " << e << endl;
+          break;
         }
       }
 
-      if (d_zeroVar) {
-        d_dumpExprs.insert(d_dumpExprs.begin(),
-                           Expr(CONST, Expr(ID, d_em->newStringExpr("cvc3Zero")),
-                                processType(d_zeroVar->getType().getExpr())));
+      // add some built-ins for the translation
+      // only arity matters for SPASS; the real type of _cvc3_ite is Bool -> 'a -> 'a -> 'a
+      //Expr cvc3ite(CONST, Expr(ID, d_em->newStringExpr("_cvc3_ite")),
+      //Expr(ARROW, vector<Expr>(4, d_theoryArith->intType().getExpr())));
+      // only arity matters for SPASS; the real type of _cvc3_xor is
+      // Bool -> Bool -> Bool, but we can't represent Bool-arg'ed
+      // functions
+      /*
+      Expr cvc3xor(CONST, Expr(ID, d_em->newStringExpr("_cvc3_xor")),
+                   Expr(ARROW, vector<Expr>(2, d_theoryArith->intType().getExpr())));
+      //functions.push_back(cvc3ite);
+      predicates.push_back(cvc3xor);
+      */
+
+      *d_osdump << endl;
+      *d_osdump << "list_of_symbols." << endl;
+      if(!functions.empty()) {
+        *d_osdump << "functions[";
+        vector<Expr>::reverse_iterator i = functions.rbegin(), iend = functions.rend();
+        while(i != iend) {
+          Expr e = *i;
+          string name = e[0][0].getString();
+          if(isReal(d_theoryCore->getBaseType(Type(e[1])))) {
+            // SPASS guys want "np" prefix on arith vars
+            name = "np" + name;
+          }
+          *d_osdump << "(" << name << "," << ( e[1].getKind() == ARROW ? e[1].arity()-1 : e[1].arity() ) << ")";
+          if(++i != iend) {
+            *d_osdump << ",";
+          }
+        }
+        *d_osdump << "]." << endl;
+      }
+      if(!predicates.empty()) {
+        *d_osdump << "predicates[";
+        vector<Expr>::reverse_iterator i = predicates.rbegin(), iend = predicates.rend();
+        while(i != iend) {
+          Expr e = *i;
+          *d_osdump << "(" << e[0][0].getString() << "," << e[1].arity() << ")";
+          if(++i != iend) {
+            *d_osdump << ",";
+          }
+        }
+        *d_osdump << "]." << endl;
+      }
+      if(!sorts.empty()) {
+        *d_osdump << "sorts[";
+        vector<Expr>::reverse_iterator i = sorts.rbegin(), iend = sorts.rend();
+        while(i != iend) {
+          Expr e = *i;
+          *d_osdump << e[0][0].getString();
+          if(++i != iend) {
+            *d_osdump << ",";
+          }
+        }
+        *d_osdump << "]." << endl;
+      }
+      *d_osdump << "end_of_list." << endl;
+
+      /*
+      *d_osdump << endl;
+      *d_osdump << "list_of_declarations." << endl;
+      *d_osdump << "end_of_list." << endl;
+      */
+
+      // define an ITE operator for the translation
+      /*
+      *d_osdump << endl;
+      *d_osdump << "list_of_formulae(axioms)." << endl;
+      *d_osdump << "formula( forall([A,B],equiv(_cvc3_xor(A,B),not(equal(A,B)))) )." << endl;
+      // *d_osdump << "formula(forall([A,B],equal(_cvc3_ite(\ntrue\n,A,B),A)))." << endl;
+      // *d_osdump << "formula(forall([A,B],equal(_cvc3_ite(\nfalse\n,A,B),B)))." << endl;
+      *d_osdump << "end_of_list." << endl;
+      */
+
+      *d_osdump << endl;
+      *d_osdump << "list_of_formulae(conjectures)." << endl;
+    }
+
+    if (d_em->getOutputLang() == SMTLIB_LANG) {
+      // Print the rest of the preamble for smt-lib benchmarks
+
+      // Get status from expResult flag
+      *d_osdump << "  :status ";
+      if (d_expResult == "invalid" ||
+          d_expResult == "satisfiable")
+        *d_osdump << "sat";
+      else if (d_expResult == "valid" ||
+               d_expResult == "unsatisfiable")
+        *d_osdump << "unsat";
+      else if (status() != "") {
+        *d_osdump << status();
+      }
+      else *d_osdump << "unknown";
+      *d_osdump << endl;
+
+      // difficulty
+      //      *d_osdump << "  :difficulty { unknown }" << endl;
+
+      // category
+      if (category() != "") {
+        *d_osdump << "  :category { ";
+        *d_osdump << category() << " }" << endl;
       }
 
-      // Type inference over equality
-      if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
-        bool changed;
-        do {
-          changed = false;
-          unsigned i;
-          for (i = 0; i < d_equalities.size(); ++i) {
-            if (d_equalities[i][0].getKind() == UCONST &&
-                d_arrayConvertMap->find(d_equalities[i][0].getName()) == d_arrayConvertMap->end()) {
-              if (d_equalities[i][1].getKind() == READ) {
-                changed = true;
-                (*d_arrayConvertMap)[d_equalities[i][0].getName()] = *d_elementType;
-              }
-              else if (d_equalities[i][1].getKind() == UCONST) {
-                map<string, Type>::iterator it = d_arrayConvertMap->find(d_equalities[i][1].getName());
-                if (it != d_arrayConvertMap->end()) {
-                  changed = true;
-                  (*d_arrayConvertMap)[d_equalities[i][0].getName()] = (*it).second;
-                }
-              }
+      // Create types for theory QF_AX if needed
+      if (d_theoryCore->getFlags()["convert2array"].getBool()) {
+        d_indexType = new Type(d_theoryCore->newTypeExpr("Index"));
+        d_elementType = new Type(d_theoryCore->newTypeExpr("Element"));
+        d_arrayType = new Type(arrayType(*d_indexType, *d_elementType));
+      }
+    }
+
+    // Preprocess and compute logic for smt-lib
+
+    if (!d_theoryCore->getFlags()["trans-skip-pp"].getBool())
+    {
+      ExprMap<Expr> cache;
+      // Step 1: preprocess asserts, queries, and types
+      vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
+      for (; i != iend; ++i) {
+        Expr e = *i;
+        switch (e.getKind()) {
+          case ASSERT: {
+            Expr e2 = preprocess(e[0], cache);
+            if (e[0] == e2) break;
+            e2.getType();
+            *i = Expr(ASSERT, e2);
+            break;
+          }
+          case QUERY: {
+            Expr e2 = preprocess(e[0].negate(), cache);
+            if (e[0].negate() == e2) break;
+            e2.getType();
+            *i = Expr(QUERY, e2.negate());
+            break;
+          }
+          case CONST: {
+            DebugAssert(e.arity() == 2, "Expected CONST with arity 2");
+            if (d_theoryCore->getFlags()["convert2array"].getBool()) break;
+            Expr e2 = processType(e[1]);
+            if (e[1] == e2) break;
+            if (d_convertToBV) {
+              Expr newName = Expr(ID, d_em->newStringExpr(e[0][0].getString()+"_bv"));
+              *i = Expr(CONST, newName, e2);
             }
-            else if (d_equalities[i][1].getKind() == UCONST &&
-                     d_arrayConvertMap->find(d_equalities[i][1].getName()) == d_arrayConvertMap->end()) {
-              if (d_equalities[i][0].getKind() == READ) {
+            else {
+              *i = Expr(CONST, e[0], e2);
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      }
+    }
+
+    if (d_zeroVar) {
+      d_dumpExprs.insert(d_dumpExprs.begin(),
+                         Expr(CONST, Expr(ID, d_em->newStringExpr("cvc3Zero")),
+                              processType(d_zeroVar->getType().getExpr())));
+    }
+
+    // Type inference over equality
+    if (!d_unknown && d_theoryCore->getFlags()["convert2array"].getBool()) {
+      bool changed;
+      do {
+        changed = false;
+        unsigned i;
+        for (i = 0; i < d_equalities.size(); ++i) {
+          if (d_equalities[i][0].getKind() == UCONST &&
+              d_arrayConvertMap->find(d_equalities[i][0].getName()) == d_arrayConvertMap->end()) {
+            if (d_equalities[i][1].getKind() == READ) {
+              changed = true;
+              (*d_arrayConvertMap)[d_equalities[i][0].getName()] = *d_elementType;
+            }
+            else if (d_equalities[i][1].getKind() == UCONST) {
+              map<string, Type>::iterator it = d_arrayConvertMap->find(d_equalities[i][1].getName());
+              if (it != d_arrayConvertMap->end()) {
                 changed = true;
-                (*d_arrayConvertMap)[d_equalities[i][1].getName()] = *d_elementType;
-              }
-              else if (d_equalities[i][0].getKind() == UCONST) {
-                map<string, Type>::iterator it = d_arrayConvertMap->find(d_equalities[i][0].getName());
-                if (it != d_arrayConvertMap->end()) {
-                  changed = true;
-                  (*d_arrayConvertMap)[d_equalities[i][1].getName()] = (*it).second;
-                }
+                (*d_arrayConvertMap)[d_equalities[i][0].getName()] = (*it).second;
               }
             }
           }
-        } while (changed);
-      }
+          else if (d_equalities[i][1].getKind() == UCONST &&
+                   d_arrayConvertMap->find(d_equalities[i][1].getName()) == d_arrayConvertMap->end()) {
+            if (d_equalities[i][0].getKind() == READ) {
+              changed = true;
+              (*d_arrayConvertMap)[d_equalities[i][1].getName()] = *d_elementType;
+            }
+            else if (d_equalities[i][0].getKind() == UCONST) {
+              map<string, Type>::iterator it = d_arrayConvertMap->find(d_equalities[i][0].getName());
+              if (it != d_arrayConvertMap->end()) {
+                changed = true;
+                (*d_arrayConvertMap)[d_equalities[i][1].getName()] = (*it).second;
+              }
+            }
+          }
+        }
+      } while (changed);
+    }
+
+    if (d_em->getOutputLang() == SMTLIB_LANG ||
+        d_em->getOutputLang() == SMTLIB_V2_LANG) {
 
       // Step 2: If both int and real are used, try to separate them
-      if ((!d_unknown && (d_intUsed && d_realUsed)) || (d_theoryCore->getFlags()["convert2array"].getBool())) {
+      if ((!d_unknown && (d_intUsed && d_realUsed)) ||
+          d_theoryCore->getFlags()["convert2array"].getBool() ||
+          ( d_em->getOutputLang() == SMTLIB_V2_LANG &&
+            d_langUsed > NOT_USED && d_langUsed <= LINEAR )) {
         ExprMap<Expr> cache;
         vector<Expr>::iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
         for (; i != iend; ++i) {
@@ -1119,7 +1474,12 @@ void Translator::finish()
       d_arithUsed = d_realUsed || d_intUsed || d_intConstUsed || (d_langUsed != NOT_USED);
 
       // Step 3: Go through the cases and figure out the right logic
-      *d_osdump << "  :logic ";
+      if (d_em->getOutputLang() == SMTLIB_LANG) {
+        *d_osdump << "  :logic ";
+      }
+      else {// d_em->getOutputLang() == SMTLIB_V2_LANG
+        *d_osdump << "(set-logic ";
+      }
       if (d_unknown ||
           d_theoryRecords->theoryUsed() ||
           d_theorySimulate->theoryUsed() ||
@@ -1138,6 +1498,7 @@ void Translator::finish()
           bool QF = false;
           bool A = false;
           bool UF = false;
+          bool promote = d_theoryCore->getFlags()["promote"].getBool();
 
           if (!d_theoryQuant->theoryUsed()) {
             QF = true;
@@ -1150,10 +1511,13 @@ void Translator::finish()
           }
 
           // Promote undefined subset logics
-//           else if (!QF && !d_theoryBitvector->theoryUsed()) {
-//             A = true;
-//             *d_osdump << "A";
-//           }
+          else if (promote &&
+                   !QF &&
+                   !(d_arithUsed && d_realUsed && !d_intUsed && d_langUsed <= LINEAR) &&
+                   !(d_arithUsed && !d_realUsed && d_intUsed && d_langUsed == NONLINEAR)) {
+            A = true;
+            *d_osdump << "A";
+          }
 
           if (d_theoryUF->theoryUsed() ||
               (d_theoryArray->theoryUsed() && d_convertArray)) {
@@ -1162,11 +1526,12 @@ void Translator::finish()
           }
 
           // Promote undefined subset logics
-//           else if (!QF &&
-//                    !d_theoryBitvector->theoryUsed()) {
-//             UF = true;
-//             *d_osdump << "UF";
-//           }
+            else if (promote &&
+                     !QF &&
+                     !(d_arithUsed && d_realUsed && !d_intUsed && d_langUsed <= LINEAR)) {
+              UF = true;
+              *d_osdump << "UF";
+            }
 
           if (d_arithUsed) {
             if (d_intUsed && d_realUsed) {
@@ -1179,27 +1544,21 @@ void Translator::finish()
               if (d_langUsed <= DIFF_ONLY) {
 
                 // Promote undefined subset logics
-//                 if (!QF) {
-//                   *d_osdump << "LIRA";
-//                 } else
+                 if (promote && !QF) {
+                   *d_osdump << "LRA";
+                 } else
 
                   *d_osdump << "RDL";
               }
               else if (d_langUsed <= LINEAR) {
-
-                // Promote undefined subset logics
-//                 if (!QF) {
-//                   *d_osdump << "LIRA";
-//                 } else
-
                   *d_osdump << "LRA";
               }
               else {
 
                 // Promote undefined subset logics
-//                 if (!QF) {
-//                   *d_osdump << "NIRA";
-//                 } else
+                 if (promote && !QF) {
+                   *d_osdump << "NIRA";
+                 } else
 
                   *d_osdump << "NRA";
               }
@@ -1216,7 +1575,7 @@ void Translator::finish()
               else if (d_langUsed <= DIFF_ONLY) {
 
                 // Promote undefined subset logics
-                if (!QF) {
+                if (promote && !QF) {
                   *d_osdump << "LIA";
                 }
                 else if (A) {
@@ -1232,10 +1591,10 @@ void Translator::finish()
               else if (d_langUsed <= LINEAR) {
 
                 // Promote undefined subset logics
-//                 if (QF && A && !UF) {
-//                   UF = true;
-//                   *d_osdump << "UF";
-//                 }
+                 if (promote && QF && A && !UF) {
+                   UF = true;
+                   *d_osdump << "UF";
+                 }
 
                 if (QF && !A && (!d_realUsed && d_langUsed <= LINEAR && d_UFIDL_ok)) {
                   *d_osdump << "UFIDL";
@@ -1245,12 +1604,6 @@ void Translator::finish()
                 }
               }
               else {
-
-                // Promote undefined subset logics
-//                 if (!QF) {
-//                   *d_osdump << "NIRA";
-//                 } else
-
                   *d_osdump << "NIA";
               }
             }
@@ -1258,12 +1611,12 @@ void Translator::finish()
           else if (d_theoryBitvector->theoryUsed()) {
 
             // Promote undefined subset logics
-            if (A && QF && !UF) {
+            if (promote && A && QF && !UF) {
               UF = true;
               *d_osdump << "UF";
             }
 
-            *d_osdump << "BV";//[" << d_theoryBitvector->getMaxSize() << "]";
+            *d_osdump << "BV";
           }
           else {
 
@@ -1272,7 +1625,7 @@ void Translator::finish()
             }
 
             // Promote undefined subset logics
-            else if (!QF || (A && UF)) {
+            else if (promote && (!QF || (A && UF))) {
               *d_osdump << "LIA";
             } else {
 
@@ -1286,13 +1639,67 @@ void Translator::finish()
           }
         }
       }
+      if (d_em->getOutputLang() == SMTLIB_V2_LANG) {
+        *d_osdump << ")";
+      }
+      *d_osdump << endl;
     }
-    *d_osdump << endl;
 
+    if (d_em->getOutputLang() == SMTLIB_V2_LANG) {
+      // Print the rest of the set-info commands
+
+      if (source() != "") {
+        *d_osdump << "(set-info :source "
+                  << quoteAnnotation(source())
+                  << ')' << endl;
+      }
+
+      *d_osdump << "(set-info :smt-lib-version 2.0)" << endl;
+
+      // Remove leading and trailing spaces from category
+      string c = category();
+      size_t i = 0, j = c.size();
+      while (c[i] == ' ') {
+        ++i; --j;
+      }
+      while (j > 0 && c[i+j-1] == ' ') --j;
+      if (j > 0) {
+        c = c.substr(i,j);
+        *d_osdump << "(set-info :category \"" << c << "\")" << endl;
+      }
+
+//       if (benchName() != "") {
+//         *d_osdump << "(set-info :name \"" << benchName() << "\")" << endl;
+//       }
+
+      // Get status from expResult flag
+      *d_osdump << "(set-info :status ";
+      if (d_expResult == "invalid" ||
+          d_expResult == "satisfiable")
+        *d_osdump << "sat";
+      else if (d_expResult == "valid" ||
+               d_expResult == "unsatisfiable")
+        *d_osdump << "unsat";
+      else if (status() != "") {
+        *d_osdump << status();
+      }
+      else *d_osdump << "unknown";
+      *d_osdump << ")" << endl;
+
+      // Create types for theory QF_AX if needed
+      if (d_theoryCore->getFlags()["convert2array"].getBool()) {
+        d_indexType = new Type(d_theoryCore->newTypeExpr("Index"));
+        d_elementType = new Type(d_theoryCore->newTypeExpr("Element"));
+        d_arrayType = new Type(arrayType(*d_indexType, *d_elementType));
+      }
+    }
+  }
+
+  if (d_dump) {
     // Dump the actual expressions
-
     vector<Expr>::const_iterator i = d_dumpExprs.begin(), iend = d_dumpExprs.end();
     vector<Expr> assumps;
+    bool skip_diff = d_theoryCore->getFlags()["trans-skip-difficulty"].getBool();
     for (; i != iend; ++i) {
       Expr e = *i;
       switch (e.getKind()) {
@@ -1301,33 +1708,80 @@ void Translator::finish()
             assumps.push_back(e[0]);
           }
           else {
-            *d_osdump << "  :assumption" << endl;
-            *d_osdump << e[0] << endl;
+            *d_osdump << e << endl;
           }
           break;
         }
         case QUERY: {
-          *d_osdump << "  :formula" << endl;
           if (!assumps.empty()) {
             assumps.push_back(e[0].negate());
-            e = Expr(AND, assumps);
-            *d_osdump << e << endl;
+            e = Expr(QUERY, Expr(NOT, Expr(AND, assumps)));
           }
-          else {
-            *d_osdump << e[0].negate() << endl;
-          }
+          *d_osdump << e << endl;
           break;
         }
         default:
-          if (qf_uf && e.getKind() == TYPE && e[0].getKind() == RAW_LIST &&
+          if (d_em->getOutputLang() == SMTLIB_LANG &&
+              qf_uf && e.getKind() == TYPE && e[0].getKind() == RAW_LIST &&
               e[0][0].getKind() == ID && e[0][0][0].getKind() == STRING_EXPR &&
               e[0][0][0].getString() == "U")
             break;
+          if (d_em->getOutputLang() == SMTLIB_LANG &&
+              d_ax && e.getKind() == TYPE && e[0].getKind() == RAW_LIST &&
+              e[0][0].getKind() == ID && e[0][0][0].getKind() == STRING_EXPR &&
+              ( e[0][0][0].getString() == "Index" ||
+                e[0][0][0].getString() == "Element" ))
+            break;
+          if (skip_diff && e.getKind() == ANNOTATION && e[0].getKind() == STRING_EXPR &&
+              e[0].getString() == "difficulty")
+            break;
+          if (d_em->getOutputLang() == SMTLIB_V2_LANG &&
+              (e.getKind() == CONST && e[0].getKind() == ID) &&
+              (d_realUsed || d_intUsed)) {
+            if (e[0][0].getString() == "abs") {
+              // [MGD] Some benchmarks define their own abs, but we have to
+              // rename it in the benchmark becuase in SMTLIBv2 the Reals and
+              // Ints and Reals_Ints theories define abs.
+              d_replaceSymbols["abs"] = "abs_";
+            } else if (e[0][0].getString() == "mod") {
+              // ditto for mod
+              d_replaceSymbols["mod"] = "mod_";
+            }
+          }
           *d_osdump << e << endl;
           break;
       }
     }
-    *d_osdump << ")" << endl;
+  }
+  if (d_translate) {
+    if (d_em->getOutputLang() == SMTLIB_LANG) {
+      *d_osdump << ")" << endl;
+    }
+    else if (d_em->getOutputLang() == SMTLIB_V2_LANG) {
+      *d_osdump << "(exit)" << endl;
+    }
+
+    if (d_em->getOutputLang() == SPASS_LANG) {
+      *d_osdump << "end_of_list." << endl;
+      *d_osdump << endl;
+      *d_osdump << "list_of_settings(SPASS)." << endl
+                << "{*" << endl
+                << "set_flag(Auto,1).    % auto configuration" << endl
+                << "set_flag(Splits,-1). % enable Splitting" << endl
+                << "set_flag(RVAA,1).    % enable variable assignment abstraction for LA" << endl
+                << "set_flag(RInput,0).  % no input reduction" << endl
+                << "set_flag(Sorts,0).   % no Sorts" << endl
+                << "set_flag(ISHy,0).    % no Hyper Resolution" << endl
+                << "set_flag(IOHy,0).    % no Hyper Resolution" << endl
+                << "set_flag(RTer,0).    % no Terminator" << endl
+                << "set_flag(RCon,0).    % no Condensation" << endl
+                << "set_flag(RFRew,1).   % no Contextual Rewriting" << endl
+                << "set_flag(RBRew,1).   % no Contextual Rewriting" << endl
+                << "*}" << endl
+                << "end_of_list." << endl;
+      *d_osdump << endl;
+      *d_osdump << "end_problem." << endl;
+    }
   }
 
   if (d_dumpFileOpen) d_osdumpFile.close();
@@ -1342,7 +1796,42 @@ const string Translator::fixConstName(const string& s)
       return "smt"+s;
     }
   }
+  std::hash_map<string, string, HashString>::iterator i = d_replaceSymbols.find(s);
+  return (i == d_replaceSymbols.end()) ? s : (*i).second;
+}
+
+
+const string Translator::escapeSymbol(const string& s)
+{
+  if (d_em->getOutputLang() == SMTLIB_V2_LANG) {
+    if (s.length() == 0 || isdigit(s[0]))
+      return "|" + s + "|";
+    // This is the legal set of SMTLIB v2 symbol characters from page
+    // 20 of the SMT-LIB v2.0 spec.  If any character in the symbol
+    // string falls outside this set, the symbol must be |-delimited.
+    if(s.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789~!@$%^&*_-+=<>.?/") != string::npos)
+      return "|" + s + "|";
+  }
   return s;
+}
+
+const string Translator::quoteAnnotation(const string& s)
+{
+  if(s.find('|') == string::npos) {
+    return "|" + s + "|";
+  } else {
+    stringstream sb;
+    sb << '"';
+    for(string::const_iterator i = s.begin(); i != s.end(); ++i) {
+      char c = *i;
+      if(c == '"')
+        sb << "\\\"";
+      else
+        sb << *i;
+    }
+    sb << '"';
+    return sb.str();
+  }
 }
 
 
@@ -1351,6 +1840,11 @@ bool Translator::printArrayExpr(ExprStream& os, const Expr& e)
   if (e.getKind() == ARRAY) {
     if (d_convertArray) {
       os << Expr(ARROW, e[0], e[1]);
+      return true;
+    }
+    if (d_em->getOutputLang() == SMTLIB_V2_LANG) {
+      DebugAssert( e.arity() == 2, "expected arity 2");
+      os << push << "(Array" << space << nodag << e[0] << space << nodag << e[1] << ")" << pop;
       return true;
     }
     if (d_em->getOutputLang() != SMTLIB_LANG) return false;

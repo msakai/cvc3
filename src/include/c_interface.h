@@ -251,6 +251,16 @@ Expr vc_impliesExpr(VC vc, Expr hyp, Expr conc);
 Expr vc_iffExpr(VC vc, Expr left, Expr right);
 Expr vc_iteExpr(VC vc, Expr ifpart, Expr thenpart, Expr elsepart);
 
+// Substitution
+
+// Substitutes oldTerms for newTerms in e.
+// This function doesn't actually exist in ValidityChecker interface,
+// but it does in Expr, and its functionality is needed in the C interface.
+// For consistency, it is represented here as if it were in ValidityChecker.
+Expr vc_substExpr(VC vc, Expr e,
+                  Expr* oldTerms, int numOldTerms,
+                  Expr* newTerms, int numNewTerms);
+
 // User-defined (uninterpreted) functions.
 
 //! Create an operator from a function with a given name and type.
@@ -478,12 +488,14 @@ Expr vc_getImpliedLiteral(VC vc);
 Expr vc_simplify(VC vc, Expr e);
 
 //! Check validity of e in the current context.
-/*! Possible results are: 0 = invalid, 1 = valid, 2 = abort, 3 = unknown
+/*! Possible results are: 0 = invalid, 1 = valid, 2 = abort, 3 = unknown,
+ * -100 = exception (type error, internal error, etc).
  * If the result is 1, then the resulting context is the same as
  * the starting context.  If the result is 0 or 3, then the resulting
  * context is a context in which e is false (though the context may be
  * inconsistent in the case of an unknown result).  e must have Boolean
- * type. */
+ * type.  In the case of a result of -100, refer to vc_get_error_string()
+ * to see what went wrong. */
 int vc_query(VC vc, Expr e);
 
 //! Get the next model
@@ -628,7 +640,8 @@ Context* vc_getCurrentContext(VC vc);
 
 //! Compares two expressions
 /*! If e1 < e2, e1==e2, and e1 > e2, it returns -1, 0, 1
- * respectively.
+ * respectively.  A return value of -100 signals an error (refer to
+ * vc_get_error_string() for details).
  *
  * Can't be 'compare' because already defined in ocaml */
 int vc_compare_exprs(Expr e1,Expr e2);

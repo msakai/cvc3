@@ -50,7 +50,8 @@ namespace CVC3 {
     Theorem CNFtranslate(const Expr& before, 
 			 const Expr& after, 
 			 std::string reason, 
-			 int pos) ;
+			 int pos,
+			 const std::vector<Theorem>& thms) ;
     Theorem CNFITEtranslate(const Expr& before, 
 			    const std::vector<Expr>& after,
 			    const std::vector<Theorem>& thms,

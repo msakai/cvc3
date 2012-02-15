@@ -576,6 +576,7 @@ static void registerKinds(ExprManager& em) {
   em.newKind(SUBSTITUTE, "_SUBSTITUTE");
   em.newKind(SEQ, "_SEQ");
   em.newKind(ARITH_VAR_ORDER, "_ARITH_VAR_ORDER");
+  em.newKind(ANNOTATION, "_ANNOTATION");
 
   // Kinds used mostly in the parser
 

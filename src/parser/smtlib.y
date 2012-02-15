@@ -26,6 +26,10 @@
 #include "vc.h"
 #include "parser_exception.h"
 #include "parser_temp.h"
+#include "translator.h"
+#include "theory_arith.h"
+#include "command_line_flags.h"
+#include <string>
 
 // Exported shared data
 namespace CVC3 {
@@ -40,6 +44,7 @@ namespace CVC3 {
 #define BVSIZE (CVC3::parserTemp->bvSize)
 #define RAT(args) CVC3::newRational args
 #define QUERYPARSED CVC3::parserTemp->queryParsed
+#define TRANSLATOR CVC3::parserTemp->translator
 
 // Suppress the bogus warning suppression in bison (it generates
 // compile error)
@@ -68,7 +73,7 @@ int smtliberror(const char *s)
   std::vector<std::string> *strvec;
   CVC3::Expr *node;
   std::vector<CVC3::Expr> *vec;
-  std::pair<std::vector<CVC3::Expr>, std::vector<std::string> > *pat_ann;
+  std::pair<std::vector<CVC3::Expr>, std::vector<CVC3::Expr> > *pat_ann;
 };
 
 
@@ -84,16 +89,18 @@ int smtliberror(const char *s)
 %type <node> status fun_symb_decl fun_sig pred_symb_decl pred_sig
 %type <node> an_expr an_formula quant_var an_atom prop_atom
 %type <node> an_term basic_term sort_symb pred_symb
-%type <node> var fvar
-%type <str> logic_name quant_symb connective user_value attribute annotation
-%type <strvec> annotations
+%type <node> var fvar annotation
+%type <str> logic_name quant_symb connective user_value attribute
+%type <vec> annotations
 %type <pat_ann> patterns_annotations
 
 %token <str> NUMERAL_TOK
 %token <str> SYM_TOK
+%token <str> ID_TOK
 %token <str> STRING_TOK
 %token <str> AR_SYMB
 %token <str> USER_VAL_TOK
+%token <str> COMMENT_TOK
 %token TRUE_TOK
 %token FALSE_TOK
 %token ITE_TOK
@@ -125,6 +132,8 @@ int smtliberror(const char *s)
 %token FORMULA_TOK
 %token STATUS_TOK
 %token BENCHMARK_TOK
+%token SOURCE_TOK
+%token CATEGORY_TOK
 %token EXTRASORTS_TOK
 %token EXTRAFUNS_TOK
 %token EXTRAPREDS_TOK
@@ -162,6 +171,13 @@ benchmark:
 bench_name:
     SYM_TOK
     {
+      TRANSLATOR->setBenchName(*$1);
+      $$ = NULL;
+      delete $1;
+    }
+  | ID_TOK
+    {
+      TRANSLATOR->setBenchName(*$1);
       $$ = NULL;
       delete $1;
     }
@@ -201,6 +217,18 @@ bench_attribute:
   | COLON_TOK STATUS_TOK status 
     {
       $$ = NULL;
+    }
+  | COLON_TOK SOURCE_TOK USER_VAL_TOK
+    {
+      TRANSLATOR->setSource(*$3);
+      $$ = NULL;
+      delete $3;
+    }
+  | COLON_TOK CATEGORY_TOK USER_VAL_TOK
+    {
+      TRANSLATOR->setCategory(*$3);
+      $$ = NULL;
+      delete $3;
     }
   | COLON_TOK LOGIC_TOK logic_name 
     {
@@ -274,15 +302,15 @@ bench_attribute:
           *$3 == "UFNIA") {
         cmd2 = CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("quant-complete-inst"), VC->ratExpr(1)));
       }
-//    else if (*$3 == "QF_NIA" ||
-//             *$3 == "QF_UFNRA") {
-//      cmd2 = CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("unknown-check-model"), VC->ratExpr(1)));
+//    e if (*$3 == "QF_NIA" ||
+//          *$3 == "QF_UFNRA") {
+//    md2 = CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("unknown-check-model"), VC->ratExpr(1)));
+//    
+//    else if (*$3 == "QF_LIA" ||
+//             *$3 == "QF_AUFLIA" ||
+//             *$3 == "QF_AX") {
+//      cmd2 = CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("pp-budget"), VC->ratExpr(5000)));
 //    }
-//       else if (*$3 == "QF_LIA" ||
-//                *$3 == "QF_AUFLIA" ||
-//                *$3 == "QF_AX") {
-//         cmd2 = CVC3::Expr(VC->listExpr("_OPTION", VC->stringExpr("pp-budget"), VC->ratExpr(5000)));
-//       }
 
       if (cmd.isNull()) {
         if (cmd2.isNull()) {
@@ -315,7 +343,8 @@ bench_attribute:
     }
   | COLON_TOK NOTES_TOK STRING_TOK
     {
-      $$ = NULL;
+      $$ = new CVC3::Expr(VC->listExpr("_ANNOTATION",
+                                       VC->listExpr(VC->stringExpr("notes"), VC->stringExpr(*$3))));
       delete $3;
     }
   | COLON_TOK CVC_COMMAND_TOK STRING_TOK
@@ -325,7 +354,7 @@ bench_attribute:
     }
   | annotation
     {
-      $$ = NULL;
+      $$ = new CVC3::Expr(VC->listExpr("_ANNOTATION", *$1));
       delete $1;
     }
 ;
@@ -344,9 +373,9 @@ logic_name:
 ;
 
 status:
-    SAT_TOK { $$ = NULL; }
-  | UNSAT_TOK { $$ = NULL; }
-  | UNKNOWN_TOK { $$ = NULL; }
+    SAT_TOK { TRANSLATOR->setStatus("sat"); $$ = NULL; }
+  | UNSAT_TOK { TRANSLATOR->setStatus("unsat"); $$ = NULL; }
+  | UNKNOWN_TOK { TRANSLATOR->setStatus("unknown"); $$ = NULL; }
 ;
 
 sort_symbs:
@@ -541,13 +570,13 @@ an_formula:
 patterns_annotations:
      pattern
      {
-       $$ = new std::pair<std::vector<CVC3::Expr>, std::vector<std::string> >;
+       $$ = new std::pair<std::vector<CVC3::Expr>, std::vector<CVC3::Expr> >;
        $$->first.push_back(*$1);
        delete $1;
      }
      | annotation
      {
-       $$ = new std::pair<std::vector<CVC3::Expr>, std::vector<std::string> >;
+       $$ = new std::pair<std::vector<CVC3::Expr>, std::vector<CVC3::Expr> >;
        $$->second.push_back(*$1);
        delete $1;
      }
@@ -649,7 +678,7 @@ an_atom:
     }
   | LPAREN_TOK pred_symb an_terms annotations RPAREN_TOK
     {
-      if ($4->size() == 1 && (*$4)[0] == "transclose" &&
+      if ($4->size() == 1 && (*$4)[0].getName() == "transclose" &&
           $3->size() == 2) {
         $$ = new CVC3::Expr(VC->listExpr("_TRANS_CLOSURE",
                                         *$2, (*$3)[0], (*$3)[1]));
@@ -835,7 +864,7 @@ basic_term:
 annotations:
     annotation
     {
-      $$ = new std::vector<std::string>;
+      $$ = new std::vector<CVC3::Expr>;
       $$->push_back(*$1);
       delete $1;
     }
@@ -850,16 +879,22 @@ annotations:
 
 annotation:
     attribute
-    { $$ = $1; }
+    {
+      $$ = new CVC3::Expr(VC->listExpr(VC->stringExpr(*$1)));
+      delete $1;
+    }
   | attribute user_value
-    { $$ = $1; }
+    {
+      $$ = new CVC3::Expr(VC->listExpr(VC->stringExpr(*$1), VC->stringExpr(*$2)));
+      delete $1;
+      delete $2;
+    }
 ;
 
 user_value:
     USER_VAL_TOK
     {
-      $$ = NULL;
-      delete $1;
+      $$ = $1;
     }
 ;
 
@@ -929,6 +964,9 @@ pred_symb:
       }
       else if (BVENABLED && *$1 == "bvsgt") {
         $$ = new CVC3::Expr(VC->idExpr("_BVSGT"));
+      }
+      else if (*$1 == "IsInt") {
+        $$ = new CVC3::Expr(VC->idExpr("_IS_INTEGER"));
       }
       else {
         $$ = new CVC3::Expr(VC->idExpr(*$1));
@@ -1185,7 +1223,11 @@ fun_symb:
   | NUMERAL_TOK
     {
       $$ = new std::vector<CVC3::Expr>;
-      $$->push_back(VC->ratExpr(*$1));
+      CVC3::Expr e = VC->ratExpr(*$1);
+      if(VC->getFlags()["translate"].getBool() && $1->find('.') != std::string::npos) {
+        e = CVC3::Expr(CVC3::REAL_CONST, e);
+      }
+      $$->push_back(e);
       delete $1;
     }
 ;
@@ -1237,6 +1279,33 @@ an_expr:
   | fvar
     {
       $$ = $1;
+    }
+  | fun_pred_symb 
+    {
+      if ($1->size() == 1) {
+        $$ = new CVC3::Expr(((*$1)[0]));
+      }
+      else {
+        $$ = new CVC3::Expr(VC->listExpr(*$1));
+      }
+      delete $1;
+    }
+  | LPAREN_TOK NOT_TOK LPAREN_TOK fun_pred_symb an_terms annotations RPAREN_TOK RPAREN_TOK
+    {
+      $4->insert($4->end(), $5->begin(), $5->end());
+      $$ = new CVC3::Expr(VC->listExpr(*$4));
+      $$ = new CVC3::Expr(VC->listExpr("_NOT", *$$));
+      delete $4;
+      delete $5;
+      delete $6;
+    }
+  | LPAREN_TOK NOT_TOK LPAREN_TOK fun_pred_symb an_terms RPAREN_TOK RPAREN_TOK
+    {
+      $4->insert($4->end(), $5->begin(), $5->end());
+      $$ = new CVC3::Expr(VC->listExpr(*$4));
+      $$ = new CVC3::Expr(VC->listExpr("_NOT", *$$));
+      delete $4;
+      delete $5;
     }
   | LPAREN_TOK fun_pred_symb an_terms annotations RPAREN_TOK
     {
@@ -1449,6 +1518,9 @@ fun_pred_symb:
       else if (BVENABLED && *$1 == "bvsgt") {
         $$->push_back(VC->idExpr("_BVSGT"));
       }
+      else if (*$1 == "IsInt") {
+        $$->push_back(VC->idExpr("_IS_INTEGER"));
+      }
 
       // For backwards compatibility:
       else if (BVENABLED && *$1 == "shift_left0") {
@@ -1543,7 +1615,11 @@ fun_pred_symb:
   | NUMERAL_TOK
     {
       $$ = new std::vector<CVC3::Expr>;
-      $$->push_back(VC->ratExpr(*$1));
+      CVC3::Expr e = VC->ratExpr(*$1);
+      if(VC->getFlags()["translate"].getBool() && $1->find('.') != std::string::npos) {
+        e = CVC3::Expr(CVC3::REAL_CONST, e);
+      }
+      $$->push_back(e);
       delete $1;
     }
 ;

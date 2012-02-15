@@ -81,10 +81,8 @@ jboolean c Rational r
 return r->isInteger();
 
 DEFINITION: Java_cvc3_Rational_jniGetInteger
-jint m Rational r
+jint c Rational r
 return r->getInt();
-
-
 
 DEFINITION: Java_cvc3_Rational_jniGcd
 jobject c Rational r1 c Rational r2

@@ -66,11 +66,10 @@ class TheoryArray :public Theory {
   //! Used in checkSat
   CDO<unsigned> d_index;
 
+  CDO<size_t> d_sharedIdx1, d_sharedIdx2;
+
   //! Flag for use in checkSat
   int d_inCheckSat;
-
-  // Private methods
-  Theorem renameExpr(const Expr& e);
 
   //! Derived rule
   // w(...,i,v1,...,) => w(......,i,v1')
@@ -103,6 +102,7 @@ public:
   Expr computeTCC(const Expr& e);
   virtual Expr parseExprOp(const Expr& e);
   ExprStream& print(ExprStream& os, const Expr& e);
+  Expr getBaseArray(const Expr& e) const;
 };
 
 // Array testers

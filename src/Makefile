@@ -208,7 +208,7 @@ ifneq ($(CYGWIN),)
 else
 	cat UNPACKED | xargs $(CXX) $(SHARED) $(CXXFLAGS) $(LDFLAGS) \
     -Wl,-soname,$(LIB_SHARED_MAJOR) -o '$(LIB_SHARED)' `` $(LD_LIBS)
-	-ldconfig -nv $(LIB_DIR)
+	$(LDCONFIG) -nv $(LIB_DIR)
 endif
 endif
 	ln -sf $(LIB_SHARED_FULL) $(LIB_DIR)/$(LIB_SHARED_COMPAT)
@@ -225,7 +225,7 @@ $(CVC_LIB): $(LIB_SHARED)
 	ln -sf $(LIB_SHARED) '$(call dirx,$@)/$(LIB_SHARED_FULL)'
 ifeq ($(MAC_OSX),)
 ifeq ($(CYGWIN),)
-	-ldconfig -nv '$(call dirx,$@)'
+	$(LDCONFIG) -nv '$(call dirx,$@)'
 endif
 endif
 	ln -sf $(LIB_SHARED_FULL) '$(call dirx,$@)/$(LIB_SHARED_COMPAT)'
@@ -244,6 +244,7 @@ clean:
 
 distclean:
 	$(MAKE) build TARGET=distclean
+	rm -rf cvc3.pc
 
 spotty:
 	$(MAKE) build TARGET=spotty
@@ -263,7 +264,7 @@ else
 	$(INSTALL) $(INSTALL_FLAGS) -m 644 $(CVC_LIB) $(libdir)
 ifeq ($(MAC_OSX),)
 ifeq ($(CYGWIN),)
-	-ldconfig -nv $(libdir)
+	$(LDCONFIG) -nv $(libdir)
 endif
 endif
 	ln -sf $(CVC_LIB_NAME) $(libdir)/$(LIB_SHARED_COMPAT) 
@@ -272,6 +273,8 @@ endif
 endif
 	mkdir -p $(bindir)
 	$(INSTALL) $(INSTALL_FLAGS) -m 755 $(CVC_EXE) $(bindir)
+	mkdir -p $(libdir)/pkgconfig
+	$(INSTALL) $(INSTALL_FLAGS) -m 644 cvc3.pc $(libdir)/pkgconfig
 
 ifndef FILELIST
 FILELIST = /dev/null

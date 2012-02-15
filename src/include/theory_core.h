@@ -100,15 +100,22 @@ class TheoryCore :public Theory {
   //! List of all active non-equality atomic formulas in the system (for quantifier instantiation)
   CDList<Expr> d_predicates;
   //! List of variables that were created up to this point
-  CDList<Expr> d_vars;
+  std::vector<Expr> d_vars;
   //! Database of declared identifiers
   std::map<std::string, Expr> d_globals;
   //! Bound variable stack: a vector of pairs <name, var>
   std::vector<std::pair<std::string, Expr> > d_boundVarStack;
   //! Map for bound vars
   std::hash_map<std::string, Expr> d_boundVarMap;
-  //! Cache for parser
-  ExprMap<Expr> d_parseCache;
+  //! Top-level cache for parser
+  // This cache is only used when there are no bound variables
+  ExprMap<Expr> d_parseCacheTop;
+  //! Alternative cache for parser when not at top-level
+  // This cache used when there are bound variables - and it is cleared
+  // every time the bound variable stack changes
+  ExprMap<Expr> d_parseCacheOther;
+  //! Current cache being used for parser
+  ExprMap<Expr>* d_parseCache;
   //! Cache for tcc's
   ExprMap<Expr> d_tccCache;
 
@@ -299,6 +306,11 @@ private:
   // Time limit exhausted
   bool timeLimitReached();
 
+  //! Print an expression in the shared subset of SMT-LIB v1/v2
+  //! Should only be called if os.lang() is SMTLIB_LANG or SMTLIB_V2_LANG.
+  ExprStream& printSmtLibShared(ExprStream& os, const Expr& e);
+
+
 public:
   //! Constructor
   TheoryCore(ContextManager* cm, ExprManager* em,
@@ -443,7 +455,7 @@ public:
   /*! Use it in VCL instead of parseExpr(). */
   Expr parseExprTop(const Expr& e) {
     d_boundVarStack.clear();
-    d_parseCache.clear();
+    d_parseCache = &d_parseCacheTop;
     return parseExpr(e);
   }
 

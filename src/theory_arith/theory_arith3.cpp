@@ -3269,7 +3269,8 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
           break;
       }
       break; // end of case PRESENTATION_LANG
-    case SMTLIB_LANG: {
+    case SMTLIB_LANG:
+    case SMTLIB_V2_LANG: {
       switch(e.getKind()) {
         case REAL_CONST:
           printRational(os, e[0].getRational(), true);
@@ -3297,12 +3298,16 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
             throw SmtlibException("TheoryArith3::print: SMTLIB: IS_INTEGER used unexpectedly");
 	  break;
         case PLUS:  {
-          os << "(" << push << "+";
-          Expr::iterator i = e.begin(), iend = e.end();
-          for(; i!=iend; ++i) {
-            os << space << (*i);
+          if(e.arity() == 1 && os.lang() == SMTLIB_V2_LANG) {
+            os << e[0];
+          } else {
+            os << "(" << push << "+";
+            Expr::iterator i = e.begin(), iend = e.end();
+            for(; i!=iend; ++i) {
+              os << space << (*i);
+            }
+            os << push << ")";
           }
-          os << push << ")";
           break;
         }
         case MINUS: {
@@ -3315,13 +3320,17 @@ TheoryArith3::print(ExprStream& os, const Expr& e) {
         }
         case MULT:  {
           int i=0, iend=e.arity();
-          for(; i!=iend; ++i) {
-            if (i < iend-1) {
-              os << "(" << push << "*";
+          if(iend == 1 && os.lang() == SMTLIB_V2_LANG) {
+            os << e[0];
+          } else {
+            for(; i!=iend; ++i) {
+             if (i < iend-1) {
+               os << "(" << push << "*";
+              }
+              os << space << e[i];
             }
-            os << space << e[i];
+            for (i=0; i < iend-1; ++i) os << push << ")";
           }
-          for (i=0; i < iend-1; ++i) os << push << ")";
           break;
         }
         case POW:

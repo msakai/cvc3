@@ -25,6 +25,8 @@
 #ifndef _cvc3__theory_array__array_proof_rules_h_
 #define _cvc3__theory_array__array_proof_rules_h_
 
+#include <vector>
+
 namespace CVC3 {
 
   class Theorem;
@@ -86,6 +88,10 @@ namespace CVC3 {
 
     //! a /= b |- exists i. a[i] /= b[i]
     virtual Theorem arrayNotEq(const Theorem& e) = 0;
+
+    virtual Theorem splitOnConstants(const Expr& a, const std::vector<Expr>& consts) = 0;
+
+    virtual Theorem propagateIndexDiseq(const Theorem& read1eqread2isFalse) = 0;
 
   }; // end of class ArrayProofRules
 

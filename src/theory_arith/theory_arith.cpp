@@ -57,9 +57,21 @@ void TheoryArith::printRational(ExprStream& os, const Rational& r,
   // Print rational
   if (r.isInteger()) {
     if (r < 0) {
-      os << "(" << push << "~" << space << (-r).toString();
-      if (printAsReal) os << ".0";
-      os << push << ")";
+      if (os.lang() == SPASS_LANG) {
+        os << "-" << (-r).toString();
+        if (printAsReal) os << ".0";
+      } else {
+        os << "(" << push;
+        if (os.lang() == SMTLIB_LANG) {
+          os << "~";
+        }
+        else {
+          os << "-";
+        }
+        os << space << (-r).toString();
+        if (printAsReal) os << ".0";
+        os << push << ")";
+      }
     }
     else {
       os << r.toString();
@@ -70,9 +82,21 @@ void TheoryArith::printRational(ExprStream& os, const Rational& r,
     os << "(" << push << "/ ";
     Rational tmp = r.getNumerator();
     if (tmp < 0) {
-      os << "(" << push << "-" << space << (-tmp).toString();
-      if (printAsReal) os << ".0";
-      os << push << ")";
+      if (os.lang() == SPASS_LANG) {
+        os << "-" << (-tmp).toString();
+        if (printAsReal) os << ".0";
+      } else {
+        os << "(" << push;
+        if (os.lang() == SMTLIB_LANG) {
+          os << "~";
+        }
+        else {
+          os << "-";
+        }
+        os << space << (-tmp).toString();
+        if (printAsReal) os << ".0";
+        os << push << ")";
+      }
     }
     else {
       os << tmp.toString();

@@ -112,6 +112,7 @@ O_FILES = $(patsubst %.cpp,%.o,$(CPP_FILES))
 LIB_PREFIX = lib
 LIB_JNI_NAME = $(LIB_PREFIX)cvc3jni
 ifneq ($(CYGWIN),)
+  LIB_JNI_BASE   = $(LIB_JNI_NAME).$(SHARED_LIB_SUFFIX)
   LIB_JNI   = $(LIB_JNI_NAME)-$(subst .,-,$(LIB_VERSION)).$(SHARED_LIB_SUFFIX)
   LIB_JNI_COMPAT  = $(LIB_JNI_NAME)-$(subst .,-,$(LIB_COMPAT_VERSION)).$(SHARED_LIB_SUFFIX)
   LIB_JNI_MAJOR  = $(LIB_JNI_NAME)-$(subst .,-,$(LIB_MAJOR_VERSION)).$(SHARED_LIB_SUFFIX)
@@ -145,21 +146,19 @@ vpath %.class $(OBJ_PATH)/$(PACKAGE)
 vpath %.o     $(OBJ_PATH)/$(PACKAGE)
 
 
-.PHONY: all classes headers objects libs libjni libcvc3 testlib cvc3 test regress print_src clean distclean
+.PHONY: all classes headers objects libs libjni libcvc3 testlib cvc3 test regress print_src clean distclean %.d
 
 ### rules
 
 all: classes headers objects libs
 libs: libjni libcvc3 testlib cvc3
 
-$(OBJ_PATH):
-	-mkdir -p $(OBJ_PATH)
+%.d:
+	if [ ! -d $* ]; then mkdir -p $*; fi
 
-$(LIB_PATH):
-	-mkdir -p $(LIB_PATH)
-
-$(ARCH_LIB_PATH):
-	-mkdir -p $(ARCH_LIB_PATH)
+$(OBJ_PATH): $(OBJ_PATH).d
+$(LIB_PATH): $(LIB_PATH).d
+$(ARCH_LIB_PATH): $(ARCH_LIB_PATH).d
 
 # compile each java file
 classes: $(OBJ_PATH) $(CLASS_FILES) 
@@ -170,7 +169,7 @@ $(CLASS_FILES): %.class: %.java $(OBJ_PATH)
 # create a jni header file for each library class file
 #headers: $(H_FILES) $(GCH_FILES)
 headers: $(OBJ_PATH) $(H_FILES)
-$(H_FILES): %.h: %.java $(OBJ_PATH)
+$(H_FILES): %.h: %.class $(OBJ_PATH)
 	$(JAVAH) -jni -force -classpath $(OBJ_PATH) \
 	-o $(HEADER_PATH)/$(PACKAGE)/$*.h $(PACKAGE).$*
 
@@ -210,7 +209,7 @@ else
       -L ../lib $(OBJ_PATH)/$(PACKAGE)/*.o \
       -o $(ARCH_LIB_PATH)/$(LIB_JNI) -lcvc3 $(LD_LIBS)
 ifeq ($(CYGWIN),)
-	-ldconfig -nv $(ARCH_LIB_PATH)
+	$(LDCONFIG) -nv $(ARCH_LIB_PATH)
 endif
 endif
 	ln -sf $(LIB_JNI) $(ARCH_LIB_PATH)/$(LIB_JNI_COMPAT)
@@ -231,7 +230,7 @@ endif
 $(LIB_PATH)/$(LIB_JNI): $(ARCH_LIB_PATH)/$(LIB_JNI)
 	ln -sf $< $@
 # [chris] ldconfig seems to just delete the .so's!
-# -ldconfig -nv '$(call dirx,$@)'
+# $(LDCONFIG) -nv '$(call dirx,$@)'
 	ln -sf $(LIB_JNI) '$(call dirx,$@)/$(LIB_JNI_COMPAT)'
 	ln -sf $(LIB_JNI) '$(call dirx,$@)/$(LIB_JNI_MAJOR)'
 	ln -sf $(LIB_JNI) '$(call dirx,$@)/$(LIB_JNI_BASE)'
@@ -252,7 +251,7 @@ install: $(ARCH_LIB_PATH)/$(LIB_JNI) $(LIB_PATH)/$(LIB_CVC3)
 	ln -sf $(LIB_JNI) $(libdir)/$(LIB_JNI_BASE)
 ifeq ($(MAC_OSX),)
 ifeq ($(CYGWIN),)
-	-ldconfig -nv $(libdir)
+	$(LDCONFIG) -nv $(libdir)
 endif
 endif
 #	chmod 644 $(libdir)/$(LIB_JNI)

@@ -57,9 +57,17 @@ Proof TheoremProducer::newLabel(const Expr& e)
   ostringstream ss;
   ss << s_counter++;
 
-  //TODO: Get rid of hack storing expr in Type field
-  Expr var = d_tm->getEM()->newBoundVarExpr(s_prefix, ss.str(), Type(e, true));
-  return Proof(var);
+  if ((d_tm->getFlags()["lfsc-mode"]).getInt()!= 0 ) {
+    return newPf("assumptions", e);
+  }
+  else {
+    //TODO: Get rid of hack storing expr in Type field
+    // the following lines are commented by Yeting, for neat proofs
+    Expr var = d_tm->getEM()->newBoundVarExpr(s_prefix, ss.str(), Type(e, true));
+    return Proof(var);  //by Yeting. 
+  }  
+  
+  return newPf("assumptions", e);
   //return newPf("assumptions", var , e);
 }
 

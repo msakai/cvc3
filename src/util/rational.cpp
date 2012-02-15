@@ -349,6 +349,208 @@ namespace CVC3 {
       return Rational(Rational::Impl(*n1.d_n + *n2.d_n));
     }
 
+
+  // Implementation of the forward-declared internal class
+  class Unsigned::Impl : public mpz_class {
+  public:
+    //    mpz_class _n;
+    // Constructors
+    Impl() : mpz_class() { }
+    // Constructor from integer
+    //    Impl(const mpz_class &x) : mpq_class(x) { }
+    // Constructor from rational
+    Impl(const mpz_class &x) : mpz_class(x) { }
+    // Copy constructor
+    Impl(const Impl &x) : mpz_class(x) { }
+    // From pair of integers / strings
+    Impl(int n) : mpz_class(n) { }
+    Impl(const mpz_class& n, const mpz_class& d)
+      : mpq_class(n,d) { canonicalize(); }
+    // From string(s)
+    Impl(const string &n, int base): mpz_class(n, base) { }
+    // Destructor
+    virtual ~Impl() { }
+  };
+
+  // Constructors
+  Unsigned::Unsigned() : d_n(new Impl) { }
+  // Copy constructor
+  Unsigned::Unsigned(const Unsigned &n) : d_n(new Impl(*n.d_n)) { }
+
+  // Private constructor
+  Unsigned::Unsigned(const Impl& t): d_n(new Impl(t)) { }
+  // Constructors from strings
+  Unsigned::Unsigned(const char* n, int base)
+    : d_n(new Impl(string(n), base)) { }
+  Unsigned::Unsigned(const string& n, int base)
+    : d_n(new Impl(n, base)) { }
+  // Destructor
+  Unsigned::~Unsigned() {
+    delete d_n;
+  }
+
+  // Assignment
+  Unsigned& Unsigned::operator=(const Unsigned& n) {
+    if(this == &n) return *this;
+    delete d_n;
+    d_n = new Impl(*n.d_n);
+    return *this;
+  }
+
+  ostream &operator<<(ostream &os, const Unsigned &n) {
+    return(os << n.toString());
+  }
+
+
+    /* Computes gcd and lcm on *integer* values. Result is always a
+       positive integer.  In this implementation, it is guaranteed by
+       GMP. */
+
+  Unsigned gcd(const Unsigned &x, const Unsigned &y) {
+    mpz_class g;
+    mpz_gcd(g, *(x.d_n), *(y.d_n));
+    return Unsigned(Unsigned::Impl(g));
+  }
+ 
+  Unsigned gcd(const vector<Unsigned> &v) {
+    mpz_class g(1);
+    if(v.size() > 0) {
+      g = *(v[0].d_n);
+    }
+    for(unsigned i=1; i<v.size(); i++) {
+      if(*v[i].d_n != 0)
+	mpz_gcd(g, g, *(v[i].d_n));
+    }
+    return Unsigned(Unsigned::Impl(g));
+  }
+
+  Unsigned lcm(const Unsigned &x, const Unsigned &y) {
+    mpz_class g;
+    mpz_lcm(g, *x.d_n, *y.d_n);
+    return Unsigned(Unsigned::Impl(g));
+  }
+
+  Unsigned lcm(const vector<Unsigned> &v) {
+    mpz_class g(1);
+    for(unsigned i=0; i<v.size(); i++) {
+      if(*v[i].d_n != 0)
+	mpz_lcm(g, g, *v[i].d_n);
+    }
+    return Unsigned(Unsigned::Impl(g));
+  }
+
+  Unsigned abs(const Unsigned &x) {
+    return Unsigned(Unsigned::Impl(abs(*x.d_n)));
+  }
+
+  Unsigned mod(const Unsigned &x, const Unsigned &y) {
+    mpz_class r;
+    mpz_mod(r, *x.d_n, *y.d_n);
+    return(Unsigned(Unsigned::Impl(r)));
+  }
+
+  Unsigned intRoot(const Unsigned& base, unsigned long int n)
+  {
+    return Unsigned(Unsigned::Impl(0,1));
+  }
+
+  string Unsigned::toString(int base) const {
+    char *tmp = mpz_get_str(NULL, base, *d_n);
+    string res(tmp);
+//    delete tmp;
+    free(tmp);
+    return(res);
+  }
+
+  size_t Unsigned::hash() const {
+    std::hash<const char *> h;
+    return h(toString().c_str());
+  }
+  
+  void Unsigned::print() const {
+    cout << (*d_n) << endl;
+  }
+
+
+
+  // Unary minus
+  Unsigned Unsigned::operator-() const {
+    return Unsigned(Unsigned::Impl(- (*d_n)));
+  }
+  
+  Unsigned &Unsigned::operator+=(const Unsigned &n2) {
+    *d_n += (*n2.d_n);
+    return *this;
+  }
+  
+  Unsigned &Unsigned::operator-=(const Unsigned &n2) {
+    *d_n -= (*n2.d_n);
+    return *this;
+  }
+  
+  Unsigned &Unsigned::operator*=(const Unsigned &n2) {
+    *d_n *= (*n2.d_n);
+    return *this;
+  }
+  
+  Unsigned &Unsigned::operator/=(const Unsigned &n2) {
+    *d_n /= (*n2.d_n);
+    return *this;
+  }
+
+  int Unsigned::getInt() const {
+    return mpz_get_si(*d_n);
+  }
+
+  unsigned int Unsigned::getUnsigned() const {
+    return mpz_get_ui(*d_n);
+  }
+
+    bool operator==(const Unsigned &n1, const Unsigned &n2) {
+      return(*n1.d_n == *n2.d_n);
+    }
+
+    bool operator<(const Unsigned &n1, const Unsigned &n2) {
+      return(*n1.d_n < *n2.d_n);
+    }
+
+    bool operator<=(const Unsigned &n1, const Unsigned &n2) {
+      return(*n1.d_n <= *n2.d_n);
+    }
+
+    bool operator>(const Unsigned &n1, const Unsigned &n2) {
+      return(*n1.d_n > *n2.d_n);
+    }
+
+    bool operator>=(const Unsigned &n1, const Unsigned &n2) {
+      return(*n1.d_n >= *n2.d_n);
+    }
+
+    bool operator!=(const Unsigned &n1, const Unsigned &n2) {
+      return(*n1.d_n != *n2.d_n);
+    }
+
+    Unsigned operator+(const Unsigned &n1, const Unsigned &n2) {
+      return Unsigned(Unsigned::Impl(*n1.d_n + *n2.d_n));
+    }
+
+    Unsigned operator-(const Unsigned &n1, const Unsigned &n2) {
+      return Unsigned(Unsigned::Impl((*n1.d_n) - (*n2.d_n)));
+    }
+
+    Unsigned operator*(const Unsigned &n1, const Unsigned &n2) {
+      return Unsigned(Unsigned::Impl((*n1.d_n) * (*n2.d_n)));
+    }
+
+    Unsigned operator/(const Unsigned &n1, const Unsigned &n2) {
+      return Unsigned(Unsigned::Impl(*n1.d_n / *n2.d_n));
+    }
+
+    Unsigned operator%(const Unsigned &n1, const Unsigned &n2) {
+      return Unsigned(Unsigned::Impl(*n1.d_n + *n2.d_n));
+    }
+
 }; /* close namespace */
+
 
 #endif

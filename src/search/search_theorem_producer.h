@@ -42,6 +42,7 @@ class CommonProofRules;
     void checkSoundNoSkolems(const Theorem& t, ExprMap<bool>& visited, 
                              const ExprMap<bool>& skolems);
   public:
+
     SearchEngineTheoremProducer(TheoremManager* tm);
     // Destructor
     virtual ~SearchEngineTheoremProducer() { }

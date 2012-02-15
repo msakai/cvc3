@@ -35,6 +35,7 @@
 #include "core_proof_rules.h"
 #include "theorem_manager.h"
 #include "translator.h"
+#include "theory_arith.h" // for isReal() tester
 
 using namespace std;
 
@@ -706,7 +707,6 @@ TheoryCore::TheoryCore(ContextManager* cm,
     d_terms(cm->getCurrentContext()),
     //    d_termTheorems(cm->getCurrentContext()),
     d_predicates(cm->getCurrentContext()),
-    d_vars(cm->getCurrentContext()),
     d_solver(NULL),
     d_simplifyInPlace(false),
     d_currentRecursiveSimplifier(NULL),
@@ -829,6 +829,7 @@ TheoryCore::TheoryCore(ContextManager* cm,
   kinds.push_back(SUBSTITUTE);
   kinds.push_back(SEQ);
   kinds.push_back(ARITH_VAR_ORDER);
+  kinds.push_back(ANNOTATION);
   kinds.push_back(THEOREM_KIND);
 
   kinds.push_back(AND_R);
@@ -1541,6 +1542,11 @@ void TheoryCore::computeType(const Expr& e)
 	  throw TypecheckException(e.toString());
 	}
       }
+      if((e.getKind() == NOT && e.arity() != 1) ||
+         (e.getKind() == IFF && e.arity() != 2) ||
+         (e.getKind() == IMPLIES && e.arity() != 2)) {
+	throw TypecheckException("Wrong arity ("+int2string(e.arity())+") for operator: "+e.toString());
+      }
       e.setType(boolType());
       break;
     case LETDECL: {
@@ -1735,6 +1741,7 @@ Expr TheoryCore::parseExprOp(const Expr& e)
   }
   DebugAssert(e.getKind()==RAW_LIST && e.arity() > 0 && e[0].getKind()==ID,
 	      "TheoryCore::parseExprOp:\n e = "+e.toString());
+  TRACE("parse", "TheoryCore::parseExprOp:\n e = ", e.toString(), "");
   /* The first element of the list (e[0] is an ID of the operator.
      ID string values are the dirst element of the expression */
   const Expr& c1 = e[0][0];
@@ -1756,8 +1763,8 @@ Expr TheoryCore::parseExprOp(const Expr& e)
 
         e2 = operatorStack.back()[childStack.back()++];
 
-        ExprMap<Expr>::iterator iParseCache = d_parseCache.find(e2);
-        if (iParseCache != d_parseCache.end()) {
+        ExprMap<Expr>::iterator iParseCache = d_parseCache->find(e2);
+        if (iParseCache != d_parseCache->end()) {
           operandStack.push_back((*iParseCache).second);
         }
         else if (e2.getKind() == RAW_LIST &&
@@ -1781,7 +1788,7 @@ Expr TheoryCore::parseExprOp(const Expr& e)
         operandStack.erase(childStart, operandStack.end());
         kind = getEM()->getKind(e2[0][0].getString());
         operandStack.push_back(Expr(kind, children, e2.getEM()));
-        d_parseCache[e2] = operandStack.back();
+        (*d_parseCache)[e2] = operandStack.back();
         if (!getEM()->isTypeKind(operandStack.back().getKind())) {
           operandStack.back().getType();
         }
@@ -1901,10 +1908,280 @@ Expr TheoryCore::parseExprOp(const Expr& e)
   return e;
 }
 
+ExprStream& TheoryCore::printSmtLibShared(ExprStream& os, const Expr& e) {
+  DebugAssert(os.lang() == SMTLIB_LANG || os.lang() == SMTLIB_V2_LANG,
+      "Invalid state in printSmtLibShared" );
+  switch(e.getKind()) {
+  case TRUE_EXPR: os << "true"; break;
+  case FALSE_EXPR: os << "false"; break;
+  case UCONST: os << d_translator->escapeSymbol(d_translator->fixConstName(e.getName())); break;
+  case BOOLEAN: e.printAST(os); break;
+  case STRING_EXPR: e.print(os); break;
+  case SUBTYPE:
+    throw SmtlibException("TheoryCore::print: SMTLIB: SUBTYPE not implemented");
+    break;
+  case TYPEDEF: {
+    throw SmtlibException("TheoryCore::print: SMTLIB: TYPEDEF not implemented");
+    break;
+  }
+  case EQ:
+    os << "(" << push << "=" << space << e[0]
+       << space << e[1] << push << ")";
+    break;
+  case DISTINCT: {
+    int i=0, iend=e.arity();
+    os << "(" << push << "distinct";
+    for(; i!=iend; ++i) os << space << e[i];
+    os << push << ")";
+    break;
+  }
+  case NOT:
+    os << "(" << push << "not" << space << e[0] << push << ")";
+    break;
+  case AND: {
+    int i=0, iend=e.arity();
+    if(iend == 1 && os.lang() == SMTLIB_V2_LANG) {
+      os << e[0];
+    } else {
+      os << "(" << push << "and";
+      for(; i!=iend; ++i) os << space << e[i];
+      os << push << ")";
+    }
+    break;
+  }
+  case OR: {
+    int i=0, iend=e.arity();
+    if(iend == 1 && os.lang() == SMTLIB_V2_LANG) {
+      os << e[0];
+    } else {
+      os << "(" << push << "or";
+      for(; i!=iend; ++i) os << space << e[i];
+      os << push << ")";
+    }
+    break;
+  }
+  case XOR: {
+    int i=0, iend=e.arity();
+    if(iend == 1 && os.lang() == SMTLIB_V2_LANG) {
+      os << e[0];
+    } else {
+      os << "(" << push << "xor";
+      for(; i!=iend; ++i) os << space << e[i];
+      os << push << ")";
+    }
+    break;
+  }
+
+  case TRANSFORM:
+    throw SmtlibException("TheoryCore::print: SMTLIB: TRANSFORM not implemented");
+    os << "(" << push << "TRANSFORM" << space << e[0] << push << ")";
+    break;
+
+  case LETDECL:
+    //      throw SmtlibException("TheoryCore::print: SMTLIB: LETDECL not implemented");
+    if(e.arity() == 2) os << e[1];
+    else e.printAST(os);
+    break;
+
+
+  case PF_APPLY: {// FIXME: this will eventually go to the "symsim" theory
+    throw SmtlibException("TheoryCore::print: SMTLIB: PF_APPLY not implemented");
+    break;
+  }
+  case RAW_LIST: {
+    os << "(" << push;
+    bool firstTime(true);
+    for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i) {
+      if(firstTime) firstTime = false;
+      else os << space;
+      os << *i;
+    }
+    os << push << ")";
+    break;
+  }
+  case ANY_TYPE:
+    os << "ANY_TYPE";
+    break;
+
+  case PF_HOLE: // FIXME: implement this (now fall through to default)
+  default:
+    throw SmtlibException("TheoryCore::print: SMTLIB_LANG: Unexpected expression: "
+                          +getEM()->getKindName(e.getKind()));
+  }
+  return os;
+}
+
+static bool containsRec(const Expr& def, ExprHashMap<bool>& defs, ExprHashMap<bool>& visited) {
+  ExprHashMap<bool>::iterator it = visited.find(def);
+  if (it != visited.end()) return false;
+  it = defs.find(def);
+  if (it != defs.end()) return true;
+  for(Expr::iterator i = def.begin(), iend=def.end(); i != iend; ++i) {
+    if (containsRec(*i,defs,visited)) return true;
+  }
+  // [MGD] Closure exprs (LAMBDAs and quantifiers) don't have children,
+  // they have bodies.
+  if(def.isClosure()) {
+    if (containsRec(def.getBody(),defs,visited)) return true;
+  }
+  visited[def] = true;
+  return false;
+}
+
+static bool contains(const Expr& def, ExprHashMap<bool>& defs) {
+  ExprHashMap<bool> visited;
+  return containsRec(def, defs, visited);
+}
 
 ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
 {
   switch(os.lang()) {
+  case SPASS_LANG:
+    switch(e.getKind()) {
+    case TRUE_EXPR: os << "true"; break;
+    case FALSE_EXPR: os << "false"; break;
+    case UCONST:
+      if(isReal(getBaseType(e.getType()))) {
+        // SPASS guys want "np" prefix on arith vars
+        os << "np";
+      }
+      os << e.getName();
+      break;
+    case BOOLEAN: e.printAST(os); break;
+    case STRING_EXPR: e.print(os); break;
+    case TYPE:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: TYPE should have been handled by Translator::finish()");
+    case ID:
+      if(e.arity() == 1 && e[0].isString()) os << e[0].getString();
+      else e.printAST(os);
+      break;
+    case CONST:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: CONST should have been handled by Translator::finish()");
+    case SUBTYPE:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: SUBTYPE not implemented");
+      break;
+    case TYPEDEF: {
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: TYPEDEF not implemented");
+      break;
+    }
+    case EQ:
+      os << push << "equal(" << e[0]
+	 << "," << space << e[1] << push << ")";
+      break;
+    case DISTINCT: {
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: SUBTYPE not implemented");
+      break;
+    }
+    case NOT:
+      os << push << "not(" << e[0] << push << ")";
+      break;
+    case AND: {
+      int i=0, iend=e.arity();
+      os << push << "and(" << e[i];
+      while(++i != iend) os << "," << space << e[i];
+      os << push << ")";
+      break;
+    }
+    case OR: {
+      int i=0, iend=e.arity();
+      os << push << "or(" << e[i];
+      while(++i != iend) os << "," << space << e[i];
+      os << push << ")";
+      break;
+    }
+    case XOR: {
+      if(e.arity() != 2) {
+        throw SmtlibException("TheoryCore::print: SPASS_LANG: XOR not supported when arity != 2 !");
+      }
+      os << push << "or(and(" << e[0] << "," << space << "not(" << e[1] << ")),"
+         << space << "and(not(" << e[0] << ")," << space << e[1] << ")"
+         << push << ")";
+      break;
+    }
+    case ITE:
+      if (e.getType().isBool()) {
+        os << push << "and(" << space
+           << push << "implies(" << space
+           << e[0] << "," << space << e[1]
+           << push << ")" << "," << space
+           << push << "implies(" << space
+           << e[0].negate() << "," << space << e[2]
+           << push << ")"
+           << push << ")";
+      } else {
+        os << push << "if_then_else("
+           << e[0] << "," << space
+           << e[1] << "," << space
+           << e[2] << push << ")";
+      }
+      break;
+    case IFF:
+      os << push << "equiv(" << space
+	 << e[0] << space << "," << space << e[1] << push << ")";
+      break;
+    case IMPLIES:
+      os << push << "implies(" << space
+	 << e[0] << space << "," << space << e[1] << push << ")";
+      break;
+    case ASSERT:
+      // SPASS guys don't want formula(false) etc: comment them out
+      if(e[0] == d_em->trueExpr() ||
+         e[0] == d_em->falseExpr().notExpr()) {
+        os << "% ";
+      }
+      os << "formula(" << space << push << e[0].negate() << space << ").";
+      break;
+    case TRANSFORM:
+      throw SmtlibException("TheoryCore::print: SPASS: TRANSFORM not implemented");
+      break;
+    case QUERY:
+      // SPASS guys don't want formula(false) etc: comment them out
+      if(e[0].negate() == d_em->trueExpr() ||
+         e[0].negate() == d_em->falseExpr().notExpr()) {
+        os << "% ";
+      }
+      os << "formula(" << space << push << e[0] << space << ").";
+      break;
+    case LETDECL:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: LETDECL not implemented");
+    case LET:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: LET should have been handled in Translator::finish()");
+    case BOUND_VAR:
+      if(isReal(getBaseType(e.getType()))) {
+        // SPASS guys want "np" prefix on arith vars
+        os << "np";
+      }
+      os << e.getName();
+      break;
+    case SKOLEM_VAR:
+      os << push << "SKOLEM_" + int2string((int)e.getIndex());
+      break;
+    case PF_APPLY:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: PF_APPLY not implemented");
+    case ANNOTATION:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: ANNOTATION should have been handled by Translator::finish()");
+
+    case RAW_LIST:
+    case ANY_TYPE:
+    case WHERE:
+    case ASSERTIONS:
+    case ASSUMPTIONS:
+    case COUNTEREXAMPLE:
+    case COUNTERMODEL:
+    case PUSH:
+    case POP:
+    case POPTO:
+    case PUSH_SCOPE:
+    case POP_SCOPE:
+    case POPTO_SCOPE:
+    case RESET:
+    case PF_HOLE:
+    default:
+      throw SmtlibException("TheoryCore::print: SPASS_LANG: Unexpected expression: "
+                            +getEM()->getKindName(e.getKind()));
+    }
+    break; // end of case SPASS_LANG
+
   case SIMPLIFY_LANG:
     switch(e.getKind()) {
     case TRUE_EXPR: os << "TRUE"; break;
@@ -2577,6 +2854,13 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       os << push << ");";
       break;
     }
+    case ANNOTATION: {
+      os << "%% ";
+      os << e[0];
+      if (e.arity() > 1) {
+        os << ": " << e[1];
+      }
+    }
     case PF_HOLE: // FIXME: implement this (now fall through to default)
     default:
       // Print the top node in the default LISP format, continue with
@@ -2584,13 +2868,12 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       e.printAST(os);
     }
     break; // end of case PRESENTATION_LANG
+
+  /* There's a lot of overlap between SMT-LIB v1 and v2, so we'll only handle
+   * v1-specific stuff here, then goto (!) then end of the v2 block below.
+   */
   case SMTLIB_LANG:
     switch(e.getKind()) {
-    case TRUE_EXPR: os << "true"; break;
-    case FALSE_EXPR: os << "false"; break;
-    case UCONST: os << d_translator->fixConstName(e.getName()); break;
-    case BOOLEAN: e.printAST(os); break;
-    case STRING_EXPR: e.print(os); break;
     case TYPE:
       if (e.arity() == 1) {
         os << "  :extrasorts (";
@@ -2607,10 +2890,7 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
         throw SmtlibException("TheoryCore::print: SMTLIB: Unexpected TYPE expression");
       }
       break;
-    case ID: // FIXME: when lisp becomes case-insensitive, fix printing of IDs
-      if(e.arity() == 1 && e[0].isString()) os << e[0].getString();
-      else e.printAST(os);
-      break;
+
     case CONST:
       if(e.arity() == 2) {
         if (e[1].getKind() == BOOLEAN) {
@@ -2631,83 +2911,43 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
         throw SmtlibException("TheoryCore::print: SMTLIB: CONST not implemented");
       }
       break;
-    case SUBTYPE:
-      throw SmtlibException("TheoryCore::print: SMTLIB: SUBTYPE not implemented");
+
+    case ID: // FIXME: when lisp becomes case-insensitive, fix printing of IDs
+      if(e.arity() == 1 && e[0].isString()) os << e[0].getString();
+      else e.printAST(os);
       break;
-    case TYPEDEF: {
-      throw SmtlibException("TheoryCore::print: SMTLIB: TYPEDEF not implemented");
+
+    case IMPLIES:
+      os << "(" << push << "implies" << space
+         << e[0] << space << e[1] << push << ")";
       break;
-    }
-    case EQ:
-      os << "(" << push << "=" << space << e[0]
-	 << space << e[1] << push << ")";
+
+    case IFF:
+      os << "(" << push << "iff" << space
+         << e[0] << space << e[1] << push << ")";
       break;
-    case DISTINCT: {
-      int i=0, iend=e.arity();
-      os << "(" << push << "distinct";
-      for(; i!=iend; ++i) os << space << e[i];
-      os << push << ")";
-      break;
-    }
-    case NOT:
-      os << "(" << push << "not" << space << e[0] << push << ")";
-      break;
-    case AND: {
-      int i=0, iend=e.arity();
-      os << "(" << push << "and";
-      for(; i!=iend; ++i) os << space << e[i];
-      os << push << ")";
-      break;
-    }
-    case OR: {
-      int i=0, iend=e.arity();
-      os << "(" << push << "or";
-      for(; i!=iend; ++i) os << space << e[i];
-      os << push << ")";
-      break;
-    }
-    case XOR: {
-      int i=0, iend=e.arity();
-      os << "(" << push << "xor";
-      for(; i!=iend; ++i) os << space << e[i];
-      os << push << ")";
-      break;
-    }
+
     case ITE:
       os << "(" << push;
       if (e.getType().isBool()) os << "if_then_else";
       else os << "ite";
       os << space << e[0]
-	 << space << e[1] << space << e[2] << push << ")";
+         << space << e[1] << space << e[2] << push << ")";
       break;
-    case IFF:
-      os << "(" << push << "iff" << space
-	 << e[0] << space << e[1] << push << ")";
-      break;
-    case IMPLIES:
-      os << "(" << push << "implies" << space
-	 << e[0] << space << e[1] << push << ")";
-      break;
+
       // Commands
     case ASSERT:
       os << "  :assumption" << space << push << e[0];
       break;
-    case TRANSFORM:
-      throw SmtlibException("TheoryCore::print: SMTLIB: TRANSFORM not implemented");
-      os << "(" << push << "TRANSFORM" << space << e[0] << push << ")";
-      break;
+
     case QUERY:
-      os << "  :formula" << space << push << e[0];
+      os << "  :formula" << space << push << e[0].negate();
       break;
-    case LETDECL:
-      //      throw SmtlibException("TheoryCore::print: SMTLIB: LETDECL not implemented");
-      if(e.arity() == 2) os << e[1];
-      else e.printAST(os);
-      break;
+
     case LET: {
       // (LET ((var [ type ] val) .... ) body)
       for(Expr::iterator i=e[0].begin(), iend=e[0].end(); i!=iend; ++i) {
-	os << "(" << push;
+        os << "(" << push;
         Type tp(i->arity() == 3 ? (*i)[2].getType() : (*i)[1].getType());
         DebugAssert(!tp.isNull(), "Unexpected Null type");
         if (tp.getExpr().getKind() == BOOLEAN) {
@@ -2716,43 +2956,30 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
         else {
           os << "let" << space << "(" << push;
         }
-	if(i->arity() == 3) {
-	  os << (*i)[0] << space << nodag << (*i)[2];
-	} else {
-	  os << (*i)[0] << space << nodag << (*i)[1];
+        if(i->arity() == 3) {
+          os << (*i)[0] << space << nodag << (*i)[2];
+        } else {
+          os << (*i)[0] << space << nodag << (*i)[1];
         }
-	os << push << ")" << pop << pop << space;
+        os << push << ")" << pop << pop << space;
       }
       os << e[1] << push;
       for (int j = 0; j < e[0].arity(); ++j)
         os << ")";
       break;
     }
-    case BOUND_VAR:
+
+    case BOUND_VAR: {
       //      os << push << "?" << e.getName()+"_"+e.getUid();
-      os << push << "?" << e.getName(); //to better support for proof translation
+      string str = e.getName();
+      if (str[0] == '_') str[0] = '?';
+      os << push << str;
       break;
+    }
     case SKOLEM_VAR:
       os << push << "SKOLEM_" + int2string((int)e.getIndex());
       break;
-    case PF_APPLY: {// FIXME: this will eventually go to the "symsim" theory
-      throw SmtlibException("TheoryCore::print: SMTLIB: PF_APPLY not implemented");
-      break;
-    }
-    case RAW_LIST: {
-      os << "(" << push;
-      bool firstTime(true);
-      for(Expr::iterator i=e.begin(), iend=e.end(); i!=iend; ++i) {
-	if(firstTime) firstTime = false;
-	else os << space;
-	os << *i;
-      }
-      os << push << ")";
-      break;
-    }
-    case ANY_TYPE:
-      os << "ANY_TYPE";
-      break;
+
     case WHERE:
       os << "  :cvc_command \"WHERE\"";
       break;
@@ -2771,16 +2998,16 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
     case PUSH:
       os << "  :cvc_command" << space;
       if(e.arity()==0)
-	os << "\"PUSH\"";
+        os << "\"PUSH\"";
       else
-	os << "\"PUSH" << space << e[0] << push << "\"";
+        os << "\"PUSH" << space << e[0] << push << "\"";
       break;
     case POP:
       os << "  :cvc_command" << space;
       if(e.arity()==0)
-	os << "\"POP\"";
+        os << "\"POP\"";
       else
-	os << "\"POP" << space << e[0] << push << "\"";
+        os << "\"POP" << space << e[0] << push << "\"";
       break;
     case POPTO:
       os << "  :cvc_command" << space;
@@ -2788,16 +3015,16 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
     case PUSH_SCOPE:
       os << "  :cvc_command" << space;
       if(e.arity()==0)
-	os << "\"PUSH_SCOPE\"";
+        os << "\"PUSH_SCOPE\"";
       else
-	os << "\"PUSH_SCOPE" << space << e[0] << push << "\"";
+        os << "\"PUSH_SCOPE" << space << e[0] << push << "\"";
       break;
     case POP_SCOPE:
       os << "  :cvc_command" << space;
       if(e.arity()==0)
-	os << "\"POP_SCOPE\"";
+        os << "\"POP_SCOPE\"";
       else
-	os << "\"POP_SCOPE" << space << e[0] << push << "\"";
+        os << "\"POP_SCOPE" << space << e[0] << push << "\"";
       break;
     case POPTO_SCOPE:
       os << "  :cvc_command" << space;
@@ -2807,12 +3034,191 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
       os << "  :cvc_command" << space;
       os << "\"RESET\""; break;
       break;
-    case PF_HOLE: // FIXME: implement this (now fall through to default)
-    default:
-      throw SmtlibException("TheoryCore::print: SMTLIB_LANG: Unexpected expression: "
-                            +getEM()->getKindName(e.getKind()));
+    case ANNOTATION: {
+      os << "  :" << e[0].getString();
+      if (e[0].getString() == "notes") {
+        os << space << e[1];
+      }
+      else if (e.arity() > 1) {
+        os << space << "{" << e[1].getString() << "}";
+      }
+      break;
     }
-    break; // end of case SMTLIB_LANG
+
+    default: /* Must be shared, jump to the end of SMT-LIB v2 symbols */
+      printSmtLibShared(os,e);
+    }
+    break;
+
+  case SMTLIB_V2_LANG:
+
+    switch(e.getKind()) {
+    case TYPE:
+      if (e.arity() == 1) {
+        for (int i=0; i < e[0].arity(); ++i) {
+          if( i!=0 ) {
+            os << endl;
+          }
+          os << "(declare-sort" << space
+             << push << nodag << e[0][i] << " 0)" << pop;
+        }
+      } else if (e.arity() == 2) {
+        break;
+      } else {
+        throw SmtlibException("TheoryCore::print: SMTLIB: Unexpected TYPE expression");
+      }
+      break;
+
+    case BOOLEAN:
+      os << "Bool";
+      break;
+
+    case CONST:
+      if(e.arity() == 2) {
+        os << "(declare-fun" << space << push
+           << d_translator->escapeSymbol(d_translator->fixConstName(e[0][0].getString()))
+           << space;
+        if( e[1].getKind() == ARROW ) {
+          os << nodag << e[1];
+        } else {
+          os << "()" << space << nodag << e[1];
+        }
+        os << ")" << pop;
+      }
+      else if (e.arity() == 0) e.printAST(os);
+      else {
+        throw SmtlibException("TheoryCore::print: SMTLIB: CONST not implemented");
+      }
+      break;
+
+    case ID: // FIXME: when lisp becomes case-insensitive, fix printing of IDs
+      if(e.arity() == 1 && e[0].isString()) os << d_translator->escapeSymbol(e[0].getString());
+      else e.printAST(os);
+      break;
+
+    case IMPLIES:
+      os << "(" << push << "=>" << space
+         << e[0] << space << e[1] << push << ")";
+      break;
+
+    case IFF:
+      os << "(" << push << "=" << space
+         << e[0] << space << e[1] << push << ")";
+      break;
+
+    case ITE:
+      os << "(" << push << "ite";
+      os << space << e[0]
+         << space << e[1] << space << e[2] << push << ")";
+      break;
+
+      // Commands
+    case ASSERT:
+      os << "(assert" << space << push << e[0] << ")" << pop;
+      break;
+
+    case QUERY:
+      if (e[0] != falseExpr() && e[0].negate() != trueExpr()) {
+        os << push << "(assert" << space << push << e[0].negate() << pop << ")" << pop << endl;
+      }
+      os << "(check-sat)";
+      break;
+
+    case LET: {
+      // (LET ((var [ type ] val) .... ) body)
+      Expr var, def;
+      bool first = true;
+      int letCount = 0;
+      ExprHashMap<bool> defs;
+      for(Expr::iterator i=e[0].begin(), iend=e[0].end(); i!=iend; ++i) {
+        Type tp(i->arity() == 3 ? (*i)[2].getType() : (*i)[1].getType());
+        DebugAssert(!tp.isNull(), "Unexpected Null type");
+        var = (*i)[0];
+        if(i->arity() == 3) {
+          def = (*i)[2];
+        }
+        else {
+          def = (*i)[1];
+        }
+        if (first || contains(def, defs)) {
+          if (!first) {
+            os << push << ")" << pop << pop << space;
+            defs.clear();
+          }
+          os << "(" << push << "let" << space << "(" << push;
+          ++letCount;
+          first = false;
+        }
+        else {
+          os << space;
+        }
+        defs[def] = true;
+        os << "(" << push << var << space << nodag << def << ")" << pop;
+      }
+      DebugAssert(!first, "Expected at least one child");
+      os << push << ")" << pop << pop << space << e[1];
+      for (int j = 0; j < letCount; ++j)
+        os << ")" << pop;
+      break;
+    }
+    case BOUND_VAR: {
+      string str = e.getName();
+      if (str[0] == '_') str[0] = '?';
+      os << push << d_translator->escapeSymbol(str);
+      break;
+    }
+    case SKOLEM_VAR:
+      os << "SKOLEM_" + int2string((int)e.getIndex());
+      break;
+
+    case WHERE:
+    case ASSERTIONS:
+    case ASSUMPTIONS:
+      os << "(get-assertions)";
+    case COUNTEREXAMPLE:
+      os << "(get-unsat-core)";
+      break;
+    case COUNTERMODEL:
+      os << "(get-model)";
+      break;
+    case PUSH:
+    case PUSH_SCOPE:
+      if(e.arity()==0)
+        os << "(push 1)";
+      else
+        os << "(push" << space << push << e[0] << ")" << pop;
+      break;
+    case POP:
+    case POP_SCOPE:
+      if(e.arity()==0)
+        os << "(pop 1)";
+      else
+        os << "(pop" << space << push << e[0] << ")" << pop;
+      break;
+    case POPTO:
+      os << "  :cvc_command" << space
+        << "\"POPTO" << space << e[0] << push << "\""; break;
+    case POPTO_SCOPE:
+      os << "  :cvc_command" << space
+        << "\"POPTO_SCOPE" << space << push << e[0] << "\"" << pop;
+      break;
+    case RESET:
+      os << "  :cvc_command" << space;
+      os << "\"RESET\""; break;
+      break;
+    case ANNOTATION: {
+      os << "(set-info :" << e[0].getString();
+      if (e.arity() > 1)
+        os << space << d_translator->quoteAnnotation(e[1].getString());
+      os << ")";
+      break;
+    }
+
+    default: // fall-through to shared symbols
+      printSmtLibShared(os,e);
+    }
+    break;
+
   case LISP_LANG:
     switch(e.getKind()) {
     case TRUE_EXPR:
@@ -3163,8 +3569,8 @@ Theorem TheoryCore::getImpliedLiteralByIndex(unsigned index)
 Expr TheoryCore::parseExpr(const Expr& e)
 {
   // check cache
-  ExprMap<Expr>::iterator iParseCache = d_parseCache.find(e);
-  if (iParseCache != d_parseCache.end()) {
+  ExprMap<Expr>::iterator iParseCache = d_parseCache->find(e);
+  if (iParseCache != d_parseCache->end()) {
     return (*iParseCache).second;
   }
   // Remember the current size of the bound variable stack
@@ -3238,7 +3644,10 @@ Expr TheoryCore::parseExpr(const Expr& e)
       res = theoryOf(kind)->parseExprOp(e);
       // Restore the bound variable stack
       if (d_boundVarStack.size() > boundVarSize) {
-        d_parseCache.clear();
+        d_parseCache->clear();
+        if (boundVarSize == 0) {
+          d_parseCache = &d_parseCacheTop;
+        }
         while(d_boundVarStack.size() > boundVarSize) {
           pair<string,Expr>& bv = d_boundVarStack.back();
           hash_map<string,Expr>::iterator iBoundVarMap = d_boundVarMap.find(bv.first);
@@ -3255,7 +3664,7 @@ Expr TheoryCore::parseExpr(const Expr& e)
       res = e;
     }
   }
-  d_parseCache[e] = res;
+  (*d_parseCache)[e] = res;
   if (!getEM()->isTypeKind(res.getOpKind())) res.getType();
   return res;
 }
@@ -3463,7 +3872,7 @@ void TheoryCore::buildModel(ExprMap<Expr>& m)
   }
   // Recombine the values for the compound-type variables
   ExprHashMap<Theorem>::iterator k, kend=d_simplifiedModelVars.end();
-  for(CDList<Expr>::const_iterator i=d_vars.begin(), iend=d_vars.end(); i!=iend; ++i) {
+  for(vector<Expr>::const_iterator i=d_vars.begin(), iend=d_vars.end(); i!=iend; ++i) {
     Expr var(*i);
     TRACE("model", "buildModel: recombining var=", var, "");
     k=d_simplifiedModelVars.find(var);

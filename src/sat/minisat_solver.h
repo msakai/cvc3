@@ -248,7 +248,7 @@ protected:
   std::vector<std::vector<Clause*> > d_watches;
 
   // The current assignments (lbool:s stored as char:s), indexed by var
-  std::vector<char> d_assigns;
+  std::vector<signed char> d_assigns;
 
   // Assignment stack; stores all assigments made in the order they were made.
   // as theory clause and theory implications can add propagations

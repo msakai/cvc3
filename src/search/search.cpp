@@ -24,6 +24,7 @@
 #include "theory_core.h"
 #include "eval_exception.h"
 #include "theorem_manager.h"
+#include "command_line_flags.h"
 
 
 using namespace CVC3;
@@ -35,7 +36,15 @@ SearchEngine::SearchEngine(TheoryCore* core)
   : d_core(core),
     d_commonRules(core->getTM()->getRules())
 {
-  d_rules = createRules();
+
+  const CLFlags& flg  = (core->getTM()->getFlags());
+  if (flg["lfsc-mode"].getInt()!= 0){
+    d_rules = createRules(this);
+
+  }
+  else
+    d_rules = createRules();
+
 }
 
 

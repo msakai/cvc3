@@ -323,6 +323,9 @@ public:
   Expr newFixedLeftShiftExpr(const Expr& t1, int r);
   Expr newFixedConstWidthLeftShiftExpr(const Expr& t1, int r);
   Expr newFixedRightShiftExpr(const Expr& t1, int r);
+  Expr newBVSHL(const Expr& t1, const Expr& t2);
+  Expr newBVLSHR(const Expr& t1, const Expr& t2);
+  Expr newBVASHR(const Expr& t1, const Expr& t2);
   Rational computeBVConst(const Expr& e);
 
   Expr tupleExpr(const std::vector<Expr>& exprs);
@@ -394,6 +397,7 @@ public:
   void poptoScope(int scopeLevel);
   Context* getCurrentContext();
   void reset();
+  void logAnnotation(const Expr& annot);
 
   void loadFile(const std::string& fileName,
 		InputLanguage lang = PRESENTATION_LANG,
