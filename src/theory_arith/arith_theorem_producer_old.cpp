@@ -3922,14 +3922,14 @@ Theorem ArithTheoremProducerOld::rewriteLeavesConst(const Expr& e)
     }
     case GT: {
       set<Rational>::iterator it;
-      it = lhs.end();
+      it = rhs.end();
       --it;
-      if ((*it) > (*(rhs.begin()))) {
+      if ((*(lhs.begin())) > (*it)) {
         res = d_em->trueExpr();
       } else {
-        it = rhs.end();
+        it = lhs.end();
         --it;
-        if ((*it) >= (*(lhs.begin()))) {
+        if ((*(rhs.begin())) >= (*it)) {
           res = d_em->falseExpr();
         }
       }
@@ -3937,17 +3937,15 @@ Theorem ArithTheoremProducerOld::rewriteLeavesConst(const Expr& e)
     }
     case GE: {
       set<Rational>::iterator it;
-      it = lhs.end();
+      it = rhs.end();
       --it;
-      if ((*it) >= (*(rhs.begin()))) {
+      if ((*(lhs.begin())) >= (*it)) {
         res = d_em->trueExpr();
-      }
-      else {
-        it = rhs.end();
+      } else {
+        it = lhs.end();
         --it;
-        if ((*it) > (*(lhs.begin()))) {
+        if ((*(rhs.begin())) > (*it)) {
           res = d_em->falseExpr();
-          break;
         }
       }
       break;

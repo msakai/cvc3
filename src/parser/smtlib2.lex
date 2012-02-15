@@ -174,8 +174,14 @@ SIMPLE_SYMBOL (({LETTER}|{SYMBOL_CHAR})({LETTER}|{DIGIT}|{SYMBOL_CHAR})*)
              /* Base SMT-LIB tokens */
 "assert"        { return ASSERT_TOK; }
 "check-sat"     { return CHECKSAT_TOK; }
+"push"          { return PUSH_TOK; }
+"pop"           { return POP_TOK; }
 "declare-fun"   { return DECLARE_FUN_TOK; }
 "declare-sort"  { return DECLARE_SORT_TOK; }
+"get-proof"     { return GET_PROOF_TOK; }
+"get-assignment" { return GET_ASSIGNMENT_TOK; }
+"get-value"     { return GET_VALUE_TOK; }
+"get-model"     { return GET_MODEL_TOK; }
 "!"             { return EXCLAMATION_TOK; }
 "exit"          { return EXIT_TOK; }
 "let"           { return LET_TOK; }

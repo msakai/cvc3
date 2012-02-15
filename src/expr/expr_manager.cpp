@@ -548,6 +548,8 @@ static void registerKinds(ExprManager& em) {
   em.newKind(CALL, "_CALL");
   em.newKind(ECHO, "_ECHO");
   em.newKind(INCLUDE, "_INCLUDE");
+  em.newKind(GET_VALUE, "_GET_VALUE");
+  em.newKind(GET_ASSIGNMENT, "_GET_ASSIGNMENT");
   em.newKind(DUMP_PROOF, "_DUMP_PROOF");
   em.newKind(DUMP_ASSUMPTIONS, "_DUMP_ASSUMPTIONS");
   em.newKind(DUMP_SIG, "_DUMP_SIG");

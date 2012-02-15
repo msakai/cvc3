@@ -75,6 +75,9 @@ class CVC_DLL VCL : public ValidityChecker {
   //! User-level view of the scope stack
   CDO<int> *d_stackLevel;
 
+  //! True iff we've pushed the stack artificially to avoid polluting context
+  bool d_modelStackPushed;
+
   //! Run-time statistics
   Statistics* d_statistics;
 
@@ -381,6 +384,8 @@ public:
   bool incomplete();
   bool incomplete(std::vector<std::string>& reasons);
   Proof getProof();
+  Expr getAssignment();
+  Expr getValue(Expr e);
   Expr getTCC();
   void getAssumptionsTCC(std::vector<Expr>& assumptions);
   Proof getProofTCC();

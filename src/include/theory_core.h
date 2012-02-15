@@ -27,6 +27,8 @@
 #include "statistics.h"
 #include <string>
 #include "notifylist.h"
+#include <vector>
+#include <utility>
 //#include "expr_transform.h"
 
 namespace CVC3 {
@@ -130,7 +132,7 @@ class TheoryCore :public Theory {
 
   //! Mapping of compound type variables to simpler types (model generation)
   ExprHashMap<std::vector<Expr> > d_varModelMap;
-  //! Mapping of intermediate variables to their valies
+  //! Mapping of intermediate variables to their values
   ExprHashMap<Theorem> d_varAssignments;
   //! List of basic variables (temporary storage for model generation)
   std::vector<Expr> d_basicModelVars;
@@ -199,6 +201,9 @@ class TheoryCore :public Theory {
 
   //! Whether we are in the middle of doing updates
   unsigned d_inUpdate;
+
+  //! The set of named expressions to evaluate on a GET_ASSIGNMENT request
+  std::vector< std::pair<Expr, Expr> > d_assignment;
 
 public:
   /***************************************************************************/
@@ -494,6 +499,12 @@ public:
 
   //! Called by search engine
   Theorem rewriteLiteral(const Expr& e);
+
+  //! Get the value of all :named terms
+  Expr getAssignment();
+
+  //! Get the value of an arbitrary formula or term
+  Expr getValue(Expr e);
 
 private:
   // Methods provided for benefit of theories.  Access is made available through theory.h

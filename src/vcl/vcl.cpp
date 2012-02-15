@@ -159,6 +159,8 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("simp-and", CLFlag(false, "Rewrite x&y to x&y[x/true]", false));
   flags.addFlag("simp-or", CLFlag(false, "Rewrite x|y to x|y[x/false]", false));
   flags.addFlag("pp-batch", CLFlag(false, "Ignore assumptions until query, then process all at once"));
+  flags.addFlag("no-save-model", CLFlag(false, "Do NOT save model assumptions in context after invalid / sat query"));
+  flags.addFlag("internal::userSetNoSaveModel", CLFlag(false, "set if user gave +no-save-model or -no-save-model explicitly", false));
 
   // Negate the query when translate into tptp
   flags.addFlag("negate-query", CLFlag(true, "Negate the query when translate into TPTP format"));;
@@ -613,10 +615,8 @@ VCL::~VCL()
   // No more TRACE-ing after this point (it needs d_flags)
   // Finalize the global debugger,
   // otherwise applications with more than one instance of VCL
-  // may use refer to deallocated flags (e.g. test6 uses 2 VLCs)
-  IF_DEBUG(
-	   CVC3::debugger.finalize();
-  )
+  // may use refer to deallocated flags (e.g. test6 uses 2 VCLs)
+  IF_DEBUG( CVC3::debugger.finalize(); )
 }
 
 
@@ -1847,6 +1847,11 @@ Theorem VCL::checkTCC(const Expr& tcc)
 
 void VCL::assertFormula(const Expr& e)
 {
+  if (getFlags()["no-save-model"].getBool() && d_modelStackPushed) {
+    d_modelStackPushed = false;
+    pop();
+  }
+
   // Typecheck the user input
   if(!e.getType().isBool()) {
     throw TypecheckException("Non-BOOLEAN formula in ASSERT:\n  "
@@ -1863,7 +1868,7 @@ void VCL::assertFormula(const Expr& e)
     if(d_dump) {
       Expr e2 = e;
       if (getFlags()["preSimplify"].getBool()) {
-        e2 = simplify(e);
+        e2 = d_theoryCore->getExprTrans()->preprocess(e).getRHS();
       }
       if (d_translator->dumpAssertion(e2)) return;
     }
@@ -1924,6 +1929,16 @@ Theorem VCL::simplifyThm(const Expr& e)
 QueryResult VCL::query(const Expr& e)
 {
   TRACE("query", "VCL::query(", e,") {");
+
+  if (getFlags()["no-save-model"].getBool()) {
+    if(d_modelStackPushed) {
+      d_modelStackPushed = false;
+      pop();
+    }
+    push();
+    d_modelStackPushed = true;
+  }
+
   // Typecheck the user input
   if(!e.getType().isBool()) {
     throw TypecheckException("Non-BOOLEAN formula in QUERY:\n  "
@@ -1949,7 +1964,7 @@ QueryResult VCL::query(const Expr& e)
   if (d_dump && !getFlags()["dump-tcc"].getBool()) {
     Expr e2 = qExpr;
     if (getFlags()["preSimplify"].getBool()) {
-      e2 = simplify(qExpr);
+      e2 = d_theoryCore->getExprTrans()->preprocess(qExpr).getRHS();
     }
     if (d_translator->dumpQuery(e2)) return UNKNOWN;
   }
@@ -1961,7 +1976,7 @@ QueryResult VCL::query(const Expr& e)
     if (getFlags()["dump-tcc"].getBool()) {
       Expr e2 = tcc;
       if (getFlags()["preSimplify"].getBool()) {
-        e2 = simplify(tcc);
+        e2 = d_theoryCore->getExprTrans()->preprocess(tcc).getRHS();
       }
       if (d_translator->dumpQuery(e2)) return UNKNOWN;
     }
@@ -2182,6 +2197,19 @@ Proof VCL::getProof()
   return d_se->getProof();
 }
 
+Expr VCL::getAssignment() {
+  if(d_dump) {
+    d_translator->dump(d_em->newLeafExpr(GET_ASSIGNMENT), true);
+  }
+  return d_theoryCore->getAssignment();
+}
+
+Expr VCL::getValue(Expr e) {
+  if(d_dump) {
+    d_translator->dump(Expr(GET_VALUE, e), true);
+  }
+  return simplify(e);
+}
 
 Expr VCL::getTCC(){
   static Expr null;
@@ -2252,7 +2280,10 @@ int VCL::stackLevel()
 
 void VCL::push()
 {
-  if(d_dump) {
+  if (getFlags()["no-save-model"].getBool() && d_modelStackPushed) {
+    d_modelStackPushed = false;
+    pop();
+  } else if (d_dump) {
     d_translator->dump(d_em->newLeafExpr(PUSH), true);
   }
   d_se->push();
@@ -2262,7 +2293,10 @@ void VCL::push()
 
 void VCL::pop()
 {
-  if(d_dump) {
+  if (getFlags()["no-save-model"].getBool() && d_modelStackPushed) {
+    d_modelStackPushed = false;
+    pop();
+  } else if (d_dump) {
     d_translator->dump(d_em->newLeafExpr(POP), true);
   }
   if (stackLevel() == 0) {

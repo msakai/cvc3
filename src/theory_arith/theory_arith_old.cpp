@@ -1131,6 +1131,8 @@ void TheoryArithOld::processBuffer()
 
     		// Check that the variable is indeed isolated correctly
     		DebugAssert(varOnRHS? !isPlus(ineq[1]) : !isPlus(ineq[0]), "TheoryArithOld::processBuffer(): bad result from isolateVariable:\nineq = "+ineq.toString());
+    		// Update the constained maps
+    		updateConstrained(inequalityFindThm.getExpr());
     		// and project the inequality
     		projectInequalities(thm1, varOnRHS);
     	}
@@ -2260,6 +2262,8 @@ TheoryArithOld::TheoryArithOld(TheoryCore* core)
     shared_index_2(core->getCM()->getCurrentContext(), 0, 0),
     termUpperBounded(core->getCM()->getCurrentContext()),
     termLowerBounded(core->getCM()->getCurrentContext()),
+    d_varConstrainedPlus(core->getCM()->getCurrentContext()),
+    d_varConstrainedMinus(core->getCM()->getCurrentContext()),
     termConstrainedBelow(core->getCM()->getCurrentContext()),
     termConstrainedAbove(core->getCM()->getCurrentContext())
 {
@@ -2486,48 +2490,7 @@ void TheoryArithOld::assertFact(const Theorem& e)
   const Expr& expr = e.getExpr();
   if (expr.isNot() && expr[0].isEq()) {
     IF_DEBUG(debugger.counter("[arith] received disequalities")++;)
-
-//    Expr eq = expr[0];
-//
-//    // We want to expand on difference logic disequalities as soon as possible
-//    bool diff_logic = false;
-//    if (eq[1].isRational() && eq[1].getRational() == 0) {
-//    	if (!isPlus(eq[0])) {
-//    		if (isLeaf(eq[0])) diff_logic = true;
-//    	}
-//    	else {
-//    		int arity = eq[0].arity();
-//    		if (arity <= 2) {
-//    			if (eq[0][0].isRational())
-//    				diff_logic = true;
-//    			else {
-//    				Expr ax = eq[0][0], a, x;
-//    				Expr by = eq[0][1], b, y;
-//    				separateMonomial(ax, a, x);
-//    				separateMonomial(by, b, y);
-//    				if (isLeaf(x) && isLeaf(y))
-//    					if ((a.getRational() == 1 && b.getRational() == -1) ||
-//    						(a.getRational() == -1 && b.getRational() == 1))
-//    						diff_logic = true;
-//    			}
-//    		}
-//    		if (arity == 3 && eq[0][0].isRational()) {
-//    			Expr ax = eq[0][1], a, x;
-//				Expr by = eq[0][2], b, y;
-//				separateMonomial(ax, a, x);
-//				separateMonomial(by, b, y);
-//				if (isLeaf(x) && isLeaf(y))
-//					if ((a.getRational() == 1 && b.getRational() == -1) ||
-//						(a.getRational() == -1 && b.getRational() == 1))
-//						diff_logic = true;
-//    		}
-//    	}
-//    }
-//
-//    if (diff_logic)
-//    	enqueueFact(d_rules->diseqToIneq(e));
-//    else
-    	d_diseq.push_back(e);
+    d_diseq.push_back(e);
   }
   else if (!expr.isEq()){
     if (expr.isNot()) {
@@ -2539,13 +2502,6 @@ void TheoryArithOld::assertFact(const Theorem& e)
       // This can only be negation of dark or gray shadows, or
       // disequalities, which we ignore.  Negations of inequalities
       // are handled in rewrite, we don't even receive them here.
-
-//      if (isGrayShadow(expr[0])) {
-//    	  TRACE("arith gray", "expanding ", expr.toString(), "");
-//    	  Theorem expand = d_rules->expandGrayShadowRewrite(expr[0]);
-//    	  enqueueFact(iffMP(e, substitutivityRule(expr, 0, expand)));
-//      }
-
     }
     else if(isDarkShadow(expr)) {
       enqueueFact(d_rules->expandDarkShadow(e));
@@ -2593,23 +2549,6 @@ void TheoryArithOld::assertFact(const Theorem& e)
     		  // Split G into 2 cases (binary search b/w c1 and c2)
     		  Theorem thm2 = d_rules->splitGrayShadow(gThm);
     		  enqueueFact(thm2);
-    		  // Fetch the two gray shadows
-//    		  DebugAssert(thm2.getExpr().isAnd() && thm2.getExpr().arity()==2,
-//    				  "thm2 = "+thm2.getExpr().toString());
-//    		  const Expr& G1orG2 = thm2.getExpr()[0];
-//    		  DebugAssert(G1orG2.isOr() && G1orG2.arity()==2,
-//    				  "G1orG2 = "+G1orG2.toString());
-//    		  const Expr& G1 = G1orG2[0];
-//    		  const Expr& G2 = G1orG2[1];
-//    		  DebugAssert(G1.getKind()==GRAY_SHADOW, "G1 = "+G1.toString());
-//    		  DebugAssert(G2.getKind()==GRAY_SHADOW, "G2 = "+G2.toString());
-//    		  // Split on the left disjunct first (keep the priority low)
-//    		  Expr tmp = simplifyExpr(G1);
-//    		  if (!tmp.isBoolConst())
-//    			  addSplitter(tmp, 1);
-//    		  tmp = simplifyExpr(G2);
-//    		  if (!tmp.isBoolConst())
-//    			  addSplitter(tmp, -1);
     	  }
       }
     }
@@ -2618,17 +2557,6 @@ void TheoryArithOld::assertFact(const Theorem& e)
 		  "expected LE or LT: "+expr.toString());
       if(isLE(expr) || isLT(expr)) {
 	IF_DEBUG(debugger.counter("recevied inequalities")++;)
-
-//        // Assert the equivalent negated inequality
-//        Theorem thm;
-//        if (isLE(expr)) thm = d_rules->negatedInequality(!gtExpr(expr[0],expr[1]));
-//        else thm = d_rules->negatedInequality(!geExpr(expr[0],expr[1]));
-//        thm = symmetryRule(thm);
-//        Theorem thm2 = simplify(thm.getRHS()[0]);
-//        DebugAssert(thm2.getLHS() != thm2.getRHS(), "Expected rewrite");
-//        thm2 = getCommonRules()->substitutivityRule(thm.getRHS(), thm2);
-//        thm = transitivityRule(thm, thm2);
-//        enqueueFact(iffMP(e, thm));
 
 	// Buffer the inequality
 	addToBuffer(e);
@@ -2689,29 +2617,22 @@ void TheoryArithOld::checkSat(bool fullEffort)
     if (!inconsistent())
         processBuffer();
 
-    // Expand the needded inequalitites
-    int total_buffer_size = d_buffer_0.size() + d_buffer_1.size() + d_buffer_2.size() + d_buffer_3.size();
-
-    int constrained_vars = 0;
-    if (!inconsistent() && total_buffer_size > 0)
-    	constrained_vars = computeTermBounds();
-
-    bool something_enqueued = false;
-
-    if (d_inModelCreation || (!inconsistent() && total_buffer_size > 0 && constrained_vars > 0)) {
+    if (!inconsistent()) {
       // If in model creation we might have to reconsider some of the dis-equalities
       if (d_inModelCreation) d_diseqIdx = 0;
 
       // Now go and try to split
       for(; d_diseqIdx < d_diseq.size(); d_diseqIdx = d_diseqIdx+1) {
-    	  TRACE("model", "[arith] refining diseq: ", d_diseq[d_diseqIdx].getExpr() , "");
 
     	  // Get the disequality theorem and the expression
     	  Theorem diseqThm = d_diseq[d_diseqIdx];
     	  Expr diseq = diseqThm.getExpr();
 
     	  // If we split on this one already
-    	  if (diseqSplitAlready.find(diseq) != diseqSplitAlready.end()) continue;
+    	  if (diseqSplitAlready.find(diseq) != diseqSplitAlready.end()) {
+    	    TRACE("arith::unconstrained", "checking disequaliy: ", diseq[0] , " already split");
+    	    continue;
+    	  }
 
     	  // Get the equality
     	  Expr eq = diseq[0];
@@ -2719,31 +2640,41 @@ void TheoryArithOld::checkSat(bool fullEffort)
     	  // Get the left-hand-side and the right-hands side
     	  Expr lhs = eq[0];
     	  Expr rhs = eq[1];
+          TRACE("arith::unconstrained", "checking disequaliy: ", lhs.eqExpr(rhs) , "");
     	  DebugAssert(lhs.hasFind() && rhs.hasFind(), "Part of dis-equality has no find!");
     	  lhs = find(lhs).getRHS();
     	  rhs = find(rhs).getRHS();
+          TRACE("arith::unconstrained", "checking disequaliy: ", lhs.eqExpr(rhs) , " after find");
 
     	  // If the value of the equality is already determined by instantiation, we just skip it
     	  // This can happen a lot as we infer equalities in difference logic
     	  if (lhs.isRational() && rhs.isRational()) {
-    		  TRACE("arith diseq", "disequality already evaluated : ", diseq.toString(), "");
-    		  continue;
+    	    TRACE("arith::unconstrained", "checking disequaliy: ", lhs.eqExpr(rhs) , " skipping");
+    	    continue;
     	  }
 
     	  // We can allow ourselfs not to care about specific values if we are
-    	  // not in model creation
+    	  // not in model creation or it's not an integer constraint
     	  if (!d_inModelCreation) {
-    		  // If the left or the right hand side is unbounded, we don't care right now
-    		  if (!isConstrained(lhs) || !isConstrained(rhs)) continue;
-    		  if (getUpperBound(lhs) < getLowerBound(rhs)) continue;
-    		  if (getUpperBound(rhs) < getLowerBound(lhs)) continue;
+    	    bool unconstrained = isUnconstrained(lhs) || isUnconstrained(rhs);
+    	    if (unconstrained) {
+              TRACE("arith::unconstrained", "checking disequaliy: ", lhs.eqExpr(rhs) , " unconstrained skipping");
+    	      continue;
+    	    }
+    	    bool intConstraint = !isIntegerThm(lhs).isNull() && !isIntegerThm(rhs).isNull();
+    	    if (!intConstraint) {
+              TRACE("arith::unconstrained", "checking disequaliy: ", lhs.eqExpr(rhs) , " not integer skipping");
+    	      continue;
+    	    }
     	  }
 
-    	  TRACE("arith ineq", "[arith] refining diseq: ", d_diseq[d_diseqIdx].getExpr() , "");
+          TRACE("arith::unconstrained", "checking disequaliy: ", lhs.eqExpr(rhs) , " splitting");
 
-    	  // We don't know the value of the disequlaity, split on it (for now)
-    	  enqueueFact(d_rules->diseqToIneq(diseqThm));
-    	  something_enqueued = true;
+    	  // We don't know the value of the disequality, split on it (for now)
+    	  Theorem lemma = d_rules->diseqToIneq(diseqThm);
+
+          // Enqueue it
+          enqueueFact(lemma);
 
     	  // Mark it as split already
     	  diseqSplitAlready[diseq] = true;
@@ -5959,4 +5890,57 @@ void TheoryArithOld::DifferenceLogicGraph::writeGraph(ostream& out) {
 	}
 
 	out << "}" << endl;
+}
+
+bool TheoryArithOld::isUnconstrained(const Expr& t) {
+  if (isPlus(t)) {
+    for (int i = 0; i < t.arity(); ++ i) {
+      if (isUnconstrained(t[i])) {
+        TRACE("arith::unconstrained", "isUnconstrained(", t, ") => true (subterm)");
+        return true;
+      }
+    }
+  } else {
+    Expr c, var;
+    separateMonomial(t, c, var);
+    if (var.isRational()) {
+      TRACE("arith::unconstrained", "isUnconstrained(", t, ") => false (rational)");
+      return false;
+    }
+    if (isMult(var)) {
+      TRACE("arith::unconstrained", "isUnconstrained(", t, ") => false (multiplication)");
+      return false;
+    }
+    if (diffLogicOnly) {
+      if (!diffLogicGraph.hasIncoming(var) || !diffLogicGraph.hasOutgoing(var)) {
+        return true;
+      }
+    } else if (d_varConstrainedPlus.find(var) == d_varConstrainedPlus.end() || d_varConstrainedMinus.find(var) == d_varConstrainedMinus.end()) {
+      return true;
+    }
+  }
+  TRACE("arith::unconstrained", "isUnconstrained(", t, ") => false");
+  return false;
+}
+
+void TheoryArithOld::updateConstrained(const Expr& t) {
+  TRACE("arith::unconstrained", "updateConstrained(", t, ")");
+  if (isIneq(t)) {
+    updateConstrained(t[1]);
+  } else if (isPlus(t)) {
+    for (int i = 0; i < t.arity(); ++ i) {
+      updateConstrained(t[i]);
+    }
+  } else {
+    Expr c, var;
+    separateMonomial(t, c, var);
+    if (var.isRational() || isMult(var)) {
+      return;
+    }
+    if (c.getRational() < 0) {
+      d_varConstrainedMinus[var] = true;
+    } else {
+      d_varConstrainedPlus[var] = true;
+    }
+  }
 }

@@ -1693,6 +1693,18 @@ void Translator::finish()
         d_arrayType = new Type(arrayType(*d_indexType, *d_elementType));
       }
     }
+
+    if (d_em->getOutputLang() == PRESENTATION_LANG) {
+      // If we translate SMT-LIBv2 to PRESENTATION, we should set
+      // "no-save-model" so that multiple-query benchmarks give
+      // the same results in both languages.
+      //
+      // Translation the other way doesn't work, since SMT-LIBv2
+      // doesn't support CVC3 presentation language semantics.
+      if(d_theoryCore->getFlags()["no-save-model"].getBool()) {
+        *d_osdump << "OPTION \"no-save-model\" 1;" << endl;
+      }
+    }
   }
 
   if (d_dump) {

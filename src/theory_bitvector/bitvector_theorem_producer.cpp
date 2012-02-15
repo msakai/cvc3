@@ -6583,22 +6583,24 @@ Theorem BitvectorTheoremProducer::bvSModRewrite(const Expr& sModExpr)
 	Proof pf;
 	if (withProof()) pf = newPf("bvSModRewrite", sModExpr);
 
-	//      (bvsmod s t) abbreviates
-	//	      (let (?msb_s (extract[|m-1|:|m-1|] s))
-	//	      (let (?msb_t (extract[|m-1|:|m-1|] t))
-	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit0))
-	//	           (bvurem s t)
-	//	      (ite (and (= ?msb_s bit1) (= ?msb_t bit0))
-	//	           (bvadd (bvneg (bvurem (bvneg s) t)) t)
-	//	      (ite (and (= ?msb_s bit0) (= ?msb_t bit1))
-	//	           (bvadd (bvurem s (bvneg t)) t)
-	//             (bvneg (bvurem (bvneg s) (bvneg t))))))))
+        // (bvsmod s t) abbreviates
+        //     (let ((?msb_s ((_ extract |m-1| |m-1|) s))
+        //           (?msb_t ((_ extract |m-1| |m-1|) t)))
+        //       (let ((abs_s (ite (= ?msb_s #b0) s (bvneg s)))
+        //             (abs_t (ite (= ?msb_t #b0) t (bvneg t))))
+        //         (let ((u (bvurem abs_s abs_t)))
+        //           (ite (= u (_ bv0 m))
+        //                u
+        //           (ite (and (= ?msb_s #b0) (= ?msb_t #b0))
+        //                u
+        //           (ite (and (= ?msb_s #b1) (= ?msb_t #b0))
+        //                (bvadd (bvneg u) t)
+        //           (ite (and (= ?msb_s #b0) (= ?msb_t #b1))
+        //                (bvadd u t)
+        //                (bvneg u))))))))
 
 	Expr s     = sModExpr[0];
 	Expr t     = sModExpr[1];
-
-	Expr s_neg = d_theoryBitvector->newBVUminusExpr(s);
-	Expr t_neg = d_theoryBitvector->newBVUminusExpr(t);
 
 	Expr msb_s = d_theoryBitvector->newBVExtractExpr(s, m-1, m-1);
 	Expr msb_t = d_theoryBitvector->newBVExtractExpr(t, m-1, m-1);
@@ -6606,20 +6608,22 @@ Theorem BitvectorTheoremProducer::bvSModRewrite(const Expr& sModExpr)
 	Expr bit0  = d_theoryBitvector->newBVConstExpr(Rational(0), 1);
 	Expr bit1  = d_theoryBitvector->newBVConstExpr(Rational(1), 1);
 
+	Expr abs_s = msb_s.eqExpr(bit0).iteExpr(s, d_theoryBitvector->newBVUminusExpr(s));
+	Expr abs_t = msb_t.eqExpr(bit0).iteExpr(t, d_theoryBitvector->newBVUminusExpr(t));
+
+        Expr u = d_theoryBitvector->newBVURemExpr(abs_s, abs_t);
+
+	Expr cond0 = u.eqExpr(d_theoryBitvector->newBVConstExpr(Rational(0), m));
 	Expr cond1 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit0));
 	Expr cond2 = msb_s.eqExpr(bit1).andExpr(msb_t.eqExpr(bit0));
 	Expr cond3 = msb_s.eqExpr(bit0).andExpr(msb_t.eqExpr(bit1));
 
-	Expr result = cond1.iteExpr(
-				d_theoryBitvector->newBVURemExpr(s, t),
-				cond2.iteExpr(
-						d_theoryBitvector->newBVPlusExpr(m, d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVURemExpr(s_neg, t)), t),
-						cond3.iteExpr(
-								d_theoryBitvector->newBVPlusExpr(m, d_theoryBitvector->newBVURemExpr(s, t_neg), t),
-								d_theoryBitvector->newBVUminusExpr(d_theoryBitvector->newBVURemExpr(s_neg, t_neg))
-								)
-						)
-			);
+        Expr result = cond0.iteExpr(u,
+                      cond1.iteExpr(u,
+                      cond2.iteExpr(
+                                    d_theoryBitvector->newBVPlusExpr(m, d_theoryBitvector->newBVUminusExpr(u), t),
+                      cond3.iteExpr(d_theoryBitvector->newBVPlusExpr(m, u, t),
+                                    d_theoryBitvector->newBVUminusExpr(u)))));
 
 	return newRWTheorem(sModExpr, result, Assumptions::emptyAssump(), pf);
 }

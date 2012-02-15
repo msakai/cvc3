@@ -734,6 +734,38 @@ bool VCCmd::evaluateCommand(const Expr& e0)
     d_vc->reprocessFlags();
   }
     break;
+  case GET_VALUE: {
+    ExprMap<Expr> m;
+    d_vc->getConcreteModel(m);
+
+    if (d_vc->getFlags()["printResults"].getBool()) {
+      cout << "(";
+    }
+    for(int i = 0; i < e[1].arity(); ++i) {
+      Expr res = d_vc->getValue(d_vc->parseExpr(e[1][i]));
+      if (d_vc->getFlags()["printResults"].getBool()) {
+        cout << res;
+        if(i < e[1].arity() - 1) {
+          cout << endl;
+        }
+      }
+    }
+    if (d_vc->getFlags()["printResults"].getBool()) {
+      cout << ")" << endl;
+    }
+    break;
+  }
+  case GET_ASSIGNMENT: {
+    ExprMap<Expr> m;
+    d_vc->getConcreteModel(m);
+
+    Expr res = d_vc->getAssignment();
+    if (d_vc->getFlags()["printResults"].getBool()) {
+      cout << res << endl;
+      cout << flush;
+    }
+    break;
+  }
   case DUMP_PROOF: {
     Proof p = d_vc->getProof();
     if (d_vc->getFlags()["printResults"].getBool()) {
@@ -744,7 +776,9 @@ bool VCCmd::evaluateCommand(const Expr& e0)
   }
   case DUMP_ASSUMPTIONS: { // Assumption tracking
     vector<Expr> assertions;
-    d_vc->getAssumptionsUsed(assertions);
+
+    bool b = d_vc->inconsistent(assertions);
+    DebugAssert(b, "not inconsistent");
 
     if (d_vc->getFlags()["printResults"].getBool()) {
       if(assertions.size() == 0) {

@@ -964,6 +964,14 @@ public:
   */
   virtual Proof getProof() = 0;
 
+  //! Evaluate an expression and return a concrete value in the model
+  /*! If the last query was not invalid, should return NULL expr */
+  virtual Expr getValue(Expr e) = 0;
+
+  //! Returns the list of pairs (name value) for each :named attribute.
+  /*! If the last query was not invalid, should return NULL expr */
+  virtual Expr getAssignment() = 0;
+
   //! Returns the TCC of the last assumption or query
   /*! Returns Null if no assumptions or queries were performed. */
   virtual Expr getTCC() = 0;

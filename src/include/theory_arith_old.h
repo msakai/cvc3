@@ -903,6 +903,9 @@ private:
 	CDMap<Expr, DifferenceLogicGraph::EpsRational> termUpperBounded;
 	CDMap<Expr, DifferenceLogicGraph::EpsRational> termLowerBounded;
 
+	CDMap<Expr, bool> d_varConstrainedPlus;
+        CDMap<Expr, bool> d_varConstrainedMinus;
+
 	// Keeps all expressions that are constrained
 	CDMap<Expr, bool> termConstrainedBelow;
 	CDMap<Expr, bool> termConstrainedAbove;
@@ -943,6 +946,9 @@ private:
 	int computeTermBounds();
 
 public:
+
+	void updateConstrained(const Expr& t);
+	bool isUnconstrained(const Expr& t);
 
 	void tryPropagate(const Expr& x, const Expr& y, const DifferenceLogicGraph::EdgeInfo& x_y_edge, int kind);
 

@@ -249,7 +249,7 @@ void TheoryDatatype::assertFact(const Theorem& e)
           }
         }
         if (!bigConj.isNull()) {
-          enqueueFact(d_rules->dummyTheorem(d_facts, bigConj));
+          enqueueFact(d_rules->dummyTheorem(d_facts, expr.impExpr(bigConj)));
         }          
       }
     }

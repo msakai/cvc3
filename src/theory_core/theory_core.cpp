@@ -633,6 +633,8 @@ bool TheoryCore::isBasicKind(int kind)
     case VARDECLS:
     case LETDECLS:
     case HELP:
+    case GET_VALUE:
+    case GET_ASSIGNMENT:
     case DUMP_PROOF:
     case DUMP_ASSUMPTIONS:
     case DUMP_SIG:
@@ -799,6 +801,8 @@ TheoryCore::TheoryCore(ContextManager* cm,
   kinds.push_back(QUERY);
   kinds.push_back(PRINT);
 
+  kinds.push_back(GET_VALUE);
+  kinds.push_back(GET_ASSIGNMENT);
   kinds.push_back(DUMP_PROOF);
   kinds.push_back(DUMP_ASSUMPTIONS);
   kinds.push_back(DUMP_SIG);
@@ -1984,8 +1988,23 @@ ExprStream& TheoryCore::printSmtLibShared(ExprStream& os, const Expr& e) {
     break;
 
 
-  case PF_APPLY: {// FIXME: this will eventually go to the "symsim" theory
-    throw SmtlibException("TheoryCore::print: SMTLIB: PF_APPLY not implemented");
+  case PF_APPLY: {
+    DebugAssert(e.arity() > 0, "TheoryCore::print(): "
+		"Proof rule application must have at "
+		"least one argument (rule name):\n "+e.toString());
+    //      os << e[0]; by yeting
+    os << e[0] << "\n" ;
+    if(e.arity() > 1) { // Print the arguments
+      os << push << "(" << push;
+      bool first(true);
+      for(int i=1; i<e.arity(); i++) {
+        if(first) first=false;
+        else os << push << "," << pop << space;
+        //	  os << e[i]; by yeting
+        os << e[i] << "\n";
+      }
+      os << push << ")";
+    }
     break;
   }
   case RAW_LIST: {
@@ -3175,6 +3194,7 @@ ExprStream& TheoryCore::print(ExprStream& os, const Expr& e)
     case ASSERTIONS:
     case ASSUMPTIONS:
       os << "(get-assertions)";
+      break;
     case COUNTEREXAMPLE:
       os << "(get-unsat-core)";
       break;
@@ -3629,6 +3649,26 @@ Expr TheoryCore::parseExpr(const Expr& e)
       // This can only be a lambda expression application.
       kind = LAMBDA;
       break;
+    case STRING_EXPR: {
+        vector<Expr> assignmentVars;
+        if(op.getString() == "_ANNOTATION") {
+          for(int i = 0; i < e[2].arity(); ++i) {
+            if(e[2][i][0][0].getString() == ":named") {
+              FatalAssert(e[2][i].arity() == 2 && e[2][i][1].getKind() == ID,
+                        ":named annotation must take a name");
+              assignmentVars.push_back(e[2][i][1]);
+            }
+          }
+          Expr parsed = parseExpr(e[1]);
+          for(unsigned i = 0; i < assignmentVars.size(); ++i) {
+            d_assignment.push_back(make_pair(assignmentVars[i], parsed));
+          }
+          // Return rather than break; nothing more to do with the
+          // annotation expr itself; it is stripped away.
+          return parsed;
+        }
+        /* else fall through... */
+      }
     default:
       throw ParserException("Bad operator in "+e.toString());
     }
@@ -4276,3 +4316,23 @@ void TheoryCore::setupTerm(const Expr& t, Theory* i, const Theorem& thm)
     k->assertTypePred(t, pred);
   }
 }
+
+Expr TheoryCore::getAssignment() {
+  vector<Expr> v;
+  for(unsigned i = 0; i < d_assignment.size(); ++i) {
+    Theorem res = d_exprTrans->preprocess(d_assignment[i].second);
+    Theorem simpThm =  d_theoryCore->simplify(res.getRHS());
+    vector<Expr> pr;
+    pr.push_back(d_assignment[i].first);
+    pr.push_back(simpThm.getRHS());
+    v.push_back(Expr(RAW_LIST, pr, getEM()));
+  }
+  return Expr(RAW_LIST, v, getEM());
+}
+
+Expr TheoryCore::getValue(Expr e) {
+  Theorem res = d_exprTrans->preprocess(e);
+  Theorem simpThm =  d_theoryCore->simplify(res.getRHS());
+  return simpThm.getRHS();
+}
+

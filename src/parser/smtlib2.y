@@ -96,8 +96,14 @@ int smtlib2error(const char *s)
 
 %token ASSERT_TOK
 %token CHECKSAT_TOK
+%token PUSH_TOK
+%token POP_TOK
 %token DECLARE_FUN_TOK
 %token DECLARE_SORT_TOK
+%token GET_PROOF_TOK
+%token GET_ASSIGNMENT_TOK
+%token GET_VALUE_TOK
+%token GET_MODEL_TOK
 %token EXCLAMATION_TOK
 %token EXIT_TOK
 %token ITE_TOK
@@ -295,8 +301,39 @@ command_aux:
 
   | CHECKSAT_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr("_CHECKSAT", 
+      $$ = new CVC3::Expr(VC->listExpr("_CHECKSAT",
                                        CVC3::Expr(VC->idExpr("_TRUE_EXPR"))));
+    }
+
+  | PUSH_TOK INTEGER_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr("_PUSH", CVC3::Expr(VC->ratExpr((*$2)))));
+    }
+
+  | POP_TOK INTEGER_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr("_POP", CVC3::Expr(VC->ratExpr((*$2)))));
+    }
+
+  | GET_PROOF_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_DUMP_PROOF")));
+    }
+
+  | GET_ASSIGNMENT_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_GET_ASSIGNMENT")));
+    }
+
+  | GET_VALUE_TOK LPAREN_TOK terms RPAREN_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_GET_VALUE"), VC->listExpr(*$3)));
+      delete $3;
+    }
+
+  | GET_MODEL_TOK
+    {
+      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_COUNTERMODEL")));
     }
 
   | EXIT_TOK
@@ -678,7 +715,7 @@ term:
       CVC3::Expr body(*$6);
       DebugAssert( body.arity() > 0, "Empty quantifier body." );
       if( body[0].isString() && 
-          body[0].getString() == "_ANNOT" ) {
+          body[0].getString() == "_ANNOTATION" ) {
         CVC3::Expr annots = body[2];
         body = body[1]; // real body, stripping annot wrapper
         std::vector<CVC3::Expr> patterns;
@@ -701,7 +738,7 @@ term:
 
   | LPAREN_TOK EXCLAMATION_TOK term attributes RPAREN_TOK
     {
-      $$ = new CVC3::Expr(VC->listExpr(VC->stringExpr("_ANNOT"), 
+      $$ = new CVC3::Expr(VC->listExpr(VC->stringExpr("_ANNOTATION"), 
                                        *$3, 
                                        VC->listExpr(*$4)));
       delete $3;
@@ -987,6 +1024,48 @@ attribute:
     {
       $$ = new CVC3::Expr( VC->idExpr(*$1) );
       delete $1;
+    }
+
+  | KEYWORD_TOK SYM_TOK
+    {
+      $$ = new CVC3::Expr( VC->listExpr( VC->idExpr(*$1), VC->idExpr(*$2) ) );
+      delete $1;
+      delete $2;
+    }
+
+  | KEYWORD_TOK INTEGER_TOK
+    {
+      $$ = new CVC3::Expr( VC->listExpr( VC->idExpr(*$1), VC->ratExpr(*$2) ) );
+      delete $1;
+      delete $2;
+    }
+
+  | KEYWORD_TOK DECIMAL_TOK
+    {
+      $$ = new CVC3::Expr( VC->listExpr( VC->idExpr(*$1), VC->ratExpr(*$2) ) );
+      delete $1;
+      delete $2;
+    }
+
+  | KEYWORD_TOK HEX_TOK
+    {
+      $$ = new CVC3::Expr( VC->listExpr( VC->idExpr(*$1), VC->ratExpr(*$2, 16) ) );
+      delete $1;
+      delete $2;
+    }
+
+  | KEYWORD_TOK BINARY_TOK
+    {
+      $$ = new CVC3::Expr( VC->listExpr( VC->idExpr(*$1), VC->ratExpr(*$2, 2) ) );
+      delete $1;
+      delete $2;
+    }
+
+  | KEYWORD_TOK STRING_TOK
+    {
+      $$ = new CVC3::Expr( VC->listExpr( VC->idExpr(*$1), VC->stringExpr(*$2) ) );
+      delete $1;
+      delete $2;
     }
 
   | KEYWORD_TOK LPAREN_TOK terms RPAREN_TOK

@@ -1,7 +1,7 @@
 dnl Process with autoconf to generate configure script   -*- sh -*-
 
 dnl Init with sanity check for source directory
-AC_INIT(cvc3,2.4)
+AC_INIT(cvc3,2.4.1)
 
 
 ######################################################################
@@ -23,7 +23,7 @@ AC_SUBST(LIB_MINOR_VERSION)
 # Teeny version: increases for library bug fixes (API hasn't changed)
 AC_SUBST(LIB_TEENY_VERSION)
 
-LIB_MAJOR_VERSION=4
+LIB_MAJOR_VERSION=5
 LIB_MINOR_VERSION=0
 LIB_TEENY_VERSION=0
 

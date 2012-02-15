@@ -62,12 +62,28 @@ void sighandler(int signum) {
   IF_DEBUG(debugger.printAll();)
   if(vc != NULL && vc->getFlags()["stats"].getBool())
     cout << vc->getStatistics() << endl;
+  if(vc != NULL) {
+    // If deletion causes another signal, don't keep trying.
+    // This is here to ensure that logs are dumped, etc.
+    ValidityChecker* toDelete = vc;
+    vc = NULL;
+    delete toDelete;
+  }
   abort();
 }
 #else
 DWORD WINAPI thread_timeout(PVOID timeout) {
   Sleep((int)timeout * 1000);
   cerr << "(self-timeout)." << endl;
+  if(vc != NULL && vc->getFlags()["stats"].getBool())
+    cout << vc->getStatistics() << endl;
+  if(vc != NULL) {
+    // If deletion causes another signal, don't keep trying.
+    // This is here to ensure that logs are dumped, etc.
+    ValidityChecker* toDelete = vc;
+    vc = NULL;
+    delete toDelete;
+  }
   ExitProcess(1);
 }
 #endif
@@ -85,6 +101,7 @@ int main(int argc, char **argv)
   signal(SIGTERM, sighandler);
   signal(SIGQUIT, sighandler);
   signal(SIGALRM, sighandler);
+  signal(SIGSEGV, sighandler);
 #endif
   
   string fileName("");
@@ -95,6 +112,14 @@ int main(int argc, char **argv)
     cerr << "*** " << e;
     cerr << "\n\nRun with -help option for usage information." << endl;
     exit(1);
+  }
+
+  // In SMT-LIBv2, don't save the model between distinct check-sats
+  // (unless user specifically requested it)
+  if(flags["lang"].getString() != "" &&
+     getLanguage(flags["lang"].getString()) == SMTLIB_V2_LANG &&
+     !flags["internal::userSetNoSaveModel"].getBool()) {
+    flags.setFlag("no-save-model", true);
   }
 
   // Set the timeout, if given in the command line options
@@ -176,7 +201,11 @@ int main(int argc, char **argv)
   // Destruct the system
   TRACE_MSG("delete", "Deleting ValidityChecker [last trace from main.cpp]");
   try {
-    delete vc;
+    // The signal handler deletes the vc.  If deletion segfaults, we don't
+    // want to try it again.
+    ValidityChecker* toDelete = vc;
+    vc = NULL;
+    delete toDelete;
   } catch(Exception& e) {
     cerr << "*** Fatal exception: " << e << endl;
     exit(1);
@@ -257,6 +286,9 @@ void parse_args(int argc, char **argv, CLFlags &flags, string& fileName) {
 	throw CLException(ss.str());
       } else {
 	string name = names[0];
+        if(name == "no-save-model") {
+          flags.setFlag("internal::userSetNoSaveModel", true);
+        }
 	// Single match; process the option
 	CLFlagType tp = flags[name].getType();
 	switch(tp) {
