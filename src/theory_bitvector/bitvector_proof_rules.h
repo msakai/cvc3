@@ -540,14 +540,14 @@ namespace CVC3 {
     		                       std::vector<Theorem>& output_bits) = 0;
 
     /**
-     * Rewrite x_1 \vee x_2 \vee \ldots \vee x_n = 0 into
-     * x_1 = 0 \wedge x_2 = 0 \wedge \ldots \wedge x_n = 0.
+     * Rewrite \f[x_1 \vee x_2 \vee \ldots \vee x_n = 0\f] into
+     * \f[x_1 = 0 \wedge x_2 = 0 \wedge \ldots \wedge x_n = 0\f].
      */
     virtual Theorem zeroBVOR(const Expr& orEqZero) = 0;
 
     /**
-     * Rewrite x_1 \wedge x_2 \wedge \ldots \wedge x_n = 1^n into
-     * x_1 = 1^n \wedge x_2 = 1^n \wedge \ldots \wedge x_n = 1^n.
+     * Rewrite \f[x_1 \wedge x_2 \wedge \ldots \wedge x_n = 1^n\f] into
+     * \f[x_1 = 1^n \wedge x_2 = 1^n \wedge \ldots \wedge x_n = 1^n\f].
      */
     virtual Theorem oneBVAND(const Expr& andEqOne) = 0;
 

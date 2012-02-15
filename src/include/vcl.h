@@ -236,7 +236,7 @@ public:
   Expr importExpr(const Expr& e);
   Type importType(const Type& t);
   void cmdsFromString(const std::string& s, InputLanguage lang);
-  Expr exprFromString(const std::string& s);
+  Expr exprFromString(const std::string& s, InputLanguage lang);
 
   Expr trueExpr();
   Expr falseExpr();

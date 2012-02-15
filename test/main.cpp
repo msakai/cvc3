@@ -1793,11 +1793,19 @@ void test21()  {
     cout << "\nx2: " << x2;
     DebugAssert(x1 == x2, "Expected x1 == x2");
 
+    Expr x3 = vc->exprFromString("x", SMTLIB_V2_LANG);
+    cout << "\nx3: " << x3;
+    DebugAssert(x1 == x3, "Expected x1 == x3");
+
     Expr y1 = vc->varExpr("y",t);
     Expr y2 = vc->exprFromString("y");
     cout << "\ny1: " << y1;
     cout << "\ny2: " << y2;
     DebugAssert(y1 == y2, "Expected y1 == y2");
+
+    Expr y3 = vc->exprFromString("y", SMTLIB_V2_LANG);
+    cout << "\ny3: " << y3;
+    DebugAssert(y1 == y3, "Expected y1 == y3");
 
     Expr a1 = vc->gtExpr(x1,vc->ratExpr(0,1));
     Expr a2 = vc->exprFromString("x > 0");
@@ -1805,18 +1813,29 @@ void test21()  {
     cout << "\na2: " << a2;
     DebugAssert(a1 == a2, "Expected a1 == a2");
 
+    Expr a3 = vc->exprFromString("(> x 0)", SMTLIB_V2_LANG);
+    cout << "\na3: " << a3;
+    DebugAssert(a1 == a3, "Expected a1 == a3");
+
     Expr b1 = vc->ltExpr(x1,y1);
     Expr b2 = vc->exprFromString ("x < y");
     cout << "\nb1: " << b1;
     cout << "\nb2: " << b2;
     DebugAssert(b1 == b2, "Expected b1 == b2");
 
+    Expr b3 = vc->exprFromString ("(< x y)", SMTLIB_V2_LANG);
+    cout << "\nb3: " << b3;
+    DebugAssert(b1 == b3, "Expected b1 == b3");
+
     Expr e1 = a1 && b1;
     Expr e2 = vc->exprFromString("x > 0 AND x < y");
-
     cout << "\ne1: " << e1;
     cout << "\ne2: " << e2;
     DebugAssert(e1 == e2, "Expected e1 == e2");
+
+    Expr e3 = vc->exprFromString("(and (> x 0) (< x y))", SMTLIB_V2_LANG);
+    cout << "\ne3: " << e3;
+    DebugAssert(e1 == e3, "Expected e1 == e3");
   } catch(const Exception& e) {
     exitStatus = 1;
     cout << "*** Exception caught in test21(): \n" << e << endl;
@@ -2066,6 +2085,13 @@ int main(int argc, char** argv)
   if (argc > 1) regressLevel = atoi(argv[1]);
   cout << "Running API test, regress level = " << regressLevel << endl;
   exitStatus = 0;
+
+  try {
+    DebugAssert(false, "Testing DebugAssert");
+    cout << "*** Assertions disabled, only testing for crashing behavior";
+  } catch (DebugException& e) {
+    cout << "** Assertions enabled";
+  }
   try {
     cout << "\n}\ntest26(): {" << endl;
     test26();

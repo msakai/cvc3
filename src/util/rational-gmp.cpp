@@ -416,7 +416,6 @@ namespace CVC3 {
     return os << n.toString();
   }
 
-
   // Check that argument is an int and print an error message otherwise
 
   static void checkInt(const Rational& n, const string& funName) {
@@ -780,12 +779,6 @@ namespace CVC3 {
       free(str);
       return res;
     }
-
-    //! Printing to ostream
-    friend ostream& operator<<(ostream& os, const Unsigned::Impl& n) {
-      return os << n.toString();
-    }
-
   };
 
   // Constructor from a pair of unsigned integers

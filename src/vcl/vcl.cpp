@@ -1073,23 +1073,36 @@ Type VCL::importType(const Type& t)
   return Type(d_em->rebuild(t.getExpr()));
 }
 
-void VCL::cmdsFromString(const std::string& s, InputLanguage lang=PRESENTATION_LANG)
+void VCL::cmdsFromString(const std::string& s, InputLanguage lang)
 {
-  stringstream ss(s,stringstream::in);
+  std::stringstream ss(s,std::stringstream::in);
   return loadFile(ss,lang,false);
 }
 
-Expr VCL::exprFromString(const std::string& s)
+Expr VCL::exprFromString(const std::string& s, InputLanguage lang)
 {
-  stringstream ss("PRINT " + s + ";",stringstream::in);
-  Parser p(this,d_translator,PRESENTATION_LANG,ss);
-  Expr e = p.next();
-  if( e.isNull() ) {
+  std::stringstream ss;
+
+  if( lang == PRESENTATION_LANG ) {
+    ss << "PRINT " << s + ";";
+  } else if( lang == SMTLIB_V2_LANG ) {
+    ss << "(assert " << s << ")";
+  } else {
+    ss << lang;
+    throw Exception("Unsupported language in exprFromString: " + ss.str());
+  }
+
+  Parser p(this,d_translator,lang,ss);
+  Expr dummy = p.next();
+  if( dummy.isNull() ) {
     throw ParserException("Parser result is null: '" + s + "'");
   }
-  DebugAssert(e.getKind() == RAW_LIST, "Expected list expression");
-  DebugAssert(e.arity() == 2, "Expected two children");
-  return parseExpr(e[1]);
+  DebugAssert(dummy.getKind() == RAW_LIST, "Expected list expression");
+  DebugAssert(dummy.arity() == 2, "Expected two children");
+
+  Expr e = parseExpr(dummy[1]);
+
+  return e;
 }
 
 Expr VCL::trueExpr()

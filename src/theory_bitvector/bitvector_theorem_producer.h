@@ -577,7 +577,7 @@ namespace CVC3 {
 
     /**
      * Rewrite x/y to
-     * \exists s: s = x/y \wedge (y \neq 0 \implies x = y * s + m & 0 <= m < y)
+     * \f[\exists s: s = x/y \wedge (y \neq 0 \implies x = y * s + m \wedge 0 <= m < y)\f]
      */
     virtual Theorem bvUDivTheorem(const Expr& divExpr);
 
@@ -629,14 +629,14 @@ namespace CVC3 {
     virtual Theorem bvSModRewrite(const Expr& sModExpr);
 
     /**
-     * Rewrite x_1 \vee x_2 \vee \ldots \vee x_n = 0 into
-     * x_1 = 0 \wedge x_2 = 0 \wedge \ldots \wedge x_n = 0.
+     * Rewrite \f[x_1 \vee x_2 \vee \ldots \vee x_n = 0\f] into
+     * \f[x_1 = 0 \wedge x_2 = 0 \wedge \ldots \wedge x_n = 0\f].
      */
     virtual Theorem zeroBVOR(const Expr& orEqZero);
 
     /**
-     * Rewrite x_1 \wedge x_2 \wedge \ldots \wedge x_n = 1^n into
-     * x_1 = 1^n \wedge x_2 = 1^n \wedge \ldots \wedge x_n = 1^n.
+     * Rewrite \f[x_1 \wedge x_2 \wedge \ldots \wedge x_n = 1^n\f] into
+     * \f[x_1 = 1^n \wedge x_2 = 1^n \wedge \ldots \wedge x_n = 1^n\f].
      */
     virtual Theorem oneBVAND(const Expr& andEqOne);
 

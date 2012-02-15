@@ -52,15 +52,22 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <cstring>
 #include <new>
 
-
 namespace MiniSat {
 
 template<class T> static inline T min(T x, T y) { return (x < y) ? x : y; }
 template<class T> static inline T max(T x, T y) { return (x > y) ? x : y; }
 
-template <bool> struct STATIC_ASSERTION_FAILURE;
-template <> struct STATIC_ASSERTION_FAILURE<true>{};
-#define TEMPLATE_FAIL STATIC_ASSERTION_FAILURE<false>()
+// A trick to prevent the static invocation of undesireable methods,
+// like copy constructors. Only works if the method itself is
+// templatized on a type T, so that the template is only fully
+// instantiated (and fails instantiation for TEMPLATE_FAIL(T)) when
+// the method is actually invoked.  Without the extra type parameter
+// T, TEMPLATE_FAIL would be fully instantiated (and fail) at the
+// location of the method *definition* site instead of the call site,
+// regardless of whether the method is ever invoked.
+template <bool, typename T> struct STATIC_ASSERTION_FAILURE;
+template <typename T> struct STATIC_ASSERTION_FAILURE<true,T>{};
+#define TEMPLATE_FAIL(T) STATIC_ASSERTION_FAILURE<false,T>();
 
 
 //=================================================================================================
@@ -151,8 +158,8 @@ public:
     T&       operator [] (int index)        { return data[index]; }
 
     // Don't allow copying (error prone):
-    vec<T>&  operator = (vec<T>& other) { TEMPLATE_FAIL; }
-             vec        (vec<T>& other) { TEMPLATE_FAIL; }
+  vec<T>&  operator = (vec<T>& other) { TEMPLATE_FAIL(T); }
+  vec        (vec<T>& other) { TEMPLATE_FAIL(T); }
 
     // Duplicatation (preferred instead):
     void copyTo(vec<T>& copy) const { copy.clear(); copy.growTo(sz); for (int i = 0; i < sz; i++) new (&copy[i]) T(data[i]); }
