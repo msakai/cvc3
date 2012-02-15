@@ -24,9 +24,22 @@
 using namespace std;
 using namespace CVC3;
 
-
 int exitStatus;
 
+inline void __expect__(const std::string& file,
+                       int line,
+                       bool cond,
+                       const std::string& cond_s,
+                       const std::string& msg) {
+  if(!cond) {
+    std::cerr << file << ":" << line
+              << ": Expected: (" << cond_s << "). "
+              << msg << std::endl;
+    exitStatus = 1;
+  }
+}
+
+#define EXPECT(cond, msg) __expect__(__FILE__, __LINE__, (cond), #cond, (msg))
 
 // Check whether e is valid
 bool check(ValidityChecker* vc, Expr e, bool verbose=true)
@@ -101,7 +114,7 @@ void test ()
      Expr f2 = vc->funExpr(f, e);
      Expr f3 = vc->funExpr(f, f2);
 
-     DebugAssert(e != f2 && e != f3, "Refcount problems");
+     EXPECT(e != f2 && e != f3, "Refcount problems");
 
      Expr x (vc->boundVarExpr ("x", "0", it));//x0:int
      vector<Expr> xs;
@@ -136,12 +149,12 @@ void test1()
   // even in those exceptional cases.
   try {
 
-    IF_DEBUG(bool b =) check(vc, vc->trueExpr());
-    DebugAssert(b, "Should be valid");
+    bool b = check(vc, vc->trueExpr());
+    EXPECT(b, "Should be valid");
 
     vc->push();
-    IF_DEBUG(b =) check(vc, vc->falseExpr());
-    DebugAssert(!b, "Should be invalid");
+    b = check(vc, vc->falseExpr());
+    EXPECT(!b, "Should be invalid");
     vc->pop();          
 
     // Check p OR ~p
@@ -149,8 +162,8 @@ void test1()
     Expr p = vc->varExpr("p", vc->boolType());
     Expr e = vc->orExpr(p, vc->notExpr(p));
 
-    IF_DEBUG(b =) check(vc, e);
-    DebugAssert(b, "Should be valid");
+    b = check(vc, e);
+    EXPECT(b, "Should be valid");
 
     // Check x = y -> f(x) = f(y)
 
@@ -163,16 +176,16 @@ void test1()
     Expr fy = vc->funExpr(f, y);
 
     e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(fx, fy));
-    IF_DEBUG(b =) check(vc, e);
-    DebugAssert(b, "Should be valid");
+    b = check(vc, e);
+    EXPECT(b, "Should be valid");
 
     // Check f(x) = f(y) -> x = y
 
     e = vc->impliesExpr(vc->eqExpr(fx,fy),vc->eqExpr(x, y));
-    IF_DEBUG(int scopeLevel = vc->scopeLevel();)
+    int scopeLevel = vc->scopeLevel();
     vc->push();
-    IF_DEBUG(b =) check(vc, e);
-    DebugAssert(!b, "Should be invalid");
+    b = check(vc, e);
+    EXPECT(!b, "Should be invalid");
 
     // Get counter-example
     
@@ -188,7 +201,7 @@ void test1()
     // Reset to initial scope
     cout << "Resetting" << endl;
     vc->pop();
-    DebugAssert(scopeLevel == vc->scopeLevel(), "scope error");
+    EXPECT(scopeLevel == vc->scopeLevel(), "scope error");
     cout << "Scope level: " << vc->scopeLevel() << endl << endl;
 
     // Check w = x & x = y & y = z & f(x) = f(y) & x = 1 & z = 2
@@ -208,7 +221,7 @@ void test1()
     cout << endl << "simplify(w) = ";
     vc->printExpr(vc->simplify(w));
     cout << endl;
-    DebugAssert(vc->simplify(w)==vc->ratExpr(1), "Expected simplify(w) = 1");
+    EXPECT(vc->simplify(w)==vc->ratExpr(1), "Expected simplify(w) = 1");
 
     newAssertion(vc, vc->eqExpr(z, vc->ratExpr(2)));
     assertions.clear();
@@ -224,7 +237,7 @@ void test1()
     
     cout << "simplify(w) = ";
     vc->printExpr(vc->simplify(w));
-    DebugAssert(vc->simplify(w)==w, "Expected simplify(w) = w");
+    EXPECT(vc->simplify(w)==w, "Expected simplify(w) = w");
     cout << endl;
     
     assertions.clear();
@@ -251,11 +264,11 @@ void test2()
     Expr c = vc->varExpr("c", vc->intType());
     vc->assertFormula(c.eqExpr(vc->ratExpr(0)) || c.eqExpr(vc->ratExpr(1)));
 
-    IF_DEBUG(bool b =) check(vc, vc->leExpr(bexpr, vc->ratExpr(10)));
-    DebugAssert(b, "Should be valid");
+    bool b = check(vc, vc->leExpr(bexpr, vc->ratExpr(10)));
+    EXPECT(b, "Should be valid");
 
-    IF_DEBUG(b =) check(vc, vc->falseExpr());
-    DebugAssert(!b, "Should be invalid");
+    b = check(vc, vc->falseExpr());
+    EXPECT(!b, "Should be invalid");
     vc->returnFromCheck();
 
     // Check x = y -> g(x,y) = g(y,x)
@@ -275,8 +288,8 @@ void test2()
     Expr gyx = vc->funExpr(g, y, x);
 
     Expr e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(gxy, gyx));
-    IF_DEBUG(b =) check(vc, e);
-    DebugAssert(b, "Should be valid");
+    b = check(vc, e);
+    EXPECT(b, "Should be valid");
 
     Op h = vc->createOp("h", realxreal2real);
 
@@ -284,8 +297,8 @@ void test2()
     Expr hyx = vc->funExpr(h, y, x);
 
     e = vc->impliesExpr(vc->eqExpr(x,y),vc->eqExpr(hxy, hyx));
-    IF_DEBUG(b =) check(vc, e);
-    DebugAssert(b, "Should be valid");
+    b = check(vc, e);
+    EXPECT(b, "Should be valid");
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -780,7 +793,7 @@ void test8() {
     Expr witness;
     try {
       Type t = vc->subtypeType(lambda, witness);
-      DebugAssert(false, "Typechecking exception expected");
+      EXPECT(false, "Typechecking exception expected");
     } catch(const TypecheckException&) {
       // fall through
     }
@@ -1040,14 +1053,14 @@ void test11()
     cout << "Assert x = y" << endl;
     vc->assertFormula(xeqy);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==3,"Implied literal error 0");
+    EXPECT(c==3,"Implied literal error 0");
 
     cout << "Push" << endl;
     vc->push();
     cout << "Assert x /= z" << endl;
     vc->assertFormula(!xeqz);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==4,"Implied literal error 1");
+    EXPECT(c==4,"Implied literal error 1");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1056,7 +1069,7 @@ void test11()
     cout << "Assert y /= z" << endl;
     vc->assertFormula(!yeqz);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==4,"Implied literal error 2");
+    EXPECT(c==4,"Implied literal error 2");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1065,7 +1078,7 @@ void test11()
     cout << "Assert p(x)" << endl;
     vc->assertFormula(px);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==2,"Implied literal error 3");
+    EXPECT(c==2,"Implied literal error 3");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1074,7 +1087,7 @@ void test11()
     cout << "Assert p(y)" << endl;
     vc->assertFormula(py);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==2,"Implied literal error 4");
+    EXPECT(c==2,"Implied literal error 4");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1086,7 +1099,7 @@ void test11()
     cout << "Assert y = x" << endl;
     vc->assertFormula(yeqx);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==3,"Implied literal error 5");
+    EXPECT(c==3,"Implied literal error 5");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1095,11 +1108,11 @@ void test11()
     cout << "Assert p(x)" << endl;
     vc->assertFormula(px);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==1,"Implied literal error 6");
+    EXPECT(c==1,"Implied literal error 6");
     cout << "Assert x = y" << endl;
     vc->assertFormula(xeqy);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==4,"Implied literal error 7");
+    EXPECT(c==4,"Implied literal error 7");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1108,11 +1121,11 @@ void test11()
     cout << "Assert NOT p(x)" << endl;
     vc->assertFormula(!px);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==1,"Implied literal error 8");
+    EXPECT(c==1,"Implied literal error 8");
     cout << "Assert x = y" << endl;
     vc->assertFormula(xeqy);
     c = printImpliedLiterals(vc);
-    DebugAssert(c==4,"Implied literal error 9");
+    EXPECT(c==4,"Implied literal error 9");
     cout << "Pop" << endl;
     vc->pop();
 
@@ -1133,12 +1146,12 @@ void test12()
     Type boolType = vc->boolType();
     vc -> push();
     int initial_layer = vc->stackLevel();
-    IF_DEBUG(int initial_scope =) vc->scopeLevel();
+    int initial_scope = vc->scopeLevel();
     Expr exprObj_trueID = vc->trueExpr();
     Expr exprObj_falseID = vc->notExpr(vc->trueExpr());
     vc->popto(initial_layer);
-    DebugAssert(vc->scopeLevel() == initial_scope, "Expected no change");
-    DebugAssert(vc->stackLevel() == initial_layer, "Expected no change");
+    EXPECT(vc->scopeLevel() == initial_scope, "Expected no change");
+    EXPECT(vc->stackLevel() == initial_layer, "Expected no change");
     // TODO: what happens if we push and then popscope?
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -1357,7 +1370,7 @@ void test16()  {
     cout << "Scope level: " << vc->scopeLevel() << endl;
     cout << "Counter-example:" << endl;
     vc->getCounterExample(assertions);
-    DebugAssert(assertions.size() > 0, "Expected non-empty counter-example");
+    EXPECT(assertions.size() > 0, "Expected non-empty counter-example");
     for (unsigned i = 0; i < assertions.size(); ++i) {
       vc->printExpr(assertions[i]);
     }
@@ -1373,7 +1386,7 @@ void test16()  {
       for(; it!= end; it++) {
 	Expr eq;
 	if(it->first.getType().isBool()) {
-	  DebugAssert((it->second).isBoolConst(),
+	  EXPECT((it->second).isBoolConst(),
 		      "Bad variable assignement: e = "+(it->first).toString()
 		      +"\n\n val = "+(it->second).toString());
 	  if((it->second).isTrue())
@@ -1408,7 +1421,7 @@ void test17()  {
       types.push_back(vc->stringExpr("list"));
 
       Type badList = vc->dataType("list", "cons", selectors, types);
-      DebugAssert(false, "Typechecking exception expected");
+      EXPECT(false, "Typechecking exception expected");
     } catch(const TypecheckException&) {
       // fall through
     }
@@ -1437,8 +1450,8 @@ void test17()  {
       Expr cons = vc->datatypeConsExpr("cons", args);
 
       Expr sel = vc->datatypeSelExpr("car", cons);
-      IF_DEBUG(bool b =) check(vc, vc->eqExpr(sel, x));
-      DebugAssert(b, "Should be valid");
+      bool b = check(vc, vc->eqExpr(sel, x));
+      EXPECT(b, "Should be valid");
 
     }
     delete vc;
@@ -1471,7 +1484,7 @@ void test17()  {
       types[0][0].push_back(vc->stringExpr("list1"));
 
       vc->dataType(names, constructors, selectors, types, returnTypes);
-      DebugAssert(false, "Typechecking exception expected");
+      EXPECT(false, "Typechecking exception expected");
     } catch(const TypecheckException&) {
       // fall through
     }
@@ -1529,8 +1542,8 @@ void test17()  {
       args.push_back(null);
       Expr cons1_2 = vc->datatypeConsExpr("cons1", args);
 
-      IF_DEBUG(bool b =) check(vc, vc->impliesExpr(hyp, vc->eqExpr(z, cons1_2)));
-      DebugAssert(b, "Should be valid");
+      bool b = check(vc, vc->impliesExpr(hyp, vc->eqExpr(z, cons1_2)));
+      EXPECT(b, "Should be valid");
 
     }
     delete vc;
@@ -1554,8 +1567,8 @@ void test17()  {
       args.push_back(!vc->eqExpr(y,z));
       args.push_back(!vc->eqExpr(x,z));
 
-      IF_DEBUG(bool b =) check(vc, !vc->andExpr(args));
-      DebugAssert(b, "Should be valid");
+      bool b = check(vc, !vc->andExpr(args));
+      EXPECT(b, "Should be valid");
 
     }
   } catch(const Exception& e) {
@@ -1625,7 +1638,7 @@ void test18()
     vc->push();
     try {
       check(vc, vc->notExpr(vc->eqExpr(zero, null)));
-      DebugAssert(false, "Should have caught tcc exception");
+      EXPECT(false, "Should have caught tcc exception");
     } catch(const TypecheckException&) { }
 
     vc->pop();
@@ -1635,16 +1648,16 @@ void test18()
     vc->push();
     try {
       check(vc, spxeqx);
-      DebugAssert(false, "Should have caught tcc exception");
+      EXPECT(false, "Should have caught tcc exception");
     } catch(const TypecheckException&) { }
 
     vc->pop();
     bool b = check(vc, vc->impliesExpr(vc->datatypeTestExpr("succ", x), spxeqx));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     b = check(vc, vc->orExpr(vc->datatypeTestExpr("zero", x),
                              vc->datatypeTestExpr("succ", x)));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     Expr y = vc->varExpr("y", nat);
     Expr xeqy = vc->eqExpr(x, y);
@@ -1656,16 +1669,16 @@ void test18()
     Expr sy = vc->datatypeConsExpr("succ", args);
     Expr sxeqsy = vc->eqExpr(sx,sy);
     b = check(vc, vc->impliesExpr(xeqy, sxeqsy));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     b = check(vc, vc->notExpr(vc->eqExpr(sx, zero)));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     b = check(vc, vc->impliesExpr(sxeqsy, xeqy));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     b = check(vc, vc->notExpr(vc->eqExpr(sx, x)));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -1712,9 +1725,9 @@ void test19()
 
     cout<<"Checking formula "<<Q<<"\n in context "<<A<<"\n";
   
-    IF_DEBUG(bool Succ =) vc->query(Q);
+    bool Succ = vc->query(Q);
 
-    DebugAssert(Succ, "Expected valid formula");
+    EXPECT(Succ, "Expected valid formula");
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -1765,7 +1778,7 @@ void test20()  {
 
     vc->dataType(names, constructors, selectors, types, returnTypes);
 
-    DebugAssert(returnTypes[0].card() == CARD_FINITE, "Expected finite");
+    EXPECT(returnTypes[0].card() == CARD_FINITE, "Expected finite");
     Unsigned size = returnTypes[0].sizeFinite();
     Unsigned i = 0;
     for (; i < size; ++i) {
@@ -1791,51 +1804,51 @@ void test21()  {
     Expr x2 = vc->exprFromString("x");
     cout << "x1: " << x1;
     cout << "\nx2: " << x2;
-    DebugAssert(x1 == x2, "Expected x1 == x2");
+    EXPECT(x1 == x2, "Expected x1 == x2");
 
     Expr x3 = vc->exprFromString("x", SMTLIB_V2_LANG);
     cout << "\nx3: " << x3;
-    DebugAssert(x1 == x3, "Expected x1 == x3");
+    EXPECT(x1 == x3, "Expected x1 == x3");
 
     Expr y1 = vc->varExpr("y",t);
     Expr y2 = vc->exprFromString("y");
     cout << "\ny1: " << y1;
     cout << "\ny2: " << y2;
-    DebugAssert(y1 == y2, "Expected y1 == y2");
+    EXPECT(y1 == y2, "Expected y1 == y2");
 
     Expr y3 = vc->exprFromString("y", SMTLIB_V2_LANG);
     cout << "\ny3: " << y3;
-    DebugAssert(y1 == y3, "Expected y1 == y3");
+    EXPECT(y1 == y3, "Expected y1 == y3");
 
     Expr a1 = vc->gtExpr(x1,vc->ratExpr(0,1));
     Expr a2 = vc->exprFromString("x > 0");
     cout << "\na1: " << a1;
     cout << "\na2: " << a2;
-    DebugAssert(a1 == a2, "Expected a1 == a2");
+    EXPECT(a1 == a2, "Expected a1 == a2");
 
     Expr a3 = vc->exprFromString("(> x 0)", SMTLIB_V2_LANG);
     cout << "\na3: " << a3;
-    DebugAssert(a1 == a3, "Expected a1 == a3");
+    EXPECT(a1 == a3, "Expected a1 == a3");
 
     Expr b1 = vc->ltExpr(x1,y1);
     Expr b2 = vc->exprFromString ("x < y");
     cout << "\nb1: " << b1;
     cout << "\nb2: " << b2;
-    DebugAssert(b1 == b2, "Expected b1 == b2");
+    EXPECT(b1 == b2, "Expected b1 == b2");
 
     Expr b3 = vc->exprFromString ("(< x y)", SMTLIB_V2_LANG);
     cout << "\nb3: " << b3;
-    DebugAssert(b1 == b3, "Expected b1 == b3");
+    EXPECT(b1 == b3, "Expected b1 == b3");
 
     Expr e1 = a1 && b1;
     Expr e2 = vc->exprFromString("x > 0 AND x < y");
     cout << "\ne1: " << e1;
     cout << "\ne2: " << e2;
-    DebugAssert(e1 == e2, "Expected e1 == e2");
+    EXPECT(e1 == e2, "Expected e1 == e2");
 
     Expr e3 = vc->exprFromString("(and (> x 0) (< x y))", SMTLIB_V2_LANG);
     cout << "\ne3: " << e3;
-    DebugAssert(e1 == e3, "Expected e1 == e3");
+    EXPECT(e1 == e3, "Expected e1 == e3");
   } catch(const Exception& e) {
     exitStatus = 1;
     cout << "*** Exception caught in test21(): \n" << e << endl;
@@ -1863,56 +1876,56 @@ void test22() {
     patternvv.push_back(patternv);
 
     vc->setTriggers(p,patternv);
-    DebugAssert( eqExprVecVecs(p.getTriggers(), patternvv),
+    EXPECT( eqExprVecVecs(p.getTriggers(), patternvv),
                  "Expected p.getTriggers() == patternvv: " + p.toString() );
 
     vc->setTriggers(p,patternvv);
 
-    DebugAssert( eqExprVecVecs(p.getTriggers(), patternvv),
+    EXPECT( eqExprVecVecs(p.getTriggers(), patternvv),
                  "Expected p.getTriggers() == patternvv: " + p.toString() );
 
     // [chris 10/4/2009] Not sure why, but this fails
 
     // Expr q(vc->exprFromString("FORALL (x:INT) : PATTERN (f(x)) : x < f(x)"));
 
-    // DebugAssert( eqExprVecVecs(q.getTriggers(), patternvv),
+    // EXPECT( eqExprVecVecs(q.getTriggers(), patternvv),
     //              "Expected q.getTriggers() == patternvv"  + q.toString());
 
     vector<Expr> vars;
     vars.push_back(x);
     Expr r(vc->forallExpr( vars, vc->ltExpr(x,fx), patternvv ));
 
-    DebugAssert( eqExprVecVecs(r.getTriggers(), patternvv),
+    EXPECT( eqExprVecVecs(r.getTriggers(), patternvv),
                  "Expected r.getTriggers() == patternvv: " + r.toString() );
 
     Expr s(vc->exprFromString("FORALL (x:INT) : x > f(x)"));
     vc->setTrigger(s,fx);
     
     std::vector<std::vector<Expr> > trigsvv = s.getTriggers();
-    DebugAssert( trigsvv.size() == 1, 
+    EXPECT( trigsvv.size() == 1, 
                  "Expected s.getTriggers().size() == 1: " + trigsvv.size() );
 
     std::vector<Expr> trigsv = trigsvv[0];
-    DebugAssert( trigsv.size() == 1, 
+    EXPECT( trigsv.size() == 1, 
                  "Expected s.getTriggers()[0].size() == 1: "
                  + trigsv.size() );
 
-    DebugAssert( trigsv[0] == fx, 
+    EXPECT( trigsv[0] == fx, 
                  "Expected s.getTriggers()[0][0] == fx: "
                  + (trigsv[0].toString()) );
 
     Expr t(vc->exprFromString("FORALL (x:INT) : x > f(x)"));
     vc->setMultiTrigger(t,patternv);
     trigsvv = t.getTriggers();
-    DebugAssert( trigsvv.size() == 1,
+    EXPECT( trigsvv.size() == 1,
                  "Expected t.getTriggers().size() == 1: " + trigsvv.size() );
 
     trigsv = trigsvv[0];
-    DebugAssert( trigsv.size() == 1,
+    EXPECT( trigsv.size() == 1,
                  "Expected t.getTriggers()[0].size() == 1: "
                  + trigsv.size() );
 
-    DebugAssert( trigsv[0] == fx,
+    EXPECT( trigsv[0] == fx,
                  "Expected t.getTriggers()[0][0] == fx: "
                  + (trigsv[0].toString()) );
   } catch(const Exception& e) {
@@ -1949,7 +1962,7 @@ void test23() {
     Expr u(s.substExpr(oldExprs,newExprs));
     cout << "u=" << u << "\n";
 
-    DebugAssert( t == u, "Expected t==u" );
+    EXPECT( t == u, "Expected t==u" );
   } catch(const Exception& e) {
     exitStatus = 1;
     cout << "*** Exception caught in test23(): \n" << e << endl;
@@ -1974,21 +1987,17 @@ void test24() {
     cout << p  << "\n";
 
     vector<vector<Expr> > pTriggers(p.getTriggers());
-    DebugAssert( pTriggers.size() == 1, 
-                 "Expected one trigger set. Found: " + 
-                 int2string(pTriggers.size()));
-    DebugAssert( pTriggers[0].size() == 1, 
-                 "Expected one trigger. Found: " +
-                 int2string( pTriggers[0].size()));
+    EXPECT( pTriggers.size() == 1, 
+            "Actual: " + int2string(pTriggers.size()));
+    EXPECT( pTriggers[0].size() == 1, 
+            "Actual: " + int2string( pTriggers[0].size()));
     /* We can't check that the trigger == ax, because x will have
      * been replaced with a bvar
      */
-    DebugAssert( pTriggers[0][0].getKind() == READ,
-                 "Expected READ expression. Found: " +
-                 pTriggers[0][0].getKind());
-    DebugAssert( pTriggers[0][0][0] == a,
-                 "Expected read on array: " + a.toString() +
-                 "\nFound: " + pTriggers[0][0][0].toString() );
+    EXPECT( pTriggers[0][0].getKind() == READ,
+            "Actual: " + int2string(pTriggers[0][0].getKind()));
+    EXPECT( pTriggers[0][0][0] == a,
+            "Actual: " + pTriggers[0][0][0].toString() );
 
     Expr aPrime(vc->varExpr("a'",aType));
     Expr axPrime(vc->exprFromString("a'[x]"));
@@ -2001,18 +2010,17 @@ void test24() {
     cout << q << "\n";
 
     vector<vector<Expr> > qTriggers(q.getTriggers());
-    DebugAssert( qTriggers.size() == 1, 
-                 "Expected one trigger set. Found: " + 
-                 int2string(qTriggers.size()));
-    DebugAssert( qTriggers[0].size() == 1, 
-                 "Expected one trigger. Found: " +
-                 int2string( qTriggers[0].size()));
-    DebugAssert( qTriggers[0][0].getKind() == READ,
-                 "Expected READ expression. Found: " +
-                 qTriggers[0][0].getKind());
-    DebugAssert( qTriggers[0][0][0] == aPrime,
-                 "Expected read on array: " + aPrime.toString() +
-                 "\nFound: " + qTriggers[0][0][0].toString() );
+    EXPECT( qTriggers.size() == 1, 
+            "Actual: " + 
+            int2string(qTriggers.size()));
+    EXPECT( qTriggers[0].size() == 1, 
+            "Actual: " +
+            int2string(qTriggers[0].size()));
+    EXPECT( qTriggers[0][0].getKind() == READ,
+            "Actual: " +
+            int2string(qTriggers[0][0].getKind()));
+    EXPECT( qTriggers[0][0][0] == aPrime,
+            "Actual: " + qTriggers[0][0][0].toString() );
   } catch(const Exception& e) {
     exitStatus = 1;
     cout << "*** Exception caught in test24(): \n" << e << endl;
@@ -2037,7 +2045,7 @@ void test25() {
     Expr w = vc->ratExpr(-1,10);
     cout << "-1 over 10 (ints): " << w << endl;
 
-    DebugAssert(x == y && y == z && z == w, "Error in rational constants");
+    EXPECT(x == y && y == z && z == w, "Error in rational constants");
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -2059,17 +2067,17 @@ void test26() {
     Expr e2 = vc->newBVSHL(x, vc->newBVConstExpr(16, 32));
 
     bool b = check(vc, vc->eqExpr(e1, e2));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     e1 = vc->newFixedRightShiftExpr(x, 16);
     e2 = vc->newBVLSHR(x, vc->newBVConstExpr(16, 32));
 
     b = check(vc, vc->eqExpr(e1, e2));
-    DebugAssert(b, "Should be valid");
+    EXPECT(b, "Should be valid");
 
     e2 = vc->newBVASHR(x, vc->newBVConstExpr(16, 32));
     b = check(vc, vc->eqExpr(e1, e2));
-    DebugAssert(!b, "Should be invalid");
+    EXPECT(!b, "Should be invalid");
 
   } catch(const Exception& e) {
     exitStatus = 1;
@@ -2086,12 +2094,6 @@ int main(int argc, char** argv)
   cout << "Running API test, regress level = " << regressLevel << endl;
   exitStatus = 0;
 
-  try {
-    DebugAssert(false, "Testing DebugAssert");
-    cout << "*** Assertions disabled, only testing for crashing behavior";
-  } catch (DebugException& e) {
-    cout << "** Assertions enabled";
-  }
   try {
     cout << "\n}\ntest26(): {" << endl;
     test26();
