@@ -21,6 +21,8 @@
 #ifndef _cvc3__include__queryresult_h_
 #define _cvc3__include__queryresult_h_
 
+#include <string>
+
 namespace CVC3 {
 
 /*****************************************************************************/
@@ -37,6 +39,22 @@ typedef enum QueryResult {
   ABORT,
   UNKNOWN
 } QueryResult;
+
+// Convert a QueryResult to its corresponding string representation
+inline std::string QueryResultToString(QueryResult query_result) {
+  switch (query_result) {
+    case INVALID:
+      return "INVALID";
+    case VALID:
+      return "VALID";
+    case ABORT:
+      return "ABORT";
+    case UNKNOWN:
+      return "UNKNOWN";
+    default:
+      return "(none)";
+  }
+}
 
 }
 
