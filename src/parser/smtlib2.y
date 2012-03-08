@@ -182,13 +182,17 @@ command_aux:
           *$2 == "QF_AUFNIRA" ||
           *$2 == "AUFNIRA" ||
           *$2 == "QF_AUFBV" ||
+          *$2 == "AUFBV" ||
+          *$2 == "ALL" ||
           *$2 == "QF_ABV") {
         ARRAYSENABLED = true;
       }
 
       if (*$2 == "QF_AUFBV" ||
+          *$2 == "AUFBV" ||
           *$2 == "QF_ABV" ||
           *$2 == "QF_BV" ||
+          *$2 == "ALL" ||
           *$2 == "QF_UFBV") {
         BVENABLED = true;
       }
@@ -204,6 +208,7 @@ command_aux:
           *$2 == "QF_NIA" ||
           *$2 == "QF_UFIDL" ||
           *$2 == "QF_UFLIA" ||
+          *$2 == "ALL" ||
           *$2 == "UFNIA" ) {
         subCommands.push_back( VC->listExpr("_TYPEDEF", VC->idExpr("Int"),
                                             VC->idExpr("_INT")) );
@@ -219,6 +224,7 @@ command_aux:
           *$2 == "QF_UFLRA" ||
           *$2 == "QF_UFNRA" ||
           *$2 == "UFLRA" ||
+          *$2 == "ALL" ||
           *$2 == "QF_UFRDL" ) {
         subCommands.push_back( VC->listExpr("_TYPEDEF", VC->idExpr("Real"),
                                             VC->idExpr("_REAL")) );
