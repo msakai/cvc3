@@ -8438,6 +8438,7 @@ void TheoryQuant::naiveCheckSat(bool fullEffort){
 
 }
 
+struct Interrupted {};
 
 /*! \brief Queues up all possible instantiations of bound
  * variables.
@@ -8455,10 +8456,15 @@ void TheoryQuant::instantiate(Theorem univ, bool all, bool savedMap,
   	      ||(!savedMap && newIndex == d_contextTerms.size())))
     return;
 
-  TRACE("quant", "instanitate", all , "{");
+  TRACE("quant", "instantiate", all , "{");
   std::vector<Expr> varReplacements;
-  recInstantiate(univ, all, savedMap, newIndex, varReplacements);
-  TRACE("quant", "instanitate", "", "}");
+  try {
+    recInstantiate(univ, all, savedMap, newIndex, varReplacements);
+  } catch(Interrupted&) {
+    // do nothing, exception is just a way to get out of deeply-nested
+    // recursion
+  }
+  TRACE("quant", "instantiate", "", "}");
 
 }
 
@@ -8467,6 +8473,13 @@ void TheoryQuant::recInstantiate(Theorem& univ, bool all, bool savedMap,
 				 size_t newIndex,
 				 std::vector<Expr>& varReplacements)
 {
+  // These recursive instantiations can take a long time without giving
+  // control back to the core; better check time and resource limits.
+  theoryCore()->getResource();
+  if(theoryCore()->timeLimitReached() || theoryCore()->outOfResources()) {
+    throw Interrupted();
+  }
+
   Expr quantExpr = univ.getExpr();
   const vector<Expr>& boundVars = quantExpr.getVars();
 

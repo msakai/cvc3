@@ -189,6 +189,7 @@ SIMPLE_SYMBOL (({LETTER}|{SYMBOL_CHAR})({LETTER}|{DIGIT}|{SYMBOL_CHAR})*)
 ")"             { return RPAREN_TOK; }
 "set-logic"     { return SET_LOGIC_TOK; }
 "set-info"      { return SET_INFO_TOK; }
+"set-option"    { return SET_OPTION_TOK; }
 "_"             { return UNDERSCORE_TOK; }
 
              /* Logic symbols */

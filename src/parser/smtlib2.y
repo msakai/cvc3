@@ -112,6 +112,7 @@ int smtlib2error(const char *s)
 %token RPAREN_TOK
 %token SET_LOGIC_TOK
 %token SET_INFO_TOK
+%token SET_OPTION_TOK
 %token UNDERSCORE_TOK
 %token EOF_TOK
 
@@ -247,6 +248,18 @@ command_aux:
 
       $$ = new CVC3::Expr(VC->listExpr("_SEQ", subCommands));
       delete $2;
+    }
+
+  | SET_OPTION_TOK KEYWORD_TOK sexpr
+    {
+      if(*$2 == ":produce-models") {
+        // do nothing
+      } else {
+        smtlib2error("unsupported option");
+      }
+      delete $2;
+      delete $3;
+      $$ = new CVC3::Expr();
     }
 
   | SET_INFO_TOK KEYWORD_TOK sexpr

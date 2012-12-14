@@ -308,9 +308,6 @@ private:
   //! Helper check functions for solve
   void checkSolved(const Theorem& thm);
 
-  // Time limit exhausted
-  bool timeLimitReached();
-
   //! Print an expression in the shared subset of SMT-LIB v1/v2
   //! Should only be called if os.lang() is SMTLIB_LANG or SMTLIB_V2_LANG.
   ExprStream& printSmtLibShared(ExprStream& os, const Expr& e);
@@ -324,6 +321,10 @@ public:
              Statistics& statistics);
   //! Destructor
   ~TheoryCore();
+
+  // Time limit exhausted? --public so other theories can check in
+  // periodically during long-running computations
+  bool timeLimitReached();
 
   //! Request a unit of resource
   /*! It will be subtracted from the resource limit.

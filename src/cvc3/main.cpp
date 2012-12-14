@@ -67,7 +67,9 @@ void sighandler(int signum) {
     // This is here to ensure that logs are dumped, etc.
     ValidityChecker* toDelete = vc;
     vc = NULL;
-    delete toDelete;
+    // Disable for now [MGD], as it's taking an inordinate amount of
+    // time to clean up sometimes..
+    //delete toDelete;
   }
   abort();
 }

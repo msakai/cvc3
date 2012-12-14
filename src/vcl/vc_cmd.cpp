@@ -742,9 +742,10 @@ bool VCCmd::evaluateCommand(const Expr& e0)
       cout << "(";
     }
     for(int i = 0; i < e[1].arity(); ++i) {
-      Expr res = d_vc->getValue(d_vc->parseExpr(e[1][i]));
+      Expr expr = d_vc->parseExpr(e[1][i]);
+      Expr res = d_vc->getValue(expr);
       if (d_vc->getFlags()["printResults"].getBool()) {
-        cout << res;
+        cout << '(' << expr << ' ' << res << ')';
         if(i < e[1].arity() - 1) {
           cout << endl;
         }
