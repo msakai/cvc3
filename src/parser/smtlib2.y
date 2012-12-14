@@ -203,6 +203,7 @@ command_aux:
           *$2 == "AUFNIRA" ||
           *$2 == "LIA" ||
           *$2 == "QF_AUFLIA" ||
+          *$2 == "QF_AUFLIRA" ||
           *$2 == "QF_IDL" ||
           *$2 == "QF_LIA" ||
           *$2 == "QF_NIA" ||
@@ -223,6 +224,7 @@ command_aux:
           *$2 == "QF_NRA" ||
           *$2 == "QF_UFLRA" ||
           *$2 == "QF_UFNRA" ||
+          *$2 == "QF_AUFLIRA" ||
           *$2 == "UFLRA" ||
           *$2 == "ALL" ||
           *$2 == "QF_UFRDL" ) {
