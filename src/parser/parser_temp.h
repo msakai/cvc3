@@ -55,6 +55,8 @@ namespace CVC3 {
     bool done;
     // Whether we are running interactive
     bool interactive;
+    // Whether prompts are shown in interactive mode
+    bool showPrompt;
     // Whether arrays are enabled for smt-lib format
     bool arrFlag;
     // Whether bit-vectors are enabled for smt-lib format

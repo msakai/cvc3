@@ -104,6 +104,7 @@ int smtlib2error(const char *s)
 %token GET_ASSIGNMENT_TOK
 %token GET_VALUE_TOK
 %token GET_MODEL_TOK
+%token GET_INFO_TOK
 %token EXCLAMATION_TOK
 %token EXIT_TOK
 %token ITE_TOK
@@ -254,6 +255,9 @@ command_aux:
     {
       if(*$2 == ":produce-models") {
         // do nothing
+      } else if(*$2 == ":print-success" && $3->getKind() == CVC3::ID &&
+                (*$3)[0].getString() == "false") {
+        // do nothing
       } else {
         smtlib2error("unsupported option");
       }
@@ -357,6 +361,18 @@ command_aux:
   | GET_MODEL_TOK
     {
       $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_COUNTERMODEL")));
+    }
+
+  | GET_INFO_TOK KEYWORD_TOK
+    {
+      const char *info = "";
+      if (*$2 == ":name") {
+        info = "(:name \"CVC3\")";
+      } else {
+        smtlib2error("unsupported info");
+      }
+      delete $2;
+      $$ = new CVC3::Expr(VC->listExpr(VC->idExpr("_ECHO"), VC->stringExpr(info)));
     }
 
   | EXIT_TOK

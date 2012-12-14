@@ -84,6 +84,7 @@ CLFlags ValidityChecker::createFlags() {
   flags.addFlag("unsupported",CLFlag(true, "print usage for old/unsupported/experimental options"));
   flags.addFlag("version",CLFlag(true, "print version information and exit"));
   flags.addFlag("interactive", CLFlag(false, "Interactive mode"));
+  flags.addFlag("showPrompt", CLFlag(true, "Show prompt in interactive mode"));
   flags.addFlag("stats", CLFlag(false, "Print run-time statistics"));
   flags.addFlag("seed", CLFlag(1, "Set the seed for random sequence"));
   flags.addFlag("printResults", CLFlag(true, "Print results of interactive commands."));
@@ -2419,7 +2420,8 @@ void VCL::logAnnotation(const Expr& annot)
 void VCL::loadFile(const string& fileName, InputLanguage lang,
 		   bool interactive, bool calledFromParser) {
   // TODO: move these?
-  Parser parser(this, d_translator, lang, interactive, fileName);
+  Parser parser(this, d_translator, lang, interactive,
+                (*d_flags)["showPrompt"].getBool(), fileName);
   VCCmd cmd(this, &parser, calledFromParser);
   cmd.processCommands();
 }
@@ -2428,7 +2430,8 @@ void VCL::loadFile(const string& fileName, InputLanguage lang,
 void VCL::loadFile(istream& is, InputLanguage lang,
 		   bool interactive) {
   // TODO: move these?
-  Parser parser(this, d_translator, lang, is, interactive);
+  Parser parser(this, d_translator, lang, is, interactive,
+                (*d_flags)["showPrompt"].getBool());
   VCCmd cmd(this, &parser);
   cmd.processCommands();
 }

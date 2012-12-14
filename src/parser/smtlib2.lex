@@ -40,10 +40,12 @@ static int smtlib2input(std::istream& is, char* buf, int size) {
     // If interactive, read line by line; otherwise read as much as we
     // can gobble
     if(CVC3::parserTemp->interactive) {
-      // Print the current prompt
-      std::cout << CVC3::parserTemp->getPrompt() << std::flush;
-      // Set the prompt to "middle of the command" one
-      CVC3::parserTemp->setPrompt2();
+      if(CVC3::parserTemp->showPrompt) {
+        // Print the current prompt
+        std::cout << CVC3::parserTemp->getPrompt() << std::flush;
+        // Set the prompt to "middle of the command" one
+        CVC3::parserTemp->setPrompt2();
+      }
       // Read the line
       is.getline(buf, size-1);
     } else // Set the terminator char to 0
@@ -178,6 +180,7 @@ SIMPLE_SYMBOL (({LETTER}|{SYMBOL_CHAR})({LETTER}|{DIGIT}|{SYMBOL_CHAR})*)
 "pop"           { return POP_TOK; }
 "declare-fun"   { return DECLARE_FUN_TOK; }
 "declare-sort"  { return DECLARE_SORT_TOK; }
+"get-info"      { return GET_INFO_TOK; }
 "get-proof"     { return GET_PROOF_TOK; }
 "get-assignment" { return GET_ASSIGNMENT_TOK; }
 "get-value"     { return GET_VALUE_TOK; }

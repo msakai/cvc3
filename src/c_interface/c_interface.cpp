@@ -2553,7 +2553,7 @@ extern "C" Expr vc_getProofOfFile(VC vc, char* fileName){
   CVC3::Parser* parser;
   parser = new CVC3::Parser(cvc, NULL,
 			cvc->getEM()->getInputLang(),
-			0,
+			/*interactive=*/false, /*showPrompt=*/false,
                         string(fileName));
   CVC3::VCCmd* cmd = new CVC3::VCCmd(cvc, parser);
    cmd->processCommands();

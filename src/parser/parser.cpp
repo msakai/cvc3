@@ -108,7 +108,7 @@ namespace CVC3 {
   // Constructors
   Parser::Parser(ValidityChecker* vc, Translator* translator,
                  InputLanguage lang,
-		 bool interactive,
+		 bool interactive, bool showPrompt,
 		 const std::string& fileName)
     : d_data(new ParserData) {
     d_data->temp.vc = vc;
@@ -120,6 +120,7 @@ namespace CVC3 {
       d_data->temp.is = &cin;
       d_data->temp.fileName = "stdin";
       d_data->temp.interactive = interactive;
+      d_data->temp.showPrompt = showPrompt;
     } else {
       // Open the file by name
       d_data->useName = true;
@@ -128,14 +129,14 @@ namespace CVC3 {
       if (!(*d_data->temp.is)) {
         throw ParserException("File not found: "+fileName);
       }
-      d_data->temp.interactive = false;
+      d_data->temp.interactive = d_data->temp.showPrompt = false;
     }
     initParser();
   }
 
   Parser::Parser(ValidityChecker* vc, Translator* translator,
                  InputLanguage lang, std::istream& is,
-		 bool interactive)
+		 bool interactive, bool showPrompt)
     : d_data(new ParserData) {
     d_data->temp.vc = vc;
     d_data->temp.translator = translator;
@@ -144,6 +145,7 @@ namespace CVC3 {
     d_data->temp.is = &is;
     d_data->temp.fileName = "stdin";
     d_data->temp.interactive = interactive;
+    d_data->temp.showPrompt = showPrompt;
     initParser();
   }
     

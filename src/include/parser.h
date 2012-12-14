@@ -50,10 +50,10 @@ namespace CVC3 {
     // Constructors
     Parser(ValidityChecker* vc, Translator* translator, InputLanguage lang,
 	   // The 'interactive' flag is ignored when fileName != ""
-	   bool interactive = true,
+	   bool interactive = true, bool showPrompt = true,
 	   const std::string& fileName = "");
     Parser(ValidityChecker* vc, Translator* translator, InputLanguage lang, std::istream& is,
-	   bool interactive = false);
+	   bool interactive = false, bool showPrompt = true);
     // Destructor
     ~Parser();
     // Read the next command.  

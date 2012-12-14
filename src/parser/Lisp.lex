@@ -40,10 +40,12 @@ static int Lispinput(std::istream& is, char* buf, int size) {
     // If interactive, read line by line; otherwise read as much as we
     // can gobble
     if(CVC3::parserTemp->interactive) {
-      // Print the current prompt
-      std::cout << CVC3::parserTemp->getPrompt() << std::flush;
-      // Set the prompt to "middle of the command" one
-      CVC3::parserTemp->setPrompt2();
+      if(CVC3::parserTemp->showPrompt) {
+        // Print the current prompt
+        std::cout << CVC3::parserTemp->getPrompt() << std::flush;
+        // Set the prompt to "middle of the command" one
+        CVC3::parserTemp->setPrompt2();
+      }
       // Read the line
       is.getline(buf, size-1);
     } else // Set the terminator char to 0
