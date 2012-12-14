@@ -3,6 +3,7 @@ INCLUDE: "type.h"
 INCLUDE: "theory_array.h"
 INCLUDE: "theory_bitvector.h"
 INCLUDE: "theory_datatype.h"
+INCLUDE: "theory_records.h"
 
 DEFINITION: Java_cvc3_Type_jniConstr
 jobject c Expr expr
@@ -27,6 +28,10 @@ return type->isBool();
 DEFINITION: Java_cvc3_Type_jniIsDatatype
 jboolean c Type type
 return ::isDatatype(*type);
+
+DEFINITION: Java_cvc3_Type_jniIsTupleType
+jboolean c Type type
+return type->getExpr().getKind() == TUPLE_TYPE;
 
 DEFINITION: Java_cvc3_Type_jniIsFunction
 jboolean c Type type

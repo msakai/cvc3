@@ -13,6 +13,8 @@ public class Type extends Embedded {
     private static native boolean
 	jniIsDatatype(Object Type) throws Cvc3Exception;
     private static native boolean
+	jniIsTupleType(Object Type) throws Cvc3Exception;
+    private static native boolean
 	jniIsFunction(Object Type) throws Cvc3Exception;
     private static native boolean
 	jniIsNull(Object Type) throws Cvc3Exception;
@@ -64,6 +66,10 @@ public class Type extends Embedded {
 
     public boolean isDatatype() throws Cvc3Exception {
 	return jniIsDatatype(embedded());
+    }
+
+    public boolean isTupleType() throws Cvc3Exception {
+	return jniIsTupleType(embedded());
     }
 
     public boolean isFunction() throws Cvc3Exception {

@@ -111,6 +111,11 @@ public class Expr extends Embedded {
     private static native boolean
 	jniIsWrite(Object Expr) throws Cvc3Exception;
 
+    private static native boolean
+	jniIsTupleAccess(Object Expr) throws Cvc3Exception;
+    private static native boolean
+	jniIsTuple(Object Expr) throws Cvc3Exception;
+
     private static native String
 	jniGetName(Object Expr) throws Cvc3Exception;
     private static native String
@@ -448,6 +453,14 @@ public class Expr extends Embedded {
 
     public boolean isWrite() throws Cvc3Exception {
 	return jniIsWrite(embedded());
+    }
+
+    public boolean isTupleAccess() throws Cvc3Exception {
+	return jniIsTupleAccess(embedded());
+    }
+
+    public boolean isTuple() throws Cvc3Exception {
+	return jniIsTuple(embedded());
     }
 
     public boolean isBvLe() throws Cvc3Exception {

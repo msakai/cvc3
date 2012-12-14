@@ -2,6 +2,7 @@ INCLUDE: <expr.h>
 INCLUDE: <theory_array.h>
 INCLUDE: <theory_arith.h>
 INCLUDE: <theory_bitvector.h>
+INCLUDE: <theory_records.h>
 
 DEFINITION: Java_cvc3_Expr_jniEquals
 jboolean c Expr expr1 c Expr expr2
@@ -214,6 +215,15 @@ return expr->getKind() == READ;
 DEFINITION: Java_cvc3_Expr_jniIsWrite
 jboolean c Expr expr
 return expr->getKind() == WRITE;
+
+
+DEFINITION: Java_cvc3_Expr_jniIsTupleAccess
+jboolean c Expr expr
+return expr->isApply() && (expr->getOpKind() == TUPLE_SELECT || expr->getOpKind() == TUPLE_UPDATE);
+
+DEFINITION: Java_cvc3_Expr_jniIsTuple
+jboolean c Expr expr
+return expr->getKind() == TUPLE;
 
 
 DEFINITION: Java_cvc3_Expr_jniGetName

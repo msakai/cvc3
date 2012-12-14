@@ -148,10 +148,10 @@ public:
     { return e.isApply() &&
         (e.getOpKind() == TUPLE_SELECT || e.getOpKind() == TUPLE_UPDATE); }
   //! Test if expr is a tuple literal
-  bool isTuple(const Expr& e) { return e.isApply() && e.getOpKind() == TUPLE; }
+  bool isTuple(const Expr& e) { return e.getKind() == TUPLE; }
   //! Test if expr represents a tuple type
   bool isTupleType(const Expr& e)
-    { return e.isApply() && e.getOpKind() == TUPLE_TYPE; }
+    { return e.getKind() == TUPLE_TYPE; }
   //! Test if 'tp' is a tuple type
   bool isTupleType(const Type& tp) { return isTupleType(tp.getExpr()); }
 };  // end of class TheoryRecords
