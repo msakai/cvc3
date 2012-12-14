@@ -164,7 +164,7 @@ int main(int argc, char **argv)
       IF_DEBUG( << " (debug build)")
 	 << "\n\n";
     cout <<
-      "Copyright (C) 2003-2010 by the Board of Trustees of Leland Stanford Junior\n" 
+      "Copyright (C) 2003-2012 by the Board of Trustees of Leland Stanford Junior\n" 
       "University, New York University, and the University of Iowa.\n\n"
       "THIS SOFTWARE PROVIDED AS-IS, WITHOUT ANY WARRANTIES. "
       "USE IT AT YOUR OWN RISK.\n"
@@ -191,6 +191,11 @@ int main(int argc, char **argv)
     cerr << "*** Fatal exception: " << e << endl;
     exit(1);
   }
+
+#ifdef SMTCOMP
+  // early exit for SMT-COMP
+  exit(0);
+#endif /* SMTCOMP */
 
   IF_DEBUG(CVC3::debugger.setElapsed(runtime);)
 

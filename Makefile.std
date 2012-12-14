@@ -80,7 +80,7 @@ ifndef PLATFORM
 endif
 
 ifeq ($(SMTCOMP),1)
-  LOCAL_CXXFLAGS = -O9 -funroll-all-loops -fexpensive-optimizations
+  LOCAL_CXXFLAGS = -O9 -funroll-all-loops -fexpensive-optimizations -DSMTCOMP
   DEBUG_PLATFORM =-smtcomp
 else
 ifeq ($(OPTGDB),1)
