@@ -166,7 +166,7 @@ int main(int argc, char **argv)
       IF_DEBUG( << " (debug build)")
 	 << "\n\n";
     cout <<
-      "Copyright (C) 2003-2012 by the Board of Trustees of Leland Stanford Junior\n" 
+      "Copyright (C) 2003-2013 by the Board of Trustees of Leland Stanford Junior\n" 
       "University, New York University, and the University of Iowa.\n\n"
       "THIS SOFTWARE PROVIDED AS-IS, WITHOUT ANY WARRANTIES. "
       "USE IT AT YOUR OWN RISK.\n"

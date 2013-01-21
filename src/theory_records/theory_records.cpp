@@ -575,7 +575,10 @@ TheoryRecords::update(const Theorem& e, const Expr& d) {
       // Substitute e[1] for e[0] in d and assert the result equal to d
       Theorem thm = updateHelper(d);
       thm = transitivityRule(thm, rewrite(thm.getRHS()));
-      assertEqualities(transitivityRule(thm, find(thm.getRHS())));
+      thm = transitivityRule(thm, find(thm.getRHS()));
+      if(!thm.isRefl()) {
+        assertEqualities(thm);
+      }
     }
   }
 }
